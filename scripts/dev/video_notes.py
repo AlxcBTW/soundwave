@@ -38,6 +38,44 @@ def spacing(y: int) -> float:
     return PAD_SPACING + (86 - PAD_SPACING) * k
 
 
+def white_scores(hsv: np.ndarray, y: int, y0: int) -> list[float]:
+    """Overdrive notes are white. Share of white pixels in each lane, minus the whiteness of the gaps
+    beside it, so full-width flashes (which whiten the gaps too) don't count."""
+    half = int(spacing(y) * 0.35)
+    gap_half = int(spacing(y) * 0.08)
+    rows = hsv[y - y0 - 3 : y - y0 + 4].astype(np.int16)
+
+    def white(x0: int, x1: int) -> float:
+        roi = rows[:, x0:x1].reshape(-1, 3)
+        return float(((roi[:, 1] < 70) & (roi[:, 2] > 190)).mean()) if len(roi) else 0.0
+
+    def bright(x0: int, x1: int) -> float:
+        roi = rows[:, x0:x1, 2]
+        return float(roi.mean()) if roi.size else 0.0
+
+    out = []
+    for lane in range(5):
+        x = int(lane_x(lane, y))
+        lane_w = white(x - half, x + half)
+        gaps = []
+        dark = []
+        for side in (-1, 1):
+            gx = int(x + side * spacing(y) / 2)
+            gaps.append(white(gx - gap_half, gx + gap_half))
+            dark.append(bright(gx - gap_half, gx + gap_half))
+        # A tile is a bright bar with dark highway at both ends; streaks run across lane borders.
+        if bright(x - half, x + half) - max(dark) < 70:
+            out.append(0.0)
+            continue
+        out.append(max(0.0, lane_w - max(gaps)))
+    # Flashes and streaks whiten the whole highway or several lanes at once; tiles don't.
+    x0 = int(lane_x(0, y) - spacing(y) / 2)
+    x1 = int(lane_x(4, y) + spacing(y) / 2)
+    if white(x0, x1) > 0.2 or sum(v > 0.25 for v in out) >= 3:
+        return [0.0] * 5
+    return out
+
+
 def lane_scores(hsv: np.ndarray, y: int, y0: int) -> list[float]:
     """Share of each lane's strip at row y with that lane's colour (`hsv` starts at row y0)."""
     out = []
@@ -72,6 +110,7 @@ def main() -> None:
     cap = cv2.VideoCapture(sys.argv[1])
     fps = cap.get(cv2.CAP_PROP_FPS)
     scores = {r: [] for r in ROWS}
+    whites = {r: [] for r in ROWS}
     while True:
         ok, frame = cap.read()
         if not ok:
@@ -80,6 +119,7 @@ def main() -> None:
         hsv = cv2.cvtColor(frame[y0 : max(ROWS) + 8], cv2.COLOR_BGR2HSV)
         for r in ROWS:
             scores[r].append(lane_scores(hsv, r, y0))
+            whites[r].append(white_scores(hsv, r, y0))
     a = np.array(scores[ROWS[0]])
     b = np.array(scores[ROWS[1]])
     crossings = {r: [peaks(s[:, lane], fps) for lane in range(5)] for r, s in ((ROWS[0], a), (ROWS[1], b))}
@@ -92,6 +132,27 @@ def main() -> None:
                 delays.append((fb - max(prev)) / fps)
     dt = float(np.median(delays)) if delays else 0.05
     to_pad = dt * (PAD_Y - ROWS[1]) / (ROWS[1] - ROWS[0])
+
+    # Overdrive tiles are white. Screen glows and streaks are white too, so a white burst only
+    # counts when it scrolls like a tile: it crossed the upper row one row-delay earlier, it is
+    # never in both rows at once (tiles are shorter than the row distance), and it isn't the edge
+    # glow that lights both outer lanes together.
+    wa = np.array(whites[ROWS[0]])
+    wb = np.array(whites[ROWS[1]])
+    lag = dt * fps
+    for lane in range(5):
+        upper = peaks(wa[:, lane], fps)
+        for f in peaks(wb[:, lane], fps):
+            if wa[f, lane] > 0.2:
+                continue
+            if not any(abs(f - fa - lag) <= 1.5 for fa in upper):
+                continue
+            if wb[f, 0] > 0.2 and wb[f, 4] > 0.2 and wb[f, 1:4].max() < 0.2:
+                continue
+            if any(abs(f - fc) < 0.07 * fps for fc in crossings[ROWS[1]][lane]):
+                continue
+            crossings[ROWS[1]][lane].append(f)
+        crossings[ROWS[1]][lane].sort()
     notes = sorted(
         ({"t": round(f / fps + to_pad, 4), "lane": lane} for lane in range(5) for f in crossings[ROWS[1]][lane]),
         key=lambda n: (n["t"], n["lane"]),

@@ -40,10 +40,18 @@ it(`compare ${song} with video tiles`, () => {
   const times = [...new Set(tiles.notes.map((n) => +n.t.toFixed(3)))].sort((x, y) => x - y);
   const ours = a.vocals.map((n) => n.t);
 
-  // Offset search (ref time + offset = our time).
+  // Offset search (ref time + offset = our time): coarse against the vocal line, then fine against
+  // the expert chart (both are grid-placed, so the fine fit removes any latency in the recording).
   let best = { off: 0, m: -1 };
   for (let off = -1.5; off <= 1.5; off += 0.005) {
     const { m } = matchCount(times.map((t) => t + off), ours, 0.05);
+    if (m > best.m) best = { off, m };
+  }
+  const expertTimes = [...new Set(generateAll(a, 'vocals', song).expert.notes.map((n) => +n.t.toFixed(3)))].sort((x, y) => x - y);
+  const coarse = best.off;
+  best = { off: coarse, m: -1 };
+  for (let off = coarse - 0.06; off <= coarse + 0.06; off += 0.002) {
+    const { m } = matchCount(times.map((t) => t + off), expertTimes, 0.03);
     if (m > best.m) best = { off, m };
   }
   const off = +best.off.toFixed(3);
