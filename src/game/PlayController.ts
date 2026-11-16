@@ -15,6 +15,8 @@ export interface HudRefs {
   progress: HTMLElement;
   feedback: HTMLElement;
   root: HTMLElement;
+  /** One label per lane, positioned under its strike pad. */
+  keys: HTMLElement[];
 }
 
 export type PlayPhase = 'countdown' | 'playing' | 'paused' | 'finished';
@@ -89,12 +91,21 @@ export class PlayController {
     });
 
     window.addEventListener('resize', this.resize);
+    this.placeKeys();
   }
 
   private readonly resize = () => {
     this.highway.resize();
     this.background.resize();
+    this.placeKeys();
   };
+
+  private placeKeys() {
+    this.highway.padScreenPositions().forEach((p, i) => {
+      const el = this.hud.keys[i];
+      if (el) el.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, 0)`;
+    });
+  }
 
   async start() {
     this.setPhase('countdown');
@@ -188,7 +199,10 @@ export class PlayController {
     }
     if (s.streak !== c.streak) this.hud.streak.textContent = s.streak > 0 ? `${s.streak}` : '';
     const od = Math.round(s.overdrive * 100);
-    if (od !== c.od) this.hud.overdriveFill.style.height = `${od}%`;
+    if (od !== c.od) {
+      this.hud.overdriveFill.style.height = `${od}%`;
+      this.hud.root.classList.toggle('od-ready', od >= 25 && !s.overdriveActive);
+    }
     if (s.overdriveActive !== c.odActive) this.hud.root.classList.toggle('overdrive', s.overdriveActive);
     const stars = s.progressStars;
     if (stars !== c.stars) this.hud.stars.textContent = '★'.repeat(stars) + '☆'.repeat(5 - stars);

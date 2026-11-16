@@ -6,12 +6,13 @@ import { isAudioFile, readSongFile } from '../audio/importSong';
 import { DEMO_ID, forgetSongBuffer, loadSongBuffer } from '../audio/songAudio';
 import type { Results } from '../game/GameSession';
 import { demoChart } from '../game/demo';
-import { loadSettings } from '../game/settings';
+import { loadSettings, saveSettings, type Settings } from '../game/settings';
 import { deleteSong, getSong, listSongs, putSong, submitScore, type SongMeta } from '../storage/db';
 import { LibraryScreen, type SongStatus } from './LibraryScreen';
 import { MenuBackground } from './MenuBackground';
 import { PlayScreen } from './PlayScreen';
 import { ResultsScreen } from './ResultsScreen';
+import { SettingsScreen } from './SettingsScreen';
 import { SongDetail } from './SongDetail';
 import { Toasts, useToasts } from './Toasts';
 
@@ -28,6 +29,7 @@ const DEMO_SONG: SongMeta = {
 
 type View =
   | { name: 'library' }
+  | { name: 'settings'; back: View }
   | { name: 'detail'; song: SongMeta }
   | { name: 'play'; song: SongMeta; buffer: AudioBuffer; chart: Chart; key: number }
   | { name: 'results'; song: SongMeta; buffer: AudioBuffer; chart: Chart; results: Results; best?: number };
@@ -36,7 +38,11 @@ export function App() {
   const [view, setView] = useState<View>({ name: 'library' });
   const [songs, setSongs] = useState<SongMeta[]>([]);
   const [importing, setImporting] = useState(0);
-  const settings = useMemo(loadSettings, []);
+  const [settings, setSettings] = useState<Settings>(loadSettings);
+  const updateSettings = useCallback((s: Settings) => {
+    setSettings(s);
+    saveSettings(s);
+  }, []);
   const toasts = useToasts();
   const { push: toast } = toasts;
 
@@ -191,14 +197,16 @@ export function App() {
     content = (
       <div className="menu">
         <MenuBackground />
-        {view.name === 'library' ? (
+        {view.name === 'settings' ? (
+          <SettingsScreen settings={settings} mlStatus="off" onChange={updateSettings} onBack={() => setView(view.back)} />
+        ) : view.name === 'library' ? (
           <LibraryScreen
             songs={songs}
             status={status}
             importing={importing}
             onImport={(f) => void importFiles(f)}
             onOpen={(song) => setView({ name: 'detail', song })}
-            onSettings={() => toast('Settings are coming soon.')}
+            onSettings={() => setView({ name: 'settings', back: view })}
           />
         ) : (
           <SongDetail

@@ -37,6 +37,7 @@ export function PlayScreen({ title, buffer, chart, settings, onFinish, onQuit }:
       stars: q('[data-hud=stars]'),
       progress: q('[data-hud=progress]'),
       feedback: q('[data-hud=feedback]'),
+      keys: Array.from(root.querySelectorAll<HTMLElement>('.lane-key')),
     });
     ctrl.onPhase = (p, n) => {
       setPhase(p);
@@ -75,9 +76,7 @@ export function PlayScreen({ title, buffer, chart, settings, onFinish, onQuit }:
           <div className="hud-od-key">{keyLabel(settings.overdriveKey)}</div>
         </div>
         <div className="hud-feedback" data-hud="feedback" />
-        <div className="hud-keys" style={{ ['--lanes' as string]: chart.lanes }}>
-          {keys.map((k, i) => <span key={i} className={`lane-key lane-${i}`}>{keyLabel(k)}</span>)}
-        </div>
+        {keys.map((k, i) => <span key={i} className={`lane-key lane-${i}`}>{keyLabel(k)}</span>)}
       </div>
       {phase === 'countdown' && count > 0 && <div className="countdown" key={count}>{count}</div>}
       {phase === 'paused' && (

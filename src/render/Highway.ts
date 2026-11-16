@@ -195,8 +195,8 @@ export class Highway {
     }
 
     // Gems: beveled rounded tiles with a glossy top highlight.
-    const gemGeo = new THREE.ExtrudeGeometry(roundedRect(0.8, 0.3, 0.1), {
-      depth: 0.08,
+    const gemGeo = new THREE.ExtrudeGeometry(roundedRect(0.8, 0.34, 0.11), {
+      depth: 0.1,
       bevelEnabled: true,
       bevelThickness: 0.04,
       bevelSize: 0.035,
@@ -216,7 +216,7 @@ export class Highway {
 
     const shineGeo = new THREE.ShapeGeometry(roundedRect(0.6, 0.1, 0.05));
     shineGeo.rotateX(-Math.PI / 2);
-    shineGeo.translate(0, 0.165, -0.05);
+    shineGeo.translate(0, 0.185, -0.06);
     this.shines = new THREE.InstancedMesh(
       shineGeo,
       new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false }),
@@ -287,9 +287,20 @@ export class Highway {
     // Fit the highway width; 5 lanes pull the camera back a little.
     const back = this.lanes === 5 ? 1.12 : 1;
     const narrow = Math.max(1, 1.5 / this.camera.aspect);
-    this.camera.position.set(0, 3.3 * back * narrow, 4.1 * back * narrow);
-    this.camera.lookAt(0, 0, -7);
+    this.camera.position.set(0, 3.6 * back * narrow, 6 * back * narrow);
+    this.camera.lookAt(0, 0, -7.5);
     this.camera.updateProjectionMatrix();
+  }
+
+  /** Screen positions (CSS px, relative to the canvas) just in front of each strike pad. */
+  padScreenPositions(): { x: number; y: number }[] {
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    this.camera.updateMatrixWorld();
+    return Array.from({ length: this.lanes }, (_, i) => {
+      const p = new THREE.Vector3(this.laneX(i), 0, 0.42).project(this.camera);
+      return { x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h };
+    });
   }
 
   setLaneDown(lane: number, down: boolean) {
