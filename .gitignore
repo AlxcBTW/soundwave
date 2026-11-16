@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+.vite/
+src-tauri/target/
+src-tauri/gen/
+ml-service/.venv/
+ml-service/venv/
+__pycache__/
+*.pyc
+test-results/
+playwright-report/
