@@ -1,0 +1,209 @@
+import type { Chart } from '../chart/types';
+import { AudioEngine } from '../audio/AudioEngine';
+import { Background2D } from '../render/Background2D';
+import { Highway } from '../render/Highway';
+import { GameSession, type Results } from './GameSession';
+import { KeyboardInput } from './input';
+import type { Settings } from './settings';
+
+export interface HudRefs {
+  score: HTMLElement;
+  multiplier: HTMLElement;
+  streak: HTMLElement;
+  overdriveFill: HTMLElement;
+  stars: HTMLElement;
+  progress: HTMLElement;
+  feedback: HTMLElement;
+  root: HTMLElement;
+}
+
+export type PlayPhase = 'countdown' | 'playing' | 'paused' | 'finished';
+
+const LEAD_IN = 3;
+
+/**
+ * Drives one play-through: audio, input, session and both renderers. Lives outside React
+ * so the frame loop never triggers re-renders; React only sees phase changes and results.
+ */
+export class PlayController {
+  readonly session: GameSession;
+  private readonly highway: Highway;
+  private readonly background: Background2D;
+  private readonly input: KeyboardInput;
+  private raf = 0;
+  private phase: PlayPhase = 'countdown';
+  private lastBeat = -1;
+  private beatPulse = 0;
+  private hudCache = { score: -1, mult: -1, streak: -1, od: -1, stars: -1, odActive: false };
+  private feedbackTimer = 0;
+  private disposed = false;
+  private lastCount = -1;
+  private readonly downbeats: Set<number>;
+
+  onPhase: (p: PlayPhase, countdown?: number) => void = () => {};
+  onFinish: (r: Results) => void = () => {};
+
+  constructor(
+    private readonly engine: AudioEngine,
+    buffer: AudioBuffer,
+    private readonly chart: Chart,
+    settings: Settings,
+    highwayCanvas: HTMLCanvasElement,
+    backgroundCanvas: HTMLCanvasElement,
+    private readonly hud: HudRefs,
+  ) {
+    engine.load(buffer);
+    engine.offset = settings.offsetMs / 1000;
+    engine.volume = settings.volume;
+    engine.onEnded = () => this.finish();
+
+    this.downbeats = new Set(chart.downbeats);
+    this.session = new GameSession(chart);
+    this.highway = new Highway(highwayCanvas, chart);
+    this.highway.speed = settings.noteSpeed;
+    this.highway.attach(this.session);
+    this.background = new Background2D(backgroundCanvas);
+    this.background.setAnalyser(engine.analyser);
+
+    this.session.on((e) => {
+      if (e.type === 'hit') this.flashFeedback(e.grade.toUpperCase(), e.grade);
+      else if (e.type === 'miss') this.flashFeedback('MISS', 'miss');
+      else if (e.type === 'overdrive-start') this.background.kick(1.2);
+      else if (e.type === 'phrase-complete') this.flashFeedback('OVERDRIVE READY', 'od');
+    });
+
+    const keys = chart.lanes === 5 ? settings.keys5 : settings.keys4;
+    this.input = new KeyboardInput(keys, settings.overdriveKey, {
+      press: (lane, ts) => {
+        if (this.phase !== 'playing') return;
+        this.session.press(lane, this.engine.time(ts));
+      },
+      release: (lane, ts) => {
+        if (this.phase !== 'playing') return;
+        this.session.release(lane, this.engine.time(ts));
+      },
+      overdrive: () => {
+        if (this.phase === 'playing') this.session.activateOverdrive();
+      },
+      pause: () => (this.phase === 'paused' ? this.resume() : this.pause()),
+    });
+
+    window.addEventListener('resize', this.resize);
+  }
+
+  private readonly resize = () => {
+    this.highway.resize();
+    this.background.resize();
+  };
+
+  async start() {
+    this.setPhase('countdown');
+    await this.engine.play(-LEAD_IN, 0.05);
+    this.loop();
+  }
+
+  pause() {
+    if (this.phase !== 'playing' && this.phase !== 'countdown') return;
+    this.engine.pause();
+    this.setPhase('paused');
+  }
+
+  async resume() {
+    if (this.phase !== 'paused') return;
+    // Rewind slightly so the player can re-enter the groove.
+    const at = Math.max(-LEAD_IN, this.engine.time() - 1.5);
+    for (let l = 0; l < this.chart.lanes; l++) this.session.release(l, this.engine.time());
+    await this.engine.play(at, 0.05);
+    this.highway.reset();
+    this.lastCount = -1;
+    this.lastBeat = -1;
+    while (this.lastBeat + 1 < this.chart.beats.length && this.chart.beats[this.lastBeat + 1] <= at) this.lastBeat++;
+    this.setPhase(at < 0 ? 'countdown' : 'playing');
+  }
+
+  private setPhase(p: PlayPhase, countdown?: number) {
+    this.phase = p;
+    this.onPhase(p, countdown);
+  }
+
+  private finish() {
+    if (this.phase === 'finished') return;
+    this.session.update(Number.POSITIVE_INFINITY);
+    this.setPhase('finished');
+    this.onFinish(this.session.results());
+  }
+
+  private loop = () => {
+    if (this.disposed) return;
+    this.raf = requestAnimationFrame(this.loop);
+    const t = this.engine.time();
+
+    if (this.phase === 'countdown') {
+      const n = Math.ceil(-t);
+      if (t >= 0) this.setPhase('playing');
+      else if (n !== this.lastCount) {
+        this.lastCount = n;
+        this.onPhase('countdown', n);
+      }
+    }
+    if (this.phase === 'playing') {
+      this.session.update(t);
+      if (t > this.chart.duration + 0.5 && t > this.engine.duration) this.finish();
+    }
+
+    // Beat accents for the track glow and background.
+    const beats = this.chart.beats;
+    while (this.lastBeat + 1 < beats.length && beats[this.lastBeat + 1] <= t) {
+      this.lastBeat++;
+      this.beatPulse = 1;
+      if (this.downbeats.has(this.lastBeat)) this.background.kick(0.6);
+    }
+    this.beatPulse = Math.max(0, this.beatPulse - 0.08);
+
+    this.background.render();
+    this.highway.render(t, this.session, this.beatPulse * 0.5 + this.background.bands.low * 0.5);
+    this.updateHud(t);
+  };
+
+  private flashFeedback(text: string, kind: string) {
+    const el = this.hud.feedback;
+    el.textContent = text;
+    el.dataset.kind = kind;
+    el.classList.remove('pop');
+    void el.offsetWidth;
+    el.classList.add('pop');
+    clearTimeout(this.feedbackTimer);
+    this.feedbackTimer = window.setTimeout(() => el.classList.remove('pop'), 450);
+  }
+
+  private updateHud(t: number) {
+    const s = this.session;
+    const c = this.hudCache;
+    const score = Math.round(s.score);
+    if (score !== c.score) this.hud.score.textContent = score.toLocaleString();
+    const mult = s.multiplier;
+    if (mult !== c.mult) {
+      this.hud.multiplier.textContent = `×${mult}`;
+      this.hud.multiplier.dataset.level = String(Math.min(mult, 8));
+    }
+    if (s.streak !== c.streak) this.hud.streak.textContent = s.streak > 0 ? `${s.streak}` : '';
+    const od = Math.round(s.overdrive * 100);
+    if (od !== c.od) this.hud.overdriveFill.style.height = `${od}%`;
+    if (s.overdriveActive !== c.odActive) this.hud.root.classList.toggle('overdrive', s.overdriveActive);
+    const stars = s.progressStars;
+    if (stars !== c.stars) this.hud.stars.textContent = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+    this.hud.progress.style.width = `${Math.max(0, Math.min(1, t / this.chart.duration)) * 100}%`;
+    Object.assign(c, { score, mult, streak: s.streak, od, stars, odActive: s.overdriveActive });
+  }
+
+  dispose() {
+    this.disposed = true;
+    cancelAnimationFrame(this.raf);
+    clearTimeout(this.feedbackTimer);
+    window.removeEventListener('resize', this.resize);
+    this.input.dispose();
+    this.engine.stop();
+    this.engine.onEnded = null;
+    this.highway.dispose();
+  }
+}
