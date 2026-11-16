@@ -439,7 +439,7 @@ export function generateAll(a: AnalysisResult, part: Part, seedKey = ''): Record
     const evs = drums ? reduceRhythm(reduceDrums(source, d), p, spb, true, a.downbeats) : reduceRhythm(source, p, spb, false, a.downbeats);
     const notes = drums
       ? drumNotes(evs, p, d)
-      : pitchedNotes(evs, p, d, a.downbeats, sectionStarts, { lanes: p.pitchedLanes, partLo, partHi, memo: new Map() });
+      : pitchedNotes(evs, p, d, a.downbeats, sectionStarts, { lanes: p.pitchedLanes, partLo, partHi, memo: new Map() }, part === 'vocals');
     const timed: Note[] = notes.map((n) => ({ ...n, t: grid.time(n.t), dur: n.dur > 0 ? grid.time(n.t + n.dur) - grid.time(n.t) : 0 }));
     timed.sort((x, y) => x.t - y.t || x.lane - y.lane);
     const clean = validate(timed, p.lanes, p, spb);
@@ -464,6 +464,26 @@ export function generateAll(a: AnalysisResult, part: Part, seedKey = ''): Record
   return out;
 }
 
+/**
+ * Sung repeats bounce: syllables chanted on one pitch would otherwise hammer a single lane. A fast
+ * repeat (within a beat) stays on the pitch's lane when it falls on the beat and moves to a partner
+ * lane two over (towards the centre) off the beat, so the lanes carry the rhythm, as human vocal
+ * charts do. Deterministic from the rhythm, so repeated phrases still chart the same.
+ */
+function bounce(evs: Ev[], lanes: number[], laneCount: number) {
+  const home = [...lanes];
+  for (let i = 1; i < evs.length; i++) {
+    const e = evs[i];
+    const prev = evs[i - 1];
+    if (e.midi !== prev.midi || e.pos - prev.pos > 1 + EPS) continue;
+    if (isMultiple(e.pos, 1)) continue;
+    const h = home[i];
+    const toCentre = h < (laneCount - 1) / 2 ? 2 : -2;
+    const partner = h + toCentre >= 0 && h + toCentre < laneCount ? h + toCentre : h - toCentre;
+    if (partner >= 0 && partner < laneCount) lanes[i] = partner;
+  }
+}
+
 /** Notes in beat positions (t and dur are positions here; converted to seconds by the caller). */
 function pitchedNotes(
   evs: Ev[],
@@ -472,6 +492,7 @@ function pitchedNotes(
   downbeats: number[],
   sectionStarts: number[],
   ctx: PhraseCtx,
+  bounceRepeats = false,
 ): Note[] {
   // Every difficulty follows the same (top) note, so lanes move the same way on all of them.
   const melody = evs.map((e) => e.midi);
@@ -481,6 +502,7 @@ function pitchedNotes(
     sectionStarts,
     ctx,
   );
+  if (bounceRepeats) bounce(evs, lanes, ctx.lanes);
   // Chord budget: the most important stabs (beat position, then length) up to the profile's rate.
   // A score threshold instead of a count keeps repeated stabs consistent.
   const chordScore = (e: Ev) => metricWeight(e.pos, downbeats) + 0.5 * Math.min(1, e.len / 2);
