@@ -1,13 +1,15 @@
 /// <reference lib="webworker" />
 import { analyzeSignal } from './pipeline';
 import { transcribe } from './pitch/basicPitch';
-import type { AnalysisProgress, AnalysisResult, PitchedNote } from './types';
+import type { AnalysisProgress, AnalysisResult, PartLines, PitchedNote } from './types';
 
 export type WorkerRequest = {
   type: 'analyze';
   signal: Float32Array;
   modelUrl: string;
   useTranscriber: boolean;
+  lines?: PartLines;
+  drumSignal?: Float32Array;
 };
 
 export type WorkerResponse =
@@ -68,7 +70,9 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
     const result = await analyzeSignal(req.signal, {
       onProgress: (progress) => post({ type: 'progress', progress }),
       onLog: (message) => post({ type: 'log', message }),
-      transcriber: req.useTranscriber
+      lines: req.lines,
+      drumSignal: req.drumSignal,
+      transcriber: req.useTranscriber && !req.lines
         ? (audio, onProgress) => guardedTranscribe(audio, req.modelUrl, onProgress, Math.max(90_000, duration * 1500))
         : undefined,
     });

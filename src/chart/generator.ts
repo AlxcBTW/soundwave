@@ -122,7 +122,7 @@ const kindOrder = (k: DrumKind) => (k === 'kick' ? 0 : k === 'snare' ? 1 : 2);
 // Reductions: each difficulty simplifies the one above it.
 
 /** Keeps events on the profile's grid; lone off-grid notes move to the nearest free grid slot. */
-function reduceRhythm(evs: Ev[], p: DifficultyProfile, spb: number, drums: boolean): Ev[] {
+function reduceRhythm(evs: Ev[], p: DifficultyProfile, spb: number, drums: boolean, downbeats: number[]): Ev[] {
   const step = 1 / p.grid;
   const kept = new Map<number, Ev[]>();
   const key = (pos: number) => Math.round(pos * 48);
@@ -152,7 +152,32 @@ function reduceRhythm(evs: Ev[], p: DifficultyProfile, spb: number, drums: boole
     }
     out.push([k, list]);
   }
-  return out.flatMap(([, list]) => list);
+  // Density cap per bar: keep the strongest, most on-beat note times.
+  const bars = new Map<number, [number, Ev[]][]>();
+  for (const entry of out) {
+    const b = barIndex(entry[0] / 48, downbeats);
+    bars.set(b, [...(bars.get(b) ?? []), entry]);
+  }
+  const keep = new Set<number>();
+  for (const entries of bars.values()) {
+    const ranked = [...entries].sort((x, y) => weight(y[0] / 48, y[1]) - weight(x[0] / 48, x[1]));
+    for (const [k] of ranked.slice(0, p.maxPerBar)) keep.add(k);
+  }
+  return out.filter(([k]) => keep.has(k)).flatMap(([, list]) => list);
+}
+
+/** Index of the bar containing a beat position (-1 before the first downbeat). */
+function barIndex(pos: number, downbeats: number[]): number {
+  if (!downbeats.length) return Math.floor(pos / 4);
+  if (pos < downbeats[0] - EPS) return -1;
+  let lo = 0;
+  let hi = downbeats.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (downbeats[mid] <= pos + EPS) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
 }
 
 function reduceDrums(evs: Ev[], d: Difficulty): Ev[] {
@@ -342,7 +367,7 @@ export function generateAll(a: AnalysisResult, part: Part, seedKey = ''): Record
   let source = expertEvs;
   for (const d of [...DIFFICULTIES].reverse()) {
     const p = PROFILES[d];
-    const evs = drums ? reduceRhythm(reduceDrums(source, d), p, spb, true) : reduceRhythm(source, p, spb, false);
+    const evs = drums ? reduceRhythm(reduceDrums(source, d), p, spb, true, a.downbeats) : reduceRhythm(source, p, spb, false, a.downbeats);
     const notes = drums
       ? drumNotes(evs, p, d)
       : pitchedNotes(evs, p, d, a.downbeats, { lanes: p.lanes, partLo, partHi, memo: new Map() });
@@ -382,10 +407,13 @@ function pitchedNotes(evs: Ev[], p: DifficultyProfile, d: Difficulty, downbeats:
   const notes: Note[] = [];
   evs.forEach((e, i) => {
     const next = evs[i + 1];
-    let len = e.len >= p.sustainBeats ? e.len : 0;
+    // Chords and their sustains are reserved for the right places on each difficulty.
+    const chordHere = !!e.chord && p.maxChord >= 2 && d !== 'easy' && isMultiple(e.pos, p.chordGrid);
+    const minLen = chordHere ? Math.max(p.sustainBeats, 1.5) : p.sustainBeats;
+    let len = e.len >= minLen ? e.len : 0;
     if (len && next) len = Math.min(len, next.pos - e.pos - p.sustainGapBeats);
-    if (len < p.sustainBeats * 0.75) len = 0;
-    const shape = e.chord && p.maxChord >= 2 && d !== 'easy' ? chordShape(lanes[i], e.chord, p) : [lanes[i]];
+    if (len < minLen * 0.75) len = 0;
+    const shape = chordHere ? chordShape(lanes[i], e.chord!, p) : [lanes[i]];
     for (const lane of new Set(shape)) notes.push({ t: e.pos, lane, dur: len, phrase: -1 });
   });
   return notes;

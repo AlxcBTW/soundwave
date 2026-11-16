@@ -15,6 +15,7 @@ import {
   type AnalysisStep,
   type DrumHit,
   type DrumKind,
+  type PartLines,
   type PitchedNote,
 } from './types';
 
@@ -25,6 +26,10 @@ export interface PipelineOptions {
   transcriber?: Transcriber;
   onProgress?: (p: AnalysisProgress) => void;
   onLog?: (msg: string) => void;
+  /** Lines from separated stems; when given, transcription is skipped. */
+  lines?: PartLines;
+  /** Isolated drum stem (same rate and length as the mix) for cleaner drum detection. */
+  drumSignal?: Float32Array;
 }
 
 const NFFT = 2048;
@@ -75,7 +80,14 @@ export async function analyzeSignal(signal: Float32Array, opts: PipelineOptions 
   // Drop beats the tracker invented in silence.
   beats = beats.filter((t) => (rms[Math.min(rms.length - 1, Math.round(t * fps))] ?? 0) > 0.06);
   report('rhythm', 0.6);
-  const drums = detectDrums(percussive, spec, fps, signal, spec.mag);
+  let drums: DrumHit[];
+  if (opts.drumSignal) {
+    // A separated drum stem is already "percussive": detect on its own spectrum.
+    const drumSpec = stft(opts.drumSignal, sr, NFFT, HOP);
+    drums = detectDrums(drumSpec.mag, drumSpec, fps, opts.drumSignal, drumSpec.mag);
+  } else {
+    drums = detectDrums(percussive, spec, fps, signal, spec.mag);
+  }
   // Align the grid with the actual attacks, then extend it at constant tempo to cover the song.
   beats = extendGrid(calibrateBeats(beats, drums), duration);
   report('rhythm', 1);
@@ -104,7 +116,10 @@ export async function analyzeSignal(signal: Float32Array, opts: PipelineOptions 
   let lead: PitchedNote[] = [];
   let vocals: PitchedNote[] = [];
   let pitchSource: AnalysisResult['pitchSource'] = 'salience';
-  if (opts.transcriber) {
+  if (opts.lines) {
+    ({ bass, lead, vocals } = opts.lines);
+    pitchSource = 'ml';
+  } else if (opts.transcriber) {
     try {
       const notes = await opts.transcriber(signal, (p) => report('melody', p * 0.9));
       ({ bass, lead, vocals } = separateParts(notes, duration));
@@ -116,10 +131,10 @@ export async function analyzeSignal(signal: Float32Array, opts: PipelineOptions 
   }
   const harmOnsets = (lo: number, hi: number) =>
     new Set(pickPeaks(normalize(bandFlux(harmonic, spec, lo, hi)), { maxWin: 2, avgWin: 10, delta: 0.1, wait: 3 }));
-  if (bass.length < duration * 0.1) {
+  if (!opts.lines && bass.length < duration * 0.1) {
     bass = salienceLine(harmonic, spec, 28, BASS_SPLIT - 1, harmOnsets(30, 260), 0.45);
   }
-  if (lead.length < duration * 0.1 && vocals.length < duration * 0.2) {
+  if (!opts.lines && lead.length < duration * 0.1 && vocals.length < duration * 0.2) {
     lead = salienceLine(harmonic, spec, BASS_SPLIT, 88, harmOnsets(250, 4000), 0.5);
     if (pitchSource === 'basic-pitch') pitchSource = 'salience';
     // Without a transcriber the best guess for the voice is the same melodic line.
@@ -153,7 +168,7 @@ export async function analyzeSignal(signal: Float32Array, opts: PipelineOptions 
 
   const result: AnalysisResult = {
     version: ANALYSIS_VERSION,
-    source: 'local',
+    source: opts.lines ? 'ml' : 'local',
     duration: round3(duration),
     tempo: Math.round(tempo * 100) / 100,
     beats: beats.map(round3),

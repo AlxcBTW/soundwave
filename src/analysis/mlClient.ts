@@ -1,6 +1,6 @@
 import { getAudio, getSong } from '../storage/db';
 import { isAnalysisResult, type AnalysisResult } from './types';
-import type { RemoteAnalyzer } from './manager';
+import type { RemoteAnalyzer, RemoteResult } from './manager';
 
 export interface MlHealth {
   ok: boolean;
@@ -58,7 +58,13 @@ export function mlAnalyzer(url: string): RemoteAnalyzer {
       if (job.state === 'error') throw new Error(job.error ?? 'analysis service failed');
       if (job.state === 'done') {
         if (!isAnalysisResult(job.result)) throw new Error('analysis service returned an invalid result');
-        return job.result as AnalysisResult;
+        const out: RemoteResult = { result: job.result as AnalysisResult };
+        if ((job.result as { drumStem?: boolean }).drumStem) {
+          onProgress(1, 'Downloading drums');
+          const stem = await fetch(`${base}/jobs/${id}/drums.wav`, { signal });
+          if (stem.ok) out.drumStem = await stem.arrayBuffer();
+        }
+        return out;
       }
       onProgress(job.progress ?? 0, job.step ?? 'Analyzing');
     }

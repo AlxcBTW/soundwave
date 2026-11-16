@@ -67,6 +67,13 @@ export interface AnalysisResult {
   pitchSource: 'basic-pitch' | 'salience' | 'ml';
 }
 
+/** Instrument lines computed elsewhere (e.g. from separated stems by the ML service). */
+export interface PartLines {
+  bass: PitchedNote[];
+  lead: PitchedNote[];
+  vocals: PitchedNote[];
+}
+
 export type AnalysisStep = 'decoding' | 'spectrum' | 'separating' | 'rhythm' | 'harmony' | 'melody' | 'finishing';
 
 export interface AnalysisProgress {

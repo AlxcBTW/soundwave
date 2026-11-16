@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { it } from 'vitest';
 import { analyzeSignal } from '../../src/analysis/pipeline';
 import { transcribe } from '../../src/analysis/pitch/basicPitch';
-import type { PitchedNote } from '../../src/analysis/types';
+import type { AnalysisResult, PitchedNote } from '../../src/analysis/types';
 import { generateChart } from '../../src/chart/generator';
 import { DIFFICULTIES, PARTS } from '../../src/chart/types';
 
@@ -42,6 +42,8 @@ function modelHandler() {
 }
 
 it(`analyze ${song}`, async () => {
+  // ANALYSIS=ml reports on a result saved from the ML service (local-audio/<song>.ml.json).
+  if (process.env.ANALYSIS === 'ml') return report(JSON.parse(readFileSync(join(dir, `${song}.ml.json`), 'utf8')), `${song}.ml`);
   const raw = readFileSync(join(dir, `${song}.f32`));
   const signal = new Float32Array(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
   const cachePath = join(dir, `${song}.notes.json`);
@@ -56,6 +58,10 @@ it(`analyze ${song}`, async () => {
   }
   const a = await analyzeSignal(signal, { transcriber: async () => notes, onLog: (m) => console.log(m) });
   writeFileSync(join(dir, `${song}.analysis.json`), JSON.stringify(a));
+  report(a, song);
+});
+
+function report(a: AnalysisResult, name: string) {
 
   const spb = 60 / a.tempo;
   const bars = a.downbeats.map((i) => a.beats[i]);
@@ -85,6 +91,6 @@ it(`analyze ${song}`, async () => {
       }
     }
   }
-  writeFileSync(join(dir, `${song}.report.txt`), lines.join('\n'));
+  writeFileSync(join(dir, `${name}.report.txt`), lines.join('\n'));
   console.log(lines.join('\n'));
-});
+}

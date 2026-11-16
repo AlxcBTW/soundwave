@@ -2,7 +2,7 @@ import { loadSongBuffer } from '../audio/songAudio';
 import { generateAll } from '../chart/generator';
 import type { Chart, Difficulty, Part } from '../chart/types';
 import { analysisKey, deleteAnalyses, getAnalysis, putAnalysis } from '../storage/db';
-import { ANALYSIS_SAMPLE_RATE, ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult, type AnalysisStep } from './types';
+import { ANALYSIS_SAMPLE_RATE, ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult, type AnalysisStep, type PartLines } from './types';
 import type { WorkerRequest, WorkerResponse } from './worker';
 
 export interface AnalysisStatus {
@@ -22,18 +22,32 @@ const STEP_LABEL: Record<AnalysisStep, string> = {
   finishing: 'Charting',
 };
 
+/** What the optional ML service contributes: lines from separated stems and the drum stem. */
+export interface RemoteResult {
+  result: AnalysisResult;
+  /** WAV bytes of the isolated drums, when the service separated stems. */
+  drumStem?: ArrayBuffer;
+}
+
 /** Pluggable remote analyzer (the optional ML service). Returns null when unavailable. */
 export type RemoteAnalyzer = (
   songId: string,
   onProgress: (p: number, label: string) => void,
   signal: AbortSignal,
-) => Promise<AnalysisResult | null>;
+) => Promise<RemoteResult | null>;
+
+/** Help for the in-app analyzer from the ML service. */
+export interface Assist {
+  lines: PartLines;
+  drumStem?: ArrayBuffer;
+}
 
 /** In-app analyzer: decode, then run the DSP/transcription pipeline in a worker. */
 export type LocalAnalyzer = (
   songId: string,
   onProgress: (p: { step: AnalysisStep; progress: number }) => void,
   signal: AbortSignal,
+  assist?: Assist,
 ) => Promise<AnalysisResult>;
 
 const abortError = () => new DOMException('analysis cancelled', 'AbortError');
@@ -153,18 +167,27 @@ export class AnalysisManager {
     const progress = (s: AnalysisStatus) => {
       if (!signal.aborted) this.set(id, s);
     };
+    // The ML service separates stems and transcribes each one; the in-app pipeline then adds the
+    // rhythm (beat grid, drums from the drum stem) and structure around those lines.
+    let assist: Assist | undefined;
     if (this.remote) {
       try {
-        const r = await this.remote(id, (p, step) => progress({ state: 'analyzing', progress: p, step }), signal);
-        if (r) return r;
+        const r = await this.remote(id, (p, step) => progress({ state: 'analyzing', progress: p * 0.6, step }), signal);
+        if (r) assist = { lines: { bass: r.result.bass, lead: r.result.lead, vocals: r.result.vocals ?? [] }, drumStem: r.drumStem };
       } catch (e) {
         if (signal.aborted) throw abortError();
         console.warn('remote analysis failed, using in-app analysis', e);
       }
     }
     if (signal.aborted) throw abortError();
-    progress({ state: 'analyzing', progress: 0, step: STEP_LABEL.decoding });
-    return this.local(id, (p) => progress({ state: 'analyzing', progress: p.progress, step: STEP_LABEL[p.step] }), signal);
+    const base = assist ? 0.6 : 0;
+    progress({ state: 'analyzing', progress: base, step: STEP_LABEL.decoding });
+    return this.local(
+      id,
+      (p) => progress({ state: 'analyzing', progress: base + p.progress * (1 - base), step: STEP_LABEL[p.step] }),
+      signal,
+      assist,
+    );
   }
 
   async analysis(id: string): Promise<AnalysisResult | undefined> {
@@ -184,12 +207,23 @@ export class AnalysisManager {
   }
 }
 
-const localAnalyzer: LocalAnalyzer = async (id, onProgress, signal) => {
+const localAnalyzer: LocalAnalyzer = async (id, onProgress, signal, assist) => {
   const buffer = await loadSongBuffer(id);
   if (signal.aborted) throw abortError();
   const audio = await toAnalysisSignal(buffer);
   if (signal.aborted) throw abortError();
-  return runWorker(audio, onProgress, signal);
+  let drumSignal: Float32Array | undefined;
+  if (assist?.drumStem) {
+    try {
+      // Decoding into a 22.05 kHz context resamples the stem to the analysis rate.
+      const decoded = await new OfflineAudioContext(1, 1, ANALYSIS_SAMPLE_RATE).decodeAudioData(assist.drumStem);
+      drumSignal = new Float32Array(audio.length);
+      drumSignal.set(decoded.getChannelData(0).subarray(0, audio.length));
+    } catch (e) {
+      console.warn('could not decode the drum stem; detecting drums on the full mix', e);
+    }
+  }
+  return runWorker(audio, onProgress, signal, assist?.lines, drumSignal);
 };
 
 /** Mono, 22.05 kHz copy of the song for analysis. */
@@ -208,6 +242,8 @@ function runWorker(
   signal: Float32Array,
   onProgress: (p: { step: AnalysisStep; progress: number }) => void,
   abort: AbortSignal,
+  lines?: PartLines,
+  drumSignal?: Float32Array,
 ): Promise<AnalysisResult> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
@@ -237,9 +273,11 @@ function runWorker(
       type: 'analyze',
       signal,
       modelUrl: new URL(`${import.meta.env.BASE_URL}models/basic-pitch/model.json`, location.href).href,
-      useTranscriber: true,
+      useTranscriber: !lines,
+      lines,
+      drumSignal,
     };
-    worker.postMessage(req, [signal.buffer]);
+    worker.postMessage(req, drumSignal ? [signal.buffer, drumSignal.buffer] : [signal.buffer]);
   });
 }
 

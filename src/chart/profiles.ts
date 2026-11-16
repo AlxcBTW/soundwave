@@ -20,11 +20,15 @@ export interface DifficultyProfile {
   sustainBeats: number;
   /** Silence left between a sustain's end and the next note, in beats. */
   sustainGapBeats: number;
+  /** Most note times per bar (chords count once); the weakest off-beats go first. */
+  maxPerBar: number;
+  /** Chords only on this grid (1 = on the beat, 0.5 = eighths, 0.25 = anywhere). */
+  chordGrid: number;
 }
 
 export const PROFILES: Record<Difficulty, DifficultyProfile> = {
-  easy: { lanes: 4, grid: 1, triplets: false, minGap: 0.3, maxChord: 1, maxChordSpread: 0, sustainBeats: 1.5, sustainGapBeats: 0.5 },
-  medium: { lanes: 4, grid: 2, triplets: false, minGap: 0.16, maxChord: 2, maxChordSpread: 2, sustainBeats: 1, sustainGapBeats: 0.5 },
-  hard: { lanes: 4, grid: 4, triplets: true, minGap: 0.11, maxChord: 2, maxChordSpread: 3, sustainBeats: 0.75, sustainGapBeats: 0.25 },
-  expert: { lanes: 5, grid: 4, triplets: true, minGap: 0.065, maxChord: 3, maxChordSpread: 4, sustainBeats: 0.5, sustainGapBeats: 0.25 },
+  easy: { lanes: 4, grid: 1, triplets: false, minGap: 0.3, maxChord: 1, maxChordSpread: 0, sustainBeats: 1.5, sustainGapBeats: 0.5, maxPerBar: 4, chordGrid: 1 },
+  medium: { lanes: 4, grid: 2, triplets: false, minGap: 0.16, maxChord: 2, maxChordSpread: 2, sustainBeats: 1, sustainGapBeats: 0.5, maxPerBar: 5, chordGrid: 1 },
+  hard: { lanes: 4, grid: 4, triplets: true, minGap: 0.11, maxChord: 2, maxChordSpread: 3, sustainBeats: 0.75, sustainGapBeats: 0.25, maxPerBar: 8, chordGrid: 0.5 },
+  expert: { lanes: 5, grid: 4, triplets: true, minGap: 0.065, maxChord: 3, maxChordSpread: 4, sustainBeats: 0.5, sustainGapBeats: 0.25, maxPerBar: 16, chordGrid: 0.25 },
 };
