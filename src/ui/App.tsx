@@ -1,67 +1,200 @@
-import { useMemo, useState } from 'react';
-import { DIFFICULTIES, type Chart, type Difficulty } from '../chart/types';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { Chart, Difficulty, Part } from '../chart/types';
 import { getEngine } from '../audio/engine';
+import { isAudioFile, readSongFile } from '../audio/importSong';
+import { DEMO_ID, forgetSongBuffer, loadSongBuffer } from '../audio/songAudio';
 import type { Results } from '../game/GameSession';
-import { demoChart, renderDemoAudio } from '../game/demo';
+import { demoChart } from '../game/demo';
 import { loadSettings } from '../game/settings';
+import { deleteSong, getSong, listSongs, putSong, submitScore, type SongMeta } from '../storage/db';
+import { LibraryScreen, type SongStatus } from './LibraryScreen';
+import { MenuBackground } from './MenuBackground';
 import { PlayScreen } from './PlayScreen';
 import { ResultsScreen } from './ResultsScreen';
+import { SongDetail } from './SongDetail';
+import { Toasts, useToasts } from './Toasts';
+
+const DEMO_SONG: SongMeta = {
+  id: DEMO_ID,
+  title: 'Demo Track',
+  artist: 'Festival',
+  fileName: 'demo',
+  mime: 'audio/wav',
+  size: 0,
+  duration: 42,
+  addedAt: 0,
+};
 
 type View =
-  | { name: 'menu' }
-  | { name: 'play'; title: string; buffer: AudioBuffer; chart: Chart; key: number }
-  | { name: 'results'; title: string; buffer: AudioBuffer; chart: Chart; results: Results };
-
-function demoBuffer(): AudioBuffer {
-  const engine = getEngine();
-  const { channels, sampleRate } = renderDemoAudio(engine.ctx.sampleRate);
-  const buf = engine.ctx.createBuffer(2, channels[0].length, sampleRate);
-  channels.forEach((c, i) => buf.copyToChannel(c as Float32Array<ArrayBuffer>, i));
-  return buf;
-}
+  | { name: 'library' }
+  | { name: 'detail'; song: SongMeta }
+  | { name: 'play'; song: SongMeta; buffer: AudioBuffer; chart: Chart; key: number }
+  | { name: 'results'; song: SongMeta; buffer: AudioBuffer; chart: Chart; results: Results; best?: number };
 
 export function App() {
-  const [view, setView] = useState<View>({ name: 'menu' });
+  const [view, setView] = useState<View>({ name: 'library' });
+  const [songs, setSongs] = useState<SongMeta[]>([]);
+  const [importing, setImporting] = useState(0);
   const settings = useMemo(loadSettings, []);
+  const toasts = useToasts();
+  const { push: toast } = toasts;
 
-  const playDemo = (d: Difficulty) =>
-    setView({ name: 'play', title: 'Demo Track', buffer: demoBuffer(), chart: demoChart(d), key: Date.now() });
+  const refresh = useCallback(async () => {
+    try {
+      setSongs([...(await listSongs()), DEMO_SONG]);
+    } catch {
+      setSongs([DEMO_SONG]);
+      toast('Song storage is unavailable in this browser window. Imported songs will not be saved.');
+    }
+  }, [toast]);
 
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const status: Record<string, SongStatus> = { [DEMO_ID]: { state: 'ready' } };
+
+  const importFiles = useCallback(
+    async (files: File[]) => {
+      const audio = files.filter(isAudioFile);
+      if (audio.length < files.length) toast(`Skipped ${files.length - audio.length} file(s) that are not audio.`);
+      setImporting((n) => n + audio.length);
+      for (const f of audio) {
+        try {
+          const { meta, bytes } = await readSongFile(f);
+          if (await getSong(meta.id)) toast(`"${meta.title}" is already in your library.`);
+          else await putSong(meta, new Blob([bytes], { type: meta.mime }));
+        } catch (e) {
+          toast(`Could not import ${f.name}: ${(e as Error).message}`);
+        } finally {
+          setImporting((n) => n - 1);
+        }
+      }
+      await refresh();
+    },
+    [refresh, toast],
+  );
+
+  const preview = useCallback(
+    async (song: SongMeta, on: boolean) => {
+      const engine = getEngine();
+      if (!on) return engine.stop();
+      try {
+        const buf = await loadSongBuffer(song.id);
+        engine.load(buf);
+        engine.offset = 0;
+        engine.volume = settings.volume * 0.8;
+        await engine.play(buf.duration / 3, 0.05);
+      } catch (e) {
+        toast((e as Error).message);
+      }
+    },
+    [settings.volume, toast],
+  );
+
+  const play = async (song: SongMeta, part: Part, difficulty: Difficulty) => {
+    try {
+      getEngine().stop();
+      const buffer = await loadSongBuffer(song.id);
+      const chart = song.id === DEMO_ID ? { ...demoChart(difficulty), part } : null;
+      if (!chart) return;
+      setView({ name: 'play', song, buffer, chart, key: Date.now() });
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+
+  const finish = async (v: Extract<View, { name: 'play' }>, results: Results) => {
+    let best: number | undefined;
+    try {
+      best = await submitScore({
+        songId: v.song.id,
+        part: v.chart.part,
+        difficulty: v.chart.difficulty,
+        score: results.score,
+        stars: results.stars,
+        accuracy: results.accuracy,
+        fullCombo: results.fullCombo,
+      });
+    } catch {
+      /* scores are best-effort */
+    }
+    setView({ name: 'results', song: v.song, buffer: v.buffer, chart: v.chart, results, best });
+  };
+
+  const detailPreview = useCallback(
+    (on: boolean) => {
+      if (view.name === 'detail') void preview(view.song, on);
+    },
+    [view.name === 'detail' ? view.song.id : null, preview],
+  );
+
+  let content: React.ReactNode;
   if (view.name === 'play') {
-    return (
+    content = (
       <PlayScreen
         key={view.key}
-        title={view.title}
+        title={`${view.song.title} — ${view.song.artist}`}
         buffer={view.buffer}
         chart={view.chart}
         settings={settings}
-        onQuit={() => setView({ name: 'menu' })}
-        onFinish={(results) => setView({ ...view, name: 'results', results })}
+        onQuit={() => setView({ name: 'detail', song: view.song })}
+        onFinish={(r) => void finish(view, r)}
       />
     );
-  }
-  if (view.name === 'results') {
-    return (
-      <ResultsScreen
-        title={view.title}
-        subtitle={`${view.chart.part} · ${view.chart.difficulty}`}
-        results={view.results}
-        onRetry={() => setView({ ...view, name: 'play', key: Date.now() })}
-        onDone={() => setView({ name: 'menu' })}
-      />
-    );
-  }
-  return (
-    <div className="screen">
-      <div className="panel">
-        <h1 className="logo">FESTIVAL</h1>
-        <p className="dim">Demo track</p>
-        <div className="row">
-          {DIFFICULTIES.map((d) => (
-            <button key={d} className="btn primary" onClick={() => playDemo(d)}>{d}</button>
-          ))}
-        </div>
+  } else if (view.name === 'results') {
+    content = (
+      <div className="screen">
+        <MenuBackground />
+        <ResultsScreen
+          title={view.song.title}
+          subtitle={`${view.chart.part} · ${view.chart.difficulty}`}
+          results={view.results}
+          best={view.best}
+          onRetry={() => setView({ name: 'play', song: view.song, buffer: view.buffer, chart: view.chart, key: Date.now() })}
+          onDone={() => setView({ name: 'detail', song: view.song })}
+        />
       </div>
-    </div>
+    );
+  } else {
+    content = (
+      <div className="menu">
+        <MenuBackground />
+        {view.name === 'library' ? (
+          <LibraryScreen
+            songs={songs}
+            status={status}
+            importing={importing}
+            onImport={(f) => void importFiles(f)}
+            onOpen={(song) => setView({ name: 'detail', song })}
+            onSettings={() => toast('Settings are coming soon.')}
+          />
+        ) : (
+          <SongDetail
+            song={view.song}
+            builtin={view.song.id === DEMO_ID}
+            status={status[view.song.id] ?? { state: 'idle' }}
+            onBack={() => setView({ name: 'library' })}
+            onPlay={(p, d) => void play(view.song, p, d)}
+            onAnalyze={() => {}}
+            onPreview={detailPreview}
+            onDelete={async () => {
+              getEngine().stop();
+              forgetSongBuffer(view.song.id);
+              await deleteSong(view.song.id);
+              await refresh();
+              setView({ name: 'library' });
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {content}
+      <Toasts items={toasts.items} onDismiss={toasts.dismiss} />
+    </>
   );
 }
