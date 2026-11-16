@@ -4,8 +4,8 @@ import { findSections, resampleCurve, rmsCurve } from './dsp/energy';
 import { hpss } from './dsp/hpss';
 import { highpass, lowpass, refineOnset } from './dsp/refine';
 import { bandFlux, normalize, onsetEnvelope, pickPeaks } from './dsp/onsets';
-import { stft, type Spectrogram } from './dsp/stft';
-import { BASS_SPLIT, splitLines } from './pitch/lines';
+import { hzToBin, stft, type Spectrogram } from './dsp/stft';
+import { BASS_SPLIT, separateParts } from './pitch/lines';
 import { salienceLine } from './pitch/salience';
 import {
   ANALYSIS_SAMPLE_RATE,
@@ -75,7 +75,7 @@ export async function analyzeSignal(signal: Float32Array, opts: PipelineOptions 
   // Drop beats the tracker invented in silence.
   beats = beats.filter((t) => (rms[Math.min(rms.length - 1, Math.round(t * fps))] ?? 0) > 0.06);
   report('rhythm', 0.6);
-  const drums = detectDrums(percussive, spec, fps, signal);
+  const drums = detectDrums(percussive, spec, fps, signal, spec.mag);
   // Align the grid with the actual attacks, then extend it at constant tempo to cover the song.
   beats = extendGrid(calibrateBeats(beats, drums), duration);
   report('rhythm', 1);
@@ -98,17 +98,18 @@ export async function analyzeSignal(signal: Float32Array, opts: PipelineOptions 
   report('harmony', 1);
   await yieldNow();
 
-  // 5. Melody: bass and lead lines
+  // 5. Melody: bass, lead (instrument incl. chords) and vocal lines
   report('melody');
   let bass: PitchedNote[] = [];
   let lead: PitchedNote[] = [];
+  let vocals: PitchedNote[] = [];
   let pitchSource: AnalysisResult['pitchSource'] = 'salience';
   if (opts.transcriber) {
     try {
       const notes = await opts.transcriber(signal, (p) => report('melody', p * 0.9));
-      ({ bass, lead } = splitLines(notes));
+      ({ bass, lead, vocals } = separateParts(notes, duration));
       pitchSource = 'basic-pitch';
-      opts.onLog?.(`transcribed ${notes.length} notes (${bass.length} bass, ${lead.length} lead)`);
+      opts.onLog?.(`transcribed ${notes.length} notes (${bass.length} bass, ${lead.length} lead, ${vocals.length} vocals)`);
     } catch (e) {
       opts.onLog?.(`transcriber unavailable: ${(e as Error).message}`);
     }
@@ -118,9 +119,11 @@ export async function analyzeSignal(signal: Float32Array, opts: PipelineOptions 
   if (bass.length < duration * 0.1) {
     bass = salienceLine(harmonic, spec, 28, BASS_SPLIT - 1, harmOnsets(30, 260), 0.45);
   }
-  if (lead.length < duration * 0.2) {
+  if (lead.length < duration * 0.1 && vocals.length < duration * 0.2) {
     lead = salienceLine(harmonic, spec, BASS_SPLIT, 88, harmOnsets(250, 4000), 0.5);
     if (pitchSource === 'basic-pitch') pitchSource = 'salience';
+    // Without a transcriber the best guess for the voice is the same melodic line.
+    if (!vocals.length) vocals = lead;
   }
   report('melody', 1);
 
@@ -158,6 +161,7 @@ export async function analyzeSignal(signal: Float32Array, opts: PipelineOptions 
     drums,
     bass: bass.map(roundNote),
     lead: lead.map(roundNote),
+    vocals: vocals.map(roundNote),
     harmony: harmony.map((h) => ({ ...h, t: round3(h.t), strength: round3(h.strength) })),
     sections,
     energy: resampleCurve(rms, fps, 0.1),
@@ -169,7 +173,14 @@ export async function analyzeSignal(signal: Float32Array, opts: PipelineOptions 
   return result;
 }
 
-const roundNote = (n: PitchedNote): PitchedNote => ({ t: round3(n.t), dur: round3(n.dur), midi: n.midi, strength: round3(n.strength) });
+const roundNote = (n: PitchedNote): PitchedNote => ({
+  t: round3(n.t),
+  dur: round3(n.dur),
+  midi: n.midi,
+  strength: round3(n.strength),
+  ...(n.bend ? { bend: round3(n.bend) } : {}),
+  ...(n.chord ? { chord: n.chord } : {}),
+});
 
 const BANDS: { kind: DrumKind; lo: number; hi: number; wait: number }[] = [
   { kind: 'kick', lo: 30, hi: 150, wait: 0.1 },
@@ -178,7 +189,13 @@ const BANDS: { kind: DrumKind; lo: number; hi: number; wait: number }[] = [
 ];
 
 /** Kick / snare / hat hits from band-limited flux of the percussive component. */
-export function detectDrums(percussive: Float32Array, s: Spectrogram, fps: number, signal?: Float32Array): DrumHit[] {
+export function detectDrums(
+  percussive: Float32Array,
+  s: Spectrogram,
+  fps: number,
+  signal?: Float32Array,
+  mag?: Float32Array,
+): DrumHit[] {
   const curves = BANDS.map((b) => normalize(bandFlux(percussive, s, b.lo, b.hi)));
   const peaks = curves.map((c, i) =>
     pickPeaks(c, { maxWin: 2, avgWin: Math.round(0.25 * fps), delta: 0.12, wait: Math.max(2, Math.round(BANDS[i].wait * fps)) }),
@@ -186,7 +203,12 @@ export function detectDrums(percussive: Float32Array, s: Spectrogram, fps: numbe
   const [kickC, snareC, hatC] = curves;
   const near = (list: number[], f: number) => list.some((p) => Math.abs(p - f) <= 1);
   const hits: DrumHit[] = [];
-  for (const f of peaks[0]) hits.push({ t: f / fps, kind: 'kick', strength: Math.min(1, kickC[f]) });
+  for (const f of peaks[0]) {
+    // A bass note's attack also lands in the kick band, but it is followed by sustained low
+    // harmonic energy; a kick is a short burst that is mostly percussive.
+    if (mag && isBassAttack(mag, s, f)) continue;
+    hits.push({ t: f / fps, kind: 'kick', strength: Math.min(1, kickC[f]) });
+  }
   for (const f of peaks[1]) {
     // Kick drums leak into the snare band; drop snare hits that are mostly kick.
     if (near(peaks[0], f) && kickC[f] > snareC[f] * 1.3) continue;
@@ -257,3 +279,29 @@ export function calibrateBeats(beats: number[], drums: DrumHit[]): number[] {
   });
   return smoothBeats(snapped).filter((b) => b >= 0);
 }
+
+/**
+ * True when a low-band onset at frame f looks like a bass note rather than a kick: a kick's low end
+ * dies away within ~100 ms, while a bass note keeps sounding at a steady level.
+ */
+export function isBassAttack(mag: Float32Array, s: Spectrogram, f: number): boolean {
+  const lo = hzToBin(s, 30);
+  const hi = hzToBin(s, 150);
+  const energy = (a: number, b: number) => {
+    let sum = 0;
+    let n = 0;
+    for (let fr = Math.max(0, a); fr <= Math.min(s.frames - 1, b); fr++, n++) {
+      for (let k = lo; k <= hi; k++) sum += mag[fr * s.bins + k] ** 2;
+    }
+    return sum / Math.max(1, n);
+  };
+  // STFT onsets fire a little early, so measure from the energy peak that follows.
+  let peak = f;
+  for (let fr = f + 1; fr <= f + 4; fr++) if (energy(fr, fr) > energy(peak, peak)) peak = fr;
+  const attack = energy(peak, peak);
+  const later = energy(peak + 4, peak + 6);
+  return attack > 0 && later / attack > BASS_SUSTAIN_RATIO;
+}
+
+/** Fraction of its peak energy a low onset must keep ~90-140 ms later to count as a bass note. */
+export const BASS_SUSTAIN_RATIO = 0.45;

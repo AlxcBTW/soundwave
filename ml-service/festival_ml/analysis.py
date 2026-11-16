@@ -13,7 +13,7 @@ import numpy as np
 import scipy.signal as sps
 import soundfile as sf
 
-ANALYSIS_VERSION = 1
+ANALYSIS_VERSION = 2
 SR = 22050
 HOP = 512
 BASS_SPLIT = 50
@@ -42,6 +42,8 @@ class Stems:
     drums: np.ndarray
     bass: np.ndarray
     melodic: np.ndarray  # vocals + other
+    vocals: np.ndarray | None  # sung stem (only with stem separation)
+    other: np.ndarray | None  # instruments without bass, drums and vocals
     harmonic: np.ndarray  # bass + other (for chords)
     separated: bool
 
@@ -63,7 +65,7 @@ def separate(path: Path, progress: Progress) -> Stems:
     progress(0.1, "Separating")
     harm, perc = librosa.effects.hpss(y)
     low = _lowpass(harm, 250)
-    return Stems(mix=y, drums=perc, bass=low, melodic=harm - low, harmonic=harm, separated=False)
+    return Stems(mix=y, drums=perc, bass=low, melodic=harm - low, harmonic=harm, separated=False, vocals=None, other=None)
 
 
 def _demucs(path: Path, progress: Progress) -> Stems:
@@ -91,7 +93,7 @@ def _demucs(path: Path, progress: Progress) -> Stems:
 
     drums, bass, other, vocals = stem("drums"), stem("bass"), stem("other"), stem("vocals")
     mix = drums + bass + other + vocals
-    return Stems(mix=mix, drums=drums, bass=bass, melodic=other + vocals, harmonic=other + bass, separated=True)
+    return Stems(mix=mix, drums=drums, bass=bass, melodic=other + vocals, harmonic=other + bass, separated=True, vocals=vocals, other=other)
 
 
 def _lowpass(y: np.ndarray, hz: float) -> np.ndarray:
@@ -263,27 +265,60 @@ def _pyin(y: np.ndarray, fmin: float, fmax: float) -> list[dict]:
     return notes
 
 
-def melody(stems: Stems, progress: Progress) -> tuple[list[dict], list[dict], str]:
+def _chords(notes: list[dict]) -> list[dict]:
+    """Collapses onset clusters of three or more steady notes into chords (melody = top note)."""
+    out: list[dict] = []
+    cluster: list[dict] = []
+
+    def flush() -> None:
+        if not cluster:
+            return
+        pitches = sorted({n["midi"] for n in cluster})
+        if len(pitches) >= 3 and len({m % 12 for m in pitches}) >= 2:
+            durs = sorted(n["dur"] for n in cluster)
+            out.append({"t": cluster[0]["t"], "dur": durs[len(durs) // 2], "midi": pitches[-1], "strength": max(n["strength"] for n in cluster), "chord": pitches})
+        else:
+            out.extend(cluster)
+
+    for n in sorted(notes, key=lambda n: (n["t"], n["midi"])):
+        if cluster and n["t"] - cluster[0]["t"] >= 0.05:
+            flush()
+            cluster = []
+        cluster.append(n)
+    flush()
+    return out
+
+
+def melody(stems: Stems, progress: Progress) -> tuple[list[dict], list[dict], list[dict], str]:
+    """Bass, lead (instrument incl. chords) and vocal lines. Stems make each line clean."""
     use_bp = engines()["basicPitch"]
-    if use_bp:
-        progress(0.55, "Transcribing bass")
-        bass_notes = _basic_pitch(stems.bass)
-        progress(0.7, "Transcribing melody")
-        lead_notes = _basic_pitch(stems.melodic)
-        source = "ml"
+    transcribe = _basic_pitch if use_bp else None
+    progress(0.55, "Transcribing bass")
+    bass_notes = _basic_pitch(stems.bass) if transcribe else _pyin(stems.bass, 30, 260)
+    if stems.separated:
+        progress(0.65, "Transcribing vocals")
+        vocal_notes = _basic_pitch(stems.vocals) if transcribe else _pyin(stems.vocals, 80, 1100)
+        progress(0.75, "Transcribing instruments")
+        lead_notes = _basic_pitch(stems.other) if transcribe else _pyin(stems.other, 100, 1400)
     else:
-        progress(0.55, "Tracking bass")
-        bass_notes = _pyin(stems.bass, 30, 260)
-        progress(0.7, "Tracking melody")
-        lead_notes = _pyin(stems.melodic, 130, 1050)
-        source = "ml"
+        progress(0.7, "Transcribing melody")
+        lead_notes = _basic_pitch(stems.melodic) if transcribe else _pyin(stems.melodic, 130, 1050)
+        vocal_notes = lead_notes
     bass = monophonic([n for n in bass_notes if n["midi"] < BASS_SPLIT + 12 and n["strength"] >= 0.12], lambda n: n["strength"] * (1 + (BASS_SPLIT - n["midi"]) * 0.03))
-    lead = monophonic(
-        [n for n in lead_notes if n["midi"] >= BASS_SPLIT - 2 and n["strength"] >= 0.15],
-        lambda n: n["strength"] * (1 + (n["midi"] - 60) * 0.015) * min(1.5, 0.6 + n["dur"] * 2),
+    upper = [n for n in lead_notes if n["midi"] >= BASS_SPLIT - 2 and n["strength"] >= 0.15]
+    lead = monophonic(_chords(upper) if use_bp else upper, lambda n: n["strength"] * (len(n.get("chord", [])) + 1) * min(1.5, 0.6 + n["dur"] * 2))
+    vocals = monophonic(
+        [n for n in vocal_notes if 45 <= n["midi"] <= 86 and n["strength"] >= 0.15],
+        lambda n: n["strength"] * min(1.5, 0.6 + n["dur"] * 2),
     )
-    rn = lambda n: {"t": r3(n["t"]), "dur": r3(n["dur"]), "midi": int(n["midi"]), "strength": r3(n["strength"])}  # noqa: E731
-    return [rn(n) for n in bass], [rn(n) for n in lead], source
+
+    def rn(n: dict) -> dict:
+        out = {"t": r3(n["t"]), "dur": r3(n["dur"]), "midi": int(n["midi"]), "strength": r3(n["strength"])}
+        if n.get("chord"):
+            out["chord"] = [int(m) for m in n["chord"]]
+        return out
+
+    return [rn(n) for n in bass], [rn(n) for n in lead], [rn(n) for n in vocals], "ml"
 
 
 # --------------------------------------------------------------------------- structure
@@ -343,7 +378,7 @@ def analyze(path: Path, progress: Progress) -> dict:
     tempo, beats = track_beats(stems.mix, stems.drums, duration)
     progress(0.48, "Reading chords")
     harm_events, key, _ = harmony(stems.harmonic, beats)
-    bass, lead, pitch_source = melody(stems, progress)
+    bass, lead, vocals, pitch_source = melody(stems, progress)
     progress(0.9, "Structure")
     downbeats = downbeats_for(beats, drums, harm_events)
     sections = sections_for(stems.mix, beats, downbeats, duration)
@@ -362,6 +397,7 @@ def analyze(path: Path, progress: Progress) -> dict:
         "drums": drums,
         "bass": bass,
         "lead": lead,
+        "vocals": vocals,
         "harmony": harm_events,
         "sections": sections,
         "energy": energy,

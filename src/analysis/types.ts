@@ -2,7 +2,7 @@
  * Output of song analysis. Both the in-app analyzer and the optional ML service
  * produce this shape, so chart generation does not care where it came from.
  */
-export const ANALYSIS_VERSION = 1;
+export const ANALYSIS_VERSION = 2;
 export const ANALYSIS_SAMPLE_RATE = 22050;
 
 export type DrumKind = 'kick' | 'snare' | 'hat';
@@ -17,9 +17,14 @@ export interface DrumHit {
 export interface PitchedNote {
   t: number;
   dur: number;
+  /** For chords: the top (melody) note. */
   midi: number;
   /** 0..1 */
   strength: number;
+  /** Pitch-bend activity (vibrato, slides); singing voices have much more than synths or keys. */
+  bend?: number;
+  /** All sounding pitches when this note is a chord (ascending, includes `midi`). */
+  chord?: number[];
 }
 
 export interface HarmonicEvent {
@@ -48,7 +53,10 @@ export interface AnalysisResult {
   downbeats: number[];
   drums: DrumHit[];
   bass: PitchedNote[];
+  /** The main melodic/harmonic instrument (synth, keys, guitar), chords included. */
   lead: PitchedNote[];
+  /** The sung melody. */
+  vocals: PitchedNote[];
   harmony: HarmonicEvent[];
   sections: Section[];
   /** Normalized loudness curve sampled every `energyHop` seconds. */
@@ -79,6 +87,7 @@ export function isAnalysisResult(x: unknown): x is AnalysisResult {
     Array.isArray(a.drums) &&
     Array.isArray(a.bass) &&
     Array.isArray(a.lead) &&
+    Array.isArray(a.vocals) &&
     Array.isArray(a.harmony) &&
     Array.isArray(a.sections) &&
     a.beats.every((b) => typeof b === 'number' && Number.isFinite(b))

@@ -6,7 +6,8 @@ import type { PitchedNote } from '../types';
  */
 export async function transcribe(
   audio: Float32Array,
-  modelUrl: string,
+  /** Model URL, or a TF.js IO handler (used by offline tooling to load from disk). */
+  modelUrl: string | object,
   onProgress: (p: number) => void,
   timeBudgetMs: number,
 ): Promise<{ notes: PitchedNote[]; backend: string }> {
@@ -26,7 +27,7 @@ export async function transcribe(
   if (backend !== 'webgl') await tf.setBackend('cpu');
   await tf.ready();
 
-  const model = new bp.BasicPitch(tf.loadGraphModel(modelUrl));
+  const model = new bp.BasicPitch(tf.loadGraphModel(modelUrl as Parameters<typeof tf.loadGraphModel>[0]));
   const frames: number[][] = [];
   const onsets: number[][] = [];
   const contours: number[][] = [];
@@ -61,7 +62,19 @@ export async function transcribe(
       dur: e.durationSeconds,
       midi: e.pitchMidi,
       strength: Math.min(1, e.amplitude / maxAmp),
+      bend: bendActivity(e.pitchBends),
     }))
     .sort((a, b) => a.t - b.t);
   return { notes, backend };
+}
+
+/**
+ * Standard deviation of a note's pitch-bend curve, in semitones (Basic Pitch reports bends in
+ * thirds of a semitone). Vibrato and slides make sung notes score far higher than synth or keys.
+ */
+export function bendActivity(bends: number[] | undefined): number {
+  if (!bends || bends.length < 3) return 0;
+  const mean = bends.reduce((a, b) => a + b, 0) / bends.length;
+  const variance = bends.reduce((a, b) => a + (b - mean) ** 2, 0) / bends.length;
+  return Math.round((Math.sqrt(variance) / 3) * 1000) / 1000;
 }

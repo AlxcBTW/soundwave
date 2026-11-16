@@ -12,6 +12,7 @@ const result = (): AnalysisResult => ({
   drums: [],
   bass: [],
   lead: [],
+  vocals: [],
   harmony: [],
   sections: [],
   energy: [],

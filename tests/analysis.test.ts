@@ -79,6 +79,31 @@ describe('dsp', () => {
   });
 });
 
+describe('drum detection', () => {
+  it('does not mistake off-beat bass notes for kicks', async () => {
+    // Four-on-the-floor kick plus a sustained bass note on every off-beat.
+    const x = new Float32Array(16 * SR);
+    const add = (t0: number, dur: number, fn: (t: number) => number) => {
+      const a = Math.floor(t0 * SR);
+      for (let i = 0; i < dur * SR && a + i < x.length; i++) x[a + i] += fn(i / SR);
+    };
+    for (let b = 0; b < 30; b++) {
+      const t = 0.5 + b * 0.5;
+      add(t, 0.2, (s) => Math.sin(2 * Math.PI * (50 + 80 * Math.exp(-s * 30)) * s) * Math.exp(-s * 15) * 0.8);
+      const f = midiHz([33, 36, 31, 33][b % 4]);
+      add(t + 0.25, 0.24, (s) => Math.sin(2 * Math.PI * f * s) * 0.35 * Math.min(1, s * 300) * Math.min(1, (0.24 - s) * 100));
+    }
+    const a = await analyzeSignal(x);
+    const kicks = a.drums.filter((d) => d.kind === 'kick' && d.t > 1 && d.t < 15);
+    const offBeat = kicks.filter((k) => {
+      const o = (((k.t - 0.5) % 0.5) + 0.5) % 0.5;
+      return Math.min(o, 0.5 - o) > 0.08;
+    });
+    expect(kicks.length).toBeGreaterThan(20);
+    expect(offBeat.length).toBeLessThanOrEqual(2);
+  }, 60_000);
+});
+
 describe('pipeline', () => {
   it('finds drums, beats, bass and lead in a synthetic song', async () => {
     const bass = [40, 40, 43, 45];
