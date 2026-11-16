@@ -14,6 +14,7 @@ import { LibraryScreen, type SongStatus } from './LibraryScreen';
 import { MenuBackground } from './MenuBackground';
 import { PlayScreen } from './PlayScreen';
 import { ResultsScreen } from './ResultsScreen';
+import { DebugScreen } from '../debug/DebugScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { SongDetail, type PreviewSource } from './SongDetail';
 import { Toasts, useToasts } from './Toasts';
@@ -33,6 +34,7 @@ type View =
   | { name: 'library' }
   | { name: 'settings'; back: View }
   | { name: 'detail'; song: SongMeta }
+  | { name: 'debug'; song: SongMeta }
   | { name: 'play'; song: SongMeta; buffer: AudioBuffer; chart: Chart; key: number }
   | { name: 'results'; song: SongMeta; buffer: AudioBuffer; chart: Chart; results: Results; best?: number };
 
@@ -220,7 +222,9 @@ export function App() {
   );
 
   let content: React.ReactNode;
-  if (view.name === 'play') {
+  if (view.name === 'debug') {
+    content = <DebugScreen song={view.song} settings={settings} onBack={() => setView({ name: 'detail', song: view.song })} />;
+  } else if (view.name === 'play') {
     content = (
       <PlayScreen
         key={view.key}
@@ -269,6 +273,10 @@ export function App() {
             noteCounts={noteCounts}
             stems={stems}
             previewing={previewing}
+            onDebug={() => {
+              void preview(view.song, null);
+              setView({ name: 'debug', song: view.song });
+            }}
             onBack={() => setView({ name: 'library' })}
             onPlay={(p, d) => void play(view.song, p, d)}
             onAnalyze={() => analysisManager.enqueue(view.song.id, true)}

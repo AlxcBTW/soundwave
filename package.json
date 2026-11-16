@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "tauri": "tauri",
     "postinstall": "node scripts/copy-models.mjs",
-    "dev:analyze": "vitest run --config vitest.dev.config.ts"
+    "dev:analyze": "vitest run --config vitest.dev.config.ts",
+    "dev:alt": "node scripts/copy-models.mjs && vite --port 5180",
+    "tauri:alt": "tauri dev --config src-tauri/tauri.dev-alt.conf.json"
   },
   "repository": {
     "type": "git",

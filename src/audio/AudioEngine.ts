@@ -8,8 +8,11 @@ export class AudioEngine {
   readonly gain: GainNode;
   private source: AudioBufferSourceNode | null = null;
   private buffer: AudioBuffer | null = null;
-  /** Context time at which song time 0 is heard. */
+  /** Context time (scheduling clock) at which song time `startSong` plays. */
   private startCtxTime = 0;
+  private startSong = 0;
+  /** Playback speed (1 = normal). Pitch changes with speed. */
+  private rate = 1;
   private pausedAt = 0;
   private playing = false;
   /** User calibration in seconds; positive = audio is heard later than reported. */
@@ -49,18 +52,24 @@ export class AudioEngine {
     return this.playing;
   }
 
-  /** Starts playback so that song time `from` is heard `delay` seconds from now. Negative `from` = lead-in. */
-  async play(from = this.pausedAt, delay = 0.1) {
+  /**
+   * Starts playback so that song time `from` is heard `delay` seconds from now. Negative `from` =
+   * lead-in. `rate` slows down or speeds up playback (debugging); song time follows it.
+   */
+  async play(from = this.pausedAt, delay = 0.1, rate = 1) {
     if (!this.buffer) return;
     if (this.ctx.state !== 'running') await this.ctx.resume();
     this.stopSource();
     const src = this.ctx.createBufferSource();
     src.buffer = this.buffer;
+    src.playbackRate.value = rate;
     src.connect(this.gain);
     const startAt = this.ctx.currentTime + delay;
-    this.startCtxTime = startAt - from;
+    this.rate = rate;
+    this.startCtxTime = startAt;
+    this.startSong = from;
     if (from >= 0) src.start(startAt, from);
-    else src.start(startAt - from, 0);
+    else src.start(startAt - from / rate, 0);
     src.onended = () => {
       if (this.source === src && this.playing) {
         this.playing = false;
@@ -69,6 +78,12 @@ export class AudioEngine {
     };
     this.source = src;
     this.playing = true;
+  }
+
+  /** Jumps to song time t, keeping the current play/pause state and speed. */
+  async seek(t: number) {
+    if (this.playing) await this.play(t, 0.02, this.rate);
+    else this.pausedAt = t;
   }
 
   pause() {
@@ -94,10 +109,19 @@ export class AudioEngine {
     return this.ctx.currentTime - (this.ctx.outputLatency || this.ctx.baseLatency || 0);
   }
 
+  get playbackRate() {
+    return this.rate;
+  }
+
+  /** Scheduling-clock time (AudioContext.currentTime domain) at which song time `t` plays. */
+  contextTimeFor(t: number) {
+    return this.startCtxTime + (t - this.startSong) / this.rate;
+  }
+
   /** Song time in seconds as heard by the player at `perfNow` (defaults to now). */
   time(perfNow?: number) {
     if (!this.playing) return this.pausedAt;
-    return this.heardContextTime(perfNow) - this.startCtxTime - this.offset;
+    return this.startSong + (this.heardContextTime(perfNow) - this.startCtxTime) * this.rate - this.offset;
   }
 
   private stopSource() {

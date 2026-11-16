@@ -20,6 +20,8 @@ interface Props {
   /** What is playing right now: the mix, a stem, or nothing. */
   previewing: PreviewSource | null;
   onPreview(source: PreviewSource | null): void;
+  /** Opens the chart debugger (play with notes, annotate problems). */
+  onDebug(): void;
 }
 
 export type PreviewSource = 'mix' | StemName;
@@ -41,7 +43,7 @@ function lastPick(): { part: Part; difficulty: Difficulty } {
   return { part: 'lead', difficulty: 'medium' };
 }
 
-export function SongDetail({ song, builtin, status, noteCounts, stems, previewing, onBack, onPlay, onAnalyze, onDelete, onPreview }: Props) {
+export function SongDetail({ song, builtin, status, noteCounts, stems, previewing, onBack, onPlay, onAnalyze, onDelete, onPreview, onDebug }: Props) {
   const [pick, setPick] = useState(lastPick);
   const [scores, setScores] = useState<BestScore[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -150,6 +152,11 @@ export function SongDetail({ song, builtin, status, noteCounts, stems, previewin
 
           <div className="row left">
             <button className="btn primary big" disabled={!ready} onClick={play}>Play</button>
+            {!builtin && (
+              <button className="btn" disabled={!ready} onClick={onDebug} title="Play the song with its notes on a timeline and mark problems">
+                Debug chart
+              </button>
+            )}
             {!builtin && status.state !== 'analyzing' && status.state !== 'queued' && (
               <button className="btn" onClick={onAnalyze}>{status.state === 'ready' ? 'Re-analyze' : 'Analyze'}</button>
             )}
