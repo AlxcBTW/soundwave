@@ -5,7 +5,7 @@ import { hpss } from './dsp/hpss';
 import { highpass, lowpass, refineOnset } from './dsp/refine';
 import { bandFlux, normalize, onsetEnvelope, pickPeaks } from './dsp/onsets';
 import { hzToBin, stft, type Spectrogram } from './dsp/stft';
-import { BASS_SPLIT, fillGaps, separateParts } from './pitch/lines';
+import { BASS_SPLIT, separateParts } from './pitch/lines';
 import { bassLineFromStem, leadLineFromStem, vocalLineFromStem } from './pitch/stemLines';
 import { salienceLine } from './pitch/salience';
 import {
@@ -131,7 +131,8 @@ export async function analyzeSignal(signal: Float32Array, opts: PipelineOptions 
     if (st && sn) {
       if (st.vocals && sn.vocals.length) vocals = vocalLineFromStem({ signal: st.vocals, sr, notes: sn.vocals });
       report('melody', 0.4);
-      if (st.other && sn.other.length) lead = fillGaps(leadLineFromStem({ signal: st.other, sr, notes: sn.other }), vocals, duration);
+      // Lead follows the instrument only: where no instrument plays, the part rests (like a real chart).
+      if (st.other && sn.other.length) lead = leadLineFromStem({ signal: st.other, sr, notes: sn.other });
       report('melody', 0.8);
       if (st.bass && sn.bass.length) bass = bassLineFromStem({ signal: st.bass, sr, notes: sn.bass });
       opts.onLog?.(`stem lines: ${bass.length} bass, ${lead.length} lead, ${vocals.length} vocals`);

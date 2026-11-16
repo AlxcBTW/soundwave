@@ -25,6 +25,8 @@ export interface PitchedNote {
   bend?: number;
   /** All sounding pitches when this note is a chord (ascending, includes `midi`). */
   chord?: number[];
+  /** Fractional MIDI pitch (average including bends), when the transcriber provides it. */
+  fine?: number;
 }
 
 export interface HarmonicEvent {

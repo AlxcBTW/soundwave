@@ -233,7 +233,15 @@ def _basic_pitch(y: np.ndarray) -> list[dict]:
         return []
     amp = max(e[3] for e in events) or 1
     return [
-        {"t": float(e[0]), "dur": float(e[1] - e[0]), "midi": int(e[2]), "strength": float(min(1, e[3] / amp)), "bend": bend_activity(list(e[4]) if len(e) > 4 and e[4] is not None else None)}
+        {
+            "t": float(e[0]),
+            "dur": float(e[1] - e[0]),
+            "midi": int(e[2]),
+            "strength": float(min(1, e[3] / amp)),
+            "bend": bend_activity(list(e[4]) if len(e) > 4 and e[4] is not None else None),
+            # Fine pitch: bends are in thirds of a semitone around the reported note.
+            "fine": float(e[2]) + (float(np.mean(e[4])) / 3 if len(e) > 4 and e[4] else 0.0),
+        }
         for e in events
     ]
 
@@ -277,6 +285,8 @@ def melody(stems: Stems, progress: Progress, duration: float) -> tuple[list[dict
         out = {"t": r3(n["t"]), "dur": r3(n["dur"]), "midi": int(n["midi"]), "strength": r3(n["strength"])}
         if n.get("bend"):
             out["bend"] = r3(n["bend"])
+        if n.get("fine") is not None:
+            out["fine"] = round(float(n["fine"]), 2)
         if n.get("chord"):
             out["chord"] = [int(m) for m in n["chord"]]
         return out

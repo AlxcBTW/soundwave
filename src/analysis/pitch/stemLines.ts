@@ -155,7 +155,52 @@ export function vocalLineFromStem({ signal, sr, notes }: StemInput): PitchedNote
     if (!pitch) continue;
     const end = Math.min(next - 0.02, heldUntil(voiced, pitch) + 0.1, fadeEnd(env, e.t, next, 0.3));
     if (end - e.t < 0.06) continue;
-    out.push({ t: e.t, dur: end - e.t, midi: pitch.midi, strength: Math.min(1, 0.4 + e.strength * 0.6), bend: pitch.bend });
+    out.push({ t: e.t, dur: end - e.t, midi: pitch.midi, strength: Math.min(1, 0.4 + e.strength * 0.6), bend: pitch.bend, fine: pitch.fine });
+  }
+  return stabilizePitches(out);
+}
+
+/**
+ * Singers slide and drift: a held E can read as E one time and F the next. Within a phrase, notes
+ * whose fine pitches lie within PITCH_MERGE semitones are one sung note; each group gets the median
+ * of its fine pitches, corrected by the song's overall tuning, rounded. Repeated notes then stay in
+ * one lane and real steps still move.
+ */
+const PITCH_MERGE = 0.5;
+
+export function stabilizePitches(notes: PitchedNote[]): PitchedNote[] {
+  const withFine = notes.filter((n) => n.fine !== undefined);
+  if (withFine.length < 8) return notes;
+  // Song tuning: circular mean of how far fine pitches sit from the nearest semitone.
+  let sx = 0;
+  let sy = 0;
+  for (const n of withFine) {
+    const a = 2 * Math.PI * (n.fine! - Math.round(n.fine!));
+    sx += Math.cos(a) * n.dur;
+    sy += Math.sin(a) * n.dur;
+  }
+  const tuning = Math.atan2(sy, sx) / (2 * Math.PI);
+  const out = notes.map((n) => ({ ...n }));
+  let start = 0;
+  while (start < out.length) {
+    let end = start + 1;
+    while (end < out.length && out[end].t - (out[end - 1].t + out[end - 1].dur) < 0.8) end++;
+    const idx = Array.from({ length: end - start }, (_, k) => start + k).filter((i) => out[i].fine !== undefined);
+    const sorted = [...idx].sort((a, b) => out[a].fine! - out[b].fine!);
+    let group: number[] = [];
+    const flush = () => {
+      if (!group.length) return;
+      const vals = group.map((i) => out[i].fine!).sort((a, b) => a - b);
+      const midi = Math.round(vals[vals.length >> 1] - tuning);
+      for (const i of group) out[i].midi = midi;
+      group = [];
+    };
+    for (const i of sorted) {
+      if (group.length && out[i].fine! - out[group[group.length - 1]].fine! > PITCH_MERGE) flush();
+      group.push(i);
+    }
+    flush();
+    start = end;
   }
   return out;
 }

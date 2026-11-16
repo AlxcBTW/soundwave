@@ -63,6 +63,7 @@ export async function transcribe(
       midi: e.pitchMidi,
       strength: Math.min(1, e.amplitude / maxAmp),
       bend: bendActivity(e.pitchBends),
+      fine: e.pitchBends?.length ? e.pitchMidi + e.pitchBends.reduce((a, b) => a + b, 0) / e.pitchBends.length / 3 : e.pitchMidi,
     }))
     .sort((a, b) => a.t - b.t);
   return { notes, backend };
