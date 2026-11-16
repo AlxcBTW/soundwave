@@ -5,7 +5,8 @@ import { hpss } from './dsp/hpss';
 import { highpass, lowpass, refineOnset } from './dsp/refine';
 import { bandFlux, normalize, onsetEnvelope, pickPeaks } from './dsp/onsets';
 import { hzToBin, stft, type Spectrogram } from './dsp/stft';
-import { BASS_SPLIT, separateParts } from './pitch/lines';
+import { BASS_SPLIT, fillGaps, separateParts } from './pitch/lines';
+import { bassLineFromStem, leadLineFromStem, vocalLineFromStem } from './pitch/stemLines';
 import { salienceLine } from './pitch/salience';
 import {
   ANALYSIS_SAMPLE_RATE,
@@ -17,6 +18,8 @@ import {
   type DrumKind,
   type PartLines,
   type PitchedNote,
+  type StemName,
+  type StemNotes,
 } from './types';
 
 export type Transcriber = (audio: Float32Array, onProgress: (p: number) => void) => Promise<PitchedNote[]>;
@@ -30,6 +33,9 @@ export interface PipelineOptions {
   lines?: PartLines;
   /** Isolated drum stem (same rate and length as the mix) for cleaner drum detection. */
   drumSignal?: Float32Array;
+  /** Separated stems at the analysis rate; with `stemNotes`, lines are timed by their attacks. */
+  stems?: Partial<Record<StemName, Float32Array>>;
+  stemNotes?: StemNotes;
 }
 
 const NFFT = 2048;
@@ -119,6 +125,17 @@ export async function analyzeSignal(signal: Float32Array, opts: PipelineOptions 
   if (opts.lines) {
     ({ bass, lead, vocals } = opts.lines);
     pitchSource = 'ml';
+    // With the stems themselves, rebuild each line from its audible attacks.
+    const st = opts.stems;
+    const sn = opts.stemNotes;
+    if (st && sn) {
+      if (st.vocals && sn.vocals.length) vocals = vocalLineFromStem({ signal: st.vocals, sr, notes: sn.vocals });
+      report('melody', 0.4);
+      if (st.other && sn.other.length) lead = fillGaps(leadLineFromStem({ signal: st.other, sr, notes: sn.other }), vocals, duration);
+      report('melody', 0.8);
+      if (st.bass && sn.bass.length) bass = bassLineFromStem({ signal: st.bass, sr, notes: sn.bass });
+      opts.onLog?.(`stem lines: ${bass.length} bass, ${lead.length} lead, ${vocals.length} vocals`);
+    }
   } else if (opts.transcriber) {
     try {
       const notes = await opts.transcriber(signal, (p) => report('melody', p * 0.9));

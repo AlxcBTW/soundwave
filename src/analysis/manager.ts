@@ -2,7 +2,7 @@ import { loadSongBuffer } from '../audio/songAudio';
 import { generateAll } from '../chart/generator';
 import type { Chart, Difficulty, Part } from '../chart/types';
 import { analysisKey, deleteAnalyses, getAnalysis, putAnalysis, putStems } from '../storage/db';
-import { ANALYSIS_SAMPLE_RATE, ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult, type AnalysisStep, type PartLines, type StemName } from './types';
+import { ANALYSIS_SAMPLE_RATE, ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult, type AnalysisStep, type PartLines, type StemName, type StemNotes } from './types';
 import type { WorkerRequest, WorkerResponse } from './worker';
 
 export interface AnalysisStatus {
@@ -40,8 +40,10 @@ export type RemoteAnalyzer = (
 export interface Assist {
   lines: PartLines;
   drumStem?: ArrayBuffer;
-  /** All separated stems, kept for previewing on the song page. */
+  /** All separated stems, kept for previewing and for timing lines by their attacks. */
   stems?: Partial<Record<StemName, ArrayBuffer>>;
+  /** Raw transcription of each stem. */
+  stemNotes?: StemNotes;
 }
 
 /** In-app analyzer: decode, then run the DSP/transcription pipeline in a worker. */
@@ -189,6 +191,7 @@ export class AnalysisManager {
             // Copy: the worker transfer and IndexedDB both need their own buffers.
             drumStem: r.stems.drums?.slice(0),
             stems: r.stems,
+            stemNotes: (r.result as { stemNotes?: StemNotes }).stemNotes,
           };
         }
       } catch (e) {
@@ -230,18 +233,28 @@ const localAnalyzer: LocalAnalyzer = async (id, onProgress, signal, assist) => {
   if (signal.aborted) throw abortError();
   const audio = await toAnalysisSignal(buffer);
   if (signal.aborted) throw abortError();
-  let drumSignal: Float32Array | undefined;
-  if (assist?.drumStem) {
+  // Decoding into a 22.05 kHz context resamples each stem to the analysis rate.
+  const decodeStem = async (data: ArrayBuffer | undefined) => {
+    if (!data) return undefined;
     try {
-      // Decoding into a 22.05 kHz context resamples the stem to the analysis rate.
-      const decoded = await new OfflineAudioContext(1, 1, ANALYSIS_SAMPLE_RATE).decodeAudioData(assist.drumStem);
-      drumSignal = new Float32Array(audio.length);
-      drumSignal.set(decoded.getChannelData(0).subarray(0, audio.length));
+      const decoded = await new OfflineAudioContext(1, 1, ANALYSIS_SAMPLE_RATE).decodeAudioData(data.slice(0));
+      const out = new Float32Array(audio.length);
+      out.set(decoded.getChannelData(0).subarray(0, audio.length));
+      return out;
     } catch (e) {
-      console.warn('could not decode the drum stem; detecting drums on the full mix', e);
+      console.warn('could not decode a stem; falling back to the full mix for it', e);
+      return undefined;
+    }
+  };
+  const drumSignal = await decodeStem(assist?.drumStem);
+  const stems: Partial<Record<StemName, Float32Array>> = {};
+  if (assist?.stemNotes) {
+    for (const name of ['bass', 'vocals', 'other'] as const) {
+      const s = await decodeStem(assist.stems?.[name]);
+      if (s) stems[name] = s;
     }
   }
-  return runWorker(audio, onProgress, signal, assist?.lines, drumSignal);
+  return runWorker(audio, onProgress, signal, assist?.lines, drumSignal, stems, assist?.stemNotes);
 };
 
 /** Mono, 22.05 kHz copy of the song for analysis. */
@@ -262,6 +275,8 @@ function runWorker(
   abort: AbortSignal,
   lines?: PartLines,
   drumSignal?: Float32Array,
+  stems?: Partial<Record<StemName, Float32Array>>,
+  stemNotes?: StemNotes,
 ): Promise<AnalysisResult> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
@@ -294,8 +309,11 @@ function runWorker(
       useTranscriber: !lines,
       lines,
       drumSignal,
+      stems,
+      stemNotes,
     };
-    worker.postMessage(req, drumSignal ? [signal.buffer, drumSignal.buffer] : [signal.buffer]);
+    const transfer = [signal.buffer, ...(drumSignal ? [drumSignal.buffer] : []), ...Object.values(stems ?? {}).map((s) => s.buffer)];
+    worker.postMessage(req, transfer);
   });
 }
 

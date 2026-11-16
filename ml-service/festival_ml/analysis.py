@@ -254,7 +254,7 @@ def _pyin(y: np.ndarray, fmin: float, fmax: float) -> list[dict]:
     return notes
 
 
-def melody(stems: Stems, progress: Progress, duration: float) -> tuple[list[dict], list[dict], list[dict], str]:
+def melody(stems: Stems, progress: Progress, duration: float) -> tuple[list[dict], list[dict], list[dict], str, dict]:
     """Bass, lead (instrument incl. chords) and vocal lines. Stems make each line clean."""
     use_bp = engines()["basicPitch"]
     progress(0.55, "Transcribing bass")
@@ -275,11 +275,19 @@ def melody(stems: Stems, progress: Progress, duration: float) -> tuple[list[dict
 
     def rn(n: dict) -> dict:
         out = {"t": r3(n["t"]), "dur": r3(n["dur"]), "midi": int(n["midi"]), "strength": r3(n["strength"])}
+        if n.get("bend"):
+            out["bend"] = r3(n["bend"])
         if n.get("chord"):
             out["chord"] = [int(m) for m in n["chord"]]
         return out
 
-    return [rn(n) for n in bass], [rn(n) for n in lead], [rn(n) for n in vocals], "ml"
+    # Raw per-stem notes let the app re-time them against the attacks it hears in each stem.
+    raw = (
+        {"bass": [rn(n) for n in bass_notes], "vocals": [rn(n) for n in vocal_notes], "other": [rn(n) for n in other_notes]}
+        if stems.separated
+        else {}
+    )
+    return [rn(n) for n in bass], [rn(n) for n in lead], [rn(n) for n in vocals], "ml", raw
 
 
 # --------------------------------------------------------------------------- structure
@@ -355,7 +363,7 @@ def analyze(path: Path, progress: Progress) -> dict:
     tempo, beats = track_beats(stems.mix, stems.drums, duration)
     progress(0.48, "Reading chords")
     harm_events, key, _ = harmony(stems.harmonic, beats)
-    bass, lead, vocals, pitch_source = melody(stems, progress, duration)
+    bass, lead, vocals, pitch_source, stem_notes = melody(stems, progress, duration)
     progress(0.9, "Structure")
     downbeats = downbeats_for(beats, drums, harm_events)
     sections = sections_for(stems.mix, beats, downbeats, duration)
@@ -382,6 +390,7 @@ def analyze(path: Path, progress: Progress) -> dict:
         "key": key,
         "pitchSource": pitch_source,
         "separated": stems.separated,
+        "stemNotes": stem_notes,
         # Popped by the server and served separately; never part of the JSON result.
         **(
             {"_stem_wavs": {name: _wav_bytes(getattr(stems, name)) for name in STEM_NAMES}}

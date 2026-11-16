@@ -71,6 +71,13 @@ export interface AnalysisResult {
 export type StemName = 'drums' | 'bass' | 'vocals' | 'other';
 export const STEM_NAMES: StemName[] = ['drums', 'bass', 'vocals', 'other'];
 
+/** Raw transcription of each separated stem (before any line extraction). */
+export interface StemNotes {
+  bass: PitchedNote[];
+  vocals: PitchedNote[];
+  other: PitchedNote[];
+}
+
 /** Instrument lines computed elsewhere (e.g. from separated stems by the ML service). */
 export interface PartLines {
   bass: PitchedNote[];

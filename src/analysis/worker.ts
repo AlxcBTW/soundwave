@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { analyzeSignal } from './pipeline';
 import { transcribe } from './pitch/basicPitch';
-import type { AnalysisProgress, AnalysisResult, PartLines, PitchedNote } from './types';
+import type { AnalysisProgress, AnalysisResult, PartLines, PitchedNote, StemName, StemNotes } from './types';
 
 export type WorkerRequest = {
   type: 'analyze';
@@ -10,6 +10,8 @@ export type WorkerRequest = {
   useTranscriber: boolean;
   lines?: PartLines;
   drumSignal?: Float32Array;
+  stems?: Partial<Record<StemName, Float32Array>>;
+  stemNotes?: StemNotes;
 };
 
 export type WorkerResponse =
@@ -72,6 +74,8 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
       onLog: (message) => post({ type: 'log', message }),
       lines: req.lines,
       drumSignal: req.drumSignal,
+      stems: req.stems,
+      stemNotes: req.stemNotes,
       transcriber: req.useTranscriber && !req.lines
         ? (audio, onProgress) => guardedTranscribe(audio, req.modelUrl, onProgress, Math.max(90_000, duration * 1500))
         : undefined,

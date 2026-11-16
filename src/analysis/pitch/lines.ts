@@ -221,7 +221,7 @@ const LEAD_GAP_SEC = 12;
  * Where no lead instrument plays for a long stretch but someone sings, the lead part plays the
  * vocal melody, so the part never sits silent for half a minute.
  */
-function fillGaps(lead: PitchedNote[], vocals: PitchedNote[], duration: number): PitchedNote[] {
+export function fillGaps(lead: PitchedNote[], vocals: PitchedNote[], duration: number): PitchedNote[] {
   if (!vocals.length) return lead;
   const bounds = [0, ...lead.flatMap((n) => [n.t, n.t + n.dur]), duration];
   const out = [...lead];
