@@ -70,15 +70,43 @@ interface Ev {
   kind?: DrumKind;
 }
 
-/** Snaps a beat position to sixteenths, or to eighth-note triplets when clearly closer. */
-function snap(pos: number, triplets: boolean): number {
+/**
+ * Snaps a beat position to the part's rhythmic grid. Straight parts use sixteenths (a clearly
+ * triplet note keeps its triplet); triplet-feel parts (shuffles, triplet rap flows) use triplets,
+ * plus eighths and quarters, keeping a sixteenth only when it is clearly one.
+ */
+function snap(pos: number, feel: Feel): number {
   const q16 = Math.round(pos * 4) / 4;
-  if (!triplets) return q16;
   const q12 = Math.round(pos * 3) / 3;
+  const q8 = Math.round(pos * 2) / 2;
   const e16 = Math.abs(pos - q16);
   const e12 = Math.abs(pos - q12);
+  if (feel === 'triplet') {
+    const e8 = Math.abs(pos - q8);
+    if (e8 <= e12) return q8;
+    return e16 < 0.03 && e12 > 0.06 ? q16 : q12;
+  }
   // Only clearly-triplet timing counts; small timing errors in straight music stay on sixteenths.
   return e16 > 0.09 && e12 < 0.035 ? q12 : q16;
+}
+
+type Feel = 'straight' | 'triplet';
+
+/**
+ * Whether a part's notes sit on triplets: compares how many positions are clearly nearer a
+ * triplet (1/3, 2/3) than a sixteenth (1/4, 3/4) and the other way round.
+ */
+export function detectFeel(positions: number[]): Feel {
+  let trip = 0;
+  let six = 0;
+  for (const p of positions) {
+    const f = p - Math.floor(p);
+    const d12 = Math.min(Math.abs(f - 1 / 3), Math.abs(f - 2 / 3));
+    const d16 = Math.min(Math.abs(f - 0.25), Math.abs(f - 0.75));
+    if (d12 < 0.05 && d16 > 0.06) trip++;
+    else if (d16 < 0.05 && d12 > 0.06) six++;
+  }
+  return trip >= 12 && trip > six * 1.5 ? 'triplet' : 'straight';
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -86,9 +114,10 @@ function snap(pos: number, triplets: boolean): number {
 
 function pitchedExpert(line: PitchedNote[], grid: Grid, duration: number, chords: boolean): Ev[] {
   const byPos = new Map<number, Ev>();
+  const feel = detectFeel(line.map((n) => grid.pos(n.t)));
   for (const n of line) {
     if (n.t < 0.2 || n.t > duration - 0.05) continue;
-    const pos = snap(grid.pos(n.t), true);
+    const pos = snap(grid.pos(n.t), feel);
     const endPos = grid.pos(n.t + n.dur);
     const ev: Ev = {
       pos,
@@ -106,9 +135,10 @@ function pitchedExpert(line: PitchedNote[], grid: Grid, duration: number, chords
 
 function drumsExpert(a: AnalysisResult, grid: Grid): Ev[] {
   const byKey = new Map<string, Ev>();
+  const feel = detectFeel(a.drums.map((d) => grid.pos(d.t)));
   for (const d of a.drums) {
     if (d.t < 0.2 || d.t > a.duration - 0.05) continue;
-    const pos = snap(grid.pos(d.t), true);
+    const pos = snap(grid.pos(d.t), feel);
     const key = `${Math.round(pos * 48)}:${d.kind}`;
     const prev = byKey.get(key);
     if (!prev || d.strength > prev.strength) byKey.set(key, { pos, len: 0, midi: 0, strength: d.strength, kind: d.kind });

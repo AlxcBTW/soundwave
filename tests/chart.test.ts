@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AnalysisResult } from '../src/analysis/types';
-import { generateChart } from '../src/chart/generator';
+import { detectFeel, generateChart } from '../src/chart/generator';
 import { PROFILES } from '../src/chart/profiles';
 import { DIFFICULTIES, PARTS, lanesFor } from '../src/chart/types';
 
@@ -134,5 +134,15 @@ describe('generateChart', () => {
     expect(used.has(4)).toBe(true);
     const hard = new Set(generateChart(a, 'lead', 'hard', 's').notes.map((n) => n.lane));
     expect(hard.has(4)).toBe(false);
+  });
+});
+
+describe('detectFeel', () => {
+  const bars = Array.from({ length: 8 }, (_, b) => b * 4);
+  it('hears a shuffle as triplets', () => {
+    expect(detectFeel(bars.flatMap((b) => [b, b + 2 / 3, b + 1, b + 1 + 2 / 3, b + 2 + 1 / 3]))).toBe('triplet');
+  });
+  it('keeps sixteenth grooves straight, even with a few loose notes', () => {
+    expect(detectFeel(bars.flatMap((b) => [b, b + 0.25, b + 0.75, b + 1.5, b + 2.75, b + 3.34]))).toBe('straight');
   });
 });
