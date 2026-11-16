@@ -3,13 +3,14 @@
   "version": "0.1.0",
   "description": "Rhythm game that charts your own songs",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev": "node scripts/copy-models.mjs && vite",
+    "build": "node scripts/copy-models.mjs && tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "postinstall": "node scripts/copy-models.mjs"
   },
   "repository": {
     "type": "git",
@@ -22,6 +23,7 @@
   },
   "homepage": "https://github.com/DavidNiessen/festival#readme",
   "dependencies": {
+    "@spotify/basic-pitch": "^1.0.1",
     "fft.js": "^4.0.4",
     "idb": "^8.0.4",
     "music-metadata": "^12.5.0",

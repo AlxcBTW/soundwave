@@ -6,7 +6,7 @@ import { multiplierFor, starsFor } from '../src/game/scoring';
 
 const chart = (notes: Partial<Note>[], lanes: 4 | 5 = 4): Chart => ({
   part: 'lead',
-  difficulty: lanes === 5 ? 'hard' : 'easy',
+  difficulty: lanes === 5 ? 'expert' : 'easy',
   lanes,
   notes: notes.map((n) => ({ t: 0, lane: 0, dur: 0, phrase: -1, ...n })),
   beats: [],

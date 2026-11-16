@@ -3,12 +3,9 @@ import { ACCEPTED } from '../audio/importSong';
 import type { SongMeta } from '../storage/db';
 import { Cover } from './Cover';
 
-export interface SongStatus {
-  state: 'idle' | 'queued' | 'analyzing' | 'ready' | 'error';
-  progress?: number;
-  step?: string;
-  error?: string;
-}
+import type { AnalysisStatus } from '../analysis/manager';
+
+export type SongStatus = AnalysisStatus;
 
 interface Props {
   songs: SongMeta[];
@@ -114,7 +111,7 @@ export function LibraryScreen({ songs, status, importing, onImport, onOpen, onSe
 export function StatusPill({ status }: { status: SongStatus }) {
   const label =
     status.state === 'analyzing'
-      ? `${status.step ?? 'Analyzing'} ${Math.round((status.progress ?? 0) * 100)}%`
+      ? `${status.step ?? 'Analyzing'} · ${Math.round((status.progress ?? 0) * 100)}%`
       : status.state === 'queued'
         ? 'Queued'
         : status.state === 'ready'

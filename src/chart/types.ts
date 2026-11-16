@@ -1,10 +1,10 @@
 export type Part = 'drums' | 'bass' | 'lead';
-export type Difficulty = 'easy' | 'medium' | 'hard';
+export type Difficulty = 'easy' | 'medium' | 'hard' | 'expert';
 
 export const PARTS: Part[] = ['drums', 'bass', 'lead'];
-export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard'];
+export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert'];
 
-export const lanesFor = (d: Difficulty): 4 | 5 => (d === 'hard' ? 5 : 4);
+export const lanesFor = (d: Difficulty): 4 | 5 => (d === 'expert' ? 5 : 4);
 
 export interface Note {
   /** Hit time in seconds from song start. */

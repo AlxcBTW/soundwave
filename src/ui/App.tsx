@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { Chart, Difficulty, Part } from '../chart/types';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { analysisManager } from '../analysis/manager';
+import { DIFFICULTIES, PARTS, type Chart, type Difficulty, type Part } from '../chart/types';
 import { getEngine } from '../audio/engine';
 import { isAudioFile, readSongFile } from '../audio/importSong';
 import { DEMO_ID, forgetSongBuffer, loadSongBuffer } from '../audio/songAudio';
@@ -52,7 +53,13 @@ export function App() {
     void refresh();
   }, [refresh]);
 
-  const status: Record<string, SongStatus> = { [DEMO_ID]: { state: 'ready' } };
+  const analysisStatus = useSyncExternalStore(analysisManager.subscribe, analysisManager.snapshot);
+  const status: Record<string, SongStatus> = useMemo(() => ({ ...analysisStatus, [DEMO_ID]: { state: 'ready' } }), [analysisStatus]);
+
+  // Analyze new songs automatically; previously analyzed ones load from the cache.
+  useEffect(() => {
+    for (const s of songs) if (s.id !== DEMO_ID && !analysisStatus[s.id]) void analysisManager.check(s.id, true);
+  }, [songs, analysisStatus]);
 
   const importFiles = useCallback(
     async (files: File[]) => {
@@ -96,8 +103,9 @@ export function App() {
     try {
       getEngine().stop();
       const buffer = await loadSongBuffer(song.id);
-      const chart = song.id === DEMO_ID ? { ...demoChart(difficulty), part } : null;
-      if (!chart) return;
+      const chart = song.id === DEMO_ID ? { ...demoChart(difficulty), part } : await analysisManager.chart(song.id, part, difficulty);
+      if (!chart) return toast('This song has not been analyzed yet.');
+      if (chart.notes.length === 0) return toast('No notes were found for this part. Try another part.');
       setView({ name: 'play', song, buffer, chart, key: Date.now() });
     } catch (e) {
       toast((e as Error).message);
@@ -121,6 +129,29 @@ export function App() {
     }
     setView({ name: 'results', song: v.song, buffer: v.buffer, chart: v.chart, results, best });
   };
+
+  const detailId = view.name === 'detail' ? view.song.id : null;
+  const detailReady = detailId ? status[detailId]?.state === 'ready' : false;
+  const [noteCounts, setNoteCounts] = useState<Partial<Record<Part, Partial<Record<Difficulty, number>>>>>();
+  useEffect(() => {
+    setNoteCounts(undefined);
+    if (!detailId || !detailReady) return;
+    let cancelled = false;
+    void (async () => {
+      const counts: Partial<Record<Part, Partial<Record<Difficulty, number>>>> = {};
+      for (const p of PARTS) {
+        counts[p] = {};
+        for (const d of DIFFICULTIES) {
+          const c = detailId === DEMO_ID ? demoChart(d) : await analysisManager.chart(detailId, p, d);
+          counts[p]![d] = c?.notes.length ?? 0;
+        }
+      }
+      if (!cancelled) setNoteCounts(counts);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [detailId, detailReady]);
 
   const detailPreview = useCallback(
     (on: boolean) => {
@@ -174,13 +205,15 @@ export function App() {
             song={view.song}
             builtin={view.song.id === DEMO_ID}
             status={status[view.song.id] ?? { state: 'idle' }}
+            noteCounts={noteCounts}
             onBack={() => setView({ name: 'library' })}
             onPlay={(p, d) => void play(view.song, p, d)}
-            onAnalyze={() => {}}
+            onAnalyze={() => analysisManager.enqueue(view.song.id, true)}
             onPreview={detailPreview}
             onDelete={async () => {
               getEngine().stop();
               forgetSongBuffer(view.song.id);
+              analysisManager.forget(view.song.id);
               await deleteSong(view.song.id);
               await refresh();
               setView({ name: 'library' });

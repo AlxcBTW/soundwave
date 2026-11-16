@@ -47,14 +47,14 @@ export function demoChart(difficulty: Difficulty): Chart {
   const pattern5 = [0, 1, 2, 3, 4, 3, 2, 1];
   const pattern = lanes === 5 ? pattern5 : pattern4;
   const notes: Note[] = [];
-  const step = difficulty === 'easy' ? 1 : 0.5;
+  const step = difficulty === 'easy' ? 1 : difficulty === 'expert' ? 0.25 : 0.5;
   let k = 0;
   for (let b = 0; b < total; b += step) {
     const bar = Math.floor(b / 4);
     const t = LEAD_IN + b * SPB;
     const phrase = bar % 4 === 2 ? bar : -1;
     const lane = pattern[k++ % pattern.length];
-    const sustain = Number.isInteger(b) && b % 8 === 7 ? SPB * 0.9 : 0;
+    const sustain = Number.isInteger(b) && b % 8 === 7 ? SPB * Math.min(0.9, step * 1.8) : 0;
     notes.push({ t, lane, dur: sustain, phrase });
     if (difficulty !== 'easy' && b % 4 === 0 && bar % 2 === 1) {
       notes.push({ t, lane: (lane + 2) % lanes, dur: 0, phrase });
