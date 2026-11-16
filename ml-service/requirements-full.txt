@@ -1,0 +1,6 @@
+# Optional: stem separation and neural transcription for the best charts.
+-r requirements.txt
+torch>=2.3
+torchaudio>=2.3
+demucs>=4.0.1
+basic-pitch>=0.4

@@ -1,7 +1,7 @@
 import { loadSongBuffer } from '../audio/songAudio';
 import { generateChart } from '../chart/generator';
 import type { Chart, Difficulty, Part } from '../chart/types';
-import { analysisKey, getAnalysis, putAnalysis } from '../storage/db';
+import { analysisKey, deleteAnalyses, getAnalysis, putAnalysis } from '../storage/db';
 import { ANALYSIS_SAMPLE_RATE, ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult, type AnalysisStep } from './types';
 import type { WorkerRequest, WorkerResponse } from './worker';
 
@@ -102,6 +102,8 @@ class AnalysisManager {
         const result = await this.analyze(id);
         this.results.set(id, result);
         try {
+          // One cached result per song: a re-analysis replaces whatever was there.
+          await deleteAnalyses(id);
           await putAnalysis(analysisKey(id, ANALYSIS_VERSION, result.source), id, result);
         } catch {
           /* cache is best-effort */

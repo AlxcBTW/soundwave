@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { analysisManager } from '../analysis/manager';
+import { checkHealth, mlAnalyzer } from '../analysis/mlClient';
 import { DIFFICULTIES, PARTS, type Chart, type Difficulty, type Part } from '../chart/types';
 import { getEngine } from '../audio/engine';
 import { isAudioFile, readSongFile } from '../audio/importSong';
@@ -58,6 +59,25 @@ export function App() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Optional ML service: route analyses through it while it is enabled and reachable.
+  const [mlStatus, setMlStatus] = useState<'off' | 'checking' | 'online' | 'offline'>('off');
+  useEffect(() => {
+    analysisManager.remote = settings.mlEnabled ? mlAnalyzer(settings.mlUrl) : null;
+    if (!settings.mlEnabled) return setMlStatus('off');
+    let cancelled = false;
+    const check = async () => {
+      const h = await checkHealth(settings.mlUrl);
+      if (!cancelled) setMlStatus(h ? 'online' : 'offline');
+    };
+    setMlStatus('checking');
+    void check();
+    const timer = setInterval(check, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [settings.mlEnabled, settings.mlUrl]);
 
   const analysisStatus = useSyncExternalStore(analysisManager.subscribe, analysisManager.snapshot);
   const status: Record<string, SongStatus> = useMemo(() => ({ ...analysisStatus, [DEMO_ID]: { state: 'ready' } }), [analysisStatus]);
@@ -198,7 +218,7 @@ export function App() {
       <div className="menu">
         <MenuBackground />
         {view.name === 'settings' ? (
-          <SettingsScreen settings={settings} mlStatus="off" onChange={updateSettings} onBack={() => setView(view.back)} />
+          <SettingsScreen settings={settings} mlStatus={mlStatus} onChange={updateSettings} onBack={() => setView(view.back)} />
         ) : view.name === 'library' ? (
           <LibraryScreen
             songs={songs}

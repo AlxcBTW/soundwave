@@ -87,6 +87,12 @@ export async function getAnalysis<T>(key: string): Promise<T | undefined> {
   return (await (await db()).get('analysis', key))?.data as T | undefined;
 }
 
+export async function deleteAnalyses(songId: string) {
+  const tx = (await db()).transaction('analysis', 'readwrite');
+  for (let c = await tx.store.openCursor(); c; c = await c.continue()) if (c.value.songId === songId) await c.delete();
+  await tx.done;
+}
+
 export async function putAnalysis(key: string, songId: string, data: unknown) {
   await (await db()).put('analysis', { key, songId, data });
 }
