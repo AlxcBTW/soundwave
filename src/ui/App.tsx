@@ -8,13 +8,14 @@ import { DEMO_ID, forgetSongBuffer, loadSongBuffer } from '../audio/songAudio';
 import type { Results } from '../game/GameSession';
 import { demoChart } from '../game/demo';
 import { loadSettings, saveSettings, type Settings } from '../game/settings';
-import { deleteSong, getSong, listSongs, putSong, submitScore, type SongMeta } from '../storage/db';
+import { deleteSong, getSong, getStem, listSongs, listStems, putSong, submitScore, type SongMeta } from '../storage/db';
+import type { StemName } from '../analysis/types';
 import { LibraryScreen, type SongStatus } from './LibraryScreen';
 import { MenuBackground } from './MenuBackground';
 import { PlayScreen } from './PlayScreen';
 import { ResultsScreen } from './ResultsScreen';
 import { SettingsScreen } from './SettingsScreen';
-import { SongDetail } from './SongDetail';
+import { SongDetail, type PreviewSource } from './SongDetail';
 import { Toasts, useToasts } from './Toasts';
 
 const DEMO_SONG: SongMeta = {
@@ -113,17 +114,30 @@ export function App() {
     [refresh, toast],
   );
 
+  const [previewing, setPreviewing] = useState<PreviewSource | null>(null);
   const preview = useCallback(
-    async (song: SongMeta, on: boolean) => {
+    async (song: SongMeta, source: PreviewSource | null) => {
       const engine = getEngine();
-      if (!on) return engine.stop();
+      engine.stop();
+      setPreviewing(source);
+      if (!source) return;
       try {
-        const buf = await loadSongBuffer(song.id);
+        let buf: AudioBuffer;
+        if (source === 'mix') {
+          buf = await loadSongBuffer(song.id);
+        } else {
+          const blob = await getStem(song.id, source);
+          if (!blob) throw new Error('This stem is no longer stored. Re-analyze with the ML service.');
+          buf = await engine.decode(await blob.arrayBuffer());
+        }
         engine.load(buf);
         engine.offset = 0;
         engine.volume = settings.volume * 0.8;
-        await engine.play(buf.duration / 3, 0.05);
+        engine.onEnded = () => setPreviewing((p) => (p === source ? null : p));
+        // The song preview starts a third in; stems play in full for checking the separation.
+        await engine.play(source === 'mix' ? buf.duration / 3 : 0, 0.05);
       } catch (e) {
+        setPreviewing(null);
         toast((e as Error).message);
       }
     },
@@ -163,6 +177,20 @@ export function App() {
 
   const detailId = view.name === 'detail' ? view.song.id : null;
   const detailReady = detailId ? status[detailId]?.state === 'ready' : false;
+  // Stems stored for the open song (refreshed when its analysis finishes).
+  const [stems, setStems] = useState<StemName[]>([]);
+  useEffect(() => {
+    setStems([]);
+    if (!detailId || detailId === DEMO_ID) return;
+    let cancelled = false;
+    void listStems(detailId)
+      .then((s) => !cancelled && setStems(s))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [detailId, detailReady]);
+
   const [noteCounts, setNoteCounts] = useState<Partial<Record<Part, Partial<Record<Difficulty, number>>>>>();
   useEffect(() => {
     setNoteCounts(undefined);
@@ -185,8 +213,8 @@ export function App() {
   }, [detailId, detailReady]);
 
   const detailPreview = useCallback(
-    (on: boolean) => {
-      if (view.name === 'detail') void preview(view.song, on);
+    (source: PreviewSource | null) => {
+      if (view.name === 'detail') void preview(view.song, source);
     },
     [view.name === 'detail' ? view.song.id : null, preview],
   );
@@ -239,6 +267,8 @@ export function App() {
             builtin={view.song.id === DEMO_ID}
             status={status[view.song.id] ?? { state: 'idle' }}
             noteCounts={noteCounts}
+            stems={stems}
+            previewing={previewing}
             onBack={() => setView({ name: 'library' })}
             onPlay={(p, d) => void play(view.song, p, d)}
             onAnalyze={() => analysisManager.enqueue(view.song.id, true)}

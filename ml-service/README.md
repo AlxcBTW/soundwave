@@ -4,7 +4,7 @@ A local HTTP service that makes charts more accurate by working on separated ste
 
 1. **Demucs** (htdemucs) splits the song into drums, bass, vocals and other instruments. On an NVIDIA GPU this takes a few seconds per song.
 2. **Basic Pitch** transcribes the bass, vocal and instrument stems separately, so each part follows exactly one instrument. Lead keeps chords as chords.
-3. The service returns those lines plus the isolated drum stem. The app then runs its own beat tracking on the full mix and drum detection on the clean drum stem.
+3. The service returns those lines plus the separated stems. The app keeps the stems for preview on the song page. The app then runs its own beat tracking on the full mix and drum detection on the clean drum stem.
 
 The game works without it. When the service is enabled in **Settings → Analysis service** and reachable, new analyses use it. If it is unavailable, the game falls back to in-app analysis.
 
@@ -52,7 +52,7 @@ python -m festival_ml --port 8765
 
 - `GET /health` → `{ ok, engines: { demucs, basicPitch }, device }`
 - `POST /jobs` (multipart `file`) → `{ id }`
-- `GET /jobs/{id}` → `{ state: queued|running|done|error, progress, step, result?, error? }`. The result includes `bass`, `lead` (with `chord` voicings) and `vocals` lines, and `drumStem: true` when a drum stem is available.
-- `GET /jobs/{id}/drums.wav` → the isolated drum stem (mono, 16-bit, 22.05 kHz). It can be downloaded once and is kept for 10 minutes.
+- `GET /jobs/{id}` → `{ state: queued|running|done|error, progress, step, result?, error? }`. The result includes `bass`, `lead` (with `chord` voicings) and `vocals` lines, and `stems`, the names of the separated stems available for download.
+- `GET /jobs/{id}/stems/{name}.wav` → one separated stem (`drums`, `bass`, `vocals` or `other`; mono, 16-bit, 22.05 kHz). Stems are kept for 10 minutes after the job finishes.
 
 The service only listens on localhost and accepts browser requests from local origins and the desktop app.

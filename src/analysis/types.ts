@@ -67,6 +67,10 @@ export interface AnalysisResult {
   pitchSource: 'basic-pitch' | 'salience' | 'ml';
 }
 
+/** Separated stems the ML service can provide. */
+export type StemName = 'drums' | 'bass' | 'vocals' | 'other';
+export const STEM_NAMES: StemName[] = ['drums', 'bass', 'vocals', 'other'];
+
 /** Instrument lines computed elsewhere (e.g. from separated stems by the ML service). */
 export interface PartLines {
   bass: PitchedNote[];

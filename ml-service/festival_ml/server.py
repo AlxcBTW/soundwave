@@ -13,7 +13,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from .analysis import analyze, device, drum_stem_wav, engines
+from .analysis import STEM_NAMES, analyze, device, engines, stem_wavs
 
 MAX_UPLOAD = 400 * 1024 * 1024
 
@@ -27,8 +27,8 @@ app.add_middleware(
 )
 
 _jobs: dict[str, dict] = {}
-# Drum stems wait here until the client downloads them (once), at most STEM_TTL seconds.
-_stems: dict[str, tuple[float, bytes]] = {}
+# Separated stems of finished jobs, kept for STEM_TTL seconds for the client to download.
+_stems: dict[str, tuple[float, dict[str, bytes]]] = {}
 STEM_TTL = 600
 _lock = threading.Lock()
 # One analysis at a time: stem separation is memory hungry.
@@ -58,14 +58,16 @@ async def create_job(file: UploadFile = File(...)) -> dict:
     return {"id": job_id}
 
 
-@app.get("/jobs/{job_id}/drums.wav")
-def get_drum_stem(job_id: str) -> Response:
+@app.get("/jobs/{job_id}/stems/{name}.wav")
+def get_stem(job_id: str, name: str) -> Response:
+    if name not in STEM_NAMES:
+        raise HTTPException(404, "unknown stem")
     with _lock:
         _prune_stems()
-        item = _stems.pop(job_id, None)
-    if item is None:
-        raise HTTPException(404, "no drum stem for this job")
-    return Response(content=item[1], media_type="audio/wav")
+        item = _stems.get(job_id)
+    if item is None or name not in item[1]:
+        raise HTTPException(404, "no such stem for this job")
+    return Response(content=item[1][name], media_type="audio/wav")
 
 
 def _prune_stems() -> None:
@@ -97,10 +99,11 @@ def _run(job_id: str, path: Path) -> None:
         with _worker_lock:
             result = analyze(path, progress)
         with _lock:
-            wav = drum_stem_wav(result)
-            if wav:
-                _stems[job_id] = (time.time(), wav)
-            result["drumStem"] = bool(wav)
+            wavs = stem_wavs(result)
+            if wavs:
+                _prune_stems()
+                _stems[job_id] = (time.time(), wavs)
+            result["stems"] = sorted(wavs)
             _jobs[job_id] = {"state": "done", "progress": 1.0, "step": "Done", "result": result}
     except Exception as e:  # noqa: BLE001 - report any failure to the client
         traceback.print_exc()

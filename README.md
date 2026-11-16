@@ -74,7 +74,7 @@ To tune analysis or charts on your own files without the UI, see `scripts/dev/an
 
 ### Optional ML service
 
-`ml-service/` is a local Python service. It adds Demucs stem separation and per-stem transcription, which give more accurate charts. Enable it under **Settings → Analysis service**. If it is not running, the game falls back to in-app analysis. See [ml-service/README.md](ml-service/README.md).
+`ml-service/` is a local Python service. It adds Demucs stem separation and per-stem transcription, which give more accurate charts. Enable it under **Settings → Analysis service**. If it is not running, the game falls back to in-app analysis. Songs analyzed this way keep their stems, and the song page's **Listen** buttons play each one (instruments, bass, drums, vocals) for checking the separation. See [ml-service/README.md](ml-service/README.md).
 
 ## Tests
 

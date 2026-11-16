@@ -330,9 +330,12 @@ def sections_for(y: np.ndarray, beats: list[float], downbeats: list[int], durati
 
 # --------------------------------------------------------------------------- entry
 
-def drum_stem_wav(result: dict) -> bytes | None:
-    """The separated drum stem (mono, 16-bit, 22.05 kHz WAV), if stems were separated."""
-    return result.pop("_drum_wav", None)
+STEM_NAMES = ("drums", "bass", "vocals", "other")
+
+
+def stem_wavs(result: dict) -> dict[str, bytes]:
+    """Separated stems as WAV bytes (mono, 16-bit, 22.05 kHz), removed from the JSON result."""
+    return result.pop("_stem_wavs", {})
 
 
 def _wav_bytes(y: np.ndarray) -> bytes:
@@ -380,5 +383,9 @@ def analyze(path: Path, progress: Progress) -> dict:
         "pitchSource": pitch_source,
         "separated": stems.separated,
         # Popped by the server and served separately; never part of the JSON result.
-        **({"_drum_wav": _wav_bytes(stems.drums)} if stems.separated else {}),
+        **(
+            {"_stem_wavs": {name: _wav_bytes(getattr(stems, name)) for name in STEM_NAMES}}
+            if stems.separated
+            else {}
+        ),
     }

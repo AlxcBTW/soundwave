@@ -1,4 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import type { StemName } from '../analysis/types';
 import type { Difficulty, Part } from '../chart/types';
 
 export interface SongMeta {
@@ -32,17 +33,22 @@ interface FestivalDB extends DBSchema {
   /** Cached analysis results keyed by `${songId}:${analyzerVersion}:${source}`. */
   analysis: { key: string; value: { key: string; songId: string; data: unknown } };
   scores: { key: string; value: BestScore; indexes: { songId: string } };
+  /** Separated stems from the ML service, keyed by `${songId}:${name}` (for previewing). */
+  stems: { key: string; value: { key: string; songId: string; name: StemName; blob: Blob }; indexes: { songId: string } };
 }
 
 let dbPromise: Promise<IDBPDatabase<FestivalDB>> | null = null;
 
 function db() {
-  dbPromise ??= openDB<FestivalDB>('festival', 1, {
-    upgrade(d) {
-      d.createObjectStore('songs', { keyPath: 'id' }).createIndex('addedAt', 'addedAt');
-      d.createObjectStore('audio', { keyPath: 'id' });
-      d.createObjectStore('analysis', { keyPath: 'key' });
-      d.createObjectStore('scores', { keyPath: 'key' }).createIndex('songId', 'songId');
+  dbPromise ??= openDB<FestivalDB>('festival', 2, {
+    upgrade(d, oldVersion) {
+      if (oldVersion < 1) {
+        d.createObjectStore('songs', { keyPath: 'id' }).createIndex('addedAt', 'addedAt');
+        d.createObjectStore('audio', { keyPath: 'id' });
+        d.createObjectStore('analysis', { keyPath: 'key' });
+        d.createObjectStore('scores', { keyPath: 'key' }).createIndex('songId', 'songId');
+      }
+      if (oldVersion < 2) d.createObjectStore('stems', { keyPath: 'key' }).createIndex('songId', 'songId');
     },
   });
   return dbPromise;
@@ -69,7 +75,7 @@ export async function getAudio(id: string): Promise<Blob | undefined> {
 
 export async function deleteSong(id: string) {
   const d = await db();
-  const tx = d.transaction(['songs', 'audio', 'analysis', 'scores'], 'readwrite');
+  const tx = d.transaction(['songs', 'audio', 'analysis', 'scores', 'stems'], 'readwrite');
   await tx.objectStore('songs').delete(id);
   await tx.objectStore('audio').delete(id);
   const analysis = tx.objectStore('analysis');
@@ -78,7 +84,30 @@ export async function deleteSong(id: string) {
   }
   const scores = tx.objectStore('scores');
   for (let c = await scores.index('songId').openCursor(id); c; c = await c.continue()) await c.delete();
+  const stems = tx.objectStore('stems');
+  for (let c = await stems.index('songId').openCursor(id); c; c = await c.continue()) await c.delete();
   await tx.done;
+}
+
+/** Replaces a song's stored stems. */
+export async function putStems(songId: string, stems: Partial<Record<StemName, Blob>>) {
+  const tx = (await db()).transaction('stems', 'readwrite');
+  for (let c = await tx.store.index('songId').openCursor(songId); c; c = await c.continue()) await c.delete();
+  for (const [name, blob] of Object.entries(stems) as [StemName, Blob][]) {
+    await tx.store.put({ key: `${songId}:${name}`, songId, name, blob });
+  }
+  await tx.done;
+}
+
+export async function listStems(songId: string): Promise<StemName[]> {
+  const rows = await (await db()).getAllFromIndex('stems', 'songId', songId);
+  // Same order as the parts: instruments (lead), bass, drums, vocals.
+  const order: StemName[] = ['other', 'bass', 'drums', 'vocals'];
+  return rows.map((r) => r.name).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+}
+
+export async function getStem(songId: string, name: StemName): Promise<Blob | undefined> {
+  return (await (await db()).get('stems', `${songId}:${name}`))?.blob;
 }
 
 export const analysisKey = (songId: string, version: number, source: string) => `${songId}:${version}:${source}`;

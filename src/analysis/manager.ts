@@ -1,8 +1,8 @@
 import { loadSongBuffer } from '../audio/songAudio';
 import { generateAll } from '../chart/generator';
 import type { Chart, Difficulty, Part } from '../chart/types';
-import { analysisKey, deleteAnalyses, getAnalysis, putAnalysis } from '../storage/db';
-import { ANALYSIS_SAMPLE_RATE, ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult, type AnalysisStep, type PartLines } from './types';
+import { analysisKey, deleteAnalyses, getAnalysis, putAnalysis, putStems } from '../storage/db';
+import { ANALYSIS_SAMPLE_RATE, ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult, type AnalysisStep, type PartLines, type StemName } from './types';
 import type { WorkerRequest, WorkerResponse } from './worker';
 
 export interface AnalysisStatus {
@@ -25,8 +25,8 @@ const STEP_LABEL: Record<AnalysisStep, string> = {
 /** What the optional ML service contributes: lines from separated stems and the drum stem. */
 export interface RemoteResult {
   result: AnalysisResult;
-  /** WAV bytes of the isolated drums, when the service separated stems. */
-  drumStem?: ArrayBuffer;
+  /** WAV bytes of each separated stem, when the service separated stems. */
+  stems: Partial<Record<StemName, ArrayBuffer>>;
 }
 
 /** Pluggable remote analyzer (the optional ML service). Returns null when unavailable. */
@@ -40,6 +40,8 @@ export type RemoteAnalyzer = (
 export interface Assist {
   lines: PartLines;
   drumStem?: ArrayBuffer;
+  /** All separated stems, kept for previewing on the song page. */
+  stems?: Partial<Record<StemName, ArrayBuffer>>;
 }
 
 /** In-app analyzer: decode, then run the DSP/transcription pipeline in a worker. */
@@ -142,9 +144,17 @@ export class AnalysisManager {
       this.current = { id, abort };
       const stale = () => (this.generation.get(id) ?? 0) !== gen;
       try {
-        const result = await this.analyze(id, abort.signal);
+        const { result, stems } = await this.analyze(id, abort.signal);
         if (stale()) continue;
         this.results.set(id, result);
+        if (stems && Object.keys(stems).length) {
+          try {
+            const blobs = Object.fromEntries(Object.entries(stems).map(([k, v]) => [k, new Blob([v], { type: 'audio/wav' })]));
+            await putStems(id, blobs);
+          } catch {
+            /* stems are only for previewing */
+          }
+        }
         try {
           // One cached result per song: a re-analysis replaces whatever was there.
           await deleteAnalyses(id);
@@ -163,7 +173,7 @@ export class AnalysisManager {
     this.running = false;
   }
 
-  private async analyze(id: string, signal: AbortSignal): Promise<AnalysisResult> {
+  private async analyze(id: string, signal: AbortSignal): Promise<{ result: AnalysisResult; stems?: Assist['stems'] }> {
     const progress = (s: AnalysisStatus) => {
       if (!signal.aborted) this.set(id, s);
     };
@@ -173,7 +183,14 @@ export class AnalysisManager {
     if (this.remote) {
       try {
         const r = await this.remote(id, (p, step) => progress({ state: 'analyzing', progress: p * 0.6, step }), signal);
-        if (r) assist = { lines: { bass: r.result.bass, lead: r.result.lead, vocals: r.result.vocals ?? [] }, drumStem: r.drumStem };
+        if (r) {
+          assist = {
+            lines: { bass: r.result.bass, lead: r.result.lead, vocals: r.result.vocals ?? [] },
+            // Copy: the worker transfer and IndexedDB both need their own buffers.
+            drumStem: r.stems.drums?.slice(0),
+            stems: r.stems,
+          };
+        }
       } catch (e) {
         if (signal.aborted) throw abortError();
         console.warn('remote analysis failed, using in-app analysis', e);
@@ -182,12 +199,13 @@ export class AnalysisManager {
     if (signal.aborted) throw abortError();
     const base = assist ? 0.6 : 0;
     progress({ state: 'analyzing', progress: base, step: STEP_LABEL.decoding });
-    return this.local(
+    const result = await this.local(
       id,
       (p) => progress({ state: 'analyzing', progress: base + p.progress * (1 - base), step: STEP_LABEL[p.step] }),
       signal,
       assist,
     );
+    return { result, stems: assist?.stems };
   }
 
   async analysis(id: string): Promise<AnalysisResult | undefined> {

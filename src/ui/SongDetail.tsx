@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { StemName } from '../analysis/types';
 import { DIFFICULTIES, PARTS, lanesFor, type Difficulty, type Part } from '../chart/types';
 import { getScores, type BestScore, type SongMeta } from '../storage/db';
 import { Cover } from './Cover';
@@ -13,8 +14,17 @@ interface Props {
   onPlay(part: Part, difficulty: Difficulty): void;
   onAnalyze(): void;
   onDelete(): void;
-  onPreview(on: boolean): void;
+  /** Stems stored for this song (from the ML service), for listening while debugging charts. */
+  stems: StemName[];
+  /** What is playing right now: the mix, a stem, or nothing. */
+  previewing: PreviewSource | null;
+  onPreview(source: PreviewSource | null): void;
 }
+
+export type PreviewSource = 'mix' | StemName;
+
+/** `other` is everything but drums, bass and vocals: the source of the Lead part. */
+const STEM_LABEL: Record<StemName, string> = { drums: 'Drums', bass: 'Bass', vocals: 'Vocals', other: 'Instruments' };
 
 const PART_LABEL: Record<Part, string> = { lead: 'Lead', bass: 'Bass', drums: 'Drums', vocals: 'Vocals' };
 const PART_ICON: Record<Part, string> = { lead: '🎹', bass: '🎸', drums: '🥁', vocals: '🎤' };
@@ -30,16 +40,15 @@ function lastPick(): { part: Part; difficulty: Difficulty } {
   return { part: 'lead', difficulty: 'medium' };
 }
 
-export function SongDetail({ song, builtin, status, noteCounts, onBack, onPlay, onAnalyze, onDelete, onPreview }: Props) {
+export function SongDetail({ song, builtin, status, noteCounts, stems, previewing, onBack, onPlay, onAnalyze, onDelete, onPreview }: Props) {
   const [pick, setPick] = useState(lastPick);
   const [scores, setScores] = useState<BestScore[]>([]);
-  const [previewing, setPreviewing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     void getScores(song.id).then(setScores).catch(() => setScores([]));
   }, [song.id]);
-  useEffect(() => () => onPreview(false), [onPreview]);
+  useEffect(() => () => onPreview(null), [onPreview]);
 
   const choose = (p: Partial<typeof pick>) => {
     const next = { ...pick, ...p };
@@ -72,15 +81,27 @@ export function SongDetail({ song, builtin, status, noteCounts, onBack, onPlay, 
       <div className="detail-body">
         <div className="detail-cover">
           <Cover blob={song.cover} title={song.title} />
-          <button
-            className="btn small"
-            onClick={() => {
-              onPreview(!previewing);
-              setPreviewing(!previewing);
-            }}
-          >
-            {previewing ? '■ Stop preview' : '▶ Preview'}
-          </button>
+          <div className="listen">
+            <div className="section-label">Listen</div>
+            <div className="listen-row">
+              {(['mix', ...stems] as PreviewSource[]).map((src) => {
+                const on = previewing === src;
+                return (
+                  <button
+                    key={src}
+                    className={`btn small ${on ? 'primary' : ''}`}
+                    title={src === 'mix' ? 'Preview the song' : `Play the separated ${STEM_LABEL[src as StemName].toLowerCase()} stem`}
+                    onClick={() => onPreview(on ? null : src)}
+                  >
+                    {on ? '■' : '▶'} {src === 'mix' ? 'Song' : STEM_LABEL[src as StemName]}
+                  </button>
+                );
+              })}
+            </div>
+            {!builtin && stems.length === 0 && (
+              <p className="hint">Stems appear here after analyzing with the ML service (Settings → Analysis service).</p>
+            )}
+          </div>
         </div>
         <div className="detail-main panel left">
           <div className="eyebrow">{song.artist}{song.album ? ` · ${song.album}` : ''}</div>
