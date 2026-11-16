@@ -96,7 +96,12 @@ export function App() {
         try {
           const { meta, bytes } = await readSongFile(f);
           if (await getSong(meta.id)) toast(`"${meta.title}" is already in your library.`);
-          else await putSong(meta, new Blob([bytes], { type: meta.mime }));
+          else {
+            await putSong(meta, new Blob([bytes], { type: meta.mime }));
+            // A re-import of a removed song starts clean: no stale status or failed analysis.
+            forgetSongBuffer(meta.id);
+            analysisManager.forget(meta.id);
+          }
         } catch (e) {
           toast(`Could not import ${f.name}: ${(e as Error).message}`);
         } finally {

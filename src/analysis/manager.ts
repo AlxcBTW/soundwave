@@ -23,18 +23,36 @@ const STEP_LABEL: Record<AnalysisStep, string> = {
 };
 
 /** Pluggable remote analyzer (the optional ML service). Returns null when unavailable. */
-export type RemoteAnalyzer = (songId: string, onProgress: (p: number, label: string) => void) => Promise<AnalysisResult | null>;
+export type RemoteAnalyzer = (
+  songId: string,
+  onProgress: (p: number, label: string) => void,
+  signal: AbortSignal,
+) => Promise<AnalysisResult | null>;
+
+/** In-app analyzer: decode, then run the DSP/transcription pipeline in a worker. */
+export type LocalAnalyzer = (
+  songId: string,
+  onProgress: (p: { step: AnalysisStep; progress: number }) => void,
+  signal: AbortSignal,
+) => Promise<AnalysisResult>;
+
+const abortError = () => new DOMException('analysis cancelled', 'AbortError');
 
 type Listener = () => void;
 
-class AnalysisManager {
+export class AnalysisManager {
   private status: Record<string, AnalysisStatus> = {};
+  /** Bumped whenever a song is forgotten; results from an older generation are dropped. */
+  private generation = new Map<string, number>();
+  private current: { id: string; abort: AbortController } | null = null;
   private results = new Map<string, AnalysisResult>();
   private charts = new Map<string, Chart>();
   private queue: string[] = [];
   private running = false;
   private listeners = new Set<Listener>();
   remote: RemoteAnalyzer | null = null;
+
+  constructor(private readonly local: LocalAnalyzer = localAnalyzer) {}
 
   subscribe = (l: Listener) => {
     this.listeners.add(l);
@@ -85,9 +103,16 @@ class AnalysisManager {
     void this.pump();
   }
 
+  /**
+   * Drops everything known about a song (removed, or re-imported). A running analysis of it is
+   * cancelled, and anything it still produces is ignored, so no stale error or cache survives.
+   */
   forget(id: string) {
+    this.generation.set(id, (this.generation.get(id) ?? 0) + 1);
     this.queue = this.queue.filter((q) => q !== id);
     this.results.delete(id);
+    for (const k of [...this.charts.keys()]) if (k.startsWith(`${id}:`)) this.charts.delete(k);
+    if (this.current?.id === id) this.current.abort.abort();
     const { [id]: _, ...rest } = this.status;
     this.status = rest;
     for (const l of this.listeners) l();
@@ -98,8 +123,13 @@ class AnalysisManager {
     this.running = true;
     while (this.queue.length) {
       const id = this.queue.shift()!;
+      const gen = this.generation.get(id) ?? 0;
+      const abort = new AbortController();
+      this.current = { id, abort };
+      const stale = () => (this.generation.get(id) ?? 0) !== gen;
       try {
-        const result = await this.analyze(id);
+        const result = await this.analyze(id, abort.signal);
+        if (stale()) continue;
         this.results.set(id, result);
         try {
           // One cached result per song: a re-analysis replaces whatever was there.
@@ -108,27 +138,33 @@ class AnalysisManager {
         } catch {
           /* cache is best-effort */
         }
+        if (stale()) continue;
         this.set(id, { state: 'ready' });
       } catch (e) {
-        this.set(id, { state: 'error', error: (e as Error).message });
+        if (!stale()) this.set(id, { state: 'error', error: (e as Error).message });
+      } finally {
+        this.current = null;
       }
     }
     this.running = false;
   }
 
-  private async analyze(id: string): Promise<AnalysisResult> {
+  private async analyze(id: string, signal: AbortSignal): Promise<AnalysisResult> {
+    const progress = (s: AnalysisStatus) => {
+      if (!signal.aborted) this.set(id, s);
+    };
     if (this.remote) {
       try {
-        const r = await this.remote(id, (progress, step) => this.set(id, { state: 'analyzing', progress, step }));
+        const r = await this.remote(id, (p, step) => progress({ state: 'analyzing', progress: p, step }), signal);
         if (r) return r;
       } catch (e) {
+        if (signal.aborted) throw abortError();
         console.warn('remote analysis failed, using in-app analysis', e);
       }
     }
-    this.set(id, { state: 'analyzing', progress: 0, step: STEP_LABEL.decoding });
-    const buffer = await loadSongBuffer(id);
-    const signal = await toAnalysisSignal(buffer);
-    return runWorker(signal, (p) => this.set(id, { state: 'analyzing', progress: p.progress, step: STEP_LABEL[p.step] }));
+    if (signal.aborted) throw abortError();
+    progress({ state: 'analyzing', progress: 0, step: STEP_LABEL.decoding });
+    return this.local(id, (p) => progress({ state: 'analyzing', progress: p.progress, step: STEP_LABEL[p.step] }), signal);
   }
 
   async analysis(id: string): Promise<AnalysisResult | undefined> {
@@ -147,6 +183,14 @@ class AnalysisManager {
   }
 }
 
+const localAnalyzer: LocalAnalyzer = async (id, onProgress, signal) => {
+  const buffer = await loadSongBuffer(id);
+  if (signal.aborted) throw abortError();
+  const audio = await toAnalysisSignal(buffer);
+  if (signal.aborted) throw abortError();
+  return runWorker(audio, onProgress, signal);
+};
+
 /** Mono, 22.05 kHz copy of the song for analysis. */
 async function toAnalysisSignal(buffer: AudioBuffer): Promise<Float32Array> {
   const length = Math.ceil(buffer.duration * ANALYSIS_SAMPLE_RATE);
@@ -159,9 +203,21 @@ async function toAnalysisSignal(buffer: AudioBuffer): Promise<Float32Array> {
   return rendered.getChannelData(0).slice();
 }
 
-function runWorker(signal: Float32Array, onProgress: (p: { step: AnalysisStep; progress: number }) => void): Promise<AnalysisResult> {
+function runWorker(
+  signal: Float32Array,
+  onProgress: (p: { step: AnalysisStep; progress: number }) => void,
+  abort: AbortSignal,
+): Promise<AnalysisResult> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+    abort.addEventListener(
+      'abort',
+      () => {
+        worker.terminate();
+        reject(abortError());
+      },
+      { once: true },
+    );
     worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
       const m = e.data;
       if (m.type === 'progress') onProgress(m.progress);

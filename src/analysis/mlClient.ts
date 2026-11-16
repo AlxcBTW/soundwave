@@ -30,26 +30,28 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Analyzer backed by the local ML service. Returns null (→ in-app analysis) when the service is down. */
 export function mlAnalyzer(url: string): RemoteAnalyzer {
   const base = trimUrl(url);
-  return async (songId, onProgress) => {
+  return async (songId, onProgress, signal) => {
     if (!(await checkHealth(base))) return null;
     const [blob, meta] = await Promise.all([getAudio(songId), getSong(songId)]);
     if (!blob) return null;
     onProgress(0, 'Uploading');
     const form = new FormData();
     form.append('file', blob, meta?.fileName ?? 'song');
-    const res = await fetch(`${base}/jobs`, { method: 'POST', body: form });
+    const res = await fetch(`${base}/jobs`, { method: 'POST', body: form, signal });
     if (!res.ok) throw new Error(`analysis service rejected the upload (${res.status})`);
     const { id } = (await res.json()) as { id: string };
     let failures = 0;
     for (;;) {
       await sleep(1000);
+      if (signal.aborted) throw new DOMException('analysis cancelled', 'AbortError');
       let job: { state: string; progress: number; step: string; result?: unknown; error?: string };
       try {
-        const r = await fetch(`${base}/jobs/${id}`);
+        const r = await fetch(`${base}/jobs/${id}`, { signal });
         if (!r.ok) throw new Error(String(r.status));
         job = await r.json();
         failures = 0;
       } catch (e) {
+        if (signal.aborted) throw e;
         if (++failures > 5) throw new Error(`lost contact with the analysis service (${(e as Error).message})`);
         continue;
       }
