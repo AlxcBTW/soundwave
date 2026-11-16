@@ -140,14 +140,20 @@ function reduceRhythm(evs: Ev[], p: DifficultyProfile, spb: number, drums: boole
   }
   // Minimum spacing in seconds: drop the weaker note of a too-fast pair (strong beats win ties).
   const times = [...kept.entries()].sort((x, y) => x[0] - y[0]);
+  // Rhythmic position first, so repeated bars reduce the same way; loudness only breaks ties.
+  // Position in the bar and held length (in half beats) decide, so repeated bars reduce the same
+  // way; loudness varies between repeats and only breaks exact ties.
   const weight = (pos: number, list: Ev[]) =>
-    Math.max(...list.map((e) => e.strength)) * (isMultiple(pos, 1) ? 1.3 : isMultiple(pos, 0.5) ? 1.12 : 1);
+    metricWeight(pos, downbeats) + 0.25 * Math.min(1, Math.round(Math.max(...list.map((e) => e.len)) * 2) / 4);
+  const loudness = (list: Ev[]) => Math.max(...list.map((e) => e.strength));
   const out: [number, Ev[]][] = [];
   for (const [k, list] of times) {
     const pos = k / 48;
     const last = out[out.length - 1];
     if (last && (pos - last[0] / 48) * spb < p.minGap - EPS) {
-      if (weight(pos, list) > weight(last[0] / 48, last[1])) out[out.length - 1] = [k, list];
+      const wNew = weight(pos, list);
+      const wOld = weight(last[0] / 48, last[1]);
+      if (wNew > wOld || (wNew === wOld && loudness(list) > loudness(last[1]) + 0.25)) out[out.length - 1] = [k, list];
       continue;
     }
     out.push([k, list]);
@@ -160,10 +166,19 @@ function reduceRhythm(evs: Ev[], p: DifficultyProfile, spb: number, drums: boole
   }
   const keep = new Set<number>();
   for (const entries of bars.values()) {
-    const ranked = [...entries].sort((x, y) => weight(y[0] / 48, y[1]) - weight(x[0] / 48, x[1]));
+    const ranked = [...entries].sort((x, y) => weight(y[0] / 48, y[1]) - weight(x[0] / 48, x[1]) || x[0] - y[0]);
     for (const [k] of ranked.slice(0, p.maxPerBar)) keep.add(k);
   }
   return out.filter(([k]) => keep.has(k)).flatMap(([, list]) => list);
+}
+
+/** How rhythmically important a position is: downbeat > beat > eighth > the rest. */
+function metricWeight(pos: number, downbeats: number[]): number {
+  if (isMultiple(pos, 1)) {
+    const b = barIndex(pos, downbeats);
+    return b >= 0 && Math.abs(downbeats[b] - pos) < EPS ? 2 : 1.5;
+  }
+  return isMultiple(pos, 0.5) ? 1.2 : 1;
 }
 
 /** Index of the bar containing a beat position (-1 before the first downbeat). */
@@ -198,6 +213,8 @@ interface PhraseCtx {
   partLo: number;
   partHi: number;
   memo: Map<string, number[]>;
+  /** Pitch-to-lane mappings already used in this chart; reused when they cover a new block. */
+  mappings?: Map<number, number>[];
 }
 
 /** Lane step for an interval: small steps move one lane, leaps more. */
@@ -252,40 +269,88 @@ function phraseLanes(pitches: number[], ctx: PhraseCtx): number[] {
   return out;
 }
 
-/** Splits events into phrases at rests and every two bars; repeated phrases reuse their lanes. */
-function assignPitchedLanes(evs: Ev[], downbeats: number[], ctx: PhraseCtx): number[] {
-  const barOf = (pos: number) => {
-    if (!downbeats.length || pos < downbeats[0] - EPS) return -1;
-    let lo = 0;
-    let hi = downbeats.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (downbeats[mid] <= pos + EPS) lo = mid;
-      else hi = mid - 1;
-    }
-    return lo;
-  };
+/**
+ * Lanes for a whole part, mapped over the largest stretch that fits: a section whose pitches fit
+ * the lanes gets one mapping, so a riff sits in the same lanes everywhere and up always means right.
+ * Stretches with too many pitches split in half (8 bars, 4, 2, 1) and finally wrap within a bar.
+ * Each block is shifted, when it can be, so the move into it follows the melody's direction.
+ */
+function assignPitchedLanes(evs: Ev[], downbeats: number[], sectionStarts: number[], ctx: PhraseCtx): number[] {
   const lanes: number[] = new Array(evs.length);
-  let i = 0;
-  while (i < evs.length) {
-    const group = Math.floor(barOf(evs[i].pos) / 2);
-    let j = i + 1;
-    while (j < evs.length && Math.floor(barOf(evs[j].pos) / 2) === group && evs[j].pos - (evs[j - 1].pos + evs[j - 1].len) < 1.5) j++;
-    const phrase = evs.slice(i, j);
-    const bar = barOf(phrase[0].pos);
-    const origin = phrase[0].pos - (bar >= 0 ? downbeats[bar] : 0);
-    const sig = phrase.map((e) => `${(e.pos - phrase[0].pos).toFixed(3)}:${e.midi}`).join(',') + `@${origin.toFixed(3)}`;
-    let ls = ctx.memo.get(sig);
-    if (!ls) {
-      ls = phraseLanes(
-        phrase.map((e) => e.midi),
+  const starts = [...new Set([...sectionStarts, Infinity])].sort((a, b) => a - b);
+  let prev: { lane: number; midi: number } | undefined;
+
+  const place = (idx: number[]) => {
+    const pitches = idx.map((i) => evs[i].midi);
+    ctx.mappings ??= [];
+    // Reuse an earlier mapping that already covers these pitches, so a riff that comes back in
+    // another section lands in the same lanes.
+    let map = ctx.mappings.find((m) => pitches.every((p) => m.has(p)));
+    if (!map) {
+      map = segmentLanes(pitches, ctx);
+      // A new mapping is shifted once (when it can be) so the move into it follows the melody;
+      // it is stored shifted, so every later reuse is identical.
+      if (prev) {
+        const ls = [...map.values()];
+        const want = Math.sign(pitches[0] - prev.midi);
+        const lo = -Math.min(...ls);
+        const hi = ctx.lanes - 1 - Math.max(...ls);
+        const first = map.get(pitches[0])!;
+        const ok = (k: number) => Math.sign(first + k - prev!.lane) === want;
+        let shift = 0;
+        if (!ok(0)) {
+          for (let d = 1; d <= ctx.lanes; d++) {
+            if (d <= hi && ok(d)) {
+              shift = d;
+              break;
+            }
+            if (-d >= lo && ok(-d)) {
+              shift = -d;
+              break;
+            }
+          }
+        }
+        if (shift) map = new Map([...map].map(([m, l]) => [m, l + shift]));
+      }
+      ctx.mappings.push(map);
+    }
+    idx.forEach((i) => (lanes[i] = map!.get(evs[i].midi)!));
+    const last = idx[idx.length - 1];
+    prev = { lane: lanes[last], midi: evs[last].midi };
+  };
+
+  const bars = (idx: number[]) => [...new Set(idx.map((i) => barIndex(evs[i].pos, downbeats)))].sort((a, b) => a - b);
+  const map = (idx: number[]) => {
+    if (!idx.length) return;
+    if (new Set(idx.map((i) => evs[i].midi)).size <= ctx.lanes) return place(idx);
+    const bs = bars(idx);
+    if (bs.length <= 1) {
+      // One bar with more pitches than lanes: wrap the run.
+      const ls = phraseLanes(
+        idx.map((i) => evs[i].midi),
         ctx,
       );
-      ctx.memo.set(sig, ls);
+      idx.forEach((i, k) => (lanes[i] = ls[k]));
+      const last = idx[idx.length - 1];
+      prev = { lane: lanes[last], midi: evs[last].midi };
+      return;
     }
-    for (let k = 0; k < phrase.length; k++) lanes[i + k] = ls[k];
-    i = j;
+    const mid = bs[Math.floor(bs.length / 2)];
+    map(idx.filter((i) => barIndex(evs[i].pos, downbeats) < mid));
+    map(idx.filter((i) => barIndex(evs[i].pos, downbeats) >= mid));
+  };
+
+  // One mapping for the whole part when its pitches fit; otherwise section by section.
+  const all = evs.map((_, i) => i);
+  if (new Set(evs.map((e) => e.midi)).size <= ctx.lanes) {
+    place(all);
+    return lanes;
   }
+  for (let s = 0; s + 1 < starts.length; s++) {
+    map(all.filter((i) => evs[i].pos >= starts[s] - EPS && evs[i].pos < starts[s + 1] - EPS));
+  }
+  // Events before the first section start (if any).
+  map(evs.map((_, i) => i).filter((i) => lanes[i] === undefined));
   return lanes;
 }
 
@@ -293,14 +358,14 @@ function assignPitchedLanes(evs: Ev[], downbeats: number[], ctx: PhraseCtx): num
 function chordShape(top: number, chord: number[], p: DifficultyProfile): number[] {
   const span = chord[chord.length - 1] - chord[0];
   const pcs = new Set(chord.map((m) => m % 12)).size;
-  const three = p.maxChord >= 3 && pcs >= 3 && chord.length >= 3;
+  const three = p.maxChord >= 3 && pcs >= 3 && chord.length >= 4;
   const gap = Math.min(span <= 4 ? 1 : span <= 8 ? 2 : 3, p.maxChordSpread);
   if (gap < 1) return [top];
   let shape = three ? [-2, -1, 0] : [-gap, 0];
   if (three && span > 8 && p.lanes === 5) shape = [-4, -2, 0];
-  const lowest = top + shape[0];
-  const shift = lowest < 0 ? -lowest : 0;
-  return shape.map((s) => Math.min(p.lanes - 1, top + s + shift));
+  // The melody note keeps its lane; without room to the left, the chord grows to the right.
+  if (top + shape[0] < 0) shape = shape.map((s) => -s);
+  return shape.map((s) => Math.max(0, Math.min(p.lanes - 1, top + s)));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -363,6 +428,7 @@ export function generateAll(a: AnalysisResult, part: Part, seedKey = ''): Record
   const partLo = midis[Math.floor(midis.length * 0.05)] ?? 48;
   const partHi = midis[Math.floor(midis.length * 0.95)] ?? 72;
 
+  const sectionStarts = a.sections.map((s) => grid.pos(s.start));
   const out = {} as Record<Difficulty, Chart>;
   let source = expertEvs;
   for (const d of [...DIFFICULTIES].reverse()) {
@@ -370,7 +436,7 @@ export function generateAll(a: AnalysisResult, part: Part, seedKey = ''): Record
     const evs = drums ? reduceRhythm(reduceDrums(source, d), p, spb, true, a.downbeats) : reduceRhythm(source, p, spb, false, a.downbeats);
     const notes = drums
       ? drumNotes(evs, p, d)
-      : pitchedNotes(evs, p, d, a.downbeats, { lanes: p.lanes, partLo, partHi, memo: new Map() });
+      : pitchedNotes(evs, p, d, a.downbeats, sectionStarts, { lanes: p.lanes, partLo, partHi, memo: new Map() });
     const timed: Note[] = notes.map((n) => ({ ...n, t: grid.time(n.t), dur: n.dur > 0 ? grid.time(n.t + n.dur) - grid.time(n.t) : 0 }));
     timed.sort((x, y) => x.t - y.t || x.lane - y.lane);
     const clean = validate(timed, p.lanes, p, spb);
@@ -396,19 +462,37 @@ export function generateAll(a: AnalysisResult, part: Part, seedKey = ''): Record
 }
 
 /** Notes in beat positions (t and dur are positions here; converted to seconds by the caller). */
-function pitchedNotes(evs: Ev[], p: DifficultyProfile, d: Difficulty, downbeats: number[], ctx: PhraseCtx): Note[] {
+function pitchedNotes(
+  evs: Ev[],
+  p: DifficultyProfile,
+  d: Difficulty,
+  downbeats: number[],
+  sectionStarts: number[],
+  ctx: PhraseCtx,
+): Note[] {
   // Easy plays the root of a chord; everything else keeps the melody (top) note.
   const melody = evs.map((e) => (d === 'easy' && e.chord ? e.chord[0] : e.midi));
   const lanes = assignPitchedLanes(
     evs.map((e, i) => ({ ...e, midi: melody[i] })),
     downbeats,
+    sectionStarts,
     ctx,
   );
+  // Chord budget: the most important stabs (beat position, then length) up to the profile's rate.
+  // A score threshold instead of a count keeps repeated stabs consistent.
+  const chordScore = (e: Ev) => metricWeight(e.pos, downbeats) + 0.5 * Math.min(1, e.len / 2);
+  const eligible = evs.filter((e) => e.chord && p.maxChord >= 2 && d !== 'easy' && isMultiple(e.pos, p.chordGrid));
+  const budget = Math.floor(evs.length * p.chordRate);
+  const ranked = eligible.map(chordScore).sort((x, y) => y - x);
+  let threshold = budget > 0 && ranked.length ? ranked[Math.min(ranked.length, budget) - 1] : Infinity;
+  // Equal stabs all get the chord (consistency), unless that overshoots the budget by half; then
+  // only stabs scoring strictly higher do.
+  if (ranked.filter((x) => x >= threshold).length > budget * 1.5) threshold = ranked.find((x) => x > threshold) ?? Infinity;
   const notes: Note[] = [];
   evs.forEach((e, i) => {
     const next = evs[i + 1];
     // Chords and their sustains are reserved for the right places on each difficulty.
-    const chordHere = !!e.chord && p.maxChord >= 2 && d !== 'easy' && isMultiple(e.pos, p.chordGrid);
+    const chordHere = eligible.includes(e) && chordScore(e) >= threshold;
     const minLen = chordHere ? Math.max(p.sustainBeats, 1.5) : p.sustainBeats;
     let len = e.len >= minLen ? e.len : 0;
     if (len && next) len = Math.min(len, next.pos - e.pos - p.sustainGapBeats);

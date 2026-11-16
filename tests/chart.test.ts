@@ -89,6 +89,46 @@ describe('generateChart', () => {
     expect(phrases.size).toBeGreaterThan(3);
   });
 
+  it('charts a repeated riff identically, follows its contour and keeps chords within budget', () => {
+    const spb = 0.5;
+    const beats = Array.from({ length: 70 }, (_, i) => 1 + i * spb);
+    const lead: AnalysisResult['lead'] = [];
+    for (let bar = 0; bar < 16; bar++) {
+      const t = 1 + bar * 4 * spb;
+      lead.push({ t, dur: 0.4, midi: 67, strength: 0.8, chord: [55, 60, 64, 67] });
+      [60, 62, 64, 62, 60].forEach((m, k) => lead.push({ t: t + (k + 1) * spb * 0.5 + spb * 0.5, dur: 0.2, midi: m, strength: 0.6 }));
+    }
+    const riff: AnalysisResult = {
+      ...fakeAnalysis(),
+      beats,
+      downbeats: beats.map((_, i) => i).filter((i) => i % 4 === 0),
+      duration: 36,
+      lead,
+      sections: [
+        { start: 0, end: 17, energy: 0.6 },
+        { start: 17, end: 36, energy: 1 },
+      ],
+    };
+    for (const d of DIFFICULTIES) {
+      const c = generateChart(riff, 'lead', d, 'riff');
+      const bars = riff.downbeats.slice(0, 16).map((i) => beats[i]);
+      const patterns = bars.map((s) =>
+        c.notes
+          .filter((n) => n.t >= s - 0.01 && n.t < s + 4 * spb - 0.01)
+          .map((n) => `${(n.t - s).toFixed(2)}:${n.lane}`)
+          .join(' '),
+      );
+      expect(new Set(patterns).size).toBe(1);
+      // Rising notes move right, falling notes move left (singles only).
+      const singles = c.notes.filter((n) => c.notes.filter((m) => m.t === n.t).length === 1 && n.t < bars[1] - 0.01);
+      const lanes = singles.map((n) => n.lane);
+      if (d !== 'easy' && lanes.length >= 4) expect(lanes[1]).toBeGreaterThan(lanes[0]);
+      const times = new Set(c.notes.map((n) => n.t)).size;
+      const chordTimes = times - c.notes.filter((n) => c.notes.filter((m) => m.t === n.t).length === 1).length;
+      expect(chordTimes).toBeLessThanOrEqual(Math.floor(Math.floor(times * PROFILES[d].chordRate) * 1.5));
+    }
+  });
+
   it('uses 5 lanes only on expert', () => {
     const used = new Set(generateChart(a, 'lead', 'expert', 's').notes.map((n) => n.lane));
     expect(used.has(4)).toBe(true);
