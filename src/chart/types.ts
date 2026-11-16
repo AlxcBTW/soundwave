@@ -1,7 +1,7 @@
-export type Part = 'drums' | 'bass' | 'lead';
+export type Part = 'lead' | 'bass' | 'drums' | 'vocals';
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'expert';
 
-export const PARTS: Part[] = ['drums', 'bass', 'lead'];
+export const PARTS: Part[] = ['lead', 'bass', 'drums', 'vocals'];
 export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert'];
 
 export const lanesFor = (d: Difficulty): 4 | 5 => (d === 'expert' ? 5 : 4);

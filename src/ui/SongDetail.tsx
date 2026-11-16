@@ -16,8 +16,8 @@ interface Props {
   onPreview(on: boolean): void;
 }
 
-const PART_LABEL: Record<Part, string> = { drums: 'Drums', bass: 'Bass', lead: 'Lead' };
-const PART_ICON: Record<Part, string> = { drums: '🥁', bass: '🎸', lead: '🎹' };
+const PART_LABEL: Record<Part, string> = { lead: 'Lead', bass: 'Bass', drums: 'Drums', vocals: 'Vocals' };
+const PART_ICON: Record<Part, string> = { lead: '🎹', bass: '🎸', drums: '🥁', vocals: '🎤' };
 
 const PREFS_KEY = 'festival.lastPick';
 function lastPick(): { part: Part; difficulty: Difficulty } {

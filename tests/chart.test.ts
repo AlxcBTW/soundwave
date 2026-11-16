@@ -30,6 +30,7 @@ function fakeAnalysis(): AnalysisResult {
     drums,
     bass,
     lead,
+    vocals: lead.map((n) => ({ ...n, midi: n.midi + 2, bend: 0.2 })),
     harmony: beats.filter((_, i) => i % 8 === 0).map((t, i) => ({ t, root: i % 12, minor: false, strength: 0.8 })),
     sections: [
       { start: 0, end: 40, energy: 0.4 },

@@ -1,5 +1,5 @@
 import { loadSongBuffer } from '../audio/songAudio';
-import { generateChart } from '../chart/generator';
+import { generateAll } from '../chart/generator';
 import type { Chart, Difficulty, Part } from '../chart/types';
 import { analysisKey, deleteAnalyses, getAnalysis, putAnalysis } from '../storage/db';
 import { ANALYSIS_SAMPLE_RATE, ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult, type AnalysisStep } from './types';
@@ -177,9 +177,10 @@ export class AnalysisManager {
     if (hit) return hit;
     const a = await this.loadCached(id);
     if (!a) return undefined;
-    const c = generateChart(a, part, difficulty, id);
-    this.charts.set(key, c);
-    return c;
+    // All difficulties are derived from expert in one pass, so build and cache them together.
+    const all = generateAll(a, part, id);
+    for (const [d, c] of Object.entries(all)) this.charts.set(`${id}:${part}:${d}`, c);
+    return all[difficulty];
   }
 }
 
