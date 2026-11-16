@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { vocalLineFromStem } from '../src/analysis/pitch/stemLines';
+import { pruneOvertones, vocalLineFromStem } from '../src/analysis/pitch/stemLines';
+
+describe('pruneOvertones', () => {
+  it('reduces a distorted power chord to root and fifth', () => {
+    // A2 + E3 power chord heard with octave and twelfth overtones (A3, E4, A4) and a 17th (C#5).
+    expect(pruneOvertones([45, 52, 57, 64, 69, 73])).toEqual([45, 52]);
+  });
+  it('keeps real chord tones', () => {
+    expect(pruneOvertones([55, 59, 62])).toEqual([55, 59, 62]);
+  });
+});
 import type { PitchedNote } from '../src/analysis/types';
 
 const SR = 22050;

@@ -22,6 +22,8 @@ export interface StemInput {
   sr: number;
   /** Polyphonic transcription of this stem. */
   notes: PitchedNote[];
+  /** Beat times, when known: steady strumming is looked for on the eighth-note grid. */
+  beats?: number[];
 }
 
 interface Attack {
@@ -205,29 +207,129 @@ export function stabilizePitches(notes: PitchedNote[]): PitchedNote[] {
   return out;
 }
 
+/** Intervals (semitones) at which overtones of a lower note appear: octaves, twelfths, the 17th. */
+const OVERTONES = new Set([12, 19, 24, 28, 31, 36]);
+
 /**
- * Instrument line: one note per audible attack. Several pitches struck together become a chord
- * (melody on top); a lone note keeps its pitch. Attacks without a newly struck pitch (pad swells,
- * noise) produce nothing.
+ * Drops pitches that are overtones of a lower struck pitch. Distortion and octave effects make
+ * overtones as loud as real notes, which would turn a two-note power chord into a "five-note chord".
+ * The lowest pitch and anything not explained by a lower one stay.
  */
-export function leadLineFromStem({ signal, sr, notes }: StemInput): PitchedNote[] {
+export function pruneOvertones(pitches: number[]): number[] {
+  const sorted = [...new Set(pitches)].sort((a, b) => a - b);
+  return sorted.filter((p, i) => !sorted.slice(0, i).some((q) => OVERTONES.has(p - q)));
+}
+
+/**
+ * Chord or single note from the pitches struck at one attack. Power chords (root with a fifth or
+ * fourth) count as chords, like a guitarist plays and a charter writes them.
+ */
+function voicing(pitches: number[]): { top: number; chord?: number[] } {
+  const kept = pruneOvertones(pitches);
+  const top = kept[kept.length - 1];
+  const pcs = new Set(kept.map((m) => m % 12));
+  if (pcs.size < 2) return { top };
+  const span = top - kept[0];
+  const power = kept.length === 2 && (span === 5 || span === 7);
+  if (kept.length >= 3 || power) return { top, chord: kept.slice(-6) };
+  return { top };
+}
+
+/**
+ * Strums that barely change the sound (sustained, distorted chords re-struck on every eighth note).
+ * Only at eighth-note grid positions where the instrument is playing: a small dip-and-recovery
+ * in the flux close to the grid counts there, where it would be noise anywhere else.
+ */
+function gridStrums(signal: Float32Array, sr: number, env: Envelope, beats: number[], heard: Attack[]): Attack[] {
+  const spec = stft(signal, sr, 2048, HOP);
+  const flux = normalize(bandFlux(spec.mag, spec, 150, 8000));
+  const fps = sr / HOP;
+  const out: Attack[] = [];
+  const filtered = highpass(lowpass(signal, sr, 8000), sr, 150);
+  for (let i = 0; i + 1 < beats.length; i++) {
+    for (const frac of [0, 0.5]) {
+      const g = beats[i] + frac * (beats[i + 1] - beats[i]);
+      if (heard.some((h) => Math.abs(h.t - g) < 0.07)) continue;
+      if (level(env, g - 0.1, g + 0.1) < 0.25) continue;
+      // Strongest flux frame near the grid point, compared with its surroundings.
+      const c = Math.round(g * fps);
+      let best = -1;
+      for (let f = c - 2; f <= c + 2; f++) if (f > 0 && f < flux.length && (best < 0 || flux[f] > flux[best])) best = f;
+      if (best < 0) continue;
+      let around = 0;
+      let n = 0;
+      for (let f = best - 6; f <= best + 6; f++) {
+        if (f < 0 || f >= flux.length || Math.abs(f - best) < 2) continue;
+        around += flux[f];
+        n++;
+      }
+      if (flux[best] < (around / Math.max(1, n)) * GRID_STRUM_RATIO) continue;
+      out.push({ t: refineOnset(filtered, sr, best / fps, 0.03, 0.05), strength: 0.5 });
+    }
+  }
+  return out;
+}
+
+/** How much a near-grid flux peak must stand out from its neighbourhood to count as a strum. */
+const GRID_STRUM_RATIO = 1.5;
+
+/**
+ * Attack times for an instrument stem: audible jumps in the sound, plus quieter strums on the
+ * eighth-note grid (re-strummed distorted chords barely change the sound level).
+ */
+function instrumentAttacks(signal: Float32Array, sr: number, env: Envelope, beats?: number[]): Attack[] {
+  const heard = attacks(signal, sr, 150, 8000).filter((a) => isOnset(env, a.t, 0.1));
+  if (beats && beats.length > 1) heard.push(...gridStrums(signal, sr, env, beats, heard));
+  heard.sort((a, b) => a.t - b.t);
+  const out = heard;
+  return out.filter((a, i) => i === 0 || a.t - out[i - 1].t >= MIN_IOI);
+}
+
+/**
+ * Instrument line: one note per attack. Several pitches struck together become a chord (melody on
+ * top, overtones removed); a lone note keeps its pitch. Attacks without a newly struck pitch (pad
+ * swells, noise) produce nothing.
+ */
+export function leadLineFromStem({ signal, sr, notes, beats }: StemInput): PitchedNote[] {
   const env = envelope(signal, sr);
   const pitched = notes.filter((n) => n.strength >= 0.2 && n.midi >= 45);
   const out: PitchedNote[] = [];
-  const hits = attacks(signal, sr, 150, 8000).filter((a) => isOnset(env, a.t, 0.1));
+  const hits = instrumentAttacks(signal, sr, env, beats);
   for (let i = 0; i < hits.length; i++) {
     const h = hits[i];
     const next = hits[i + 1]?.t ?? h.t + 2;
     const struck = pitched.filter((n) => n.t >= h.t - 0.05 && n.t <= h.t + 0.08);
-    if (!struck.length) continue;
-    const loud = Math.max(...struck.map((n) => n.strength));
-    const voice = struck.filter((n) => n.strength >= loud * 0.5);
-    const pitches = [...new Set(voice.map((n) => n.midi))].sort((a, b) => a - b);
-    const top = pitches[pitches.length - 1];
-    const longest = Math.max(...voice.map((n) => n.t + n.dur));
+    const prev = out[out.length - 1];
+    let top: number;
+    let chord: number[] | undefined;
+    let longest: number;
+    if (struck.length) {
+      const loud = Math.max(...struck.map((n) => n.strength));
+      const voice = struck.filter((n) => n.strength >= loud * 0.5);
+      const pitches = voice.map((n) => n.midi);
+      // Strumming the same chord again often re-triggers only some strings in the transcription;
+      // the rest of the chord is still ringing and belongs to this strum too.
+      if (prev?.chord && h.t - (prev.t + prev.dur) < 0.15 && pitches.every((m) => prev.chord!.includes(m))) {
+        for (const n of soundingAt(pitched, h.t + 0.05)) if (prev.chord.includes(n.midi)) pitches.push(n.midi);
+      }
+      // A lone root with its fifth (or fourth) still ringing from just before is a power chord.
+      if (new Set(pitches).size === 1) {
+        const root = pitches[0];
+        for (const n of soundingAt(pitched, h.t + 0.05)) {
+          const iv = Math.abs(n.midi - root);
+          if (n.t >= h.t - 0.5 && n.strength >= 0.4 && (iv === 5 || iv === 7)) pitches.push(n.midi);
+        }
+      }
+      ({ top, chord } = voicing(pitches));
+      longest = Math.max(h.t + 0.1, ...voice.map((n) => n.t + n.dur));
+    } else if (prev && h.t - (prev.t + prev.dur) < 0.15 && soundingAt(pitched, h.t + 0.05).some((n) => (prev.chord ?? [prev.midi]).includes(n.midi))) {
+      // A re-strum: no new pitch, the previous chord still ringing. Same chord again.
+      top = prev.midi;
+      chord = prev.chord;
+      longest = Math.max(h.t + 0.1, ...soundingAt(pitched, h.t + 0.05).map((n) => n.t + n.dur));
+    } else continue;
     const end = Math.min(next - 0.02, longest + 0.05, fadeEnd(env, h.t, next, 0.35));
     if (end - h.t < 0.05) continue;
-    const chord = pitches.length >= 3 && new Set(pitches.map((m) => m % 12)).size >= 2 ? pitches.slice(-6) : undefined;
     out.push({ t: h.t, dur: end - h.t, midi: top, strength: Math.min(1, 0.4 + h.strength * 0.6), ...(chord ? { chord } : {}) });
   }
   return out;

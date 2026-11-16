@@ -26,11 +26,13 @@ export interface DifficultyProfile {
   chordGrid: number;
   /** Most chords as a fraction of note times; the strongest stabs (on the beat, held) win. */
   chordRate: number;
+  /** Lanes pitched parts actually use (easy keeps to the first three, like classic charts). */
+  pitchedLanes: number;
 }
 
 export const PROFILES: Record<Difficulty, DifficultyProfile> = {
-  easy: { lanes: 4, grid: 1, triplets: false, minGap: 0.3, maxChord: 1, maxChordSpread: 0, sustainBeats: 1.5, sustainGapBeats: 0.5, maxPerBar: 4, chordGrid: 1, chordRate: 0 },
-  medium: { lanes: 4, grid: 2, triplets: false, minGap: 0.16, maxChord: 2, maxChordSpread: 2, sustainBeats: 1, sustainGapBeats: 0.5, maxPerBar: 5, chordGrid: 1, chordRate: 0.15 },
-  hard: { lanes: 4, grid: 4, triplets: true, minGap: 0.11, maxChord: 2, maxChordSpread: 3, sustainBeats: 0.75, sustainGapBeats: 0.25, maxPerBar: 8, chordGrid: 0.5, chordRate: 0.25 },
-  expert: { lanes: 5, grid: 4, triplets: true, minGap: 0.065, maxChord: 3, maxChordSpread: 4, sustainBeats: 0.5, sustainGapBeats: 0.25, maxPerBar: 16, chordGrid: 0.25, chordRate: 0.35 },
+  easy: { lanes: 4, grid: 1, triplets: false, minGap: 0.3, maxChord: 1, maxChordSpread: 0, sustainBeats: 1.5, sustainGapBeats: 0.5, maxPerBar: 2, chordGrid: 1, chordRate: 0, pitchedLanes: 3 },
+  medium: { lanes: 4, grid: 2, triplets: false, minGap: 0.16, maxChord: 2, maxChordSpread: 2, sustainBeats: 1, sustainGapBeats: 0.5, maxPerBar: 3, chordGrid: 0.5, chordRate: 0.35, pitchedLanes: 4 },
+  hard: { lanes: 4, grid: 4, triplets: true, minGap: 0.11, maxChord: 2, maxChordSpread: 3, sustainBeats: 0.75, sustainGapBeats: 0.25, maxPerBar: 6, chordGrid: 0.5, chordRate: 0.4, pitchedLanes: 4 },
+  expert: { lanes: 5, grid: 4, triplets: true, minGap: 0.065, maxChord: 3, maxChordSpread: 4, sustainBeats: 0.5, sustainGapBeats: 0.25, maxPerBar: 16, chordGrid: 0.25, chordRate: 0.45, pitchedLanes: 5 },
 };

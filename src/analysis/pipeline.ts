@@ -132,7 +132,7 @@ export async function analyzeSignal(signal: Float32Array, opts: PipelineOptions 
       if (st.vocals && sn.vocals.length) vocals = vocalLineFromStem({ signal: st.vocals, sr, notes: sn.vocals });
       report('melody', 0.4);
       // Lead follows the instrument only: where no instrument plays, the part rests (like a real chart).
-      if (st.other && sn.other.length) lead = leadLineFromStem({ signal: st.other, sr, notes: sn.other });
+      if (st.other && sn.other.length) lead = leadLineFromStem({ signal: st.other, sr, notes: sn.other, beats });
       report('melody', 0.8);
       if (st.bass && sn.bass.length) bass = bassLineFromStem({ signal: st.bass, sr, notes: sn.bass });
       opts.onLog?.(`stem lines: ${bass.length} bass, ${lead.length} lead, ${vocals.length} vocals`);

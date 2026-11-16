@@ -172,11 +172,14 @@ function reduceRhythm(evs: Ev[], p: DifficultyProfile, spb: number, drums: boole
   return out.filter(([k]) => keep.has(k)).flatMap(([, list]) => list);
 }
 
-/** How rhythmically important a position is: downbeat > beat > eighth > the rest. */
+/** How rhythmically important a position is: downbeat > beat 3 > other beats > eighths > the rest. */
 function metricWeight(pos: number, downbeats: number[]): number {
   if (isMultiple(pos, 1)) {
     const b = barIndex(pos, downbeats);
-    return b >= 0 && Math.abs(downbeats[b] - pos) < EPS ? 2 : 1.5;
+    if (b < 0) return 1.5;
+    const inBar = pos - downbeats[b];
+    if (Math.abs(inBar) < EPS) return 2;
+    return Math.abs(inBar - 2) < EPS ? 1.7 : 1.5;
   }
   return isMultiple(pos, 0.5) ? 1.2 : 1;
 }
@@ -436,7 +439,7 @@ export function generateAll(a: AnalysisResult, part: Part, seedKey = ''): Record
     const evs = drums ? reduceRhythm(reduceDrums(source, d), p, spb, true, a.downbeats) : reduceRhythm(source, p, spb, false, a.downbeats);
     const notes = drums
       ? drumNotes(evs, p, d)
-      : pitchedNotes(evs, p, d, a.downbeats, sectionStarts, { lanes: p.lanes, partLo, partHi, memo: new Map() });
+      : pitchedNotes(evs, p, d, a.downbeats, sectionStarts, { lanes: p.pitchedLanes, partLo, partHi, memo: new Map() });
     const timed: Note[] = notes.map((n) => ({ ...n, t: grid.time(n.t), dur: n.dur > 0 ? grid.time(n.t + n.dur) - grid.time(n.t) : 0 }));
     timed.sort((x, y) => x.t - y.t || x.lane - y.lane);
     const clean = validate(timed, p.lanes, p, spb);
@@ -470,8 +473,8 @@ function pitchedNotes(
   sectionStarts: number[],
   ctx: PhraseCtx,
 ): Note[] {
-  // Easy plays the root of a chord; everything else keeps the melody (top) note.
-  const melody = evs.map((e) => (d === 'easy' && e.chord ? e.chord[0] : e.midi));
+  // Every difficulty follows the same (top) note, so lanes move the same way on all of them.
+  const melody = evs.map((e) => e.midi);
   const lanes = assignPitchedLanes(
     evs.map((e, i) => ({ ...e, midi: melody[i] })),
     downbeats,
