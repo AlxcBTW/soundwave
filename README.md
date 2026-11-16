@@ -1,13 +1,13 @@
 # festival
 
-A rhythm game for your own music. Drop in a song (MP3, WAV, FLAC, OGG, M4A). The game analyzes its percussive, melodic and harmonic content and generates **Drums**, **Bass** and **Lead** charts at four difficulties:
+A rhythm game for your own music. Drop in a song (MP3, WAV, FLAC, OGG, M4A). The game analyzes its percussive, melodic and harmonic content and generates **Lead**, **Bass**, **Drums** and **Vocals** charts at four difficulties:
 
 | Difficulty | Lanes | Feel |
 |---|---|---|
-| Easy | 4 | quarter notes, no chords |
-| Medium | 4 | eighth notes, occasional 2-note chords |
-| Hard | 4 | denser eighths, more chords and sustains |
-| Expert | 5 | sixteenths, 3-note chords |
+| Easy | 4 | quarter notes, chord roots, no chords |
+| Medium | 4 | eighth notes, close two-note chords |
+| Hard | 4 | sixteenths, two-note chords |
+| Expert | 5 | literal transcription, three-note chords |
 
 You play them on a 3D note highway with the keyboard, in front of a music-reactive 2D stage backdrop. Features: sustains, streak multiplier (up to ×4), overdrive phrases (Space doubles the multiplier), Perfect/Great/Good timing, star rating, best scores, tap calibration and key rebinding.
 
@@ -49,10 +49,28 @@ Analysis runs in a Web Worker in both the browser and the desktop app:
 3. **Rhythm** – band-balanced onset envelope, tempo by an autocorrelation comb, dynamic-programming beat tracking. The grid is then calibrated against the detected drum attacks.
 4. **Drums** – kick/snare/hat onsets from band-limited flux of the percussive part, refined to the attack in the time domain.
 5. **Harmony** – chroma, chord changes, key.
-6. **Melody** – [Basic Pitch](https://github.com/spotify/basic-pitch) (TF.js, WebGL) transcribes notes, which are split into bass and lead lines. A harmonic-salience pitch tracker is the fallback.
-7. **Structure** – sections and energy drive note density and overdrive placement.
+6. **Melody** – [Basic Pitch](https://github.com/spotify/basic-pitch) (TF.js, WebGL) transcribes notes, which are split into the parts a band plays (`src/analysis/pitch/lines.ts`):
+   - **Bass**: the lowest line, with octave doublings folded onto one octave.
+   - **Lead**: the main instrument. Chords (three or more steady pitches struck together) stay chords; single-note riffs are followed as one melodic path. Long stretches without an instrument double the vocal melody.
+   - **Vocals**: the sung line. Sung notes carry pitch bends (vibrato, slides) that synths and keys don't, and a dynamic-programming path keeps the line continuous.
+   A harmonic-salience pitch tracker is the fallback.
+7. **Structure** – sections and energy drive overdrive placement.
 
-Charts are generated deterministically from the analysis (`src/chart/generator.ts`): grid quantization, per-difficulty density budgets, drum-kit lane layout, pitch-contour lane mapping, chords, sustains and overdrive phrases.
+### Charting
+
+Charts follow common five-lane authoring practice (`src/chart/generator.ts`, `src/chart/profiles.ts`):
+
+- **Expert** is a literal transcription: sixteenths, plus triplets where the timing clearly is triplet.
+- **Lanes follow the pitch** within each phrase (two bars, or up to a rest). The lowest note goes left and the highest right, the same pitch keeps its lane, and leaps move further than steps. Long runs wrap, and a repeated phrase is charted identically.
+- **Chord shapes** come from the interval: adjacent lanes for close voicings, one lane apart for fifths, wider for octaves.
+- **Each lower difficulty reduces the one above it:**
+  - Hard drops three-note chords and thins very fast notes.
+  - Medium keeps eighths and close chords.
+  - Easy keeps quarter notes, playing the root of each chord.
+- **Drums** use a fixed kit layout (kick left, snare middle, hi-hats right). Hi-hats thin out first on lower difficulties.
+- **Overdrive phrases** cover the same musical passages on every difficulty.
+
+To tune analysis or charts on your own files without the UI, see `scripts/dev/analyze.dev.ts` (`npm run dev:analyze`).
 
 ### Optional ML service
 

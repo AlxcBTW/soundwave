@@ -10,7 +10,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "tauri": "tauri",
-    "postinstall": "node scripts/copy-models.mjs"
+    "postinstall": "node scripts/copy-models.mjs",
+    "dev:analyze": "vitest run --config vitest.dev.config.ts"
   },
   "repository": {
     "type": "git",
