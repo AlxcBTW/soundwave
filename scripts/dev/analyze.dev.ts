@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { it } from 'vitest';
 import { analyzeSignal } from '../../src/analysis/pipeline';
 import { transcribe } from '../../src/analysis/pitch/basicPitch';
-import type { AnalysisResult, PitchedNote } from '../../src/analysis/types';
+import type { AnalysisResult, PitchedNote, StemNotes } from '../../src/analysis/types';
 import { generateChart } from '../../src/chart/generator';
 import { DIFFICULTIES, PARTS } from '../../src/chart/types';
 
@@ -46,6 +46,24 @@ it(`analyze ${song}`, async () => {
   if (process.env.ANALYSIS === 'ml') return report(JSON.parse(readFileSync(join(dir, `${song}.ml.json`), 'utf8')), `${song}.ml`);
   const raw = readFileSync(join(dir, `${song}.f32`));
   const signal = new Float32Array(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
+  // ANALYSIS=hybrid mirrors the app with the ML service: lines from <song>.ml.json, drums from
+  // <song>.ml.drums.wav, beat grid and structure from the in-app pipeline.
+  if (process.env.ANALYSIS === 'hybrid') {
+    const ml = JSON.parse(readFileSync(join(dir, `${song}.ml.json`), 'utf8')) as AnalysisResult;
+    const drumPath = join(dir, `${song}.ml.drums.wav`);
+    const drumSignal = existsSync(drumPath) ? readWav16(drumPath, signal.length) : undefined;
+    const stem = (n: string) => (existsSync(join(dir, `${song}.ml.${n}.wav`)) ? readWav16(join(dir, `${song}.ml.${n}.wav`), signal.length) : undefined);
+    const stemNotes = (ml as { stemNotes?: StemNotes }).stemNotes;
+    const a = await analyzeSignal(signal, {
+      lines: { bass: ml.bass, lead: ml.lead, vocals: ml.vocals },
+      drumSignal,
+      stems: { bass: stem('bass'), vocals: stem('vocals'), other: stem('other') },
+      stemNotes: process.env.STEM_LINES === '0' ? undefined : stemNotes,
+      onLog: (m) => console.log(m),
+    });
+    writeFileSync(join(dir, `${song}.hybrid.json`), JSON.stringify(a));
+    return report(a, `${song}.hybrid`);
+  }
   const cachePath = join(dir, `${song}.notes.json`);
   let notes: PitchedNote[];
   if (existsSync(cachePath)) {
@@ -60,6 +78,18 @@ it(`analyze ${song}`, async () => {
   writeFileSync(join(dir, `${song}.analysis.json`), JSON.stringify(a));
   report(a, song);
 });
+
+/** Mono 16-bit PCM WAV (as written by the ML service), padded or cut to `length` samples. */
+function readWav16(path: string, length: number): Float32Array {
+  const buf = readFileSync(path);
+  let off = 12;
+  while (off < buf.length - 8 && buf.toString('ascii', off, off + 4) !== 'data') off += 8 + buf.readUInt32LE(off + 4);
+  const start = off + 8;
+  const n = Math.min(length, Math.floor((buf.length - start) / 2));
+  const out = new Float32Array(length);
+  for (let i = 0; i < n; i++) out[i] = buf.readInt16LE(start + i * 2) / 32768;
+  return out;
+}
 
 function report(a: AnalysisResult, name: string) {
 
