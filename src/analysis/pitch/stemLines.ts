@@ -83,9 +83,9 @@ export function attacks(signal: Float32Array, sr: number, loHz: number, hiHz: nu
  * A real attack is loud enough and followed by at least as much sound as just before it. The end
  * of a note can splatter across the spectrum and look like an attack, but it is followed by less.
  */
-function isOnset(env: Envelope, t: number, minLevel: number): boolean {
+function isOnset(env: Envelope, t: number, minLevel: number, keep = 0.9): boolean {
   const after = level(env, t + 0.01, t + 0.1);
-  return after >= minLevel && after >= level(env, t - 0.1, t - 0.01) * 0.9;
+  return after >= minLevel && after >= level(env, t - 0.1, t - 0.01) * keep;
 }
 
 /**
@@ -130,14 +130,26 @@ function fadeEnd(env: Envelope, t: number, limit: number, frac: number): number 
   return limit;
 }
 
+/** Spectral flux jump that counts as a vocal attack (consonants and vowel starts are subtle). */
+const VOCAL_ATTACK_DELTA = 0.08;
+/** Quietest level (relative to the stem's loud parts) at which a syllable still counts. */
+const VOCAL_MIN_LEVEL = 0.1;
+/** How far (s) an unpitched syllable may look for a sung pitch to borrow. */
+const BORROW_WINDOW = 0.5;
+/** Unpitched sounds quieter than this are breaths, not syllables. */
+const BORROW_MIN_LEVEL = 0.25;
+
 /**
  * Sung line: one note per audible syllable, plus legato pitch changes inside a held vowel.
- * Breaths and unpitched consonants (no pitch right after the attack) produce nothing.
+ * Quiet breaths produce nothing; spoken or rapped syllables without a stable pitch take the
+ * nearest sung pitch.
  */
 export function vocalLineFromStem({ signal, sr, notes }: StemInput): PitchedNote[] {
   const env = envelope(signal, sr);
   const voiced = notes.filter((n) => n.strength >= 0.15 && n.midi >= 40 && n.midi <= 88);
-  const events: { t: number; strength: number }[] = attacks(signal, sr, 120, 6000).filter((a) => isOnset(env, a.t, 0.12));
+  // Syllables follow each other closely and often start softer than the previous one ended, so
+  // the onset test only rejects attacks clearly quieter than what came before (note endings).
+  const events = attacks(signal, sr, 120, 6000, VOCAL_ATTACK_DELTA).filter((a) => isOnset(env, a.t, VOCAL_MIN_LEVEL, 0.5));
 
   // Legato: the pitch moves to a new note inside a held syllable, with no new attack.
   const sorted = [...voiced].sort((x, y) => x.t - y.t);
@@ -153,9 +165,13 @@ export function vocalLineFromStem({ signal, sr, notes }: StemInput): PitchedNote
   for (let i = 0; i < events.length; i++) {
     const e = events[i];
     const next = events[i + 1]?.t ?? e.t + 2;
-    const pitch = dominantPitch(voiced, e.t + 0.03, Math.min(next, e.t + 0.2));
+    let pitch = dominantPitch(voiced, e.t + 0.03, Math.min(next, e.t + 0.2));
+    // Rapped or spoken syllables often have no stable pitch; borrow the nearest sung one.
+    if (!pitch && level(env, e.t, e.t + 0.1) >= BORROW_MIN_LEVEL) pitch = dominantPitch(voiced, e.t - BORROW_WINDOW, e.t + BORROW_WINDOW);
     if (!pitch) continue;
-    const end = Math.min(next - 0.02, heldUntil(voiced, pitch) + 0.1, fadeEnd(env, e.t, next, 0.3));
+    // A borrowed pitch (from a note that ended before this syllable) sets the pitch, not the length.
+    const held = Math.max(heldUntil(voiced, pitch) + 0.1, e.t + 0.1);
+    const end = Math.min(next - 0.02, held, fadeEnd(env, e.t, next, 0.3));
     if (end - e.t < 0.06) continue;
     out.push({ t: e.t, dur: end - e.t, midi: pitch.midi, strength: Math.min(1, 0.4 + e.strength * 0.6), bend: pitch.bend, fine: pitch.fine });
   }
