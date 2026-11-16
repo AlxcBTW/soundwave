@@ -1,6 +1,11 @@
-# Optional: stem separation and neural transcription for the best charts.
+# Optional: stem separation and per-stem transcription for the best charts.
+# See README.md for the exact install commands (PyTorch comes from its own index, and Basic Pitch
+# is installed without its TensorFlow pin so it runs its bundled ONNX model).
 -r requirements.txt
-torch>=2.3
-torchaudio>=2.3
-demucs>=4.0.1
-basic-pitch>=0.4
+demucs>=4.1.0
+onnxruntime>=1.20
+resampy<0.4.3
+mir-eval
+pretty-midi
+scikit-learn
+typing-extensions

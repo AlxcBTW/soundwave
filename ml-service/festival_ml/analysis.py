@@ -13,6 +13,8 @@ import numpy as np
 import scipy.signal as sps
 import soundfile as sf
 
+from .lines import bass_line, bend_activity, fill_gaps, lead_line, vocal_line
+
 ANALYSIS_VERSION = 2
 SR = 22050
 HOP = 512
@@ -71,14 +73,17 @@ def separate(path: Path, progress: Progress) -> Stems:
 def _demucs(path: Path, progress: Progress) -> Stems:
     import torch
     from demucs.apply import apply_model
-    from demucs.audio import AudioFile
     from demucs.pretrained import get_model
 
     progress(0.05, "Loading stem model")
     model = get_model("htdemucs")
     model.eval()
     dev = device()
-    wav = AudioFile(str(path)).read(streams=0, samplerate=model.samplerate, channels=model.audio_channels)
+    # Load with librosa (soundfile) instead of Demucs' ffmpeg-based reader, so ffmpeg isn't needed.
+    y, _ = librosa.load(str(path), sr=model.samplerate, mono=False)
+    if y.ndim == 1:
+        y = np.stack([y, y])
+    wav = torch.from_numpy(np.ascontiguousarray(y[: model.audio_channels], dtype=np.float32))
     ref = wav.mean(0)
     wav = (wav - ref.mean()) / (ref.std() + 1e-8)
     progress(0.1, "Separating stems")
@@ -214,25 +219,6 @@ def harmony(harm: np.ndarray, beats: list[float]) -> tuple[list[dict], dict, np.
 
 # --------------------------------------------------------------------------- melody
 
-def monophonic(notes: list[dict], score: Callable[[dict], float], min_dur: float = 0.06) -> list[dict]:
-    out: list[dict] = []
-    for n in sorted(notes, key=lambda n: (n["t"], -score(n))):
-        if not out:
-            out.append(dict(n))
-            continue
-        prev = out[-1]
-        if n["t"] - prev["t"] < 0.05:
-            if score(n) > score(prev):
-                out[-1] = dict(n)
-            continue
-        if n["t"] < prev["t"] + prev["dur"]:
-            if score(n) < score(prev) * 0.5:
-                continue
-            prev["dur"] = n["t"] - prev["t"]
-        out.append(dict(n))
-    return [n for n in out if n["dur"] >= min_dur]
-
-
 def _basic_pitch(y: np.ndarray) -> list[dict]:
     from basic_pitch.inference import predict
 
@@ -240,13 +226,16 @@ def _basic_pitch(y: np.ndarray) -> list[dict]:
         sf.write(tmp.name, y, SR)
         path = tmp.name
     try:
-        _, _, events = predict(path, onset_threshold=0.45, frame_threshold=0.3, minimum_note_length=90)
+        _, _, events = predict(path, onset_threshold=0.45, frame_threshold=0.3, minimum_note_length=90, multiple_pitch_bends=False)
     finally:
         Path(path).unlink(missing_ok=True)
     if not events:
         return []
     amp = max(e[3] for e in events) or 1
-    return [{"t": float(e[0]), "dur": float(e[1] - e[0]), "midi": int(e[2]), "strength": float(min(1, e[3] / amp))} for e in events]
+    return [
+        {"t": float(e[0]), "dur": float(e[1] - e[0]), "midi": int(e[2]), "strength": float(min(1, e[3] / amp)), "bend": bend_activity(list(e[4]) if len(e) > 4 and e[4] is not None else None)}
+        for e in events
+    ]
 
 
 def _pyin(y: np.ndarray, fmin: float, fmax: float) -> list[dict]:
@@ -265,52 +254,24 @@ def _pyin(y: np.ndarray, fmin: float, fmax: float) -> list[dict]:
     return notes
 
 
-def _chords(notes: list[dict]) -> list[dict]:
-    """Collapses onset clusters of three or more steady notes into chords (melody = top note)."""
-    out: list[dict] = []
-    cluster: list[dict] = []
-
-    def flush() -> None:
-        if not cluster:
-            return
-        pitches = sorted({n["midi"] for n in cluster})
-        if len(pitches) >= 3 and len({m % 12 for m in pitches}) >= 2:
-            durs = sorted(n["dur"] for n in cluster)
-            out.append({"t": cluster[0]["t"], "dur": durs[len(durs) // 2], "midi": pitches[-1], "strength": max(n["strength"] for n in cluster), "chord": pitches})
-        else:
-            out.extend(cluster)
-
-    for n in sorted(notes, key=lambda n: (n["t"], n["midi"])):
-        if cluster and n["t"] - cluster[0]["t"] >= 0.05:
-            flush()
-            cluster = []
-        cluster.append(n)
-    flush()
-    return out
-
-
-def melody(stems: Stems, progress: Progress) -> tuple[list[dict], list[dict], list[dict], str]:
+def melody(stems: Stems, progress: Progress, duration: float) -> tuple[list[dict], list[dict], list[dict], str]:
     """Bass, lead (instrument incl. chords) and vocal lines. Stems make each line clean."""
     use_bp = engines()["basicPitch"]
-    transcribe = _basic_pitch if use_bp else None
     progress(0.55, "Transcribing bass")
-    bass_notes = _basic_pitch(stems.bass) if transcribe else _pyin(stems.bass, 30, 260)
+    bass_notes = _basic_pitch(stems.bass) if use_bp else _pyin(stems.bass, 30, 260)
     if stems.separated:
         progress(0.65, "Transcribing vocals")
-        vocal_notes = _basic_pitch(stems.vocals) if transcribe else _pyin(stems.vocals, 80, 1100)
+        vocal_notes = _basic_pitch(stems.vocals) if use_bp else _pyin(stems.vocals, 80, 1100)
         progress(0.75, "Transcribing instruments")
-        lead_notes = _basic_pitch(stems.other) if transcribe else _pyin(stems.other, 100, 1400)
+        other_notes = _basic_pitch(stems.other) if use_bp else _pyin(stems.other, 100, 1400)
+        vocals = vocal_line(vocal_notes)
+        lead = fill_gaps(lead_line(other_notes), vocals, duration)
     else:
         progress(0.7, "Transcribing melody")
-        lead_notes = _basic_pitch(stems.melodic) if transcribe else _pyin(stems.melodic, 130, 1050)
-        vocal_notes = lead_notes
-    bass = monophonic([n for n in bass_notes if n["midi"] < BASS_SPLIT + 12 and n["strength"] >= 0.12], lambda n: n["strength"] * (1 + (BASS_SPLIT - n["midi"]) * 0.03))
-    upper = [n for n in lead_notes if n["midi"] >= BASS_SPLIT - 2 and n["strength"] >= 0.15]
-    lead = monophonic(_chords(upper) if use_bp else upper, lambda n: n["strength"] * (len(n.get("chord", [])) + 1) * min(1.5, 0.6 + n["dur"] * 2))
-    vocals = monophonic(
-        [n for n in vocal_notes if 45 <= n["midi"] <= 86 and n["strength"] >= 0.15],
-        lambda n: n["strength"] * min(1.5, 0.6 + n["dur"] * 2),
-    )
+        melodic = _basic_pitch(stems.melodic) if use_bp else _pyin(stems.melodic, 130, 1050)
+        lead = lead_line(melodic)
+        vocals = vocal_line(melodic)
+    bass = bass_line(bass_notes)
 
     def rn(n: dict) -> dict:
         out = {"t": r3(n["t"]), "dur": r3(n["dur"]), "midi": int(n["midi"]), "strength": r3(n["strength"])}
@@ -369,6 +330,19 @@ def sections_for(y: np.ndarray, beats: list[float], downbeats: list[int], durati
 
 # --------------------------------------------------------------------------- entry
 
+def drum_stem_wav(result: dict) -> bytes | None:
+    """The separated drum stem (mono, 16-bit, 22.05 kHz WAV), if stems were separated."""
+    return result.pop("_drum_wav", None)
+
+
+def _wav_bytes(y: np.ndarray) -> bytes:
+    import io
+
+    buf = io.BytesIO()
+    sf.write(buf, np.clip(y, -1, 1), SR, format="WAV", subtype="PCM_16")
+    return buf.getvalue()
+
+
 def analyze(path: Path, progress: Progress) -> dict:
     progress(0.02, "Loading")
     stems = separate(path, progress)
@@ -378,7 +352,7 @@ def analyze(path: Path, progress: Progress) -> dict:
     tempo, beats = track_beats(stems.mix, stems.drums, duration)
     progress(0.48, "Reading chords")
     harm_events, key, _ = harmony(stems.harmonic, beats)
-    bass, lead, vocals, pitch_source = melody(stems, progress)
+    bass, lead, vocals, pitch_source = melody(stems, progress, duration)
     progress(0.9, "Structure")
     downbeats = downbeats_for(beats, drums, harm_events)
     sections = sections_for(stems.mix, beats, downbeats, duration)
@@ -405,4 +379,6 @@ def analyze(path: Path, progress: Progress) -> dict:
         "key": key,
         "pitchSource": pitch_source,
         "separated": stems.separated,
+        # Popped by the server and served separately; never part of the JSON result.
+        **({"_drum_wav": _wav_bytes(stems.drums)} if stems.separated else {}),
     }

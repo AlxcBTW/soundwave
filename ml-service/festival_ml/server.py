@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import tempfile
 import threading
+import time
 import traceback
 import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
-from .analysis import analyze, device, engines
+from .analysis import analyze, device, drum_stem_wav, engines
 
 MAX_UPLOAD = 400 * 1024 * 1024
 
@@ -25,6 +27,9 @@ app.add_middleware(
 )
 
 _jobs: dict[str, dict] = {}
+# Drum stems wait here until the client downloads them (once), at most STEM_TTL seconds.
+_stems: dict[str, tuple[float, bytes]] = {}
+STEM_TTL = 600
 _lock = threading.Lock()
 # One analysis at a time: stem separation is memory hungry.
 _worker_lock = threading.Lock()
@@ -53,6 +58,22 @@ async def create_job(file: UploadFile = File(...)) -> dict:
     return {"id": job_id}
 
 
+@app.get("/jobs/{job_id}/drums.wav")
+def get_drum_stem(job_id: str) -> Response:
+    with _lock:
+        _prune_stems()
+        item = _stems.pop(job_id, None)
+    if item is None:
+        raise HTTPException(404, "no drum stem for this job")
+    return Response(content=item[1], media_type="audio/wav")
+
+
+def _prune_stems() -> None:
+    now = time.time()
+    for k in [k for k, (t, _) in _stems.items() if now - t > STEM_TTL]:
+        _stems.pop(k, None)
+
+
 @app.get("/jobs/{job_id}")
 def get_job(job_id: str) -> dict:
     with _lock:
@@ -76,6 +97,10 @@ def _run(job_id: str, path: Path) -> None:
         with _worker_lock:
             result = analyze(path, progress)
         with _lock:
+            wav = drum_stem_wav(result)
+            if wav:
+                _stems[job_id] = (time.time(), wav)
+            result["drumStem"] = bool(wav)
             _jobs[job_id] = {"state": "done", "progress": 1.0, "step": "Done", "result": result}
     except Exception as e:  # noqa: BLE001 - report any failure to the client
         traceback.print_exc()

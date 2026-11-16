@@ -1,6 +1,10 @@
 # Festival analysis service (optional)
 
-A local HTTP service that analyzes songs more accurately than the in-app analyzer. It separates stems with Demucs (drums, bass, vocals, other) and transcribes notes per stem with Basic Pitch. It returns the same `AnalysisResult` JSON as the in-app analyzer, so charts are generated the same way.
+A local HTTP service that makes charts more accurate by working on separated stems:
+
+1. **Demucs** (htdemucs) splits the song into drums, bass, vocals and other instruments. On an NVIDIA GPU this takes a few seconds per song.
+2. **Basic Pitch** transcribes the bass, vocal and instrument stems separately, so each part follows exactly one instrument. Lead keeps chords as chords.
+3. The service returns those lines plus the isolated drum stem. The app then runs its own beat tracking on the full mix and drum detection on the clean drum stem.
 
 The game works without it. When the service is enabled in **Settings → Analysis service** and reachable, new analyses use it. If it is unavailable, the game falls back to in-app analysis.
 
@@ -10,9 +14,23 @@ The game works without it. When the service is enabled in **Settings → Analysi
 cd ml-service
 python -m venv .venv
 .venv/Scripts/activate        # Windows (macOS/Linux: source .venv/bin/activate)
-pip install -r requirements.txt          # core: librosa-based analysis
-pip install -r requirements-full.txt     # optional: Demucs + Basic Pitch (large; a GPU helps)
+pip install -r requirements.txt
 ```
+
+That is enough for a basic service: librosa signal processing, no stems.
+
+For stem separation, install the full stack:
+
+```bash
+# PyTorch with CUDA (pick the CUDA build for your driver; drop --index-url for CPU only)
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+pip install -r requirements-full.txt
+# Basic Pitch pins TensorFlow, which has no build for newer Pythons. Without it, Basic Pitch runs
+# its bundled ONNX model through onnxruntime.
+pip install --no-deps basic-pitch==0.4.0
+```
+
+The first analysis downloads the Demucs model weights (about 80 MB) into the torch cache.
 
 ## Run
 
@@ -20,7 +38,7 @@ pip install -r requirements-full.txt     # optional: Demucs + Basic Pitch (large
 python -m festival_ml --port 8765
 ```
 
-Check it with `http://127.0.0.1:8765/health`, which shows which optional engines were found.
+`http://127.0.0.1:8765/health` shows which engines were found and whether the GPU is used.
 
 ## Degrades gracefully
 
@@ -28,12 +46,13 @@ Check it with `http://127.0.0.1:8765/health`, which shows which optional engines
 |---|---|---|
 | core only | librosa HPSS | librosa pYIN |
 | + demucs | Demucs htdemucs | librosa pYIN on stems |
-| + basic-pitch | as above | Basic Pitch on stems |
+| + basic-pitch | as above | Basic Pitch on each stem |
 
 ## API
 
 - `GET /health` → `{ ok, engines: { demucs, basicPitch }, device }`
 - `POST /jobs` (multipart `file`) → `{ id }`
-- `GET /jobs/{id}` → `{ state: queued|running|done|error, progress, step, result?, error? }`
+- `GET /jobs/{id}` → `{ state: queued|running|done|error, progress, step, result?, error? }`. The result includes `bass`, `lead` (with `chord` voicings) and `vocals` lines, and `drumStem: true` when a drum stem is available.
+- `GET /jobs/{id}/drums.wav` → the isolated drum stem (mono, 16-bit, 22.05 kHz). It can be downloaded once and is kept for 10 minutes.
 
 The service only listens on localhost and accepts browser requests from local origins and the desktop app.
