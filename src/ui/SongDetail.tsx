@@ -3,6 +3,7 @@ import type { StemName } from '../analysis/types';
 import { DIFFICULTIES, PARTS, lanesFor, type Difficulty, type Part } from '../chart/types';
 import { getScores, type BestScore, type SongMeta } from '../storage/db';
 import { Cover } from './Cover';
+import { PreviewBar } from './PreviewBar';
 import { StatusPill, type SongStatus } from './LibraryScreen';
 
 interface Props {
@@ -98,6 +99,7 @@ export function SongDetail({ song, builtin, status, noteCounts, stems, previewin
                 );
               })}
             </div>
+            <PreviewBar active={previewing !== null} label={previewing === 'mix' || previewing === null ? 'Song' : STEM_LABEL[previewing]} />
             {!builtin && stems.length === 0 && (
               <p className="hint">Stems appear here after analyzing with the ML service (Settings → Analysis service).</p>
             )}
