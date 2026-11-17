@@ -16,3 +16,7 @@ playwright-report/
 public/models/
 local-audio/
 debug-annotations/
+
+# Design process scratch (review captures, local roll data)
+.impeccable/review/
+.impeccable/questions/
