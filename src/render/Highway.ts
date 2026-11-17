@@ -80,6 +80,8 @@ const highwayFragment = /* glsl */ `
   uniform float uScroll;
   uniform float uOverdrive;
   uniform float uPulse;
+  uniform float uLight[5];
+  uniform vec3 uLaneCol[5];
   varying vec2 vUv;
   void main() {
     float x = vUv.x * uLanes;
@@ -104,6 +106,12 @@ const highwayFragment = /* glsl */ `
     float inner = smoothstep(0.16, 0.0, min(vUv.x, 1.0 - vUv.x));
     col += vec3(0.32, 0.7, 1.0) * inner * inner * uOverdrive * (0.45 + 0.4 * (0.5 + 0.5 * sin((vUv.y * 6.0 + uScroll) * 3.14159)));
     col += od * uOverdrive * 0.1 * (0.6 + 0.4 * sheen);
+    // A lane that is played lights up along its length in its own colour, brightest at the player's end.
+    float l = floor(x);
+    vec3 beam = vec3(0.0);
+    for (int i = 0; i < 5; i++) { if (float(i) == l) beam = uLaneCol[i] * uLight[i]; }
+    float inLane = smoothstep(0.0, 0.06, lane) * smoothstep(1.0, 0.94, lane);
+    col += beam * inLane * (0.1 + 0.42 * (1.0 - smoothstep(0.0, 0.8, vUv.y)));
     gl_FragColor = vec4(col, 0.965 * far);
   }
 `;
@@ -163,6 +171,9 @@ export class Highway {
   private readonly capCores: THREE.InstancedMesh;
   private readonly lines: THREE.InstancedMesh;
   private readonly pads: THREE.Mesh[] = [];
+  private readonly padRings: THREE.Mesh[] = [];
+  private padShapes!: Record<'pill' | 'square', [THREE.ShapeGeometry, THREE.ShapeGeometry]>;
+  private padStyle: 'pill' | 'square' = 'pill';
   private readonly padGlows: THREE.Mesh[] = [];
   private readonly flashes: THREE.Mesh[] = [];
   private readonly flashLife: Float32Array;
@@ -229,6 +240,8 @@ export class Highway {
         uScroll: { value: 0 },
         uOverdrive: { value: 0 },
         uPulse: { value: 0 },
+        uLight: { value: [0, 0, 0, 0, 0] },
+        uLaneCol: { value: LANE_COLORS.map((c) => new THREE.Color(c)) },
       },
     });
     const trackLen = LENGTH + FRONT;
@@ -276,8 +289,13 @@ export class Highway {
 
     // Strike pads
     // Strike targets: a thin pill outline per lane in its colour, dark inside until the lane is played.
+    // On a touchscreen the targets are the buttons, so there they are squares a finger fits on.
     const padGeo = new THREE.ShapeGeometry(roundedRect(0.8, 0.26, 0.13), 10);
     const padRing = new THREE.ShapeGeometry(roundedRect(0.88, 0.34, 0.17), 10);
+    this.padShapes = {
+      pill: [padRing, padGeo],
+      square: [new THREE.ShapeGeometry(roundedRect(0.9, 0.84, 0.16), 10), new THREE.ShapeGeometry(roundedRect(0.8, 0.74, 0.12), 10)],
+    };
     for (let i = 0; i < this.lanes; i++) {
       const x = this.laneX(i);
       const ring = new THREE.Mesh(padRing, new THREE.MeshBasicMaterial({ color: this.laneColors[i], transparent: true, opacity: 0.9 }));
@@ -293,6 +311,7 @@ export class Highway {
       glow.quaternion.copy(this.flat);
       glow.position.set(x, 0.01, 0);
       this.root.add(ring, fill, glow);
+      this.padRings.push(ring);
       this.pads.push(fill);
       this.padGlows.push(glow);
     }
@@ -450,11 +469,27 @@ export class Highway {
     this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
-    const strike = Number.parseFloat(getComputedStyle(this.canvas).getPropertyValue('--strike')) || STRIKE_AT;
+    const css = getComputedStyle(this.canvas);
+    const strike = Number.parseFloat(css.getPropertyValue('--strike')) || STRIKE_AT;
+    this.setPadStyle(css.getPropertyValue('--pads').trim() === 'square' ? 'square' : 'pill');
     const now = ((1 - new THREE.Vector3(0, 0, FRONT + 0.16).project(this.camera).y) / 2) * h;
     this.camera.setViewOffset(w, h, 0, Math.round(now - strike * h), w, h);
     this.camera.updateProjectionMatrix();
   }
+  /** Strike targets as thin pills, or as finger-sized squares set a little toward the player. */
+  private setPadStyle(style: 'pill' | 'square') {
+    if (style === this.padStyle) return;
+    this.padStyle = style;
+    const [ring, fill] = this.padShapes[style];
+    const z = style === 'square' ? 0.2 : 0;
+    for (let i = 0; i < this.lanes; i++) {
+      this.padRings[i].geometry = ring;
+      this.pads[i].geometry = fill;
+      this.padGlows[i].geometry = fill;
+      for (const m of [this.padRings[i], this.pads[i], this.padGlows[i]]) m.position.z = z;
+    }
+  }
+
   /** Screen positions (CSS px, relative to the canvas) under each lane, just past the deck's front lip. */
   padScreenPositions(): { x: number; y: number }[] {
     const w = this.canvas.clientWidth;
@@ -464,6 +499,27 @@ export class Highway {
       const p = new THREE.Vector3(this.laneX(i), 0, FRONT + 0.16).project(this.camera);
       return { x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h };
     });
+  }
+
+  /**
+   * The lane under a point of the canvas (CSS px): the lane drawn there, following the deck's
+   * perspective. Beside the deck it is the nearest outer lane; above the horizon, the lane whose
+   * foot is nearest.
+   */
+  laneAt(x: number, y: number): number {
+    const w = this.canvas.clientWidth || 1;
+    const h = this.canvas.clientHeight || 1;
+    const eye = this.camera.position;
+    this.v.set((x / w) * 2 - 1, 1 - (y / h) * 2, 0.5).unproject(this.camera).sub(eye);
+    if (this.v.y < -1e-4) {
+      const worldX = eye.x + this.v.x * (-eye.y / this.v.y);
+      return Math.min(this.lanes - 1, Math.max(0, Math.round(worldX / LANE_W + (this.lanes - 1) / 2)));
+    }
+    let best = 0;
+    this.padScreenPositions().forEach((p, i, all) => {
+      if (Math.abs(p.x - x) < Math.abs(all[best].x - x)) best = i;
+    });
+    return best;
   }
 
   setLaneDown(lane: number, down: boolean) {
@@ -687,6 +743,7 @@ export class Highway {
       if (session.laneDown[i]) this.padLight[i] = Math.max(this.padLight[i], 0.55);
       this.padLight[i] = Math.max(0, this.padLight[i] - dt * 5);
       (this.padGlows[i].material as THREE.MeshBasicMaterial).opacity = this.padLight[i];
+      (u.uLight.value as number[])[i] = this.padLight[i];
       this.flashLife[i] = Math.max(0, this.flashLife[i] - dt * 4.5);
       const f = this.flashes[i];
       const fl = this.flashLife[i];
@@ -731,6 +788,7 @@ export class Highway {
       if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
       else mat?.dispose();
     });
+    for (const g of Object.values(this.padShapes).flat()) g.dispose();
     this.renderer.dispose();
   }
 }

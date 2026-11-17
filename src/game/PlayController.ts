@@ -22,8 +22,6 @@ export interface HudRefs {
   root: HTMLElement;
   /** One label per lane, positioned under its strike pad. */
   keys: HTMLElement[];
-  /** One touch pad per lane, positioned like the labels and lit while its lane is held. */
-  touchPads: HTMLElement[];
   /** The layer that takes touches for the lanes. */
   touchLayer: HTMLElement;
   /** The overdrive meter, which is also the button that starts overdrive. */
@@ -53,8 +51,6 @@ export class PlayController {
   private readonly padInput: GamepadInput;
   private readonly touchInput: TouchInput;
   private readonly observer: ResizeObserver;
-  /** Screen x of each strike pad, for mapping a touch to its lane. */
-  private padXs: number[] = [];
   private readonly rumble: Rumbler;
   private raf = 0;
   private phase: PlayPhase = 'countdown';
@@ -161,10 +157,9 @@ export class PlayController {
     // Controllers drive the menus while paused, so only take their input during play.
     this.padInput = new GamepadInput(padBindings, settings.padOverdrive, handlers, () => this.phase === 'playing' || this.phase === 'countdown');
 
-    // Touch: a finger anywhere in a lane's column plays that lane; each pad lights while held.
+    // Touch: a finger anywhere in a lane's column plays that lane (the highway lights the lane).
     const vibrate = settings.touchHaptics && typeof navigator.vibrate === 'function';
-    this.touchInput = new TouchInput(hud.touchLayer, (x) => this.laneAt(x), handlers, (lane, down) => {
-      hud.touchPads[lane]?.classList.toggle('down', down);
+    this.touchInput = new TouchInput(hud.touchLayer, (x, y) => this.highway.laneAt(x, y), handlers, (_lane, down) => {
       if (down && vibrate && this.phase === 'playing') navigator.vibrate(8);
     });
     hud.overdriveButton.addEventListener('pointerdown', this.overdrivePress);
@@ -188,31 +183,19 @@ export class PlayController {
     if (this.phase === 'playing') this.session.activateOverdrive();
   };
 
-  /** The lane whose strike pad is nearest to a screen x (relative to the highway canvas). */
-  private laneAt(x: number): number {
-    let best = -1;
-    let dist = Infinity;
-    this.padXs.forEach((px, i) => {
-      const d = Math.abs(px - x);
-      if (d < dist) {
-        dist = d;
-        best = i;
-      }
-    });
-    return best;
+  /** Lays the highway out again after the layout changed without the canvas changing size (another input in use). */
+  relayout() {
+    this.resize();
   }
 
-  /** Puts the lane labels and touch pads under their strike pads and tells the HUD where the highway is. */
+  /** Puts the lane labels under their lanes and tells the HUD where the highway is. */
   private placeKeys() {
     const pos = this.highway.padScreenPositions();
     if (!pos.length) return;
-    this.padXs = pos.map((p) => p.x);
     pos.forEach((p, i) => {
       const at = `translate(${p.x}px, ${p.y}px) translate(-50%, 0)`;
       const key = this.hud.keys[i];
       if (key) key.style.transform = at;
-      const pad = this.hud.touchPads[i];
-      if (pad) pad.style.transform = at;
     });
     const first = pos[0];
     const last = pos[pos.length - 1];

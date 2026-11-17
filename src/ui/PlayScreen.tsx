@@ -58,7 +58,6 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
       progress: q('[data-hud=progress]'),
       feedback: q('[data-hud=feedback]'),
       keys: Array.from(root.querySelectorAll<HTMLElement>('.lane-key')),
-      touchPads: Array.from(root.querySelectorAll<HTMLElement>('.touch-pad')),
       touchLayer: q('[data-hud=touch]'),
       overdriveButton: q('[data-hud=od]'),
       breakTimer: q('[data-hud=break]'),
@@ -90,6 +89,11 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
       ctrlRef.current = null;
     };
   }, [buffer, chart, settings, run]);
+
+  // The highway is laid out differently for touch (square targets at the foot of the screen).
+  useEffect(() => {
+    ctrlRef.current?.relayout();
+  }, [mode]);
 
   const paused = phase === 'paused';
   // The pause menu takes focus as it opens, so the keyboard and a controller land on Resume.
@@ -165,9 +169,6 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
         </div>
         {keys.map((k, i) => (
           <span key={i} className={`lane-key lane-${i} ${usingPad ? 'pad' : ''}`}>{usingPad ? <PadGlyph input={padKeys[i]} style={style} /> : keyLabel(k)}</span>
-        ))}
-        {keys.map((_, i) => (
-          <span key={i} className={`touch-pad lane-${i}`} aria-hidden />
         ))}
       </div>
       {phase === 'countdown' && count > 0 && <div className="countdown" key={count}>{count}</div>}

@@ -95,7 +95,7 @@ export class GamepadInput {
 }
 
 /**
- * Touch: every finger that lands on the layer plays the lane under it (`laneAt` maps a screen x,
+ * Touch: every finger that lands on the layer plays the lane under it (`laneAt` maps a point,
  * relative to the layer, to a lane, or -1) and lets it go when it lifts. Several fingers at once
  * are chords; a mouse is ignored.
  */
@@ -104,7 +104,7 @@ export class TouchInput {
 
   constructor(
     private readonly el: HTMLElement,
-    private readonly laneAt: (x: number) => number,
+    private readonly laneAt: (x: number, y: number) => number,
     private readonly h: InputHandlers,
     private readonly onLane: (lane: number, down: boolean) => void,
   ) {
@@ -116,7 +116,8 @@ export class TouchInput {
   private readonly down = (e: PointerEvent) => {
     if (e.pointerType === 'mouse') return;
     e.preventDefault();
-    const lane = this.laneAt(e.clientX - this.el.getBoundingClientRect().left);
+    const box = this.el.getBoundingClientRect();
+    const lane = this.laneAt(e.clientX - box.left, e.clientY - box.top);
     if (lane < 0) return;
     const held = [...this.fingers.values()].includes(lane);
     this.fingers.set(e.pointerId, lane);
