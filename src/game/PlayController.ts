@@ -84,7 +84,7 @@ export class PlayController {
     this.session.on((e) => {
       if (e.type === 'hit') {
         this.flashFeedback(e.grade.toUpperCase(), e.grade);
-        this.rumble.hit(e.lane);
+        this.rumble.hit(e.lane, e.grade);
         if (chart.notes[e.noteIndex].dur > 0) this.rumble.sustainStart(e.lane);
       } else if (e.type === 'miss') {
         this.flashFeedback('MISS', 'miss');

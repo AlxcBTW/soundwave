@@ -4,6 +4,7 @@
  * (src-tauri/src/haptics.rs): positional, textured feedback instead of plain rumble.
  */
 import { invoke } from '@tauri-apps/api/core';
+import type { Grade } from '../game/judge';
 import type { RumbleLevel, Settings } from '../game/settings';
 import { pads, type PadInput } from './pads';
 
@@ -19,6 +20,13 @@ interface Effect {
   /** Lane binding, so a trigger-bound lane can rumble in that trigger. */
   input?: PadInput;
 }
+
+/** Hit feedback by timing: a perfect hit is the full-strength, slightly longer pulse. */
+export const HIT_FEEL: Record<Grade, { amp: number; ms: number }> = {
+  perfect: { amp: 1, ms: 70 },
+  great: { amp: 0.65, ms: 50 },
+  good: { amp: 0.45, ms: 45 },
+};
 
 /** Output scale per level; strong is full output. */
 export const RUMBLE_SCALE: Record<RumbleLevel, number> = { off: 0, weak: 0.45, strong: 1 };
@@ -112,8 +120,10 @@ export class Rumbler {
     if (this.native) nativePlay(e, k);
   }
 
-  hit(lane: number) {
-    if (this.s.rumbleHits) this.fire({ pan: this.panFor(lane), amp: 1, ms: 55, kind: 'click', input: this.bindings[lane] });
+  hit(lane: number, grade: Grade = 'perfect') {
+    if (!this.s.rumbleHits) return;
+    const { amp, ms } = HIT_FEEL[grade];
+    this.fire({ pan: this.panFor(lane), amp, ms, kind: 'click', input: this.bindings[lane] });
   }
 
   miss(lane: number) {
