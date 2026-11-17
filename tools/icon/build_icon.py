@@ -113,8 +113,8 @@ pr.inputs['Metallic'].default_value = 1.0
 pr.inputs['Roughness'].default_value = 0.16
 
 bm = bmesh.new()
-bmesh.ops.create_uvsphere(bm, u_segments=38, v_segments=20, radius=1.0)
-rims = bmesh.ops.inset_individual(bm, faces=bm.faces[:], thickness=0.011, depth=0.0, use_even_offset=True)['faces']
+bmesh.ops.create_uvsphere(bm, u_segments=46, v_segments=24, radius=1.0)
+rims = bmesh.ops.inset_individual(bm, faces=bm.faces[:], thickness=0.0085, depth=0.0, use_even_offset=True)['faces']
 for f in rims:
     f.material_index = 1
 bm.normal_update()
@@ -125,7 +125,7 @@ for f in bm.faces:
         normal = f.normal.copy()
         axis = normal.orthogonal().normalized()
         axis.rotate(Matrix.Rotation(rand.uniform(0, 2 * math.pi), 3, normal))
-        turn = Matrix.Rotation(math.radians(rand.normal(0, 2.4)), 3, axis)
+        turn = Matrix.Rotation(math.radians(rand.normal(0, 3.2)), 3, axis)
         for v in f.verts:
             v.co = centre + turn @ (v.co - centre) + normal * 0.004
 ball = obj('Ball', bm, [mirror, grout])
@@ -142,19 +142,19 @@ obj('Hanger', bm, [chrome], smooth=True)
 
 # the lights the mirrors pick up: panels all round, coloured by where they stand, some left dark,
 # and a few small hard ones for the glints. None of them shows in the picture itself.
-count = 90
+count = 170
 for i in range(count):
     z = 1 - 2 * (i + 0.5) / count
     r = math.sqrt(1 - z * z)
     a = i * math.pi * (3 - math.sqrt(5))
     d = Vector((r * math.cos(a), z, r * math.sin(a)))          # y: toward (-) or away from (+) the camera
-    if rand.uniform() < 0.3:
+    if rand.uniform() < 0.16:
         continue
     seen = math.degrees(math.atan2(d.z, d.x))
     color = wheel(seen + rand.normal(0, 14))
-    hard = rand.uniform() < 0.14
-    size = rand.uniform(0.5, 0.9) if hard else rand.uniform(1.6, 3.4)
-    strength = rand.uniform(26, 60) if hard else rand.uniform(0.5, 3.6)
+    hard = rand.uniform() < 0.1
+    size = rand.uniform(0.45, 0.8) if hard else rand.uniform(1.3, 2.6)
+    strength = rand.uniform(26, 55) if hard else rand.uniform(0.6, 3.8)
     if hard:
         color = tuple(0.75 + 0.25 * c for c in color)
     bm = bmesh.new()
@@ -171,7 +171,7 @@ try:
 except Exception:
     pass
 bg = next(n for n in world.node_tree.nodes if n.type == 'BACKGROUND')
-bg.inputs['Color'].default_value = (0.012, 0.01, 0.05, 1)
+bg.inputs['Color'].default_value = (0.02, 0.014, 0.075, 1)
 bg.inputs['Strength'].default_value = 1.0
 
 # the camera: a long lens straight on, the ball a little below the middle to leave room for the rod
@@ -255,7 +255,7 @@ for a0 in range(0, 360, 3):
     c = np.array(wheel(a0))
     near = np.exp(-(((seen - a0 + 180) % 360 - 180) / 22.0) ** 2)
     ring += near[:, :, None] * c[None, None, :] * (3 / 22.0 / math.sqrt(math.pi))
-back += ring * (0.5 * np.exp(-((dist - RADIUS * 1.02) / 0.13) ** 2) + 0.07 * np.exp(-(dist / 0.55) ** 2))[:, :, None]
+back += ring * (0.34 * np.exp(-((dist - RADIUS * 0.98) / 0.075) ** 2) + 0.045 * np.exp(-(dist / 0.5) ** 2))[:, :, None]
 # the spots a mirror ball throws about: soft dots, larger and fainter the farther out they land
 spots = np.zeros((side, side, 3))
 for _ in range(46):
@@ -264,7 +264,7 @@ for _ in range(46):
     size = 0.006 + 0.016 * (r - RADIUS) / 0.4 * rand.uniform(0.6, 1.3)
     dot = np.clip(1.3 - np.hypot(u - su, v - sv) / size, 0, 1) ** 2
     spots += dot[:, :, None] * np.array(wheel(a + rand.normal(0, 20)))[None, None, :] * rand.uniform(0.25, 1.0) * (0.02 / size) ** 0.7
-back += blur(spots, 2.5 * k) * 0.55
+back += blur(spots, 2.5 * k) * 0.9
 
 rgb = front + back * (1 - cover)
 
@@ -272,7 +272,7 @@ rgb = front + back * (1 - cover)
 hot = np.maximum(rgb - 0.9, 0.0)
 rgb = rgb + 0.35 * blur(hot, 4 * k) + 0.22 * blur(hot, 18 * k) + 0.12 * blur(hot, 70 * k)
 flare = np.minimum(np.maximum(front - 4.0, 0.0), 40.0)
-rgb = rgb + 0.9 * (blur(flare, 60 * k, 1.1 * k) + blur(flare, 1.1 * k, 60 * k)) + 0.25 * (blur(flare, 150 * k, 1.3 * k) + blur(flare, 1.3 * k, 150 * k))
+rgb = rgb + 0.6 * (blur(flare, 34 * k, 1.0 * k) + blur(flare, 1.0 * k, 34 * k)) + 0.13 * (blur(flare, 90 * k, 1.2 * k) + blur(flare, 1.2 * k, 90 * k))
 
 # tone: a soft shoulder, so bright colour stays colour instead of clipping to white
 rgb = 1.0 - np.exp(-1.15 * np.maximum(rgb, 0))

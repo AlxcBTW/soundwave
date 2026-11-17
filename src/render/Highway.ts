@@ -118,6 +118,23 @@ function beamTexture(kind: 'glow' | 'core'): THREE.CanvasTexture {
   return tex;
 }
 
+/**
+ * Blending for things that are pure light on the deck: their colour is added, and the canvas's own
+ * opacity is left exactly as it was. (Plain additive blending also adds the quad's alpha, which
+ * makes the slightly see-through deck fully opaque across the whole quad: a darker rectangle round
+ * the light wherever the stage behind is bright.)
+ */
+const LIGHT = {
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.CustomBlending,
+  blendEquation: THREE.AddEquation,
+  blendSrc: THREE.SrcAlphaFactor,
+  blendDst: THREE.OneFactor,
+  blendSrcAlpha: THREE.ZeroFactor,
+  blendDstAlpha: THREE.OneFactor,
+} as const;
+
 const highwayVertex = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -497,12 +514,12 @@ export class Highway {
     tailGeo.translate(0, 0, -0.5); // extends from z=0 to z=-1 before scaling
     this.tails = new THREE.InstancedMesh(
       tailGeo,
-      new THREE.MeshBasicMaterial({ map: beamTexture('glow'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ map: beamTexture('glow'), ...LIGHT }),
       MAX_TAILS,
     );
     this.tailCores = new THREE.InstancedMesh(
       tailGeo,
-      new THREE.MeshBasicMaterial({ map: beamTexture('core'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ map: beamTexture('core'), ...LIGHT }),
       MAX_TAILS,
     );
     for (const mesh of [this.tails, this.tailCores]) {
