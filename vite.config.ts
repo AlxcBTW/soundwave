@@ -42,7 +42,17 @@ function debugAnnotations(): Plugin {
 export default defineConfig({
   plugins: [react(), debugAnnotations()],
   clearScreen: false,
-  server: { port: 5173, strictPort: true },
+  server: {
+    port: 5173,
+    strictPort: true,
+    // The ML service's virtualenv, the Rust build output and the test audio hold tens of
+    // thousands of files the app never imports; watching them slows every dev start.
+    watch: { ignored: ['**/ml-service/.venv/**', '**/src-tauri/target/**', '**/local-audio/**', '**/debug-annotations/**'] },
+  },
+  // Only index.html is an entry. By default every .html under the project is scanned for
+  // dependencies (including stray ones in the virtualenv), and the page waits for that scan.
+  // The analysis worker loads these lazily; bundling them up front avoids a reload mid-analysis.
+  optimizeDeps: { entries: ['index.html'], include: ['@tensorflow/tfjs', '@spotify/basic-pitch', 'fft.js'] },
   worker: { format: 'es' },
   build: { target: 'es2023', chunkSizeWarningLimit: 4000 },
   test: { environment: 'node', include: ['tests/**/*.test.ts'] },
