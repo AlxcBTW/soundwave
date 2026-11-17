@@ -804,7 +804,8 @@ ul, ol { list-style: none; }
   .setlist-count { font-size: 0.75rem; line-height: 1.2; }
   .setlist .panel-title { display: none; }
   .slots { flex: none; flex-direction: column; justify-content: flex-start; gap: 0.3rem; }
-  .slots li { flex: none; width: 2.6rem; }
+  .slots li { flex: none; width: 2.2rem; }
+  .setlist-head { max-width: 2.2rem; }
   .results-stats > div { padding: 0.4rem 0.6rem; }
   .results-stats dd { font-size: 1.2rem; }
 }

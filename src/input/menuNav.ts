@@ -36,7 +36,8 @@ const navLive = () => !document.querySelector('[data-nav-off]');
 
 export function focusables(scope: ParentNode = navScope()): HTMLElement[] {
   return Array.from(scope.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => {
-    if (el.closest('[data-nav-skip]')) return false;
+    // Out of the tab order means out of directional navigation too (a row's own step arrows).
+    if (el.tabIndex < 0 || el.closest('[data-nav-skip]')) return false;
     const r = el.getBoundingClientRect();
     return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
   });
