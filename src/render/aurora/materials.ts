@@ -172,7 +172,7 @@ void main() {
   vec3 deep = mix(vec3(0.0, 0.035, 0.12), uWash * 0.22, 0.5);
   vec3 shallow = mix(vec3(0.0, 0.2, 0.36), uKey * 0.4, 0.4);
   vec3 bright = mix(vec3(0.65, 0.95, 1.0), uAccent, 0.4);
-  float level = (0.6 + 0.2 * feature + 0.25 * uLow + 0.2 * uPulse) * 0.85;
+  float level = (0.6 + 0.2 * feature + 0.25 * uLow + 0.2 * uPulse) * 0.5;
   vec3 pic;
   vec2 cells;
   if (vUv.y < -0.5) {
@@ -188,7 +188,7 @@ void main() {
     pic += bright * caustics(vWPos.xz * 1.25 + bend, t) * (0.5 + 0.4 * uLow);
     pic += bright * ring * (0.5 + 0.5 * sin(lead * 40.0)) * 0.6;
     pic *= level * smoothstep(1.0, 0.95, r);
-    pic += uAccent * smoothstep(0.9, 0.99, r) * (0.28 + 0.55 * uPulse);
+    pic += uAccent * smoothstep(0.9, 0.99, r) * (0.18 + 0.4 * uPulse);
     cells = vWPos.xz / 0.055;
   } else {
     // The wall: the pool from the side, as much of it as stands above the island.
