@@ -60,25 +60,6 @@ function radialTexture() {
   return tex;
 }
 
-/** A tile's glow: its own rounded shape with a soft edge, a little larger than the tile. */
-function haloTexture() {
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 128;
-  const g = c.getContext('2d')!;
-  // drawn as the soft shadow of a shape that itself lies off the canvas
-  g.shadowColor = '#fff';
-  g.shadowBlur = 18;
-  g.shadowOffsetX = 512;
-  g.fillStyle = '#fff';
-  g.beginPath();
-  g.roundRect(34 - 512, 30, 188, 68, 26);
-  g.fill();
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
 const highwayVertex = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -161,7 +142,7 @@ export class Highway {
   private flare = 0;
   private readonly gems: THREE.InstancedMesh;
   private readonly shines: THREE.InstancedMesh;
-  /** A glow hugging every tile while overdrive lasts. */
+  /** The light every tile gives off while overdrive lasts: a soft bloom round it, facing the camera. */
   private readonly auras: THREE.InstancedMesh;
   private readonly tails: THREE.InstancedMesh;
   /** Release markers: a light tile at the end of the hold with an upright pointer standing on it. */
@@ -330,16 +311,15 @@ export class Highway {
     this.shines.frustumCulled = false;
     this.root.add(this.shines);
 
-    const auraGeo = new THREE.PlaneGeometry(1, 1);
-    auraGeo.rotateX(-Math.PI / 2);
+    // Light, not a shadow on the lane: it is drawn over the tile and everything round it.
     this.auras = new THREE.InstancedMesh(
-      auraGeo,
-      new THREE.MeshBasicMaterial({ map: haloTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({ map: radialTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }),
       MAX_GEMS,
     );
     this.auras.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_GEMS * 3), 3);
     this.auras.frustumCulled = false;
-    this.auras.renderOrder = -0.5;
+    this.auras.renderOrder = 2;
     this.auras.count = 0;
     this.root.add(this.auras);
 
@@ -629,12 +609,12 @@ export class Highway {
       else if (drive > 0.01) this.c.multiplyScalar(1 + drive * (0.08 + 0.2 * swell));
       this.gems.setColorAt(gi, this.c);
       if (drive > 0.01) {
-        // the glow keeps the tile's size and shape; only its strength moves
-        this.v.set(x, 0.015, z);
-        this.s.set(1.25, 1, 0.83);
-        this.m.compose(this.v, this.q, this.s);
+        // a wide, low bloom centred on the tile, turned to the camera; only its strength moves
+        this.v.set(x, 0.1, z);
+        this.s.set(2.0, 1.1, 1);
+        this.m.compose(this.v, this.camera.quaternion, this.s);
         this.auras.setMatrixAt(gi, this.m);
-        this.c.copy(OVERDRIVE_TILE).multiplyScalar(drive * (missed ? 0.1 : 0.4 + 0.3 * swell));
+        this.c.copy(OVERDRIVE_TILE).multiplyScalar(drive * (missed ? 0.08 : 0.3 + 0.22 * swell));
         this.auras.setColorAt(gi, this.c);
       }
       gi++;
