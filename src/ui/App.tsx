@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { analysisManager } from '../analysis/manager';
 import { checkHealth, mlAnalyzer } from '../analysis/mlClient';
 import { DIFFICULTIES, PARTS, type Chart, type Difficulty, type Part } from '../chart/types';
@@ -8,10 +8,13 @@ import { DEMO_ID, forgetSongBuffer, loadSongBuffer } from '../audio/songAudio';
 import type { Results } from '../game/GameSession';
 import { demoChart } from '../game/demo';
 import { loadSettings, saveSettings, type Settings } from '../game/settings';
+import { installMenuNav } from '../input/menuNav';
+import { pads, resolveStyle } from '../input/pads';
 import { deleteSong, getSong, getStem, listSongs, listStems, putSong, submitScore, type SongMeta } from '../storage/db';
 import type { StemName } from '../analysis/types';
 import { LibraryScreen, type SongStatus } from './LibraryScreen';
 import { MenuBackground } from './MenuBackground';
+import { PadHints } from './PadHints';
 import { PlayScreen } from './PlayScreen';
 import { ResultsScreen } from './ResultsScreen';
 import { DebugScreen } from '../debug/DebugScreen';
@@ -49,6 +52,14 @@ export function App() {
   }, []);
   const toasts = useToasts();
   const { push: toast } = toasts;
+
+  // Controllers: polled from the start; menus are navigable with the D-pad or left stick.
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  useEffect(() => {
+    pads.start();
+    return installMenuNav(() => resolveStyle(settingsRef.current.glyphs, pads.snapshot().family));
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -298,6 +309,7 @@ export function App() {
   return (
     <>
       {content}
+      {view.name !== 'play' && <PadHints settings={settings} />}
       <Toasts items={toasts.items} onDismiss={toasts.dismiss} />
     </>
   );

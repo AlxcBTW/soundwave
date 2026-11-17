@@ -1,3 +1,5 @@
+import { pads, PAUSE_INPUT, type PadInput } from '../input/pads';
+
 export interface InputHandlers {
   press(lane: number, timeStamp: number): void;
   release(lane: number, timeStamp: number): void;
@@ -54,5 +56,40 @@ export class KeyboardInput {
     window.removeEventListener('keydown', this.down);
     window.removeEventListener('keyup', this.up);
     window.removeEventListener('blur', this.blur);
+  }
+}
+
+/**
+ * Maps controller inputs to lanes. While `active()` is false (paused) only the pause button is
+ * handled and everything else goes on to menu navigation.
+ */
+export class GamepadInput {
+  private readonly map = new Map<PadInput, number>();
+  private readonly release: () => void;
+
+  constructor(
+    bindings: PadInput[],
+    private readonly overdriveInput: PadInput,
+    private readonly h: InputHandlers,
+    private readonly active: () => boolean,
+  ) {
+    bindings.forEach((b, i) => this.map.set(b, i));
+    this.release = pads.capture((e) => {
+      if (e.input === PAUSE_INPUT) {
+        if (e.down) this.h.pause();
+        return true;
+      }
+      if (!this.active()) return false;
+      const lane = this.map.get(e.input);
+      if (lane !== undefined) {
+        if (e.down) this.h.press(lane, e.t);
+        else this.h.release(lane, e.t);
+      } else if (e.input === this.overdriveInput && e.down) this.h.overdrive();
+      return true;
+    });
+  }
+
+  dispose() {
+    this.release();
   }
 }

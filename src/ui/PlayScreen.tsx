@@ -4,6 +4,8 @@ import { getEngine } from '../audio/engine';
 import type { Results } from '../game/GameSession';
 import { PlayController, type PlayPhase } from '../game/PlayController';
 import { keyLabel, type Settings } from '../game/settings';
+import { PadGlyph } from '../input/glyphs';
+import { useGlyphStyle, usePads } from '../input/usePads';
 
 interface Props {
   title: string;
@@ -53,6 +55,10 @@ export function PlayScreen({ title, buffer, chart, settings, onFinish, onQuit }:
   }, [buffer, chart, settings, run]);
 
   const keys = chart.lanes === 5 ? settings.keys5 : settings.keys4;
+  const padKeys = chart.lanes === 5 ? settings.pad5 : settings.pad4;
+  const usingPad = usePads().lastDevice === 'pad';
+  const style = useGlyphStyle(settings.glyphs);
+  const odLabel = usingPad ? <PadGlyph input={settings.padOverdrive} style={style} /> : keyLabel(settings.overdriveKey);
 
   return (
     <div className="play">
@@ -70,13 +76,15 @@ export function PlayScreen({ title, buffer, chart, settings, onFinish, onQuit }:
         <div className="hud-right">
           <div className="hud-mult" data-hud="mult" data-level="1">×1</div>
           <div className="hud-streak" data-hud="streak" />
-          <div className="hud-od" title={`Overdrive (${keyLabel(settings.overdriveKey)})`}>
+          <div className="hud-od" title="Overdrive">
             <div data-hud="od" />
           </div>
-          <div className="hud-od-key">{keyLabel(settings.overdriveKey)}</div>
+          <div className="hud-od-key">{odLabel}</div>
         </div>
         <div className="hud-feedback" data-hud="feedback" />
-        {keys.map((k, i) => <span key={i} className={`lane-key lane-${i}`}>{keyLabel(k)}</span>)}
+        {keys.map((k, i) => (
+          <span key={i} className={`lane-key lane-${i} ${usingPad ? 'pad' : ''}`}>{usingPad ? <PadGlyph input={padKeys[i]} style={style} /> : keyLabel(k)}</span>
+        ))}
       </div>
       {phase === 'countdown' && count > 0 && <div className="countdown" key={count}>{count}</div>}
       {phase === 'paused' && (

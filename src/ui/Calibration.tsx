@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getEngine } from '../audio/engine';
+import { pads, PAUSE_INPUT } from '../input/pads';
 
 const BPM = 100;
 const CLICKS = 20;
@@ -51,6 +52,15 @@ export function Calibration({ onDone }: { onDone(offsetMs: number | null): void 
       if (now > (CLICKS + LEAD) * spb + 0.3) finish(true);
     };
     loop();
+    const tap = (timeStamp: number) => {
+      const t = engine.time(timeStamp);
+      const idx = Math.round(t / spb);
+      if (idx < LEAD || idx >= CLICKS + LEAD) return;
+      const err = t - idx * spb;
+      if (Math.abs(err) > 0.25) return;
+      tapsRef.current.push(err);
+      setTaps([...tapsRef.current]);
+    };
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'Escape') {
         e.preventDefault();
@@ -59,16 +69,17 @@ export function Calibration({ onDone }: { onDone(offsetMs: number | null): void 
       }
       if (e.repeat) return;
       e.preventDefault();
-      const t = engine.time(e.timeStamp);
-      const idx = Math.round(t / spb);
-      if (idx < LEAD || idx >= CLICKS + LEAD) return;
-      const err = t - idx * spb;
-      if (Math.abs(err) > 0.25) return;
-      tapsRef.current.push(err);
-      setTaps([...tapsRef.current]);
+      tap(e.timeStamp);
     };
+    const releasePad = pads.capture((e) => {
+      if (!e.down) return true;
+      if (e.input === PAUSE_INPUT) finish(false);
+      else tap(e.t);
+      return true;
+    });
     window.addEventListener('keydown', onKey, true);
     return () => {
+      releasePad();
       window.removeEventListener('keydown', onKey, true);
       cancelAnimationFrame(raf);
       engine.stop();
@@ -83,7 +94,7 @@ export function Calibration({ onDone }: { onDone(offsetMs: number | null): void 
       <div className="panel">
         <h2>Calibration</h2>
         <p className="dim center">
-          {beat < 0 ? `Get ready… ${-beat}` : 'Press any key exactly on each click.'}
+          {beat < 0 ? `Get ready… ${-beat}` : 'Press any key or controller button exactly on each click.'}
         </p>
         <div className={`calib-dot ${beat >= 0 && beat % 2 === 0 ? 'on' : ''}`} />
         <p className="dim">{taps.length} taps{median !== null ? ` · median ${median} ms` : ''}</p>

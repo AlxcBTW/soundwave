@@ -242,3 +242,32 @@ h1, h2, h3 { margin: 0; }
 .keycap.lane-2 { border-bottom-color: var(--lane-2); }
 .keycap.lane-3 { border-bottom-color: var(--lane-3); }
 .keycap.lane-4 { border-bottom-color: var(--lane-4); }
+
+/* Settings tabs */
+.tabs { display: flex; align-items: center; gap: 6px; width: 100%; border-bottom: 1px solid var(--panel-border); padding-bottom: 10px; margin-bottom: 4px; flex-wrap: wrap; }
+.tab { border: 1px solid transparent; background: transparent; color: var(--dim); padding: 8px 14px; border-radius: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; font-size: 13px; cursor: pointer; }
+.tab:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+.tab.on { color: var(--text); background: rgba(139, 92, 255, 0.25); border-color: var(--accent); }
+.tab-hint { height: 22px; opacity: 0.8; }
+.settings-footer { margin-top: 14px; }
+.seg.wrap { flex-wrap: wrap; }
+.check { display: flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer; }
+.check-row { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.check input, .setting input[type='checkbox'] { accent-color: var(--accent); width: 18px; height: 18px; }
+
+/* Controller */
+.glyph { height: 1.6em; width: auto; aspect-ratio: 1; display: inline-block; vertical-align: middle; flex: none; }
+.glyph text { font-family: 'Segoe UI', system-ui, sans-serif; }
+.glyph-preview { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 18px; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); }
+.keycap.pad { display: inline-grid; place-items: center; font-size: 18px; min-width: 60px; }
+.keycap.pad.fixed { cursor: default; opacity: 0.7; }
+.pad-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.pad-list li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pad-name { font-weight: 700; }
+.lane-key.pad { background: transparent; border-bottom: 0; height: auto; font-size: 18px; padding: 0; }
+.hud-od-key .glyph { font-size: 16px; }
+.pad-hints { position: fixed; left: 16px; bottom: 14px; display: flex; gap: 16px; align-items: center; font-size: 13px; font-weight: 700; color: var(--dim); background: rgba(7, 5, 26, 0.7); padding: 6px 12px; border-radius: 20px; border: 1px solid var(--panel-border); z-index: 5; pointer-events: none; }
+.pad-hints span { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.pad-hints .glyph { font-size: 14px; }
+.pad-nav :focus, .pad-nav .pad-focus { outline: 3px solid var(--accent-2) !important; outline-offset: 3px; }
+.pad-nav .song-card:focus, .pad-nav .song-card.pad-focus { transform: translateY(-3px); border-color: var(--accent); }

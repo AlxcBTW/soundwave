@@ -3,7 +3,8 @@ import { AudioEngine } from '../audio/AudioEngine';
 import { Background2D } from '../render/Background2D';
 import { Highway } from '../render/Highway';
 import { GameSession, type Results } from './GameSession';
-import { KeyboardInput } from './input';
+import { Rumbler } from '../input/rumble';
+import { GamepadInput, KeyboardInput, type InputHandlers } from './input';
 import type { Settings } from './settings';
 
 export interface HudRefs {
@@ -32,6 +33,8 @@ export class PlayController {
   private readonly highway: Highway;
   private readonly background: Background2D;
   private readonly input: KeyboardInput;
+  private readonly padInput: GamepadInput;
+  private readonly rumble: Rumbler;
   private raf = 0;
   private phase: PlayPhase = 'countdown';
   private lastBeat = -1;
@@ -67,15 +70,28 @@ export class PlayController {
     this.background = new Background2D(backgroundCanvas);
     this.background.setAnalyser(engine.analyser);
 
+    const padBindings = chart.lanes === 5 ? settings.pad5 : settings.pad4;
+    this.rumble = new Rumbler(settings, chart.lanes, padBindings);
     this.session.on((e) => {
-      if (e.type === 'hit') this.flashFeedback(e.grade.toUpperCase(), e.grade);
-      else if (e.type === 'miss') this.flashFeedback('MISS', 'miss');
-      else if (e.type === 'overdrive-start') this.background.kick(1.2);
-      else if (e.type === 'phrase-complete') this.flashFeedback('OVERDRIVE READY', 'od');
+      if (e.type === 'hit') {
+        this.flashFeedback(e.grade.toUpperCase(), e.grade);
+        this.rumble.hit(e.lane);
+        if (chart.notes[e.noteIndex].dur > 0) this.rumble.sustainStart(e.lane);
+      } else if (e.type === 'miss') {
+        this.flashFeedback('MISS', 'miss');
+        this.rumble.miss(e.lane);
+      } else if (e.type === 'sustain-end') this.rumble.sustainEnd(e.lane);
+      else if (e.type === 'overdrive-start') {
+        this.background.kick(1.2);
+        this.rumble.overdrive();
+      } else if (e.type === 'phrase-complete') {
+        this.flashFeedback('OVERDRIVE READY', 'od');
+        this.rumble.phraseComplete();
+      }
     });
 
     const keys = chart.lanes === 5 ? settings.keys5 : settings.keys4;
-    this.input = new KeyboardInput(keys, settings.overdriveKey, {
+    const handlers: InputHandlers = {
       press: (lane, ts) => {
         if (this.phase !== 'playing') return;
         this.session.press(lane, this.engine.time(ts));
@@ -88,7 +104,10 @@ export class PlayController {
         if (this.phase === 'playing') this.session.activateOverdrive();
       },
       pause: () => (this.phase === 'paused' ? this.resume() : this.pause()),
-    });
+    };
+    this.input = new KeyboardInput(keys, settings.overdriveKey, handlers);
+    // Controllers drive the menus while paused, so only take their input during play.
+    this.padInput = new GamepadInput(padBindings, settings.padOverdrive, handlers, () => this.phase === 'playing' || this.phase === 'countdown');
 
     window.addEventListener('resize', this.resize);
     this.placeKeys();
@@ -116,6 +135,7 @@ export class PlayController {
   pause() {
     if (this.phase !== 'playing' && this.phase !== 'countdown') return;
     this.engine.pause();
+    for (let l = 0; l < this.chart.lanes; l++) this.rumble.sustainEnd(l);
     this.setPhase('paused');
   }
 
@@ -216,6 +236,8 @@ export class PlayController {
     clearTimeout(this.feedbackTimer);
     window.removeEventListener('resize', this.resize);
     this.input.dispose();
+    this.padInput.dispose();
+    this.rumble.dispose();
     this.engine.stop();
     this.engine.onEnded = null;
     this.highway.dispose();

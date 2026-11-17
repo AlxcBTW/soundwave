@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { Results } from '../game/GameSession';
 
 interface Props {
@@ -11,6 +12,11 @@ interface Props {
 
 export function ResultsScreen({ title, subtitle, results: r, best, onRetry, onDone }: Props) {
   const newBest = best === undefined || r.score > best;
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => e.code === 'Escape' && onDone();
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [onDone]);
   return (
     <div className="screen results">
       <div className="panel wide">
