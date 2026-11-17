@@ -60,6 +60,25 @@ function radialTexture() {
   return tex;
 }
 
+/** A tile's glow: its own rounded shape with a soft edge, a little larger than the tile. */
+function haloTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 128;
+  const g = c.getContext('2d')!;
+  // drawn as the soft shadow of a shape that itself lies off the canvas
+  g.shadowColor = '#fff';
+  g.shadowBlur = 18;
+  g.shadowOffsetX = 512;
+  g.fillStyle = '#fff';
+  g.beginPath();
+  g.roundRect(34 - 512, 30, 188, 68, 26);
+  g.fill();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 const highwayVertex = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -142,7 +161,7 @@ export class Highway {
   private flare = 0;
   private readonly gems: THREE.InstancedMesh;
   private readonly shines: THREE.InstancedMesh;
-  /** A soft halo under every tile while overdrive lasts. */
+  /** A glow hugging every tile while overdrive lasts. */
   private readonly auras: THREE.InstancedMesh;
   private readonly tails: THREE.InstancedMesh;
   /** Release markers: a light tile at the end of the hold with an upright pointer standing on it. */
@@ -315,7 +334,7 @@ export class Highway {
     auraGeo.rotateX(-Math.PI / 2);
     this.auras = new THREE.InstancedMesh(
       auraGeo,
-      new THREE.MeshBasicMaterial({ map: radialTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ map: haloTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
       MAX_GEMS,
     );
     this.auras.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_GEMS * 3), 3);
@@ -607,14 +626,15 @@ export class Highway {
       const swell = 0.5 + 0.5 * Math.sin(now / 150 + z * 0.8);
       this.c.copy(color);
       if (missed) this.c.multiplyScalar(MISSED_TINT);
-      else if (drive > 0.01) this.c.multiplyScalar(1 + drive * (0.15 + 0.35 * swell));
+      else if (drive > 0.01) this.c.multiplyScalar(1 + drive * (0.08 + 0.2 * swell));
       this.gems.setColorAt(gi, this.c);
       if (drive > 0.01) {
-        this.v.set(x, 0.03, z - 0.05);
-        this.s.set(1.9 + 0.3 * swell, 1, 1.5 + 0.25 * swell);
+        // the glow keeps the tile's size and shape; only its strength moves
+        this.v.set(x, 0.015, z);
+        this.s.set(1.25, 1, 0.83);
         this.m.compose(this.v, this.q, this.s);
         this.auras.setMatrixAt(gi, this.m);
-        this.c.copy(OVERDRIVE_TILE).multiplyScalar(drive * (missed ? 0.12 : 0.45 + 0.4 * swell));
+        this.c.copy(OVERDRIVE_TILE).multiplyScalar(drive * (missed ? 0.1 : 0.4 + 0.3 * swell));
         this.auras.setColorAt(gi, this.c);
       }
       gi++;
