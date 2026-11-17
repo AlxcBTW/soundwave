@@ -4,7 +4,7 @@ import { Background2D } from '../render/Background2D';
 import { Highway } from '../render/Highway';
 import { GameSession, type Results } from './GameSession';
 import { Rumbler } from '../input/rumble';
-import { findBreaks, type Break } from './breaks';
+import { barsLeft, findBreaks, type Break } from './breaks';
 import { GamepadInput, KeyboardInput, type InputHandlers } from './input';
 import type { Settings } from './settings';
 
@@ -19,9 +19,10 @@ export interface HudRefs {
   root: HTMLElement;
   /** One label per lane, positioned under its strike pad. */
   keys: HTMLElement[];
-  /** Countdown shown during long breaks: the root, its number and its ring. */
+  /** Countdown shown during long breaks: the root, its number, its label and its ring. */
   breakTimer: HTMLElement;
   breakNumber: HTMLElement;
+  breakLabel: HTMLElement;
   breakRing: SVGCircleElement;
 }
 
@@ -46,6 +47,7 @@ export class PlayController {
   private beatPulse = 0;
   private hudCache = { score: -1, mult: -1, streak: -1, od: -1, stars: -1, odActive: false, breakSec: -1 };
   private readonly breaks: Break[];
+  private readonly barTimes: number[];
   private feedbackTimer = 0;
   private disposed = false;
   private lastCount = -1;
@@ -71,10 +73,11 @@ export class PlayController {
     engine.onEnded = () => this.finish();
 
     this.downbeats = new Set(chart.downbeats);
-    this.breaks = findBreaks(chart);
     this.session = new GameSession(chart);
     this.highway = new Highway(highwayCanvas, chart);
     this.highway.speed = settings.noteSpeed;
+    this.breaks = findBreaks(chart, this.highway.horizon);
+    this.barTimes = chart.downbeats.map((i) => chart.beats[i]).filter((x) => x !== undefined);
     this.highway.attach(this.session);
     this.background = new Background2D(backgroundCanvas);
     this.background.setAnalyser(engine.analyser);
@@ -245,7 +248,10 @@ export class PlayController {
     Object.assign(c, { score, mult, streak: s.streak, od, stars, odActive: s.overdriveActive });
   }
 
-  /** The break countdown: whole seconds to the next note, a ring draining over the break. */
+  /**
+   * The break countdown: bars left until the next note, bouncing on every bar line, with a ring
+   * that drains until the notes come into view (then it makes way for them).
+   */
   private updateBreak(t: number) {
     const b = this.phase === 'playing' || this.phase === 'paused' ? this.breaks.find((x) => t >= x.from && t < x.to) : undefined;
     const el = this.hud.breakTimer;
@@ -257,18 +263,24 @@ export class PlayController {
       }
       return;
     }
-    const left = b.next - t;
-    const sec = Math.max(1, Math.ceil(left));
-    this.hud.breakRing.style.strokeDashoffset = String(1 - Math.max(0, Math.min(1, left / b.length)));
-    if (sec === c.breakSec) return;
-    c.breakSec = sec;
-    this.hud.breakNumber.textContent = String(sec);
+    this.hud.breakRing.style.strokeDashoffset = String(1 - Math.max(0, Math.min(1, (b.to - t) / (b.to - b.from))));
+    // Without a bar grid, fall back to seconds.
+    const bars = this.barTimes.length > 1 ? barsLeft(t, b.next, this.barTimes) : Math.max(1, Math.ceil(b.next - t));
+    if (bars === c.breakSec) return;
+    const first = c.breakSec === -1;
+    c.breakSec = bars;
+    this.hud.breakNumber.textContent = String(bars);
+    this.hud.breakLabel.textContent = this.barTimes.length > 1 ? (bars === 1 ? 'bar left' : 'bars left') : 'break';
     el.classList.add('on');
-    el.classList.toggle('final', sec <= 3);
-    // Restart the pop on every new second.
-    this.hud.breakNumber.classList.remove('tick');
-    void this.hud.breakNumber.offsetWidth;
-    this.hud.breakNumber.classList.add('tick');
+    el.classList.toggle('final', bars <= 1);
+    // A new bar: the number pops and the whole timer bounces.
+    if (!first) {
+      for (const [node, cls] of [[this.hud.breakNumber, 'tick'], [el, 'bounce']] as const) {
+        node.classList.remove(cls);
+        void node.offsetWidth;
+        node.classList.add(cls);
+      }
+    }
   }
 
   dispose() {

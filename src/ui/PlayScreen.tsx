@@ -42,6 +42,7 @@ export function PlayScreen({ title, buffer, chart, settings, onFinish, onQuit }:
       keys: Array.from(root.querySelectorAll<HTMLElement>('.lane-key')),
       breakTimer: q('[data-hud=break]'),
       breakNumber: q('[data-hud=break-num]'),
+      breakLabel: q('[data-hud=break-label]'),
       breakRing: root.querySelector<SVGCircleElement>('[data-hud=break-ring]')!,
     });
     ctrl.onPhase = (p, n) => {
@@ -91,7 +92,7 @@ export function PlayScreen({ title, buffer, chart, settings, onFinish, onQuit }:
             <circle cx="60" cy="60" r="52" className="fill" pathLength={1} data-hud="break-ring" />
           </svg>
           <div className="hud-break-num" data-hud="break-num" />
-          <div className="hud-break-label">Break</div>
+          <div className="hud-break-label" data-hud="break-label">Break</div>
         </div>
         {keys.map((k, i) => (
           <span key={i} className={`lane-key lane-${i} ${usingPad ? 'pad' : ''}`}>{usingPad ? <PadGlyph input={padKeys[i]} style={style} /> : keyLabel(k)}</span>

@@ -122,6 +122,11 @@ export class Highway {
   /** Highway units per second. */
   speed = 9;
 
+  /** How far ahead (seconds) notes are on screen at the current speed. */
+  get horizon(): number {
+    return LENGTH / this.speed;
+  }
+
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly chart: Chart,

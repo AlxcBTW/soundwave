@@ -100,17 +100,19 @@ h1, h2, h3 { margin: 0; }
 /* Break countdown: a ring that drains over the break and a number that pops every second. */
 .hud-break { position: absolute; left: 50%; top: 34%; width: 190px; height: 190px; transform: translate(-50%, -50%) scale(0.85); opacity: 0; transition: opacity 0.35s, transform 0.35s; display: grid; place-items: center; }
 .hud-break.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.hud-break.on.bounce { animation: break-bounce 0.55s cubic-bezier(0.25, 1.6, 0.45, 1); }
+@keyframes break-bounce { 0% { transform: translate(-50%, -50%) scale(1); } 30% { transform: translate(-50%, -58%) scale(1.1); } 100% { transform: translate(-50%, -50%) scale(1); } }
 .hud-break-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
 .hud-break-ring circle { fill: rgba(8, 4, 24, 0.72); stroke-width: 8; }
 .hud-break-ring .track { stroke: rgba(255, 255, 255, 0.12); }
 .hud-break-ring .fill { fill: none; stroke: var(--accent-2); stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 0; filter: drop-shadow(0 0 8px var(--accent-2)); transition: stroke 0.3s; }
 .hud-break-num { font-size: 84px; font-weight: 900; font-style: italic; line-height: 1; font-variant-numeric: tabular-nums; color: #fff; text-shadow: 0 3px 0 rgba(0, 0, 0, 0.55), 0 0 26px var(--accent); margin-top: -10px; position: relative; z-index: 1; }
 .hud-break-num.tick { animation: break-tick 0.5s cubic-bezier(0.2, 1.4, 0.4, 1); }
-.hud-break-label { position: absolute; bottom: 38px; font-size: 13px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--dim); }
+.hud-break-label { position: absolute; bottom: 36px; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--dim); }
 .hud-break.final .fill { stroke: var(--gold); filter: drop-shadow(0 0 12px var(--gold)); }
 .hud-break.final .hud-break-num { color: #fff7c2; text-shadow: 0 0 30px var(--gold); }
 @keyframes break-tick { 0% { transform: scale(1.45); opacity: 0.4; } 100% { transform: scale(1); opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .hud-break-num.tick { animation: none; } .hud-break { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .hud-break-num.tick, .hud-break.on.bounce { animation: none; } .hud-break { transition: none; } }
 .lane-key { position: absolute; left: 0; top: 0; min-width: 30px; height: 24px; padding: 0 6px; display: grid; place-items: center; border-radius: 6px; background: rgba(0, 0, 0, 0.55); font-size: 13px; border-bottom: 3px solid; }
 .lane-0 { border-color: var(--lane-0); } .lane-1 { border-color: var(--lane-1); } .lane-2 { border-color: var(--lane-2); } .lane-3 { border-color: var(--lane-3); } .lane-4 { border-color: var(--lane-4); }
 .countdown { position: absolute; inset: 0; display: grid; place-items: center; font-size: 140px; font-weight: 900; font-style: italic; pointer-events: none; animation: count 1s ease-out forwards; text-shadow: 0 0 40px var(--accent); }
