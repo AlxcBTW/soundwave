@@ -41,8 +41,9 @@ Z = Vector((0, 0, 1))
 
 DECK_C = Vector((0, 10, 0))
 DECK_A, DECK_B, DECK_H, DECK_P = 24.0, 12.0, 2.4, 2.6
-MOON_C = Vector((0, 25.5, 16.0))
-MOON_R = 11.5
+# Sized and placed to sit wholly inside the innermost arch: no edge shows between the ridges.
+MOON_C = Vector((0, 25.5, 8.4))
+MOON_R = 9.3
 
 # ---------------------------------------------------------------- materials
 MATS = {}
@@ -214,6 +215,8 @@ def slab(bm, scale, z0, z1, chamfer=0.12):
 
 
 FIXTURES = []
+# Spots in the audience that must stay free of people: (centre, radius).
+CLEAR = []
 
 
 def fixture(bm_body, bm_lens, pos, direction, group, mount=(0, 0, -1)):
@@ -339,13 +342,14 @@ for f in moon.faces:
     for loop in f.loops:
         loop[uvl].uv = ((loop.vert.co.x - MOON_C.x) / (2 * MOON_R) + 0.5, (loop.vert.co.z - MOON_C.z) / (2 * MOON_R) + 0.5)
 new_obj('ScreenMoon', moon, 'Screen', smooth=False)
-ring = [MOON_C + Vector((math.cos(a) * (MOON_R + 0.7), -0.2, math.sin(a) * (MOON_R + 0.7))) for a in [2 * math.pi * i / 96 for i in range(97)]]
-loft('MoonRim', ring, lambda t: 2.0, lambda t: 1.6, 'PaintRibbon', sides=16, u_of=lambda t: 0.5 + 0.5 * math.sin(2 * math.pi * t - math.pi / 2))
-tube(led, [p + Vector((0, -0.75, 0)) + (p - MOON_C).normalized() * -0.55 for p in ring], 0.07)
+ring = [MOON_C + Vector((math.cos(a) * (MOON_R + 0.35), -0.2, math.sin(a) * (MOON_R + 0.35))) for a in [2 * math.pi * i / 96 for i in range(97)]]
+loft('MoonRim', ring, lambda t: 1.0, lambda t: 1.2, 'PaintRibbon', sides=16, u_of=lambda t: 0.5 + 0.5 * math.sin(2 * math.pi * t - math.pi / 2))
+tube(led, [p + Vector((0, -0.62, 0)) + (p - MOON_C).normalized() * -0.3 for p in ring], 0.06)
 
 # ---------------------------------------------------------------- the halo: a ring truss flown over the band
-HALO_C, HALO_R = Vector((0, 8.5, 21.0)), 8.5
-halo_tilt = Matrix.Rotation(math.radians(-14), 3, 'X')
+# Small and low enough to clear the underside of every ridge above it.
+HALO_C, HALO_R = Vector((0, 7.5, 18.2)), 6.5
+halo_tilt = Matrix.Rotation(math.radians(-10), 3, 'X')
 halo_up = (halo_tilt @ Z).normalized()
 halo = []
 for k in range(48):
@@ -353,7 +357,8 @@ for k in range(48):
     radial = (halo_tilt @ Vector((math.cos(a), math.sin(a), 0))).normalized()
     halo.append((HALO_C + radial * HALO_R, radial, halo_up))
 truss(black, halo, closed=True)
-tube(led, [c - n_ * 0.42 - up * 0.36 for (c, n_, up) in halo] + [halo[0][0] - halo[0][1] * 0.42 - halo_up * 0.36], 0.05)
+# the light ring runs along the middle of the truss's underside, so it lines up with it from any angle
+tube(led, [c - up * 0.3 for (c, n_, up) in halo] + [halo[0][0] - halo_up * 0.3], 0.05)
 for k in range(0, 48, 4):
     c, radial, up = halo[k]
     fixture(black, lens, c - up * 0.95, radial * 0.38 - Y * 0.3 - Z, 'Halo', mount=up)
@@ -398,7 +403,8 @@ for side in (1, -1):
     grid = []
     for (t, p, tan, n_, b) in fr:
         face = n_ if n_.y < 0 else -n_
-        grid.append([wall.verts.new(p + face * 0.35 + Z * (0.9 + (top(t) - 0.9) * r / rows)) for r in range(rows + 1)])
+        # the screen ends below the ribbon that rides the wall, so the two never share a surface
+        grid.append([wall.verts.new(p + face * 0.35 + Z * (0.9 + (top(t) - 1.8) * r / rows)) for r in range(rows + 1)])
     for i in range(len(grid) - 1):
         for r in range(rows):
             f = wall.faces.new((grid[i][r], grid[i + 1][r], grid[i + 1][r + 1], grid[i][r + 1]))
@@ -408,9 +414,12 @@ for side in (1, -1):
     # the wall body behind the screen
     loft('', [p + Z * (0.45 + top(t) / 2) for (t, p, tan, n_, b) in fr], lambda t: 0.36, lambda t: top(t) - 0.2, None, depth_axis=Z, sides=8, power=6, bm=black)
     # ribbon: from the ground far out, along the wall top, over the shell's shoulder to a peak
-    crest_line = [p + Z * (top(t) + 0.5) for (t, p, tan, n_, b) in fr][::-1]
-    ribbon = [Vector((77 * side, -19, 0.2)), Vector((73 * side, -15.5, 2.4))] + crest_line[::8] + [
-        Vector((26 * side, 5, 16)), Vector((21.5 * side, 3.0, 29)), Vector((13 * side, 0.5, 38.5)), Vector((5.5 * side, -0.5, 43)), Vector((0.6 * side, -0.8, 46.5))]
+    crest_line = [p + Z * (top(t) + 0.9) for (t, p, tan, n_, b) in fr][::-1]
+    # It leaves the wall before the shell and climbs outside and in front of the outer ridge and its
+    # truss, then over the crown: it never passes between two ridges.
+    ribbon = [Vector((77 * side, -19, 0.2)), Vector((73 * side, -15.5, 2.4))] + crest_line[:33:8] + [
+        Vector((39 * side, 1.5, 12)), Vector((35.5 * side, -1.5, 16)), Vector((31.5 * side, -4.5, 21.5)), Vector((25.5 * side, -7, 28)),
+        Vector((16.5 * side, -8.8, 35.5)), Vector((7 * side, -9.8, 41)), Vector((0.6 * side, -10.2, 44.5))]
     path = catmull(ribbon, 140)
     loft('Ribbon' + tag, path, lambda t: 0.4 + 3.6 * math.sin(math.pi * min(1.0, t * 1.03)) ** 0.5 * (1 - 0.35 * t), lambda t: 0.8 - 0.3 * t,
          'PaintRibbon', sides=16, power=2.0)
@@ -419,9 +428,10 @@ for side in (1, -1):
         FIXTURES.append({'group': 'Ribbon', 'pos': path[k] + Vector((0, -0.7, 0)), 'dir': Vector((0.3 * side * (1 if k < 100 else -0.4), -0.7, 0.55)).normalized()})
     tube(led, [p + (n_ if n_.y < 0 else -n_) * 0.4 + Z * 0.85 for (t, p, tan, n_, b) in fr], 0.05)
 
-# ---------------------------------------------------------------- towers with line arrays at the deck corners
+# ---------------------------------------------------------------- towers with line arrays, outside the shell and clear of the ribbon
 for side in (1, -1):
-    x, y, h, s = 27.5 * side, -1.5, 23.0, 0.6
+    x, y, h, s = 40.0 * side, -4.0, 23.0, 0.6
+    CLEAR.append((Vector((x, y, 0)), 2.4))
     for dx in (-s, s):
         for dy in (-s, s):
             cyl(black, (x + dx, y + dy, 0), (x + dx, y + dy, h), 0.07)
@@ -486,7 +496,6 @@ box(black, (0.4, 0.6, 0.32), arm_b + Vector((0, 0.1, -0.3)))
 dots(led, [arm_b + Vector((0, 0.42, -0.2))], 0.05)
 
 # ---------------------------------------------------------------- the mix position and two delay towers in the crowd
-CLEAR = []
 FOH = Vector((0, -84, 0))
 for sx in (-1, 1):
     for sy in (-1, 1):
@@ -543,6 +552,8 @@ VIEWS = {
     'close': ((-9, -19, 5.2), (0, 8, 9), 76.0),
     'aerial': ((44, -118, 62), (0, 6, 8), 56.0),
 }
+# Extra viewpoints for the clay preview only (not sent to the game).
+CHECKS = {'check-side': ((46, -30, 14), (22, 2, 14), 60.0), 'check-stage': ((0, -14, 5), (0, 14, 13), 86.0), 'check-wing': ((44, -22, 6), (48, 2, 5), 60.0)}
 # Pyro: fans of sparks from behind the skyline (origin, rays, spread and lean in degrees, ray length)
 # and CO2 jets along the front of the deck.
 FIREWORKS = [
@@ -570,7 +581,7 @@ def to_three(v):
 
 # =================================================================== PREVIEW
 def preview(path):
-    loc, tgt, hfov = VIEWS[args.view]
+    loc, tgt, hfov = {**VIEWS, **CHECKS}[args.view]
     cam_data = bpy.data.cameras.new('Preview')
     cam_data.sensor_width = 36
     cam_data.lens = 18 / math.tan(math.radians(hfov) / 2)
