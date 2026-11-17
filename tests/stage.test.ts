@@ -3,8 +3,6 @@ import { applyPreset, DEFAULT_GRAPHICS, normalizeGraphics, PRESETS, tierForGpu }
 import { normalizeSettings } from '../src/game/settings';
 import { barAt, barIntensity, LightShow, type ShowFrame } from '../src/render/stage/LightShow';
 import { buildShots, Director } from '../src/render/stage/Director';
-import { pickWashes } from '../src/render/stage/Stage3D';
-import type { LightSpec } from '../src/render/stage/assets';
 import type { Chart } from '../src/chart/types';
 
 describe('graphics settings', () => {
@@ -31,15 +29,6 @@ describe('graphics settings', () => {
     expect(g.resolution).toBe(1);
     expect(g.glow).toBe(true);
     expect(normalizeSettings({}).graphics).toEqual(DEFAULT_GRAPHICS);
-  });
-});
-
-describe('wash selection', () => {
-  const spec = (group: string, i: number): LightSpec => ({ group, pos: [i, 0, 0], dir: [0, 0, -1], color: [1, 1, 1], energy: 1, angle: 16 });
-  it('never stalls once the warm washes run out', () => {
-    const list = [...Array.from({ length: 7 }, (_, i) => spec('Wash', i)), ...Array.from({ length: 4 }, (_, i) => spec('WashCool', i))];
-    for (let n = 0; n <= 12; n++) expect(pickWashes(list, n)).toHaveLength(Math.min(n, 11));
-    expect(pickWashes(list.filter((w) => w.group === 'WashCool'), 3)).toHaveLength(3);
   });
 });
 

@@ -11,7 +11,18 @@ export interface VenueData {
   band: Record<string, Vec3>;
   fixtures: Fixture[];
   moon: { center: Vec3; radius: number };
+  fireworks: FireworkSpec[];
+  co2: Vec3[];
   deck: DeckInfo;
+}
+
+/** A fan of sparks: rays spread (degrees) around a lean from vertical, each `length` metres long. */
+export interface FireworkSpec {
+  origin: Vec3;
+  n: number;
+  spread: number;
+  length: [number, number];
+  lean: number;
 }
 
 export interface Fixture {
@@ -35,7 +46,9 @@ export interface FigureData {
   joints: number;
   frames: number;
   clips: Clip[];
+  /** Crowd meshes for people near a camera, and lighter ones for everybody else. */
   crowd: string[];
+  crowdFar: string[];
   band: Record<string, string>;
 }
 

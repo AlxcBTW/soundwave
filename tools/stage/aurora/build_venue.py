@@ -408,6 +408,23 @@ VIEWS = {
     'close': ((-9, -19, 5.2), (0, 8, 9), 76.0),
     'aerial': ((44, -118, 62), (0, 6, 8), 56.0),
 }
+# Pyro: fans of sparks from behind the skyline (origin, rays, spread and lean in degrees, ray length)
+# and CO2 jets along the front of the deck.
+FIREWORKS = [
+    {'origin': (0, 30, 47), 'n': 18, 'spread': 62, 'length': [26, 38], 'lean': 0},
+    {'origin': (-31, 26, 38), 'n': 14, 'spread': 50, 'length': [20, 30], 'lean': -14},
+    {'origin': (31, 26, 38), 'n': 14, 'spread': 50, 'length': [20, 30], 'lean': 14},
+    {'origin': (-47, 22, 29), 'n': 12, 'spread': 46, 'length': [17, 26], 'lean': -22},
+    {'origin': (47, 22, 29), 'n': 12, 'spread': 46, 'length': [17, 26], 'lean': 22},
+    {'origin': (-61, 16, 21), 'n': 10, 'spread': 42, 'length': [14, 22], 'lean': -28},
+    {'origin': (61, 16, 21), 'n': 10, 'spread': 42, 'length': [14, 22], 'lean': 28},
+]
+CO2 = []
+for j in range(8):
+    a = math.pi * (1.16 + 0.68 * j / 7)
+    sx, sy = superpoint(a, DECK_P)
+    CO2.append(Vector((DECK_C.x + sx * DECK_A * 1.04, DECK_C.y + sy * DECK_B * 1.04, 1.9)))
+
 BAND = {'lead': (-6.5, 4.0, DECK_H), 'vox': (0.0, 2.2, DECK_H), 'bass': (6.5, 4.0, DECK_H), 'drums': (0.0, 14.5, DECK_H + 0.8)}
 
 
@@ -489,6 +506,8 @@ def export(out_dir):
         'band': {k: to_three(v) for k, v in BAND.items()},
         'fixtures': [{'group': f['group'], 'pos': to_three(f['pos']), 'dir': to_three(f['dir'])} for f in FIXTURES],
         'moon': {'center': to_three(MOON_C), 'radius': MOON_R},
+        'fireworks': [{**f, 'origin': to_three(f['origin'])} for f in FIREWORKS],
+        'co2': [to_three(c) for c in CO2],
         'deck': {'center': to_three(DECK_C), 'a': DECK_A, 'b': DECK_B, 'power': DECK_P, 'height': DECK_H, 'barrier': 1.44},
     }
     glb = os.path.join(out_dir, 'venue.glb')

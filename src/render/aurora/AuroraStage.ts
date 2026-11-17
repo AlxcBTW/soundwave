@@ -5,10 +5,10 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { BandMeter, type BandLevels } from '../../audio/bands';
 import type { Part } from '../../chart/types';
-import { LEVEL_SHARE, type GraphicsSettings } from '../../game/graphics';
+import { LEVEL_SHARE, type GraphicsSettings, type Level } from '../../game/graphics';
 import { Director, buildShots } from '../stage/Director';
 import { LightShow, PALETTES, type Rgb, type ShowState } from '../stage/LightShow';
-import type { StageFrame } from '../stage/Stage3D';
+import { Particles } from '../stage/Particles';
 import { loadVenue, type VenueAssets, type VenueData } from './assets';
 import { Beams } from './beams';
 import { Figures, makeBand, makeCrowd } from './figures';
@@ -16,10 +16,29 @@ import { applyVenueMaterials } from './materials';
 import { shared } from './shared';
 import { buildSky } from './sky';
 
-export interface AuroraOptions {
+export interface StageOptions {
   mode: 'play' | 'menu';
+  /** The part being played: that band member gets the close-ups. */
   part?: Part;
 }
+
+export interface StageFrame {
+  beat: 'none' | 'beat' | 'downbeat';
+  /** How busy the music is, 0..1. */
+  intensity: number;
+  overdrive: boolean;
+  /** Seconds per bar, for pacing camera moves. */
+  barSeconds: number;
+}
+
+/** Share of the moving heads lit, and particle budgets, per level. */
+const BEAM_SHARE: Record<Level, number> = { off: 0, low: 0.34, medium: 0.67, high: 1 };
+const SPARKS: Record<Level, number> = { off: 0, low: 1500, medium: 4000, high: 9000 };
+const SPARKS_PER_RAY: Record<Level, number> = { off: 0, low: 6, medium: 12, high: 22 };
+const SMOKE: Record<Level, number> = { off: 0, low: 250, medium: 700, high: 1400 };
+const CO2_PER_JET: Record<Level, number> = { off: 0, low: 6, medium: 14, high: 24 };
+/** Camera spots the director adds itself (see buildShots), for placing detailed crowd figures. */
+const EXTRA_CAMERAS: [number, number, number][] = [[-62, 7, 48], [62, 7, 48], [0, 1.6, 26], [-8, 7, 26], [8, 7, 26], [0, 7, 27]];
 
 /** The looks the show moves through; they stand in for the light show's own palettes one to one. */
 const LOOKS: { key: Rgb; accent: Rgb; wash: Rgb }[] = [
@@ -36,7 +55,7 @@ const EXPOSURE = 1.0;
  * the first 3D stage, so the game and the menus can drive either.
  */
 export class AuroraStage {
-  static async create(host: HTMLElement, g: GraphicsSettings, opts: AuroraOptions): Promise<AuroraStage> {
+  static async create(host: HTMLElement, g: GraphicsSettings, opts: StageOptions): Promise<AuroraStage> {
     const canvas = document.createElement('canvas');
     canvas.className = 'stage3d';
     host.appendChild(canvas);
@@ -57,6 +76,8 @@ export class AuroraStage {
   private readonly show: LightShow;
   private readonly beams: Beams;
   private readonly figures: Figures;
+  private readonly sparks: Particles;
+  private readonly smoke: Particles;
   private readonly data: VenueData;
   private readonly owned: { dispose(): void }[] = [];
   private readonly key = new THREE.Color();
@@ -75,7 +96,7 @@ export class AuroraStage {
   private shown = false;
   private disposed = false;
 
-  private constructor(private readonly canvas: HTMLCanvasElement, assets: VenueAssets, private g: GraphicsSettings, opts: AuroraOptions) {
+  private constructor(private readonly canvas: HTMLCanvasElement, assets: VenueAssets, private g: GraphicsSettings, opts: StageOptions) {
     this.data = assets.data;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: g.antialias, powerPreference: 'high-performance', alpha: false });
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -94,19 +115,26 @@ export class AuroraStage {
     this.owned.push(sky.geometry, sky.material);
 
     const venue = assets.scene.clone(true);
-    this.owned.push(...applyVenueMaterials(venue, this.data.deck));
+    this.owned.push(...applyVenueMaterials(venue, this.data.deck, g.lights === 'medium' || g.lights === 'high'));
     this.scene.add(venue);
 
     this.figures = new Figures(assets.figures, assets.figureData, assets.anim);
-    const clear = [this.data.cameras.crowd?.pos, this.data.cameras.close?.pos].filter((p): p is [number, number, number] => !!p);
-    this.figures.add(makeCrowd(this.data, assets.figureData.crowd, LEVEL_SHARE[g.crowd], clear));
+    const low = [...Object.values(this.data.cameras).map((c) => c.pos).filter((p) => p[1] < 10), ...EXTRA_CAMERAS];
+    this.figures.add(makeCrowd(this.data, { near: assets.figureData.crowd, far: assets.figureData.crowdFar }, LEVEL_SHARE[g.crowd], low));
     this.figures.add(makeBand(this.data, assets.figureData.band));
     this.scene.add(this.figures.group);
     this.owned.push(this.figures);
 
-    this.beams = new Beams(g.beams === 'off' ? [] : this.data.fixtures);
+    // Lighter settings keep an even share of the moving heads.
+    const share = BEAM_SHARE[g.beams];
+    this.beams = new Beams(this.data.fixtures.filter((_, i) => Math.floor((i + 1) * share) > Math.floor(i * share)));
     this.scene.add(this.beams.group);
     this.owned.push(this.beams);
+
+    this.sparks = new Particles(SPARKS[g.effects] || 1, THREE.AdditiveBlending);
+    this.smoke = new Particles(SMOKE[g.effects] || 1, THREE.NormalBlending);
+    this.scene.add(this.sparks.points, this.smoke.points);
+    this.owned.push(this.sparks, this.smoke);
 
     this.setLook(LOOKS[0], 1);
     if (g.glow) this.buildComposer();
@@ -166,7 +194,12 @@ export class AuroraStage {
     const beat = this.pendingBeat;
     this.pendingBeat = 'none';
     const bands = this.meter.update(dt);
-    this.show.update({ dt, beat, intensity: f.intensity, bands, overdrive: f.overdrive });
+    for (const e of this.show.update({ dt, beat, intensity: f.intensity, bands, overdrive: f.overdrive })) {
+      if (e.type === 'fireworks') this.fireworks(e.which);
+      else this.co2(e.strength);
+    }
+    this.sparks.update(dt, -9);
+    this.smoke.update(dt, 0.4);
     this.director.update(dt, beat === 'downbeat', this.show.state.level, f.barSeconds);
     this.energy += (f.intensity - this.energy) * Math.min(1, dt * 1.2);
     this.applyShow(this.show.state, bands, dt);
@@ -180,7 +213,10 @@ export class AuroraStage {
       this.camera.updateProjectionMatrix();
     }
     this.camera.updateMatrixWorld();
-    this.beams.update(this.camera, this.renderer.domElement.height / (2 * Math.tan((this.camera.fov * Math.PI) / 360)));
+    const scale = this.renderer.domElement.height / (2 * Math.tan((this.camera.fov * Math.PI) / 360));
+    this.beams.update(this.camera, scale);
+    this.sparks.setScale(scale);
+    this.smoke.setScale(scale);
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);
     if (!this.shown) {
@@ -271,6 +307,44 @@ export class AuroraStage {
     }
   }
 
+  // ------------------------------------------------------------------ effects
+  private fireworks(which: 'all' | 'center' | 'sides') {
+    const perRay = SPARKS_PER_RAY[this.g.effects];
+    if (!perRay) return;
+    const origin = new THREE.Vector3();
+    const dir = new THREE.Vector3();
+    this.data.fireworks.forEach((f, index) => {
+      const x = Math.abs(f.origin[0]);
+      if (which === 'center' && x > 35) return;
+      if (which === 'sides' && x < 40) return;
+      origin.set(...f.origin);
+      const c = (index % 2 ? this.accent : this.key).clone().lerp(WHITE, 0.45);
+      this.sparks.spawn(origin, ZERO, [1, 0.95, 1], 9, 0.35, 0, 0);
+      for (let k = 0; k < f.n; k++) {
+        const ang = ((-f.spread + (2 * f.spread * k) / Math.max(1, f.n - 1) + (Math.random() - 0.5) * 8 + f.lean) * Math.PI) / 180;
+        dir.set(Math.sin(ang), Math.cos(ang), 0.25).normalize();
+        const len = f.length[0] + Math.random() * (f.length[1] - f.length[0]);
+        for (let j = 0; j < perRay; j++) {
+          const speed = (len / 1.3) * (0.25 + 0.85 * (j / perRay)) * (0.95 + Math.random() * 0.1);
+          this.sparks.spawn(origin, TMP_V.copy(dir).multiplyScalar(speed), [c.r, c.g, c.b], 0.55 + Math.random() * 0.35, 1.6 + Math.random() * 0.9, 0.9, 0);
+        }
+      }
+    });
+  }
+
+  private co2(strength: number) {
+    const per = Math.round(strength * CO2_PER_JET[this.g.effects]);
+    const origin = new THREE.Vector3();
+    const tint = this.wash.clone().lerp(WHITE, 0.75);
+    for (const c of this.data.co2) {
+      origin.set(...c);
+      for (let k = 0; k < per; k++) {
+        TMP_V.set((Math.random() - 0.5) * 2.2, 9 + Math.random() * 7, (Math.random() - 0.5) * 2.2 + 0.8);
+        this.smoke.spawn(origin, TMP_V, [tint.r * 0.8, tint.g * 0.8, tint.b * 0.85], 1.5 + Math.random() * 1.5, 2.2 + Math.random() * 1.3, 1.6, 4.0, 0.16);
+      }
+    }
+  }
+
   private adaptResolution(dt: number) {
     this.sinceResize += dt;
     if (!this.g.dynamicResolution || this.sinceResize < 1.5) return;
@@ -297,3 +371,6 @@ export class AuroraStage {
 }
 
 const TMP_C = new THREE.Color();
+const TMP_V = new THREE.Vector3();
+const ZERO = new THREE.Vector3();
+const WHITE = new THREE.Color(1, 1, 1);

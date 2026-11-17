@@ -71,7 +71,9 @@ void main() {
   col += uRim * fres * (0.3 + 0.35 * uEnergy) * ao;
   col += uRim * pipe * (0.35 + 0.5 * (0.5 + 0.5 * sin(vUv.x * 14.0 - uTime * 1.6)) + 0.4 * uPulse) * mix(0.5, 1.0, ao);
   col += skyGradient(reflect(-v, n)) * (0.04 + fres) * 1.6;
-  col += mix(uC, vec3(1.0), 0.5) * glitter(vWPos, n, v, dist) * uGlitter * 3.0 * mix(0.4, 1.0, ao);
+  #ifdef GLITTER
+    col += mix(uC, vec3(1.0), 0.5) * glitter(vWPos, n, v, dist) * uGlitter * 3.0 * mix(0.4, 1.0, ao);
+  #endif
 
   gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
   ${OUTPUT}
@@ -186,9 +188,10 @@ const FRAGMENTS: Record<string, string> = {
 
 /**
  * Swaps the exported placeholder materials for the venue's shaders, by the role and colours the
- * Blender build stored on each material. Returns everything that needs disposing.
+ * Blender build stored on each material (`glitter` off spares the sparkle on light settings).
+ * Returns everything that needs disposing.
  */
-export function applyVenueMaterials(root: THREE.Object3D, deck: DeckInfo): THREE.Material[] {
+export function applyVenueMaterials(root: THREE.Object3D, deck: DeckInfo, glitter = true): THREE.Material[] {
   const made: THREE.Material[] = [];
   const byName = new Map<string, THREE.ShaderMaterial>();
   root.traverse((o) => {
@@ -221,7 +224,7 @@ export function applyVenueMaterials(root: THREE.Object3D, deck: DeckInfo): THREE
         vertexShader: STATIC_VERTEX,
         fragmentShader: FRAGMENTS[kind],
         vertexColors: !!mesh.geometry.getAttribute('color'),
-        defines: moon ? { MOON: '' } : {},
+        defines: moon ? { MOON: '' } : kind === 'paint' && glitter ? { GLITTER: '' } : {},
         side: kind === 'screen' || kind === 'lens' ? THREE.DoubleSide : THREE.FrontSide,
       });
       byName.set(key, mat);

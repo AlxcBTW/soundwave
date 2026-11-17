@@ -133,11 +133,12 @@ def cylinder(bm, a, b, r, segs=16, r2=None):
 
 
 def figure(name, detail, hair='short', sleeves=True, prop=None):
-    """detail: 0 = crowd (a few hundred triangles), 1 = band."""
+    """detail: -1 = crowd seen from afar, 0 = crowd near a camera, 1 = band."""
     bm = bmesh.new()
     uv = bm.loops.layers.uv.verify()
-    segs, caps = (6, 1) if detail == 0 else (14, 4)
-    su, sv = (8, 6) if detail == 0 else (22, 14)
+    segs, caps = {-1: (4, 1), 0: (6, 1), 1: (14, 4)}[detail]
+    su, sv = {-1: (6, 4), 0: (8, 6), 1: (22, 14)}[detail]
+    around = 6 if detail < 0 else max(8, segs)
     # legs and shoes
     for side, thigh, shin in ((1, THIGH_L, SHIN_L), (-1, THIGH_R, SHIN_R)):
         j = HIPJ[side]
@@ -147,17 +148,19 @@ def figure(name, detail, hair='short', sleeves=True, prop=None):
         tag(capsule(bm, knee, ankle + Vector((0, 0, 0.03)), 0.068, 0.055, segs, caps), uv, BOTTOM, shin)
         tag(ellipsoid(bm, ankle + Vector((0, -0.055, 0.005)), (0.058, 0.125, 0.052), su, max(4, sv - 2)), uv, SHOES, shin)
     # hips and chest
-    tag(barrel(bm, 0.84, 1.1, lambda s: 0.33, lambda s: 0.21, max(8, segs), 5), uv, BOTTOM, HIPS)
-    tag(barrel(bm, 1.03, 1.51, lambda s: 0.3 + 0.13 * s ** 0.8, lambda s: 0.19 + 0.045 * math.sin(math.pi * s), max(8, segs), 6 if detail == 0 else 10), uv, TOP, CHEST)
-    tag(capsule(bm, (0, 0, 1.46), (0, 0, 1.56), 0.055, 0.05, segs, 1), uv, SKIN, CHEST)
+    tag(barrel(bm, 0.84, 1.1, lambda s: 0.33, lambda s: 0.21, around, 5), uv, BOTTOM, HIPS)
+    tag(barrel(bm, 1.03, 1.51, lambda s: 0.3 + 0.13 * s ** 0.8, lambda s: 0.19 + 0.045 * math.sin(math.pi * s), around, 10 if detail > 0 else 6), uv, TOP, CHEST)
+    if detail >= 0:
+        tag(capsule(bm, (0, 0, 1.46), (0, 0, 1.56), 0.055, 0.05, segs, 1), uv, SKIN, CHEST)
     # arms
     for side, upper, fore in ((1, UARM_L, FARM_L), (-1, UARM_R, FARM_R)):
         s = SHOULDER[side]
         elbow = s + DOWN * UPPER
         wrist = elbow + DOWN * FORE
         tag(capsule(bm, s, elbow, 0.062, 0.05, segs, caps), uv, TOP if sleeves else SKIN, upper)
-        tag(capsule(bm, elbow, wrist, 0.048, 0.04, segs, caps), uv, SKIN, fore)
-        tag(ellipsoid(bm, wrist + DOWN * 0.045, (0.045, 0.036, 0.06), su, max(4, sv - 2)), uv, SKIN, fore)
+        tag(capsule(bm, elbow, wrist + (DOWN * 0.06 if detail < 0 else Vector()), 0.048, 0.04, segs, caps), uv, SKIN, fore)
+        if detail >= 0:
+            tag(ellipsoid(bm, wrist + DOWN * 0.045, (0.045, 0.036, 0.06), su, max(4, sv - 2)), uv, SKIN, fore)
     # head and hair
     hc = Vector((0, -0.01, 1.665))
     tag(ellipsoid(bm, hc, (0.112, 0.122, 0.138), su, sv), uv, SKIN, HEAD)
@@ -165,11 +168,11 @@ def figure(name, detail, hair='short', sleeves=True, prop=None):
         tag(ellipsoid(bm, hc + Vector((0, 0.022, 0.03)), (0.12, 0.124, 0.13), su, sv), uv, HAIR, HEAD)
     elif hair == 'long':
         tag(ellipsoid(bm, hc + Vector((0, 0.025, 0.028)), (0.124, 0.128, 0.134), su, sv), uv, HAIR, HEAD)
-        tag(barrel(bm, 1.38, 1.72, lambda s: 0.23 + 0.03 * s, lambda s: 0.11, max(8, segs), 5, power=2.4, y_of=lambda s: 0.085 - 0.02 * s), uv, HAIR, HEAD)
+        tag(barrel(bm, 1.38, 1.72, lambda s: 0.23 + 0.03 * s, lambda s: 0.11, around, 5, power=2.4, y_of=lambda s: 0.085 - 0.02 * s), uv, HAIR, HEAD)
     elif hair == 'cap':
         tag(ellipsoid(bm, hc + Vector((0, 0.008, 0.045)), (0.122, 0.13, 0.115), su, sv), uv, TOP, HEAD)
         tag(ellipsoid(bm, hc + Vector((0, -0.13, 0.03)), (0.085, 0.085, 0.012), su, 4), uv, TOP, HEAD)
-    if detail:
+    if detail > 0:
         for sx in (-1, 1):
             tag(ellipsoid(bm, hc + Vector((sx * 0.042, -0.112, 0.022)), (0.011, 0.008, 0.015), 10, 6), uv, PROP_B, HEAD)
     if prop == 'guitar':
@@ -221,6 +224,9 @@ MESHES = [
     figure('CrowdA', 0, hair='short', sleeves=True),
     figure('CrowdB', 0, hair='long', sleeves=False),
     figure('CrowdC', 0, hair='cap', sleeves=True),
+    figure('CrowdFarA', -1, hair='short', sleeves=True),
+    figure('CrowdFarB', -1, hair='long', sleeves=False),
+    figure('CrowdFarC', -1, hair='cap', sleeves=True),
     figure('Guitarist', 1, hair='long', sleeves=False, prop='guitar'),
     figure('Singer', 1, hair='short', sleeves=True, prop='mic'),
     figure('Drummer', 1, hair='cap', sleeves=False, prop='drums'),
@@ -371,7 +377,7 @@ os.makedirs(args.out, exist_ok=True)
 clips, total = bake(args.out)
 with open(os.path.join(args.out, 'figures.json'), 'w') as f:
     json.dump({'version': 1, 'joints': JOINTS, 'frames': total, 'clips': clips,
-               'crowd': ['CrowdA', 'CrowdB', 'CrowdC'], 'band': {'lead': 'Guitarist', 'bass': 'Guitarist', 'vox': 'Singer', 'drums': 'Drummer'}}, f, separators=(',', ':'))
+               'crowd': ['CrowdA', 'CrowdB', 'CrowdC'], 'crowdFar': ['CrowdFarA', 'CrowdFarB', 'CrowdFarC'], 'band': {'lead': 'Guitarist', 'bass': 'Guitarist', 'vox': 'Singer', 'drums': 'Drummer'}}, f, separators=(',', ':'))
 if args.save:
     bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(args.save))
 bpy.ops.export_scene.gltf(filepath=os.path.join(args.out, 'figures.glb'), export_format='GLB', export_apply=True, export_yup=True,

@@ -9,7 +9,7 @@ A rhythm game for your own music. Drop in a song (MP3, WAV, FLAC, OGG, M4A). The
 | Hard | 4 | sixteenths, two-note chords |
 | Expert | 5 | literal transcription, three-note chords |
 
-You play them on a 3D note highway with the keyboard or a controller, in front of a music-reactive 2D stage backdrop. Features: sustains, streak multiplier (up to ×4), overdrive phrases (Space doubles the multiplier), Perfect/Great/Good timing, star rating, best scores, tap calibration and key rebinding.
+You play them on a 3D note highway with the keyboard or a controller, in front of a live 3D festival stage that follows the music: a band, a crowd of thousands, beams, screens and pyro (with a light 2D backdrop as the fallback). Features: sustains, streak multiplier (up to ×4), overdrive phrases (Space doubles the multiplier), Perfect/Great/Good timing, star rating, best scores, tap calibration and key rebinding.
 
 It runs in the browser and as a desktop app (Tauri).
 
@@ -91,3 +91,14 @@ Unit tests cover:
 - bass and lead pitch extraction;
 - chart invariants: lanes, gaps, chords, sustains, determinism, density by difficulty;
 - judging, scoring and overdrive.
+
+## The 3D stage
+
+The stage is built in Blender and drawn by the game's own renderer (`src/render/aurora`). Two scripts regenerate everything in `public/stage/aurora`:
+
+```
+blender -b --factory-startup -P tools/stage/aurora/build_venue.py -- --out public/stage/aurora
+blender -b --factory-startup -P tools/stage/aurora/build_figures.py -- --out public/stage/aurora
+```
+
+`build_venue.py` makes the stage geometry, its baked contact shading and the positions the game needs (cameras, fixtures, band marks, pyro); add `--save some.blend` to open the result in Blender. `build_figures.py` makes the crowd and band figures and bakes their animation loops. During development, `/#stage?preset=high&shot=hero&level=0.9` shows the stage alone with a simulated song.

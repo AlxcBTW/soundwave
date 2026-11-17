@@ -2,7 +2,7 @@ import type { Chart } from '../chart/types';
 import { AudioEngine } from '../audio/AudioEngine';
 import { Background2D } from '../render/Background2D';
 import { Highway } from '../render/Highway';
-import { Stage3D } from '../render/stage/Stage3D';
+import { AuroraStage } from '../render/aurora/AuroraStage';
 import { barAt, barIntensity } from '../render/stage/LightShow';
 import { resolveGraphics } from './graphics';
 import { GameSession, type Results } from './GameSession';
@@ -42,7 +42,7 @@ export class PlayController {
   private readonly highway: Highway;
   private readonly background: Background2D;
   /** The 3D stage, once loaded (the 2D backdrop runs until then, or instead when it is off). */
-  private stage: Stage3D | null = null;
+  private stage: AuroraStage | null = null;
   private readonly barLevels: number[];
   private readonly input: KeyboardInput;
   private readonly padInput: GamepadInput;
@@ -91,7 +91,7 @@ export class PlayController {
     this.barLevels = barIntensity(chart);
     const graphics = resolveGraphics(settings.graphics);
     if (graphics.stage3d && stageHost) {
-      Stage3D.create(stageHost, graphics, { mode: 'play', part: chart.part })
+      AuroraStage.create(stageHost, graphics, { mode: 'play', part: chart.part })
         .then((stage) => {
           if (this.disposed) return stage.dispose();
           stage.setAnalyser(engine.analyser);

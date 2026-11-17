@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { getEngine } from '../audio/engine';
 import { resolveGraphics, type GraphicsSettings } from '../game/graphics';
 import { Background2D } from '../render/Background2D';
-import { Stage3D } from '../render/stage/Stage3D';
+import { AuroraStage } from '../render/aurora/AuroraStage';
 
 /**
  * The backdrop behind menus: the 3D stage idling with slow camera moves (or the 2D backdrop when
@@ -14,17 +14,17 @@ export function MenuBackground({ graphics }: { graphics: GraphicsSettings }) {
   useEffect(() => {
     const bg = new Background2D(ref.current!);
     bg.setAnalyser(getEngine().analyser);
-    let stage: Stage3D | null = null;
+    let stage: AuroraStage | null = null;
     let live = true;
     const g = resolveGraphics(graphics);
     if (g.stage3d) {
       // Menus never need the full show: cap the frame rate so the UI stays light.
-      Stage3D.create(stageRef.current!, { ...g, fpsCap: g.fpsCap && g.fpsCap < 60 ? g.fpsCap : 60, effects: 'off' }, { mode: 'menu' })
+      AuroraStage.create(stageRef.current!, { ...g, fpsCap: g.fpsCap && g.fpsCap < 60 ? g.fpsCap : 60, effects: 'off' }, { mode: 'menu' })
         .then((s) => {
           if (!live) return s.dispose();
           s.setAnalyser(getEngine().analyser);
           stage = s;
-          if (import.meta.env.DEV) (window as unknown as { __stage?: Stage3D }).__stage = s;
+          if (import.meta.env.DEV) (window as unknown as { __stage?: AuroraStage }).__stage = s;
         })
         .catch((err) => console.warn('3D stage unavailable, using the 2D backdrop', err));
     }

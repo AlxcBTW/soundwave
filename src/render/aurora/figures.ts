@@ -205,12 +205,16 @@ function rng(seed: number) {
 const BRIGHT = ['#ff3d9a', '#33d8ff', '#b6ff3d', '#ffffff', '#9a5cff', '#ff8a2a', '#ffd23d', '#2a6bff'];
 const DARK = ['#0b0b12', '#15151f', '#1c1c2a', '#101828'];
 const BOTTOMS = ['#0a0c18', '#111a33', '#0d0d10', '#1d2440', '#2a2a30'];
+/** People closer than this to a low camera are drawn with the detailed mesh, metres. */
+const NEAR_CAMERA = 15;
 
 /**
  * The crowd: a jittered grid in front of the barrier, fanning out from the stage, thinning toward
- * the back and sides. `share` (0..1) thins it further for lighter graphics settings.
+ * the back and sides. `share` (0..1) thins it further for lighter graphics settings. People within
+ * a few metres of a low camera get the detailed mesh and a little room is kept around the lens;
+ * everybody else is the light mesh.
  */
-export function makeCrowd(data: VenueData, meshes: string[], share: number, clear: Vec3[] = []): Person[] {
+export function makeCrowd(data: VenueData, meshes: { near: string[]; far: string[] }, share: number, cameras: Vec3[] = []): Person[] {
   const rand = rng(31);
   const people: Person[] = [];
   const { center, a, b, power, barrier } = data.deck;
@@ -230,14 +234,17 @@ export function makeCrowd(data: VenueData, meshes: string[], share: number, clea
       const dist = Math.hypot(px, front);
       const keep = Math.max(0.28, 1.08 - dist / 150) * share;
       if (r > keep) continue;
-      if (clear.some((c) => Math.hypot(px - c[0], pz - c[2]) < 2.2)) continue;
+      let nearest = Infinity;
+      for (const c of cameras) nearest = Math.min(nearest, Math.hypot(px - c[0], pz - c[2]));
+      if (nearest < 2.2) continue;
+      const list = nearest < NEAR_CAMERA ? meshes.near : meshes.far;
       const lively = rand();
       const dark = rand() < 0.68;
       people.push({
         pos: [px, 0, pz],
         yaw: Math.atan2(center[0] - px, center[2] - 6 - pz) + (rand() - 0.5) * 0.5,
         scale: 0.92 + rand() * 0.16,
-        mesh: meshes[Math.floor(rand() * meshes.length)],
+        mesh: list[Math.floor(rand() * list.length)],
         calm: lively < 0.62 ? 'bounce' : lively < 0.82 ? 'pump' : 'clap',
         hype: ['jump', 'jump', 'hands_up', 'hands_up', 'pump', 'clap'][Math.floor(rand() * 6)],
         threshold: 0.3 + rand() * 0.5,
