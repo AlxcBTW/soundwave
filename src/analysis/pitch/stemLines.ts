@@ -138,6 +138,10 @@ const VOCAL_MIN_LEVEL = 0.1;
 const BORROW_WINDOW = 0.5;
 /** Unpitched sounds quieter than this are breaths, not syllables. */
 const BORROW_MIN_LEVEL = 0.25;
+/** Transcribed notes at least this confident start a syllable even without an audible attack. */
+const SOFT_ONSET_STRENGTH = 0.5;
+/** Shortest syllable kept (s): quick rap syllables are often barely longer than this. */
+const MIN_SYLLABLE = 0.04;
 
 /**
  * Sung line: one note per audible syllable, plus legato pitch changes inside a held vowel.
@@ -150,6 +154,15 @@ export function vocalLineFromStem({ signal, sr, notes }: StemInput): PitchedNote
   // Syllables follow each other closely and often start softer than the previous one ended, so
   // the onset test only rejects attacks clearly quieter than what came before (note endings).
   const events = attacks(signal, sr, 120, 6000, VOCAL_ATTACK_DELTA).filter((a) => isOnset(env, a.t, VOCAL_MIN_LEVEL, 0.5));
+
+  // Syllables with soft onsets (no jump in the sound) still start a confidently transcribed note,
+  // unless it is a weaker continuation of the same pitch (a held note the transcriber split).
+  for (const n of voiced) {
+    if (n.strength < SOFT_ONSET_STRENGTH || events.some((e) => Math.abs(e.t - n.t) < 0.08)) continue;
+    const before = dominantPitch(voiced, n.t - 0.12, n.t - 0.02);
+    if (before && before.midi === n.midi && before.strength >= n.strength) continue;
+    if (level(env, n.t, n.t + 0.1) >= VOCAL_MIN_LEVEL) events.push({ t: n.t, strength: 0.45 });
+  }
 
   // Legato: the pitch moves to a new note inside a held syllable, with no new attack.
   const sorted = [...voiced].sort((x, y) => x.t - y.t);
@@ -172,7 +185,7 @@ export function vocalLineFromStem({ signal, sr, notes }: StemInput): PitchedNote
     // A borrowed pitch (from a note that ended before this syllable) sets the pitch, not the length.
     const held = Math.max(heldUntil(voiced, pitch) + 0.1, e.t + 0.1);
     const end = Math.min(next - 0.02, held, fadeEnd(env, e.t, next, 0.3));
-    if (end - e.t < 0.06) continue;
+    if (end - e.t < MIN_SYLLABLE) continue;
     out.push({ t: e.t, dur: end - e.t, midi: pitch.midi, strength: Math.min(1, 0.4 + e.strength * 0.6), bend: pitch.bend, fine: pitch.fine });
   }
   return stabilizePitches(out);
