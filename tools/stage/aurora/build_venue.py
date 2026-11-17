@@ -550,6 +550,52 @@ for side in (1, -1):
     tube(led, [p + (n_ if n_.y < 0 else -n_) * 0.12 + Z * 0.85 for (t, p, tan, n_, b) in fr], 0.05)
     tube(led, [p + (n_ if n_.y < 0 else -n_) * 0.07 + Z * tops[i] for i, (t, p, tan, n_, b) in enumerate(fr)], 0.04)
 
+def line_array(hang, aim, count, size, first=1.5, grow=0.42):
+    """
+    A line array flown from `hang`: a bumper frame on two chains and under it `count` cabinets,
+    front edge on front edge, each tipped a little further down than the one above. So the hang
+    curls back under itself and its faces cover the crowd from the far end to the front. `aim` is
+    the way it faces along the ground. The cabinets taper toward the back, which is what lets them
+    be tipped against each other.
+    """
+    w, d, h = size
+    hang = Vector(hang)
+    aim = Vector((aim[0], aim[1], 0)).normalized()
+    yaw = Matrix.Rotation(math.atan2(aim.x, -aim.y), 3, 'Z')
+    frame = hang - Z * 0.85
+    box(black, (w * 0.94, d + 0.3, 0.1), frame, yaw)
+    box(black, (0.12, d + 0.5, 0.16), frame + Z * 0.06, yaw)
+    for back in (-d * 0.4, d * 0.4):
+        cyl(black, frame + yaw @ Vector((0, back, 0.1)), hang + yaw @ Vector((0, back * 0.3, 0)), 0.022, 5)
+    widest = math.radians(0.6 + grow * (count - 1))
+    taper = d * math.tan(widest / 2) + 0.004
+    edge = frame + yaw @ Vector((0, -d / 2, -0.08))
+    tip = 0.0
+    for k in range(count):
+        tip += math.radians(first if k == 0 else 0.6 + grow * k)
+        rot = yaw @ Matrix.Rotation(tip, 3, 'X')
+        m = Matrix.Translation(edge) @ rot.to_4x4()
+        stamp(black, lambda t: prism(t, [(0, 0), (0, -h), (d, -h + taper), (d, -taper)], w), m, 0.02)
+        stamp(grille, cube((w - 0.12, 0.014, h - 0.1)), m @ Matrix.Translation((0, -0.006, -h / 2)))
+        edge = edge + rot @ Vector((0, 0, -h - 0.012))
+
+
+def fly_arm(top, hang, mast=2.6):
+    """What carries a hang: a truss arm lying on the tower's top and out over it, stayed from a short mast."""
+    top, hang = Vector(top), Vector(hang)
+    out = Vector((hang.x - top.x, hang.y - top.y, 0))
+    reach = out.length
+    out.normalize()
+    across = out.cross(Z)
+    a, b = top - out * 1.5 + Z * 0.24, top + out * (reach + 0.8) + Z * 0.24
+    bays = max(3, round((b - a).length / 0.9))
+    truss(black, [(a.lerp(b, i / bays), across, Z) for i in range(bays + 1)], s=0.22)
+    peak = top + Z * mast
+    cyl(black, top - Z * 0.4, peak, 0.08, 8)
+    for end in (a, b):
+        cyl(black, peak, end + Z * 0.22, 0.024, 5)
+
+
 # ---------------------------------------------------------------- towers with line arrays, outside the shell and clear of the ribbon
 for side in (1, -1):
     x, y, h, s = 40.0 * side, -4.0, 23.0, 0.6
@@ -565,16 +611,10 @@ for side in (1, -1):
         cyl(black, (x - s * flip, y + s, z0), (x + s * flip, y + s, z1), 0.04, 5)
         cyl(black, (x - s, y - s * flip, z0), (x - s, y + s * flip, z1), 0.04, 5)
         cyl(black, (x + s, y - s * flip, z0), (x + s, y + s * flip, z1), 0.04, 5)
-    # the arm and the array hanging from it
-    ax = x - 2.6 * side
-    box(black, (3.6, 0.9, 0.5), Vector((x - 1.3 * side, y - 0.2, h - 0.4)))
-    pos = Vector((ax, y - 0.5, h - 1.0))
-    ang = 0.0
-    for k in range(13):
-        ang += math.radians(0.6 + 0.42 * k)
-        rot = Matrix.Rotation(-ang, 3, 'X')
-        pos = pos + rot @ Vector((0, 0, -0.5))
-        cabinet((1.5, 0.95, 0.46), pos + rot @ Vector((0, 0.1, 0)), rot, bevel=0.03)
+    # the arm, and the array flown from it, turned in toward the middle of the field
+    hang = Vector((x - 3.0 * side, y - 1.2, h))
+    fly_arm((x, y, h), hang)
+    line_array(hang, Vector((6.0 * side, -62.0, 0)) - hang, 12, (1.5, 0.95, 0.46))
     for dz in (0.5, 1.3):
         fixture(black, lens, (x, y - s - 0.3, h + dz - 0.4), (-0.35 * side, -0.8, -0.25), 'Truss')
 
@@ -698,13 +738,11 @@ CLEAR.append((FOH, 7.5))
 for side in (1, -1):
     base = Vector((52 * side, -40, terrain.height(52 * side, -40)))
     truss(black, [(base + Vector((0, 0, z)), Vector((1, 0, 0)), Vector((0, 1, 0))) for z in [k * 1.2 for k in range(13)]], s=0.3)
-    box(black, (2.2, 0.8, 0.4), base + Vector((0, -0.9, 14.2)))
-    pos, ang = base + Vector((0, -1.5, 13.9)), 0.0
-    for k in range(7):
-        ang += math.radians(1.5 + 0.9 * k)
-        rot = Matrix.Rotation(-ang, 3, 'X')
-        pos = pos + rot @ Vector((0, 0, -0.48))
-        cabinet((1.3, 0.8, 0.44), pos, rot)
+    # the delay hang covers the back of the field
+    aim = (Vector((18.0 * side, -98.0, 0)) - Vector((base.x, base.y, 0))).normalized()
+    hang = base + aim * 2.0 + Z * 14.4
+    fly_arm(base + Z * 14.4, hang, mast=2.0)
+    line_array(hang, aim, 7, (1.3, 0.8, 0.44), first=2.0, grow=0.9)
     fixture(black, lens, base + Vector((0, 0.6, 15.0)), (-0.3 * side, 0.55, 0.78), 'Delay', mount=(0, 0, -1))
     dots(led, [base + Vector((0.34, -0.34, z)) for z in (3, 6, 9, 12)], 0.07)
     CLEAR.append((base, 2.6))
