@@ -42,6 +42,9 @@ export const shared = {
   uBurst: { value: new THREE.Vector4(0, 60, -40, 0) },
   /** Overall brightness of the screens. */
   uScreenLevel: { value: 1 },
+  /** The audience from above (see crowdMap.ts), and the ground it covers: corner x, z and 1 / size. */
+  uCrowdMap: { value: null as THREE.Texture | null },
+  uCrowdRect: { value: new THREE.Vector4(-136, -18, 1 / 272, 1 / 156) },
 };
 
 /** Noise, haze and the screen content, shared by the fragment shaders. */
@@ -93,6 +96,17 @@ vec3 skyGradient(vec3 d) {
   float toStage = max(0.0, dot(normalize(vec3(d.x, 0.0, d.z) + 1e-4), vec3(0.0, 0.0, -1.0)));
   col += uHazeNear * 0.5 * pow(toStage, 3.0) * exp(-h * 4.5);
   return col;
+}
+
+/** Pools of coloured light the rig lays on the field in front of the stage, drifting slowly. */
+vec3 fieldPools(vec2 p) {
+  vec3 sum = vec3(0.0);
+  for (int i = 0; i < 5; i++) {
+    float k = float(i);
+    vec2 c = vec2(sin(uTime * (0.07 + 0.013 * k) + k * 2.4) * (24.0 + 9.0 * k), 30.0 + 13.0 * k + cos(uTime * (0.05 + 0.011 * k) + k * 1.7) * 14.0);
+    sum += (mod(k, 2.0) < 0.5 ? uKey : uAccent) * smoothstep(15.0, 2.0, distance(p, c));
+  }
+  return sum * (0.3 + 0.7 * uEnergy);
 }
 
 /** Distance and height haze that picks up the stage's light near it. */

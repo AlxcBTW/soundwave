@@ -11,6 +11,7 @@ import { LightShow, PALETTES, type Rgb, type ShowState } from '../stage/LightSho
 import { Particles } from '../stage/Particles';
 import { loadVenue, type VenueAssets, type VenueData } from './assets';
 import { Beams } from './beams';
+import { CROWD_RECT, buildCrowdMap } from './crowdMap';
 import { Figures, makeBand, makeCrowd } from './figures';
 import { applyVenueMaterials } from './materials';
 import { shared } from './shared';
@@ -86,6 +87,7 @@ export class AuroraStage {
   private readonly smoke: Particles;
   private readonly data: VenueData;
   private readonly owned: { dispose(): void }[] = [];
+  private readonly crowdMap: THREE.Texture;
   private readonly key = new THREE.Color();
   private readonly accent = new THREE.Color();
   private readonly wash = new THREE.Color();
@@ -156,7 +158,12 @@ export class AuroraStage {
 
     this.crowd = new Figures(assets.crowd);
     const low = [...Object.values(this.data.cameras).map((c) => c.pos).filter((p) => p[1] < 10), ...EXTRA_CAMERAS];
-    this.crowd.add(makeCrowd(this.data, this.crowd.characters, LEVEL_SHARE[g.crowd], low, assets.crowd.data.sync, ground));
+    const audience = makeCrowd(this.data, this.crowd.characters, LEVEL_SHARE[g.crowd], low, assets.crowd.data.sync, ground);
+    this.crowd.add(audience);
+    // The ground needs to know where they stand, to shade it under them.
+    this.crowdMap = buildCrowdMap(audience, LEVEL_SHARE[g.crowd]);
+    this.owned.push(this.crowdMap);
+    shared.uCrowdRect.value.set(CROWD_RECT.x, CROWD_RECT.z, 1 / CROWD_RECT.w, 1 / CROWD_RECT.d);
     this.band = new Figures(assets.band);
     // The part being played is picked out: more light on that player and under their feet.
     const focus = opts.part === 'vocals' ? 'vox' : opts.part;
@@ -329,6 +336,7 @@ export class AuroraStage {
     this.low += (bands.low - this.low) * ease(3);
     const washLevel = 0.55 + 0.25 * this.low + 0.12 * this.barPulse + 0.2 * s.overdrive;
     shared.uTime.value = t;
+    shared.uCrowdMap.value = this.crowdMap;
     shared.uBeat.value = this.beatClock;
     shared.uPulse.value = this.pulse * 0.7;
     shared.uBarPulse.value = this.barPulse * 0.7;

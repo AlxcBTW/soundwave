@@ -126,6 +126,8 @@ void main() {
   // People standing shoulder to shoulder shade each other below the shoulders.
   float packed = mix(smoothstep(0.2, 1.7, vWPos.y - vFoot) * 0.85 + 0.15, 1.0, min(1.0, vLook.y));
   vec3 light = (vec3(0.02, 0.035, 0.11) * (0.6 + 0.4 * n.y) + stageCol * wrap * stage * 0.95 + uWash * 0.16 * stage) * packed;
+  // The pools of light drifting over the field fall on heads and shoulders.
+  light += fieldPools(vWPos.xz) * (0.35 + 0.65 * max(0.0, n.y)) * 0.42 * (1.0 - min(1.0, vLook.y));
   // The band stands in the front spots.
   vec3 spotDir = normalize(vec3(0.25, 0.75, 0.6));
   light += vLook.y * vec3(1.0, 0.92, 0.86) * (max(0.0, dot(n, spotDir)) * 0.85 + 0.22);

@@ -136,16 +136,102 @@ void main() {
   ${OUTPUT}
 }`;
 
-/** The land: trodden grass under moonlight, warmed by the stage where it is near. */
+/**
+ * The land: a festival field at night. Grass in tussocks, mown in rings around the stage and trodden
+ * down to damp earth where the audience is packed; every person shades the ground they stand on;
+ * the stage throws its colours across it and the moon lights the rest. Detail too fine for the
+ * distance fades out instead of shimmering.
+ */
 const GROUND_FRAGMENT = /* glsl */ `
 ${COMMON}
+uniform sampler2D uCrowdMap; uniform vec4 uCrowdRect;
+uniform vec3 uDeckC; uniform vec3 uDeckShape;
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
+
+/** Height of the surface: tussocks of grass, clods and footprints where it is worn to earth. */
+float relief(vec2 p, float worn, float fine) {
+  float tuft = vnoise(p * 1.9) * 0.6 + vnoise(p * 5.3 + 7.7) * 0.4 * fine;
+  float clod = vnoise(p * 3.1 + 3.3) * 0.45 + vnoise(p * 9.7) * 0.3 * fine;
+  return mix(tuft, clod, worn);
+}
+
 void main() {
-  vec3 n = normalize(vWNorm);
-  float gd = distance(vWPos, vec3(uGlowPos.x, 0.0, uGlowPos.z + 20.0));
-  vec3 grass = mix(vec3(0.012, 0.022, 0.026), vec3(0.022, 0.04, 0.03), vnoise(vWPos.xz * 0.07)) * (0.7 + 0.6 * vnoise(vWPos.xz * 0.8));
-  vec3 light = vec3(0.3, 0.42, 0.85) * 0.55 + uMoonCol * max(0.0, dot(n, uMoonDir)) * 1.6;
-  vec3 col = grass * light + mix(uWash, uKey, 0.3) * 0.05 / (1.0 + gd * gd * 0.0016);
+  vec3 toCam = cameraPosition - vWPos;
+  vec3 v = normalize(toCam);
+  vec2 p = vWPos.xz;
+  // How much ground one pixel covers, in metres.
+  float px = max(length(dFdx(p)), length(dFdy(p)));
+  float mid = smoothstep(1.2, 0.25, px);
+  float fine = smoothstep(0.16, 0.04, px);
+  float close = smoothstep(0.05, 0.015, px);
+
+  vec2 crowd = texture2D(uCrowdMap, (p - uCrowdRect.xy) * uCrowdRect.zw).rg;
+  float shade = crowd.r;
+  float packed = min(1.0, crowd.g);
+
+  // Distance from the edge of the stage's deck, in metres (roughly), and the pit in front of it.
+  vec2 dd = abs(p - uDeckC.xz) / uDeckShape.xy;
+  float front = (pow(pow(dd.x, uDeckShape.z) + pow(dd.y, uDeckShape.z), 1.0 / uDeckShape.z) - 1.0) * uDeckShape.y;
+  float pit = smoothstep(16.0, 3.0, front);
+
+  float patchy = fbm(p * 0.045);
+  float worn = smoothstep(0.42, 0.8, packed * 0.72 + pit * 0.3 + (patchy - 0.5) * 0.75 + (vnoise(p * 0.85) - 0.5) * 0.3 * mid);
+
+  // Grass: two greens in broad patches, lighter and darker rings where the mower went round.
+  vec3 grass = mix(vec3(0.02, 0.048, 0.038), vec3(0.045, 0.085, 0.04), vnoise(p * 0.07));
+  float ring = sin(length(p - uDeckC.xz) * 1.05 + (patchy - 0.5) * 2.0);
+  grass *= 1.0 + 0.1 * clamp(ring * 2.5, -1.0, 1.0) * smoothstep(2.4, 0.8, px);
+  grass *= mix(1.0, 0.76 + 0.48 * vnoise(p * 1.7 + 2.0), mid);
+  float blades = vnoise(vec2(p.x * 19.0 + p.y * 4.0, p.y * 6.0 - p.x * 1.5)) * 0.5 + vnoise(vec2(p.y * 17.0 - p.x * 5.0, p.x * 5.0 + p.y * 1.5) + 8.3) * 0.5;
+  grass *= mix(1.0, 0.5 + blades, close);
+
+  // Earth: brown, with paler dry patches, stones and the straw of what grew there.
+  vec3 earth = mix(vec3(0.046, 0.038, 0.034), vec3(0.088, 0.07, 0.054), vnoise(p * 0.55 + 5.0));
+  earth *= mix(1.0, 0.7 + 0.6 * vnoise(p * 6.5 + 1.0), fine);
+  float straw = smoothstep(0.72, 0.9, vnoise(vec2(p.x * 23.0 - p.y * 7.0, p.y * 5.0 + p.x * 2.0) + 4.1)) * close;
+  earth = mix(earth, vec3(0.13, 0.115, 0.06), straw * 0.6);
+  vec3 albedo = mix(grass, earth, worn);
+
+  // The lie of the surface.
+  float e = 0.07;
+  float h0 = relief(p, worn, fine);
+  vec2 slope = vec2(relief(p + vec2(e, 0.0), worn, fine) - h0, relief(p + vec2(0.0, e), worn, fine) - h0) / e;
+  vec3 n = normalize(normalize(vWNorm) + vec3(-slope.x, 0.0, -slope.y) * 0.06 * mid);
+
+  // Night sky and moon.
+  vec3 light = vec3(0.3, 0.42, 0.85) * (0.36 + 0.16 * n.y) + uMoonCol * max(0.0, dot(n, uMoonDir)) * 1.6;
+  // The stage: its colours fall across the field from the arches, weaker with distance and where
+  // the crowd stands in the way.
+  vec3 toStage = vec3(uGlowPos.x, 21.0, uGlowPos.z + 12.0) - vWPos;
+  float sd = length(toStage);
+  vec3 l = toStage / sd;
+  vec3 show = (mix(uKey, vec3(1.0), 0.3) * 0.7 + uWash * 0.3) * uScreenLevel;
+  float reach = (1.0 - 0.35 * packed) / (1.0 + sd * sd * 0.0008);
+  light += show * max(0.0, dot(n, l)) * 7.0 * reach;
+  // And the pools the rig lays on the field, which come from overhead.
+  light += fieldPools(p) * (0.5 + 0.5 * n.y) * 0.9;
+  vec3 col = albedo * light;
+
+  // Confetti left from the cannons, thickest toward the stage.
+  vec2 cell = floor(p * 15.0);
+  float pick = hash21(cell);
+  float strewn = smoothstep(70.0, 6.0, front) * step(0.0, front);
+  vec2 q = fract(p * 15.0) - 0.5 - (vec2(hash21(cell + 3.1), hash21(cell + 7.9)) - 0.5) * 0.4;
+  float turn = pick * 91.0;
+  q = vec2(q.x * cos(turn) - q.y * sin(turn), q.x * sin(turn) + q.y * cos(turn));
+  float paper = step(1.0 - 0.022 * strewn, pick) * step(abs(q.x), 0.26) * step(abs(q.y), 0.13) * close;
+  vec3 tint = mix(0.5 + 0.5 * cos(6.2831853 * (hash21(cell + 13.7) + vec3(0.0, 0.33, 0.67))), vec3(1.0), 0.35);
+  col = mix(col, tint * 0.22 * light, paper);
+
+  // Damp, trodden ground gives the stage and the moon back as a dull sheen.
+  float gloss = mix(0.2, 1.0, worn) * (0.6 + 0.4 * vnoise(p * 2.3 + 6.0));
+  float sheen = pow(max(0.0, dot(n, normalize(l + v))), mix(18.0, 46.0, worn));
+  col += show * sheen * gloss * 0.2 * reach;
+  col += uMoonCol * pow(max(0.0, dot(n, normalize(uMoonDir + v))), 40.0) * gloss * 0.03;
+
+  // People keep the light off the ground they stand on; so does the stage along its foot.
+  col *= (1.0 - 0.82 * shade) * (1.0 - 0.12 * packed);
+  col *= 0.35 + 0.65 * smoothstep(-0.2, 2.6, front);
   gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
   ${OUTPUT}
 }`;
@@ -344,7 +430,7 @@ export function applyVenueMaterials(root: THREE.Object3D, deck: DeckInfo, glitte
         uniforms.uGlow = { value: info.glow ?? 0.3 };
         uniforms.uPanels = { value: info.panels ?? 0 };
         uniforms.uVeins = { value: info.veins ?? 0 };
-      } else if (kind === 'deck') {
+      } else if (kind === 'deck' || kind === 'ground') {
         uniforms.uDeckC = { value: new THREE.Vector3(...deck.center) };
         uniforms.uDeckShape = { value: new THREE.Vector3(deck.a, deck.b, deck.power) };
       } else if (kind === 'screen') {
