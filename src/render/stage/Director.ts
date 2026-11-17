@@ -5,7 +5,9 @@ import type { ShowLevel } from './LightShow';
 /**
  * The camera director: a library of shots around the stage and a cutting rhythm that follows the
  * music. Cuts land on downbeats after a hold of a few bars (shorter at a peak), each shot moves
- * slowly while it is on, and the player's band member gets more close-ups. Only the stage camera
+ * slowly while it is on, and the player's band member gets more close-ups. A shot does not come
+ * round again until a few others have been on, and when it does it runs its move the other way,
+ * so the camera picks up where it left that spot instead of starting over. Only the stage camera
  * moves; the highway never does.
  */
 export type Vec3 = [number, number, number];
@@ -83,17 +85,26 @@ const HOLD: Record<ShowLevel, number> = { calm: 8, groove: 8, peak: 4 };
 const CALM_HOLD = 16;
 /** Without bars (menus) shots last this long, in seconds. */
 const MENU_SHOT = 20;
+/** How many of the latest shots are kept off the list, as long as that leaves a choice. */
+const MEMORY = 4;
 
 export class Director {
   private current: Shot;
   private shotBars = 0;
   private shotTime = 0;
+  /** The latest shots, newest first, the one that is on included. */
   private recent: string[] = [];
+  /** How often each shot has been on, and whether this visit runs its move backwards. */
+  private readonly visits = new Map<string, number>();
+  private reverse = false;
   private seed: number;
 
   constructor(private readonly shots: Shot[], private mode: CameraMode, seed = 7, private readonly menu = false) {
     this.seed = seed;
     this.current = shots.find((s) => s.name === (menu ? 'hero' : 'front')) ?? shots[0];
+    // The opening shot counts as on: the first cut must go somewhere else.
+    this.recent = [this.current.name];
+    this.visits.set(this.current.name, 1);
   }
 
   get shot(): Shot {
@@ -129,7 +140,8 @@ export class Director {
     const s = this.current;
     const len = this.menu ? MENU_SHOT : Math.max(4, (this.mode === 'calm' ? CALM_HOLD : 6) * this.barSeconds);
     const p = Math.min(1, this.shotTime / len);
-    const e = p * p * (3 - 2 * p);
+    const eased = p * p * (3 - 2 * p);
+    const e = this.reverse ? 1 - eased : eased;
     const pos: Vec3 = [...s.pos];
     const target: Vec3 = [...s.target];
     const dir = norm(sub(s.target, s.pos));
@@ -167,12 +179,22 @@ export class Director {
     this.current = next;
     this.shotBars = 0;
     this.shotTime = 0;
-    this.recent = [next.name, ...this.recent].slice(0, 2);
+    this.recent = [next.name, ...this.recent].slice(0, MEMORY);
+    const seen = this.visits.get(next.name) ?? 0;
+    this.visits.set(next.name, seen + 1);
+    this.reverse = seen % 2 === 1;
   }
 
   private pick(level: ShowLevel): Shot {
-    const pool = this.shots.filter((s) => (this.mode === 'calm' || this.menu ? s.calm : s.levels.includes(level)) && !this.recent.includes(s.name));
-    const list = pool.length ? pool : this.shots.filter((s) => s.name !== this.current.name);
+    const suits = this.shots.filter((s) => (this.mode === 'calm' || this.menu ? s.calm : s.levels.includes(level)));
+    // Keep as many of the latest shots off the list as still leaves two to choose between.
+    let list: Shot[] = [];
+    for (let keep = MEMORY; keep >= 1 && list.length < 2; keep--) {
+      const off = this.recent.slice(0, keep);
+      const pool = suits.filter((s) => !off.includes(s.name));
+      if (pool.length > list.length) list = pool;
+    }
+    if (!list.length) list = this.shots.filter((s) => s.name !== this.current.name);
     const total = list.reduce((a, s) => a + s.weight, 0);
     let r = this.random() * total;
     for (const s of list) {

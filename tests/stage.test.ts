@@ -114,6 +114,37 @@ describe('camera director', () => {
     expect(mine).toBeGreaterThan(other * 2);
   });
 
+  it('does not come back to a shot until others have been on, starting with the opening shot', () => {
+    const all = buildShots(
+      { ...cams, crowd: { pos: [9, 3.5, 44], target: [0, 15, -10], hfov: 72 }, close: { pos: [-9, 5.2, 19], target: [0, 9, -8], hfov: 76 }, aerial: { pos: [44, 62, 118], target: [0, 8, -6], hfov: 56 } },
+      { lead: [-4.5, 3, -3.4], vox: [0, 3, -1.7], bass: [4.5, 3, -3.4], drums: [0, 3.25, -7.5] },
+      'lead',
+    );
+    for (const [mode, level] of [['auto', 'calm'], ['auto', 'groove'], ['auto', 'peak'], ['calm', 'groove']] as const) {
+      const d = new Director(all, mode, 7);
+      const seen: string[] = [d.shot.name];
+      for (let bar = 0; bar < 1600; bar++) if (d.update(2, true, level, 2)) seen.push(d.shot.name);
+      expect(seen.length).toBeGreaterThan(50);
+      // Never the same shot twice running (the first cut included), nor with only one other between.
+      for (let i = 1; i < seen.length; i++) expect(seen[i]).not.toBe(seen[i - 1]);
+      for (let i = 2; i < seen.length; i++) expect(seen[i]).not.toBe(seen[i - 2]);
+    }
+  });
+
+  it('runs a shot the other way when it comes round again', () => {
+    const d = new Director(shots, 'auto', 5);
+    const starts = new Map<string, string[]>();
+    const note = () => starts.set(d.shot.name, [...(starts.get(d.shot.name) ?? []), d.pose().pos.map((v) => v.toFixed(2)).join(',')]);
+    note();
+    for (let bar = 0; bar < 400; bar++) if (d.update(2, true, 'groove', 2)) note();
+    for (const [, poses] of starts) {
+      if (poses.length < 2) continue;
+      // The second visit starts somewhere else than the first did.
+      expect(poses[1]).not.toBe(poses[0]);
+    }
+    expect([...starts.values()].some((p) => p.length >= 2)).toBe(true);
+  });
+
   it('moves the camera within a shot', () => {
     const d = new Director(shots, 'auto');
     const a = d.pose().pos;
