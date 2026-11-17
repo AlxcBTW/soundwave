@@ -75,7 +75,7 @@ it(`compare ${song} with video tiles`, () => {
   for (const d of ['expert', 'hard', 'medium', 'easy'] as const) {
     const c = charts[d].notes;
     const ct = [...new Set(c.map((n) => +n.t.toFixed(3)))].sort((x, y) => x - y);
-    const { m, pairs } = matchCount(refTimes, ct, 0.07);
+    const { m, pairs } = matchCount(refTimes, ct, Number(process.env.TOL ?? 0.07));
     const p = m / ct.length;
     const r = m / refTimes.length;
     // Lane direction between consecutive matched single notes.
