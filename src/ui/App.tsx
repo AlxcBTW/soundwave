@@ -14,7 +14,7 @@ import { applyDisplayMode, canExit, exitApp, inDesktopApp } from '../game/displa
 import { loadPick, loadSetlist, pruneSetlist, savePick, saveSetlist, SET_MAX, toggleSong, type Pick } from '../game/setlist';
 import { loadSettings, saveSettings, type Settings } from '../game/settings';
 import { getInputMode, installInputMode, setInputMode, usesFocus } from '../input/inputMode';
-import { focusStart, installMenuNav } from '../input/menuNav';
+import { EDIT_EVENT, focusStart, installMenuNav } from '../input/menuNav';
 import { followOutputDevice, muteWhileUnfocused } from '../audio/output';
 import { pads, resolveStyle } from '../input/pads';
 import { menuPulse, setMenuRumble } from '../input/rumble';
@@ -32,6 +32,7 @@ import { ResultsScreen, SummaryScreen, type SetResult } from './ResultsScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { SongSheet } from './SongSheet';
 import { Toasts, useToasts } from './Toasts';
+import { VirtualKeyboard } from './VirtualKeyboard';
 import { installUiSounds } from './uiSounds';
 
 const DEMO_SONG: SongMeta = {
@@ -93,6 +94,22 @@ export function App() {
   const [exitAsk, setExitAsk] = useState(false);
   /** The settings, open over a paused song. */
   const [songSettings, setSongSettings] = useState(false);
+  /** The text field the on-screen keyboard is open for (a controller pressed it). */
+  const [typing, setTyping] = useState<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    const edit = (e: Event) => {
+      const field = (e as CustomEvent<HTMLElement>).detail;
+      if ((field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) && !field.disabled && !field.readOnly) setTyping(field);
+    };
+    // The game has no use for the browser's right-click menu, anywhere.
+    const noMenu = (e: Event) => e.preventDefault();
+    window.addEventListener(EDIT_EVENT, edit);
+    window.addEventListener('contextmenu', noMenu);
+    return () => {
+      window.removeEventListener(EDIT_EVENT, edit);
+      window.removeEventListener('contextmenu', noMenu);
+    };
+  }, []);
   const fileInput = useRef<HTMLInputElement>(null);
   const updateSettings = useCallback((s: Settings) => {
     setSettings(s);
@@ -591,6 +608,7 @@ export function App() {
           )}
         </Dialog>
       )}
+      {typing && <VirtualKeyboard target={typing} settings={settings} onClose={() => setTyping(null)} />}
       {/* The desktop window has no title bar: in Window mode this strip along the top moves it. */}
       {inDesktopApp() && settings.displayMode === 'windowed' && <div className="drag-strip" data-tauri-drag-region aria-hidden />}
       <ActionBar settings={settings} />

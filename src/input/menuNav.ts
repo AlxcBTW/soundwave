@@ -26,6 +26,8 @@ export const TAB_EVENT = 'nav-tab';
 export const MOVE_EVENT = 'nav-moved';
 /** Offered to the focused control before focus moves (detail: { dir }); cancel it to keep focus. */
 export const NAV_EVENT = 'nav-move';
+/** Sent when a controller confirms on a text field (detail: the field): the on-screen keyboard opens for it. */
+export const EDIT_EVENT = 'nav-edit';
 
 /** The topmost open dialog, or the whole document. */
 export function navScope(): ParentNode {
@@ -158,7 +160,11 @@ function confirm() {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
     return;
   }
-  if (isTextField(active)) return;
+  // A text field cannot be typed into from a controller: it asks for the on-screen keyboard.
+  if (isTextField(active)) {
+    window.dispatchEvent(new CustomEvent(EDIT_EVENT, { detail: active }));
+    return;
+  }
   active.click();
 }
 
