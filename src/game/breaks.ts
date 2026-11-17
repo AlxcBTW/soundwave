@@ -6,26 +6,25 @@ export const BREAK_MIN = 5;
 const SHOW_AFTER = 0.6;
 /** Countdowns that would be visible for less than this (seconds) aren't shown at all. */
 const MIN_VISIBLE = 1.5;
+/** The countdown is gone this long before the next note is due. */
+const GONE_BEFORE = 0.12;
 
 export interface Break {
-  /** When the countdown shows and hides (seconds). It hides when the next note comes into view. */
+  /** When the countdown shows and hides (seconds). It stays until just before the next note is due. */
   from: number;
   to: number;
   /** When the next note reaches the strike line. */
   next: number;
 }
 
-/**
- * Long stretches without notes, including an intro before the first note. `lookahead` is how
- * far ahead (seconds) the highway shows notes: the countdown makes way once the next one appears.
- */
-export function findBreaks(chart: Chart, lookahead: number, min = BREAK_MIN): Break[] {
+/** Long stretches without notes, including an intro before the first note. */
+export function findBreaks(chart: Chart, min = BREAK_MIN): Break[] {
   const out: Break[] = [];
   let free = 0;
   for (const n of chart.notes) {
     if (n.t - free >= min) {
       const from = free + (free > 0 ? SHOW_AFTER : 0);
-      const to = n.t - lookahead;
+      const to = n.t - GONE_BEFORE;
       if (to - from >= MIN_VISIBLE) out.push({ from, to, next: n.t });
     }
     free = Math.max(free, n.t + n.dur);

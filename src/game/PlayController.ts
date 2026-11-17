@@ -87,7 +87,7 @@ export class PlayController {
     if (import.meta.env.DEV) (window as unknown as { __play?: PlayController }).__play = this;
     this.highway = new Highway(highwayCanvas, chart);
     this.highway.speed = settings.noteSpeed;
-    this.breaks = findBreaks(chart, this.highway.horizon);
+    this.breaks = findBreaks(chart);
     this.barTimes = chart.downbeats.map((i) => chart.beats[i]).filter((x) => x !== undefined);
     this.highway.attach(this.session);
     this.background = new Background2D(backgroundCanvas);
@@ -291,9 +291,9 @@ export class PlayController {
   }
 
   /**
-   * The break countdown: bars left until the next note, with a ring that drains until the notes come
-   * into view. It nods lightly on every beat and bounces on every bar line, and over its last beat
-   * it fades away to make room for the notes.
+   * The break countdown: bars left until the next note, with a ring that drains until the note is
+   * due. It nods very lightly on every beat, bounces and glows on every bar line, and fades away
+   * over its last beat, gone just before the notes kick in.
    */
   private updateBreak(t: number) {
     const b = this.phase === 'playing' || this.phase === 'paused' ? this.breaks.find((x) => t >= x.from && t < x.to) : undefined;

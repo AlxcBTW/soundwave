@@ -500,24 +500,29 @@ h1, h2, h3, p { margin: 0; }
 .hud-feedback[data-kind='od'] { color: var(--od); }
 @keyframes pop { 0% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -70%) scale(1); } }
 
-/* Break countdown: bars left in a ring that drains until the notes come into view. */
+/* Break countdown: bars left in a ring that drains until the next note is due. */
 .hud-break { position: absolute; left: 50%; top: 34%; width: 190px; height: 190px; transform: translate(-50%, -50%) scale(0.85); opacity: 0; transition: opacity 0.35s, transform 0.35s; display: grid; place-items: center; }
 .hud-break.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 .hud-break.on.bounce { animation: break-bounce 0.55s cubic-bezier(0.25, 1.6, 0.45, 1); }
 /* A light nod on every beat between the bar lines. */
-.hud-break.on.beat { animation: break-beat 0.3s ease-out; }
-@keyframes break-beat { 0% { transform: translate(-50%, -50%) scale(1); } 35% { transform: translate(-50%, -52.5%) scale(1.035); } 100% { transform: translate(-50%, -50%) scale(1); } }
+.hud-break.on.beat { animation: break-beat 0.28s ease-out; }
+@keyframes break-beat { 0% { transform: translate(-50%, -50%) scale(1); } 35% { transform: translate(-50%, -50.7%) scale(1.012); } 100% { transform: translate(-50%, -50%) scale(1); } }
+/* On the bar line it also lights up for a moment. */
+.hud-break.on.bounce .hud-break-ring .fill { animation: break-glow 0.7s ease-out; }
+.hud-break.on.bounce .hud-break-num { animation: break-tick 0.5s cubic-bezier(0.2, 1.4, 0.4, 1), break-shine 0.7s ease-out; }
+@keyframes break-glow { 0% { filter: drop-shadow(0 0 8px currentColor) brightness(1); } 25% { filter: drop-shadow(0 0 22px currentColor) drop-shadow(0 0 44px currentColor) brightness(1.6); } 100% { filter: drop-shadow(0 0 8px currentColor) brightness(1); } }
+@keyframes break-shine { 0% { filter: brightness(1); } 25% { filter: brightness(1.35) drop-shadow(0 0 18px #fff); } 100% { filter: brightness(1); } }
 /* Its last beat: it drifts up and fades instead of cutting out. */
 .hud-break.on.leaving { opacity: 0; transform: translate(-50%, -56%) scale(0.92); animation: none; transition: opacity var(--break-fade, 0.5s) ease-in, transform var(--break-fade, 0.5s) ease-in; }
 @keyframes break-bounce { 0% { transform: translate(-50%, -50%) scale(1); } 30% { transform: translate(-50%, -58%) scale(1.1); } 100% { transform: translate(-50%, -50%) scale(1); } }
 .hud-break-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
 .hud-break-ring circle { fill: rgba(8, 5, 24, 0.74); stroke-width: 8; }
 .hud-break-ring .track { stroke: rgba(255, 255, 255, 0.12); }
-.hud-break-ring .fill { fill: none; stroke: var(--cyan); stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 0; filter: drop-shadow(0 0 8px var(--cyan)); transition: stroke 0.3s; }
+.hud-break-ring .fill { fill: none; color: var(--cyan); stroke: var(--cyan); stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 0; filter: drop-shadow(0 0 8px var(--cyan)); transition: stroke 0.3s; }
 .hud-break-num { font-size: 92px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; color: #fff; text-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 26px var(--magenta); margin-top: -10px; position: relative; z-index: 1; }
 .hud-break-num.tick { animation: break-tick 0.5s cubic-bezier(0.2, 1.4, 0.4, 1); }
 .hud-break-label { position: absolute; bottom: 34px; font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
-.hud-break.final .fill { stroke: var(--gold); filter: drop-shadow(0 0 12px var(--gold)); }
+.hud-break.final .fill { color: var(--gold); stroke: var(--gold); filter: drop-shadow(0 0 12px var(--gold)); }
 .hud-break.final .hud-break-num { color: #fff7c2; text-shadow: 0 0 30px var(--gold); }
 @keyframes break-tick { 0% { transform: scale(1.45); opacity: 0.4; } 100% { transform: scale(1); opacity: 1; } }
 .lane-key { position: absolute; left: 0; top: 0; min-width: 2em; height: 1.75em; padding: 0 0.45em; display: grid; place-items: center; background: rgba(0, 0, 0, 0.6); font-size: clamp(13px, 0.85vw, 22px); font-weight: 900; border-bottom: 3px solid; }
@@ -586,7 +591,7 @@ h1, h2, h3, p { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   .scene, .song-card, .pause-card, .results-stars svg, .results-stats > div, .results-tags, .toast, .overlay { animation: none; }
   .slide > .sel, .btn, .riser, .tab, .song-card { transition: none; }
-  .hud-break-num.tick, .hud-break.on.bounce, .hud-break.on.beat, .keycap.listening::before { animation: none; }
+  .hud-break-num.tick, .hud-break.on.bounce, .hud-break.on.beat, .hud-break.on.bounce .hud-break-ring .fill, .hud-break.on.bounce .hud-break-num, .keycap.listening::before { animation: none; }
   .hud-break { transition: none; }
 }
 
