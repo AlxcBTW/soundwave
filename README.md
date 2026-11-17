@@ -131,6 +131,17 @@ The script reduces the crowd characters to a few hundred triangles, bakes their 
 
 Both scripts write the same format: plain meshes whose vertices carry up to four joints and weights, and a small texture of joint matrices per animation frame, which the game uses to animate thousands of instances in a vertex shader.
 
+## The app icon
+
+The icon is a render of the note highway, built from the same measurements the game draws it with. One script makes the picture, and Tauri's tool cuts every size from it:
+
+```
+blender -b --factory-startup -P tools/icon/build_icon.py -- --out src-tauri/icons/icon.png
+npx tauri icon src-tauri/icons/icon.png
+```
+
+The second command also writes `android` and `ios` folders into `src-tauri/icons`; the desktop app does not use them.
+
 ## Music and sound
 
 The menu theme and every interface sound are the project's own. `tools/audio` holds a small offline orchestra (a sampler, a concert hall and a mastering chain in `orchestra.py`), the score of the theme (`theme.py`), a few synthesized instruments that sit under the orchestra (`synth.py`), the recipes for the interface sounds (`sfx.py`) and a synthesized festival crowd (`crowd.py`). Two commands regenerate everything in `public/audio`:
