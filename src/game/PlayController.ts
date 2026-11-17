@@ -53,6 +53,8 @@ export class PlayController {
   private beatPulse = 0;
   private hudCache = { score: -1, mult: -1, streak: -1, od: -1, stars: -1, odActive: false, breakSec: -1 };
   private readonly breaks: Break[];
+  /** A beat fell in the frame being drawn. */
+  private beatNow = false;
   private readonly barTimes: number[];
   private feedbackTimer = 0;
   private disposed = false;
@@ -249,6 +251,7 @@ export class PlayController {
       low = this.background.bands.low;
     }
     this.highway.render(t, this.session, this.beatPulse * 0.5 + low * 0.5);
+    this.beatNow = beat !== 'none';
     this.updateHud(t);
   };
 
@@ -288,8 +291,9 @@ export class PlayController {
   }
 
   /**
-   * The break countdown: bars left until the next note, bouncing on every bar line, with a ring
-   * that drains until the notes come into view (then it makes way for them).
+   * The break countdown: bars left until the next note, with a ring that drains until the notes come
+   * into view. It nods lightly on every beat and bounces on every bar line, and over its last beat
+   * it fades away to make room for the notes.
    */
   private updateBreak(t: number) {
     const b = this.phase === 'playing' || this.phase === 'paused' ? this.breaks.find((x) => t >= x.from && t < x.to) : undefined;
@@ -297,15 +301,32 @@ export class PlayController {
     const c = this.hudCache;
     if (!b) {
       if (c.breakSec !== -1) {
-        el.classList.remove('on', 'final');
+        el.classList.remove('on', 'final', 'leaving', 'beat', 'bounce');
         c.breakSec = -1;
       }
       return;
     }
     this.hud.breakRing.style.strokeDashoffset = String(1 - Math.max(0, Math.min(1, (b.to - t) / (b.to - b.from))));
+    // The last beat of the countdown is spent going: one beat long, within reason.
+    const fade = Math.max(0.35, Math.min(0.9, this.chart.secondsPerBeat));
+    const leaving = t >= b.to - fade;
+    if (leaving && !el.classList.contains('leaving')) el.style.setProperty('--break-fade', `${fade.toFixed(2)}s`);
+    el.classList.toggle('leaving', leaving);
+    const restart = (node: HTMLElement, cls: string) => {
+      node.classList.remove(cls);
+      void node.offsetWidth;
+      node.classList.add(cls);
+    };
     // Without a bar grid, fall back to seconds.
     const bars = this.barTimes.length > 1 ? barsLeft(t, b.next, this.barTimes) : Math.max(1, Math.ceil(b.next - t));
-    if (bars === c.breakSec) return;
+    if (bars === c.breakSec) {
+      // A beat inside the bar: a light nod.
+      if (this.beatNow && !leaving) {
+        el.classList.remove('bounce');
+        restart(el, 'beat');
+      }
+      return;
+    }
     const first = c.breakSec === -1;
     c.breakSec = bars;
     this.hud.breakNumber.textContent = String(bars);
@@ -313,12 +334,10 @@ export class PlayController {
     el.classList.add('on');
     el.classList.toggle('final', bars <= 1);
     // A new bar: the number pops and the whole timer bounces.
-    if (!first) {
-      for (const [node, cls] of [[this.hud.breakNumber, 'tick'], [el, 'bounce']] as const) {
-        node.classList.remove(cls);
-        void node.offsetWidth;
-        node.classList.add(cls);
-      }
+    if (!first && !leaving) {
+      el.classList.remove('beat');
+      restart(this.hud.breakNumber, 'tick');
+      restart(el, 'bounce');
     }
   }
 

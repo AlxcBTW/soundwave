@@ -504,6 +504,11 @@ h1, h2, h3, p { margin: 0; }
 .hud-break { position: absolute; left: 50%; top: 34%; width: 190px; height: 190px; transform: translate(-50%, -50%) scale(0.85); opacity: 0; transition: opacity 0.35s, transform 0.35s; display: grid; place-items: center; }
 .hud-break.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 .hud-break.on.bounce { animation: break-bounce 0.55s cubic-bezier(0.25, 1.6, 0.45, 1); }
+/* A light nod on every beat between the bar lines. */
+.hud-break.on.beat { animation: break-beat 0.3s ease-out; }
+@keyframes break-beat { 0% { transform: translate(-50%, -50%) scale(1); } 35% { transform: translate(-50%, -52.5%) scale(1.035); } 100% { transform: translate(-50%, -50%) scale(1); } }
+/* Its last beat: it drifts up and fades instead of cutting out. */
+.hud-break.on.leaving { opacity: 0; transform: translate(-50%, -56%) scale(0.92); animation: none; transition: opacity var(--break-fade, 0.5s) ease-in, transform var(--break-fade, 0.5s) ease-in; }
 @keyframes break-bounce { 0% { transform: translate(-50%, -50%) scale(1); } 30% { transform: translate(-50%, -58%) scale(1.1); } 100% { transform: translate(-50%, -50%) scale(1); } }
 .hud-break-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
 .hud-break-ring circle { fill: rgba(8, 5, 24, 0.74); stroke-width: 8; }
@@ -581,7 +586,7 @@ h1, h2, h3, p { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   .scene, .song-card, .pause-card, .results-stars svg, .results-stats > div, .results-tags, .toast, .overlay { animation: none; }
   .slide > .sel, .btn, .riser, .tab, .song-card { transition: none; }
-  .hud-break-num.tick, .hud-break.on.bounce, .keycap.listening::before { animation: none; }
+  .hud-break-num.tick, .hud-break.on.bounce, .hud-break.on.beat, .keycap.listening::before { animation: none; }
   .hud-break { transition: none; }
 }
 
