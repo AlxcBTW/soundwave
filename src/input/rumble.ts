@@ -66,6 +66,7 @@ export async function dualSenseHaptics(): Promise<boolean> {
 const nativePlay = (e: Effect, k: number, hold?: number) =>
   void invoke('haptics_play', { effect: { pan: e.pan, amp: Math.min(1, e.amp * k), ms: e.ms, kind: e.kind, hold: hold ?? null } }).catch(() => {});
 const nativeRelease = (id: number) => void invoke('haptics_release', { id }).catch(() => {});
+const nativeUpdate = (id: number, amp: number) => void invoke('haptics_update', { id, amp }).catch(() => {});
 
 let holdIds = 1;
 
@@ -77,6 +78,8 @@ export class Rumbler {
   private holdTimer = 0;
   private disposed = false;
   private readonly checked: Promise<boolean>;
+  /** Overdrive rumble: when it started, the last gamepad renewal, the native bed voice. */
+  private od = { active: false, start: 0, last: 0, hold: 0, amp: -1, sent: 0 };
 
   constructor(
     private readonly s: Settings,
@@ -146,8 +149,53 @@ export class Rumbler {
     if (this.native) nativeRelease(id);
   }
 
+  /** Overdrive kicks in: a rising sweep, then the progressive rumble (see overdriveTick). */
   overdrive() {
-    if (this.s.rumbleOverdrive) this.fire({ pan: 0, amp: 1, ms: 450, kind: 'sweep' });
+    if (!this.s.rumbleOverdrive) return;
+    this.fire({ pan: 0, amp: 1, ms: 450, kind: 'sweep' });
+    this.od = { active: true, start: performance.now(), last: 0, hold: 0, amp: -1, sent: 0 };
+  }
+
+  /**
+   * Called every frame while overdrive runs. `remaining` is the share of the meter left
+   * (1 at activation, 0 when it runs out): the rumble starts at full strength and eases off as
+   * the meter drains, with a pulse on every beat (stronger on downbeats) riding on top.
+   */
+  overdriveTick(remaining: number, beat: 'none' | 'beat' | 'downbeat') {
+    const k = this.k;
+    if (!this.od.active || !this.s.rumbleOverdrive || k <= 0) return;
+    const now = performance.now();
+    // Let the activation sweep finish first.
+    if (now - this.od.start < 420) return;
+    const level = 0.3 + 0.7 * Math.max(0, Math.min(1, remaining));
+    if (beat !== 'none') {
+      const pulse = { pan: 0, amp: level * (beat === 'downbeat' ? 1 : 0.8), ms: 90, kind: 'thud' as const };
+      for (const i of this.targets()) rumblePad(i, pulse, k);
+      if (this.native) nativePlay(pulse, k);
+      this.od.last = now;
+    } else if (now - this.od.last > 100) {
+      // Gamepad rumble can't be held, so the bed is renewed in short overlapping pieces.
+      for (const i of this.targets()) rumblePad(i, { pan: 0, amp: level * 0.5, ms: 140, kind: 'buzz' }, k);
+      this.od.last = now;
+    }
+    if (this.native) {
+      const bed = level * 0.6;
+      if (!this.od.hold) {
+        this.od.hold = holdIds++;
+        nativePlay({ pan: 0, amp: bed, ms: 0, kind: 'buzz' }, k, this.od.hold);
+        this.od.amp = bed;
+      } else if (Math.abs(bed - this.od.amp) > 0.02 && now - this.od.sent > 50) {
+        nativeUpdate(this.od.hold, Math.min(1, bed * k));
+        this.od.amp = bed;
+        this.od.sent = now;
+      }
+    }
+  }
+
+  /** Overdrive ran out (or the game paused): the progressive rumble stops. */
+  overdriveEnd(keepActive = false) {
+    if (this.od.hold) nativeRelease(this.od.hold);
+    this.od = { ...this.od, active: keepActive && this.od.active, hold: 0, amp: -1 };
   }
 
   phraseComplete() {
@@ -167,6 +215,7 @@ export class Rumbler {
   dispose() {
     this.disposed = true;
     for (const lane of [...this.held.keys()]) this.sustainEnd(lane);
+    this.overdriveEnd();
     clearTimeout(this.holdTimer);
     for (const p of pads.snapshot().pads) void actuator(p.index)?.reset?.().catch(() => {});
   }

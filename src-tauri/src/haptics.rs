@@ -214,6 +214,16 @@ pub fn haptics_play(state: tauri::State<'_, Haptics>, effect: Effect) {
     }
 }
 
+/// Changes the strength of a held effect (the progressive overdrive rumble follows the meter).
+#[tauri::command]
+pub fn haptics_update(state: tauri::State<'_, Haptics>, id: u32, amp: f32) {
+    if let Ok(mut v) = state.voices.lock() {
+        for x in v.iter_mut().filter(|x| x.hold == Some(id) && x.released_at.is_none()) {
+            x.amp = amp.clamp(0.0, 1.0);
+        }
+    }
+}
+
 #[tauri::command]
 pub fn haptics_release(state: tauri::State<'_, Haptics>, id: u32) {
     if let Ok(mut v) = state.voices.lock() {

@@ -4,7 +4,7 @@ mod haptics;
 pub fn run() {
   tauri::Builder::default()
     .manage(haptics::Haptics::default())
-    .invoke_handler(tauri::generate_handler![haptics::haptics_available, haptics::haptics_play, haptics::haptics_release])
+    .invoke_handler(tauri::generate_handler![haptics::haptics_available, haptics::haptics_play, haptics::haptics_update, haptics::haptics_release])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(

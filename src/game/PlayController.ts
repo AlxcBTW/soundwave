@@ -44,6 +44,8 @@ export class PlayController {
   private disposed = false;
   private lastCount = -1;
   private readonly downbeats: Set<number>;
+  /** Overdrive meter when overdrive was activated, for the progressive rumble. */
+  private odMeterAtStart = 1;
 
   onPhase: (p: PlayPhase, countdown?: number) => void = () => {};
   onFinish: (r: Results) => void = () => {};
@@ -83,8 +85,9 @@ export class PlayController {
       } else if (e.type === 'sustain-end') this.rumble.sustainEnd(e.lane);
       else if (e.type === 'overdrive-start') {
         this.background.kick(1.2);
+        this.odMeterAtStart = Math.max(this.session.overdrive, 0.01);
         this.rumble.overdrive();
-      } else if (e.type === 'phrase-complete') {
+      } else if (e.type === 'overdrive-end') this.rumble.overdriveEnd(); else if (e.type === 'phrase-complete') {
         this.flashFeedback('OVERDRIVE READY', 'od');
         this.rumble.phraseComplete();
       }
@@ -136,6 +139,7 @@ export class PlayController {
     if (this.phase !== 'playing' && this.phase !== 'countdown') return;
     this.engine.pause();
     for (let l = 0; l < this.chart.lanes; l++) this.rumble.sustainEnd(l);
+    this.rumble.overdriveEnd(true);
     this.setPhase('paused');
   }
 
@@ -184,11 +188,14 @@ export class PlayController {
 
     // Beat accents for the track glow and background.
     const beats = this.chart.beats;
+    let beat: 'none' | 'beat' | 'downbeat' = 'none';
     while (this.lastBeat + 1 < beats.length && beats[this.lastBeat + 1] <= t) {
       this.lastBeat++;
       this.beatPulse = 1;
-      if (this.downbeats.has(this.lastBeat)) this.background.kick(0.6);
+      beat = this.downbeats.has(this.lastBeat) ? 'downbeat' : 'beat';
+      if (beat === 'downbeat') this.background.kick(0.6);
     }
+    if (this.phase === 'playing' && this.session.overdriveActive) this.rumble.overdriveTick(this.session.overdrive / this.odMeterAtStart, beat);
     this.beatPulse = Math.max(0, this.beatPulse - 0.08);
 
     this.background.render();
