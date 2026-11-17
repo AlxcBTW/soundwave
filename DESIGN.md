@@ -427,7 +427,7 @@ A violet night with four lights that have fixed jobs, and five lane colours that
 - **Pink Light** (pink-2): the hover state of a pink button, the set position in the HUD title ("2/4"), the toast icon and the dashed outline of the file-drop target.
 
 ### Secondary
-- **Aurora Mint** (mint): focus. It is the 3px ring that travels between controls for keyboard and controller players, with a soft mint glow beneath it, and the text caret in the search and text fields. As atmosphere it appears once, faintly (20% alpha), as the aurora band in the sky behind the panels. The HUD has no focus, so it borrows mint for one job: the break-countdown ring, which turns gold on the final bar.
+- **Aurora Mint** (mint): focus. It is the 3px ring that travels between controls for keyboard and controller players, with a soft mint glow beneath it, and the text caret in the search and text fields. As atmosphere it appears once, faintly (20% alpha), as the aurora band in the sky behind the panels. Mint appears nowhere else: the HUD's break-countdown ring is pale lavender (lit) and turns gold on the final bar.
 
 ### Tertiary
 - **Lavender Light** (lit) with **Lavender Ink** (lit-ink): the selection. The sheet that slides behind the chosen part, difficulty or settings tab; the chosen option in the settings detail pane; the numbered badge on a song that is in the setlist. The same pair makes the keycap hints, so a key reads as a printed cap.

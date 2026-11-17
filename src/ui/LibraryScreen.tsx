@@ -138,7 +138,7 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
       <div className="toolbar" data-nav-group="toolbar">
         <label className="search">
           <Search strokeWidth={ICON_STROKE} aria-hidden />
-          <input ref={search} type="search" placeholder="Search title, artist or album" aria-label="Search your library" value={query} onChange={(e) => setQuery(e.target.value)} spellCheck={false} enterKeyHint="search" />
+          <input ref={search} type="search" placeholder="Search songs" aria-label="Search your library by title, artist or album" value={query} onChange={(e) => setQuery(e.target.value)} spellCheck={false} enterKeyHint="search" />
           {query ? (
             <button type="button" className="icon-btn small" aria-label="Clear search" data-nav-skip onClick={() => (setQuery(''), search.current?.focus())}>
               <X strokeWidth={ICON_STROKE} aria-hidden />
@@ -152,7 +152,7 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
           <ArrowUpDown strokeWidth={ICON_STROKE} aria-hidden />
           <span className="btn-label">{sortLabel}</span>
         </button>
-        <button type="button" className="btn" data-action="add" onClick={onAdd}>
+        <button type="button" className="btn" data-action="add" aria-label={importing ? `Importing ${importing} songs` : 'Add songs'} onClick={onAdd}>
           <Hint kbd="KeyA" pad="b8" {...hints} />
           <Upload strokeWidth={ICON_STROKE} aria-hidden />
           <span className="btn-label">{importing ? `Importing ${importing}…` : 'Add songs'}</span>

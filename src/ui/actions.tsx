@@ -132,7 +132,7 @@ export function ActionBar({ settings }: { settings: Settings }) {
   const primary = actions.filter((a) => a.primary);
   // The bar only re-renders when an action's look changes, so a press always looks the action up afresh.
   const button = (a: Action) => (
-    <button key={a.id} type="button" className={`act ${a.primary ? 'primary' : ''}`} data-action={a.id} data-sfx={a.sfx} disabled={a.disabled} onClick={() => top().find((x) => x.id === a.id)?.run()}>
+    <button key={a.id} type="button" className={`act ${a.primary ? 'primary' : ''}`} data-action={a.id} data-sfx={a.sfx} aria-label={a.label} disabled={a.disabled} onClick={() => top().find((x) => x.id === a.id)?.run()}>
       <Hint kbd={a.kbd} pad={a.kbd === 'Escape' ? backInput(style) : a.kbd === 'Enter' ? confirmInput(style) : a.pad} mode={mode} style={style} />
       <a.icon className="act-icon" strokeWidth={ICON_STROKE} aria-hidden />
       <span className="act-label">{a.label}</span>
