@@ -1,0 +1,748 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-17T10:06:39.733Z",
+  "title": "Design System: Festival (working title)",
+  "extensions": {
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "House Lights",
+        "cssVar": "--ground",
+        "canonical": "#0a0720",
+        "oklch": "oklch(15.2% 0.051 284.4)",
+        "tonalRamp": [
+          "#0a0916",
+          "#242437",
+          "#42425c",
+          "#626283",
+          "#8585a8",
+          "#aaaacc",
+          "#cacbe8",
+          "#ecedff"
+        ]
+      },
+      "haze": {
+        "role": "neutral",
+        "displayName": "Violet Haze",
+        "cssVar": "--haze",
+        "canonical": "#2b1a6b",
+        "oklch": "oklch(29.9% 0.132 284.8)",
+        "tonalRamp": [
+          "#0a0426",
+          "#231c50",
+          "#40397e",
+          "#6058ae",
+          "#817cd5",
+          "#a6a2f9",
+          "#c8c8fe",
+          "#ecedfd"
+        ]
+      },
+      "slab": {
+        "role": "neutral",
+        "displayName": "Slab",
+        "cssVar": "--slab",
+        "canonical": "#1b1446",
+        "oklch": "oklch(23.6% 0.090 283.5)",
+        "tonalRamp": [
+          "#09071e",
+          "#232143",
+          "#403f6d",
+          "#605f98",
+          "#8282be",
+          "#a6a7e2",
+          "#c7c8fc",
+          "#ecedff"
+        ]
+      },
+      "slab-raised": {
+        "role": "neutral",
+        "displayName": "Raised Slab",
+        "cssVar": "--slab-2",
+        "canonical": "#251b5c",
+        "oklch": "oklch(28.0% 0.111 283.6)",
+        "tonalRamp": [
+          "#090622",
+          "#231f4a",
+          "#3f3c75",
+          "#5f5ca3",
+          "#817fca",
+          "#a5a5ee",
+          "#c7c8fd",
+          "#ecedfe"
+        ]
+      },
+      "slab-line": {
+        "role": "neutral",
+        "displayName": "Slab Edge (used at 24% alpha)",
+        "cssVar": "--slab-line",
+        "canonical": "rgba(176, 156, 255, 0.24)",
+        "oklch": "oklch(74.9% 0.141 291.9)",
+        "tonalRamp": [
+          "#0e0226",
+          "#291951",
+          "#48357f",
+          "#6953af",
+          "#8c77d6",
+          "#b09efa",
+          "#cec5fd",
+          "#eeecfd"
+        ]
+      },
+      "slab-lit": {
+        "role": "neutral",
+        "displayName": "Lit Slab",
+        "cssVar": "--slab-lit",
+        "canonical": "#3a2d86",
+        "oklch": "oklch(36.9% 0.142 283.6)",
+        "tonalRamp": [
+          "#0a0328",
+          "#231b53",
+          "#3f3883",
+          "#5e57b3",
+          "#7f7bdb",
+          "#a4a2fc",
+          "#c7c8fd",
+          "#ecedff"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "cssVar": "--ink",
+        "canonical": "#f5f2ff",
+        "oklch": "oklch(96.7% 0.018 296.6)",
+        "tonalRamp": [
+          "#0b0a0f",
+          "#27252c",
+          "#46434c",
+          "#67646f",
+          "#8a8793",
+          "#afacb7",
+          "#ceccd6",
+          "#efedf6"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Ink 2",
+        "cssVar": "--ink-2",
+        "canonical": "#c4bbef",
+        "oklch": "oklch(81.7% 0.073 292.6)",
+        "tonalRamp": [
+          "#0c081a",
+          "#27213d",
+          "#463e64",
+          "#675e8c",
+          "#8a81b2",
+          "#afa6d6",
+          "#cec7f1",
+          "#eeecfd"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Ink 3",
+        "cssVar": "--ink-3",
+        "canonical": "#958cc8",
+        "oklch": "oklch(67.1% 0.088 290.7)",
+        "tonalRamp": [
+          "#0c071d",
+          "#272042",
+          "#453d6a",
+          "#665d95",
+          "#8980bb",
+          "#ada5df",
+          "#cdc6f9",
+          "#eeecfd"
+        ]
+      },
+      "magenta": {
+        "role": "primary",
+        "displayName": "Stage Magenta",
+        "cssVar": "--magenta",
+        "canonical": "#ff2e8b",
+        "oklch": "oklch(66.3% 0.245 0.7)",
+        "tonalRamp": [
+          "#1f000a",
+          "#4c0024",
+          "#800441",
+          "#b90360",
+          "#f31a81",
+          "#fe7ea8",
+          "#feb7cb",
+          "#fce9ee"
+        ]
+      },
+      "magenta-2": {
+        "role": "primary",
+        "displayName": "Pink Light",
+        "cssVar": "--magenta-2",
+        "canonical": "#ff6aac",
+        "oklch": "oklch(72.7% 0.192 355.3)",
+        "tonalRamp": [
+          "#1e000c",
+          "#4c0029",
+          "#7f0149",
+          "#b21c6b",
+          "#dc4a8e",
+          "#ff7bb3",
+          "#fdb6d0",
+          "#fee7ef"
+        ]
+      },
+      "cyan": {
+        "role": "secondary",
+        "displayName": "Spotlight Cyan",
+        "cssVar": "--cyan",
+        "canonical": "#33e7ff",
+        "oklch": "oklch(85.3% 0.139 208.9)",
+        "tonalRamp": [
+          "#000e11",
+          "#022c32",
+          "#0a4e57",
+          "#127380",
+          "#009bac",
+          "#1dc3d8",
+          "#69e2f5",
+          "#d0f7fd"
+        ]
+      },
+      "gold": {
+        "role": "tertiary",
+        "displayName": "Encore Gold",
+        "cssVar": "--gold",
+        "canonical": "#ffd23d",
+        "oklch": "oklch(87.9% 0.163 91.1)",
+        "tonalRamp": [
+          "#110a00",
+          "#312500",
+          "#554301",
+          "#7c6304",
+          "#a68505",
+          "#d2a902",
+          "#edca61",
+          "#feeebf"
+        ]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Warning Red",
+        "cssVar": "--danger",
+        "canonical": "#ff4d66",
+        "oklch": "oklch(67.7% 0.213 17.2)",
+        "tonalRamp": [
+          "#200003",
+          "#4e0112",
+          "#830625",
+          "#be0339",
+          "#ee3b58",
+          "#fe838b",
+          "#feb9bb",
+          "#fce9e9"
+        ]
+      },
+      "lane-0": {
+        "role": "data",
+        "displayName": "Lane 0 Green",
+        "cssVar": "--lane-0",
+        "canonical": "#3ddc5a",
+        "oklch": "oklch(78.7% 0.216 145.9)",
+        "tonalRamp": [
+          "#001000",
+          "#003008",
+          "#005516",
+          "#007c25",
+          "#06a535",
+          "#3cce56",
+          "#7aeb86",
+          "#c9ffcc"
+        ]
+      },
+      "lane-1": {
+        "role": "data",
+        "displayName": "Lane 1 Red",
+        "cssVar": "--lane-1",
+        "canonical": "#ff3b4e",
+        "oklch": "oklch(65.8% 0.229 21.6)",
+        "tonalRamp": [
+          "#200002",
+          "#4f010c",
+          "#85011b",
+          "#bf032c",
+          "#f52e46",
+          "#ff8483",
+          "#fdbab7",
+          "#fde9e8"
+        ]
+      },
+      "lane-2": {
+        "role": "data",
+        "displayName": "Lane 2 Yellow",
+        "cssVar": "--lane-2",
+        "canonical": "#ffd23d",
+        "oklch": "oklch(87.9% 0.163 91.1)",
+        "tonalRamp": [
+          "#110a00",
+          "#312500",
+          "#554301",
+          "#7c6304",
+          "#a68505",
+          "#d2a902",
+          "#edca61",
+          "#feeebf"
+        ]
+      },
+      "lane-3": {
+        "role": "data",
+        "displayName": "Lane 3 Blue",
+        "cssVar": "--lane-3",
+        "canonical": "#3a8bff",
+        "oklch": "oklch(64.8% 0.190 258.0)",
+        "tonalRamp": [
+          "#000827",
+          "#002356",
+          "#02408f",
+          "#005fcf",
+          "#3485f9",
+          "#7aaffe",
+          "#b1d0fd",
+          "#e6effc"
+        ]
+      },
+      "lane-4": {
+        "role": "data",
+        "displayName": "Lane 4 Orange",
+        "cssVar": "--lane-4",
+        "canonical": "#ff8a1f",
+        "oklch": "oklch(74.8% 0.176 55.4)",
+        "tonalRamp": [
+          "#180600",
+          "#3e1c00",
+          "#6a3401",
+          "#9b4f00",
+          "#cc6c10",
+          "#fb8e32",
+          "#ffbe91",
+          "#fdeade"
+        ]
+      },
+      "overdrive": {
+        "role": "data",
+        "displayName": "Overdrive Ice",
+        "cssVar": "--od",
+        "canonical": "#bfe6ff",
+        "oklch": "oklch(90.5% 0.053 236.3)",
+        "tonalRamp": [
+          "#010d15",
+          "#132936",
+          "#2c495a",
+          "#486b81",
+          "#6a8fa6",
+          "#90b3ca",
+          "#b4d3e6",
+          "#dff2fe"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The wordmark only; 62% width, black, italic, uppercase, magenta glow.",
+        "fontStyle": "italic",
+        "fontStretch": "62%",
+        "textTransform": "uppercase"
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Song title on the song page; balanced wrap.",
+        "fontStyle": "italic",
+        "fontStretch": "68%",
+        "textTransform": "uppercase"
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Page titles, results title, Paused and Calibrate (up to clamp(3rem, 6vw, 4.6rem)).",
+        "fontStyle": "italic",
+        "fontStretch": "68%",
+        "textTransform": "uppercase"
+      },
+      "score": {
+        "displayName": "Score",
+        "purpose": "Results score counting up; tabular figures. HUD score is clamp(50px, 3.2vw, 88px).",
+        "fontStyle": "italic",
+        "fontStretch": "68%"
+      },
+      "button": {
+        "displayName": "Button / Control",
+        "purpose": "Buttons, risers, tabs, keycaps. Small 1rem, big 1.35rem.",
+        "fontStyle": "italic",
+        "fontStretch": "68%",
+        "textTransform": "uppercase"
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Section labels, setlist heading, stat captions, pills and tags.",
+        "fontStyle": "italic",
+        "fontStretch": "68%",
+        "textTransform": "uppercase"
+      },
+      "subhead": {
+        "displayName": "Subhead",
+        "purpose": "Artist line on the song page; normal width, upright.",
+        "fontStyle": "normal",
+        "fontStretch": "100%"
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Hints and errors; max 62ch; normal width, upright, sentence case.",
+        "fontStyle": "normal",
+        "fontStretch": "100%"
+      },
+      "body-strong": {
+        "displayName": "Body Strong",
+        "purpose": "Setting names, checkbox labels, controller names.",
+        "fontStyle": "normal",
+        "fontStretch": "100%"
+      }
+    },
+    "rootFontSize": {
+      "value": "clamp(16px, 0.62vw + 7px, 26px)",
+      "purpose": "Every menu size is rem off this root so the interface grows for TV distance."
+    },
+    "geometry": [
+      {
+        "name": "lean",
+        "value": "skewX(-9deg)",
+        "cssVar": "--lean",
+        "purpose": "Shared forward lean for every slab, thumb, checkbox, pip, meter, sheen, selection and wipe band."
+      }
+    ],
+    "shadows": [
+      {
+        "name": "spotlight-glow",
+        "value": "0 10px 24px -8px rgba(51, 231, 255, 0.55), inset 0 0 0 1px #33e7ff",
+        "purpose": "Under any focused slab."
+      },
+      {
+        "name": "spotlight-glow-primary",
+        "value": "0 10px 26px -8px rgba(255, 46, 139, 0.7), inset 0 0 0 2px #33e7ff",
+        "purpose": "Focused magenta button."
+      },
+      {
+        "name": "spotlight-cone",
+        "value": "radial-gradient(50% 60% at 50% 0%, rgba(51, 231, 255, 0.44), transparent 75%)",
+        "purpose": "Light falling on the focused control from above (background, not box-shadow)."
+      },
+      {
+        "name": "selection-drop",
+        "value": "inset 0 -4px 0 #f5f2ff, 0 14px 30px -16px rgba(0, 0, 0, 0.8)",
+        "purpose": "Lit selection slab: white underline plus soft drop."
+      },
+      {
+        "name": "primary-lip",
+        "value": "inset 0 -3px 0 rgba(0, 0, 0, 0.22)",
+        "purpose": "Darker base under a magenta button."
+      },
+      {
+        "name": "sleeve",
+        "value": "0 16px 30px -18px rgba(0, 0, 0, 0.9)",
+        "purpose": "Cover art in the setlist (song page: 0 30px 50px -24px)."
+      },
+      {
+        "name": "cover-focus",
+        "value": "0 22px 36px -14px rgba(51, 231, 255, 0.45)",
+        "purpose": "Focused cover."
+      },
+      {
+        "name": "toast",
+        "value": "0 16px 30px -14px rgba(0, 0, 0, 0.8)",
+        "purpose": "Toasts."
+      },
+      {
+        "name": "overlay-dim",
+        "value": "background rgba(6, 4, 20, 0.72); backdrop-filter: blur(6px)",
+        "purpose": "Pause and calibration overlays."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Default easing for entrances, lifts, travel and wipes in."
+      },
+      {
+        "name": "ease-wipe-out",
+        "value": "cubic-bezier(0.7, 0, 0.84, 0)",
+        "purpose": "Launch wipe leaving the screen."
+      },
+      {
+        "name": "ease-bounce",
+        "value": "cubic-bezier(0.25, 1.6, 0.45, 1)",
+        "purpose": "HUD break ring bounce on each bar (0.55s)."
+      },
+      {
+        "name": "ease-tick",
+        "value": "cubic-bezier(0.2, 1.4, 0.4, 1)",
+        "purpose": "HUD break number tick (0.5s)."
+      },
+      {
+        "name": "focus-lift",
+        "value": "translateY(-3px) over 0.25s; spotlight fades in over 0.3s",
+        "purpose": "Focus on any slab (covers lift 6px)."
+      },
+      {
+        "name": "selection-travel",
+        "value": "0.42s ease-out on transform, width, height",
+        "purpose": "Travelling lit selection slab."
+      },
+      {
+        "name": "scene-forward",
+        "value": "from translateX(4rem), opacity 0, blur(4px); 0.5s",
+        "purpose": "Going deeper (setlist to song to results)."
+      },
+      {
+        "name": "scene-back",
+        "value": "from translateX(-4rem), opacity 0, blur(4px); 0.5s",
+        "purpose": "Going back."
+      },
+      {
+        "name": "scene-in",
+        "value": "from translateY(1.2rem), opacity 0, blur(6px); 0.5s",
+        "purpose": "First entrance; pause card."
+      },
+      {
+        "name": "card-stagger",
+        "value": "0.6s, delay i * 40ms + 80ms, from translateY(1.4rem) scale(0.96)",
+        "purpose": "Setlist cards entering."
+      },
+      {
+        "name": "riser-stagger",
+        "value": "0.5s rise-in, 40ms apart from 0.16s; actions at 0.48s",
+        "purpose": "Song page risers stepping up."
+      },
+      {
+        "name": "cover-sheen",
+        "value": "translateX(-160%) to 330% over 0.75s",
+        "purpose": "Light band across a pointed or focused cover."
+      },
+      {
+        "name": "launch-wipe",
+        "value": "three skewed bands (magenta, lit slab, ground) in 0.55s staggered 60ms; hold >= 620ms; out 0.5s",
+        "purpose": "Starting a song."
+      },
+      {
+        "name": "results-reveal",
+        "value": "stars 0.55s from 250ms, 140ms apart; score count-up 1.3s; tags at 1.2s; stats from 0.85s, 45ms apart",
+        "purpose": "Results screen."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "prefers-reduced-motion: reduce",
+        "purpose": "Drop entrances, staggers, sheen, bounce and travel; keep state changes; launch wipe becomes a fade; score shows final value."
+      }
+    ],
+    "feedback": {
+      "sounds": "Synthesized via Web Audio, own volume, not routed through music volume. move, select, back, tab, toggle-on, toggle-off, launch, star, count, best, pause, resume, error, add. Per-control choice via data-sfx (back, tab, launch, none). During play only the pause menu sounds.",
+      "rumble": [
+        {
+          "name": "move",
+          "value": "amp 0.22, 22ms, centred click"
+        },
+        {
+          "name": "select",
+          "value": "amp 0.55, 45ms, centred click"
+        },
+        {
+          "name": "back",
+          "value": "amp 0.4, 40ms, click panned left (-0.3)"
+        },
+        {
+          "name": "tab-left / tab-right",
+          "value": "amp 0.45, 40ms, click fully on the side moved toward"
+        },
+        {
+          "name": "launch",
+          "value": "amp 1, 480ms sweep"
+        },
+        {
+          "name": "star",
+          "value": "amp 0.5, 50ms click"
+        },
+        {
+          "name": "error",
+          "value": "amp 0.6, 120ms thud"
+        }
+      ],
+      "rumbleScope": "Only on the controller last used, scaled by the rumble setting; native haptics on controllers that support them."
+    },
+    "breakpoints": [
+      {
+        "name": "narrow",
+        "value": "900px",
+        "purpose": "Song page to one column with a 9rem cover; result stats to two columns."
+      },
+      {
+        "name": "compact",
+        "value": "600px",
+        "purpose": "Settings to one column; part risers two by two; smaller HUD score and multiplier."
+      }
+    ],
+    "layout": {
+      "maxWidth": "1440px",
+      "settingsMaxWidth": "980px",
+      "gutter": "clamp(1rem, 3vw, 3rem)",
+      "bottomPad": "clamp(6rem, 13vh, 11rem)",
+      "hudUnits": "px with vw clamps (sits over highway geometry)"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button (Play)",
+      "kind": "button",
+      "refersTo": "button-primary-big",
+      "description": "The one magenta forward action on a screen, usually the one that starts music. Big size on the song page.",
+      "html": "<button class=\"ds-btn ds-btn-primary ds-btn-big\"><svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><polygon points=\"6 3 20 12 6 21 6 3\"/></svg>Play Lead · Expert</button>",
+      "css": ".ds-btn { position: relative; isolation: isolate; border: 0; background: none; color: var(--ink); cursor: pointer; font-family: var(--font); font-style: italic; font-stretch: 68%; text-transform: uppercase; transition: transform 0.25s var(--ease-out), color 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 0.5em; min-height: 2.75rem; padding: 0.55rem 1.4rem; font-weight: 850; font-size: 1rem; letter-spacing: 0.02em; white-space: nowrap; } .ds-btn::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--slab); border: 1px solid var(--slab-line); transform: skewX(var(--lean)); transition: background 0.2s, border-color 0.2s, box-shadow 0.3s var(--ease-out); } .ds-btn::after { content: ''; position: absolute; left: -12%; right: -12%; bottom: 30%; height: 160%; z-index: -2; pointer-events: none; background: radial-gradient(50% 60% at 50% 0%, rgba(51, 231, 255, 0.44), transparent 75%); opacity: 0; transform: translateY(-14%) skewX(var(--lean)); transition: opacity 0.3s var(--ease-out), transform 0.4s var(--ease-out); } .ds-btn:hover::before { background: var(--slab-2); } .ds-btn:active { transform: translateY(1px) scale(0.98); } .ds-btn:focus-visible { outline: none; transform: translateY(-3px); } .ds-btn:focus-visible::before { border-color: var(--cyan); box-shadow: 0 10px 24px -8px rgba(51, 231, 255, 0.55), inset 0 0 0 1px var(--cyan); } .ds-btn:focus-visible::after { opacity: 1; transform: translateY(0) skewX(var(--lean)); } .ds-btn-big { min-height: 3.6rem; padding: 0.75rem 2.4rem; font-size: 1.35rem; } .ds-btn-primary::before { background: var(--magenta); border-color: transparent; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.22); } .ds-btn-primary:hover::before { background: var(--magenta-2); } .ds-btn-primary:focus-visible::before { box-shadow: 0 10px 26px -8px rgba(255, 46, 139, 0.7), inset 0 0 0 2px var(--cyan); }"
+    },
+    {
+      "name": "Slab Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Default control: a squared slab skewed forward, raised on hover, spotlit on focus.",
+      "html": "<button class=\"ds-slabbtn\">Settings</button>",
+      "css": ".ds-slabbtn { position: relative; isolation: isolate; border: 0; background: none; color: var(--ink); cursor: pointer; font-family: var(--font); font-style: italic; font-stretch: 68%; text-transform: uppercase; transition: transform 0.25s var(--ease-out), color 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 0.5em; min-height: 2.75rem; padding: 0.55rem 1.4rem; font-weight: 850; font-size: 1rem; letter-spacing: 0.02em; white-space: nowrap; } .ds-slabbtn::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--slab); border: 1px solid var(--slab-line); transform: skewX(var(--lean)); transition: background 0.2s, border-color 0.2s, box-shadow 0.3s var(--ease-out); } .ds-slabbtn::after { content: ''; position: absolute; left: -12%; right: -12%; bottom: 30%; height: 160%; z-index: -2; pointer-events: none; background: radial-gradient(50% 60% at 50% 0%, rgba(51, 231, 255, 0.44), transparent 75%); opacity: 0; transform: translateY(-14%) skewX(var(--lean)); transition: opacity 0.3s var(--ease-out), transform 0.4s var(--ease-out); } .ds-slabbtn:hover::before { background: var(--slab-2); } .ds-slabbtn:active { transform: translateY(1px) scale(0.98); } .ds-slabbtn:focus-visible { outline: none; transform: translateY(-3px); } .ds-slabbtn:focus-visible::before { border-color: var(--cyan); box-shadow: 0 10px 24px -8px rgba(51, 231, 255, 0.55), inset 0 0 0 1px var(--cyan); } .ds-slabbtn:focus-visible::after { opacity: 1; transform: translateY(0) skewX(var(--lean)); }"
+    },
+    {
+      "name": "Ghost Button (Back)",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "No slab at rest; used for Back and quiet secondary actions. Plays the back sound.",
+      "html": "<button class=\"ds-ghost\"><svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m12 19-7-7 7-7\"/><path d=\"M19 12H5\"/></svg>Setlist</button>",
+      "css": ".ds-ghost { position: relative; isolation: isolate; border: 0; background: none; color: var(--ink); cursor: pointer; font-family: var(--font); font-style: italic; font-stretch: 68%; text-transform: uppercase; transition: transform 0.25s var(--ease-out), color 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 0.5em; min-height: 2.75rem; padding: 0.55rem 1.4rem; font-weight: 850; font-size: 1rem; letter-spacing: 0.02em; white-space: nowrap; color: var(--ink-2); } .ds-ghost::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--slab); border: 1px solid var(--slab-line); transform: skewX(var(--lean)); transition: background 0.2s, border-color 0.2s, box-shadow 0.3s var(--ease-out); background: transparent; border-color: transparent; } .ds-ghost::after { content: ''; position: absolute; left: -12%; right: -12%; bottom: 30%; height: 160%; z-index: -2; pointer-events: none; background: radial-gradient(50% 60% at 50% 0%, rgba(51, 231, 255, 0.44), transparent 75%); opacity: 0; transform: translateY(-14%) skewX(var(--lean)); transition: opacity 0.3s var(--ease-out), transform 0.4s var(--ease-out); } .ds-ghost:hover { color: var(--ink); } .ds-ghost:hover::before { background: rgba(255, 255, 255, 0.06); } .ds-ghost:focus-visible { outline: none; transform: translateY(-3px); } .ds-ghost:focus-visible::before { border-color: var(--cyan); box-shadow: 0 10px 24px -8px rgba(51, 231, 255, 0.55), inset 0 0 0 1px var(--cyan); } .ds-ghost:focus-visible::after { opacity: 1; transform: translateY(0) skewX(var(--lean)); }"
+    },
+    {
+      "name": "Difficulty Risers with Travelling Selection",
+      "kind": "custom",
+      "refersTo": "riser-difficulty",
+      "description": "Signature choice control: a radio group of wide slabs; one lit, white-underlined slab slides to the chosen item.",
+      "html": "<div class=\"ds-risers\" role=\"radiogroup\" aria-label=\"Difficulty\"><span class=\"ds-sel\" style=\"top: 4.15rem\"></span><button class=\"ds-riser\" role=\"radio\" aria-checked=\"false\"><span class=\"ds-pips\"><span class=\"l1\"></span><span></span><span></span><span></span></span><span class=\"ds-diff\">Easy</span><span class=\"ds-meta\">4 lanes · 172 notes</span></button><button class=\"ds-riser ds-on\" role=\"radio\" aria-checked=\"true\"><span class=\"ds-pips\"><span class=\"l2\"></span><span class=\"l2\"></span><span></span><span></span></span><span class=\"ds-diff\">Medium</span><span class=\"ds-meta\">4 lanes · 253 notes</span></button><button class=\"ds-riser\" role=\"radio\" aria-checked=\"false\"><span class=\"ds-pips\"><span class=\"l3\"></span><span class=\"l3\"></span><span class=\"l3\"></span><span></span></span><span class=\"ds-diff\">Hard</span><span class=\"ds-meta\">4 lanes · 484 notes</span></button></div>",
+      "css": ".ds-risers { position: relative; display: flex; flex-direction: column; gap: 0.55rem; width: 30rem; } .ds-sel { position: absolute; left: 0; right: 0; height: 3.6rem; z-index: 0; pointer-events: none; transition: top 0.42s var(--ease-out); } .ds-sel::before { content: ''; position: absolute; inset: 0; transform: skewX(var(--lean)); background: var(--slab-lit); border: 1px solid rgba(255, 255, 255, 0.28); box-shadow: inset 0 -4px 0 var(--ink), 0 14px 30px -16px rgba(0, 0, 0, 0.8); } .ds-riser { position: relative; isolation: isolate; border: 0; background: none; color: var(--ink); cursor: pointer; font-family: var(--font); font-style: italic; font-stretch: 68%; text-transform: uppercase; transition: transform 0.25s var(--ease-out), color 0.2s; z-index: 1; display: grid; grid-template-columns: 4.6rem 6rem 1fr; align-items: center; gap: 1rem; min-height: 3.6rem; padding: 0.55rem 1.4rem; text-align: left; font-weight: 850; } .ds-riser::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--slab); border: 1px solid var(--slab-line); transform: skewX(var(--lean)); transition: background 0.2s, border-color 0.2s, box-shadow 0.3s var(--ease-out); } .ds-riser::after { content: ''; position: absolute; left: -12%; right: -12%; bottom: 30%; height: 160%; z-index: -2; pointer-events: none; background: radial-gradient(50% 60% at 50% 0%, rgba(51, 231, 255, 0.44), transparent 75%); opacity: 0; transform: translateY(-14%) skewX(var(--lean)); transition: opacity 0.3s var(--ease-out), transform 0.4s var(--ease-out); } .ds-riser:hover::before { background: var(--slab-2); } .ds-riser.ds-on::before { background: transparent; border-color: transparent; } .ds-riser:focus-visible { outline: none; transform: translateY(-3px); } .ds-riser:focus-visible::before { border-color: var(--cyan); box-shadow: 0 10px 24px -8px rgba(51, 231, 255, 0.55), inset 0 0 0 1px var(--cyan); } .ds-riser:focus-visible::after { opacity: 1; transform: translateY(0) skewX(var(--lean)); } .ds-pips { display: flex; gap: 4px; } .ds-pips span { width: 0.85rem; height: 0.85rem; background: rgba(196, 187, 239, 0.18); transform: skewX(var(--lean)); } .ds-pips .l1 { background: var(--lane-0); } .ds-pips .l2 { background: var(--lane-2); } .ds-pips .l3 { background: var(--lane-4); } .ds-diff { font-size: 1.35rem; font-weight: 900; } .ds-meta { color: var(--ink-2); font-size: 1rem; font-style: normal; font-stretch: 100%; text-transform: none; }"
+    },
+    {
+      "name": "Settings Tabs",
+      "kind": "nav",
+      "refersTo": "tab-selected",
+      "description": "Uppercase condensed slab tabs; the selected tab sits on the travelling lit slab with a white underline.",
+      "html": "<div class=\"ds-tabs\" role=\"tablist\"><button class=\"ds-tab ds-on\" role=\"tab\" aria-selected=\"true\">General</button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\">Keyboard</button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\">Controller</button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\">Analysis</button></div>",
+      "css": ".ds-tabs { display: flex; gap: 0.5rem; } .ds-tab { position: relative; isolation: isolate; border: 0; background: none; color: var(--ink); cursor: pointer; font-family: var(--font); font-style: italic; font-stretch: 68%; text-transform: uppercase; transition: transform 0.25s var(--ease-out), color 0.2s; padding: 0.55rem 1.3rem; font-size: 1rem; font-weight: 850; color: var(--ink-2); } .ds-tab::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--slab); border: 1px solid var(--slab-line); transform: skewX(var(--lean)); transition: background 0.2s, border-color 0.2s, box-shadow 0.3s var(--ease-out); } .ds-tab::after { content: ''; position: absolute; left: -12%; right: -12%; bottom: 30%; height: 160%; z-index: -2; pointer-events: none; background: radial-gradient(50% 60% at 50% 0%, rgba(51, 231, 255, 0.44), transparent 75%); opacity: 0; transform: translateY(-14%) skewX(var(--lean)); transition: opacity 0.3s var(--ease-out), transform 0.4s var(--ease-out); } .ds-tab:hover::before { background: var(--slab-2); } .ds-tab.ds-on { color: var(--ink); } .ds-tab.ds-on::before { background: var(--slab-lit); border-color: rgba(255, 255, 255, 0.28); box-shadow: inset 0 -4px 0 var(--ink), 0 14px 30px -16px rgba(0, 0, 0, 0.8); } .ds-tab:focus-visible { outline: none; transform: translateY(-3px); } .ds-tab:focus-visible::before { border-color: var(--cyan); box-shadow: 0 10px 24px -8px rgba(51, 231, 255, 0.55), inset 0 0 0 1px var(--cyan); } .ds-tab:focus-visible::after { opacity: 1; transform: translateY(0) skewX(var(--lean)); }"
+    },
+    {
+      "name": "Song Card",
+      "kind": "card",
+      "refersTo": "song-cover",
+      "description": "A setlist entry: square cover, condensed title, artist and length; lifts and gets a cyan outline, spotlight and sheen on focus.",
+      "html": "<button class=\"ds-card\"><span class=\"ds-cover\"><span>D</span><span class=\"ds-sheen\"></span></span><span class=\"ds-title\">Demo Track</span><span class=\"ds-artist\">Festival</span><span class=\"ds-len\">0:42</span></button>",
+      "css": ".ds-card { position: relative; isolation: isolate; display: flex; flex-direction: column; gap: 0.25rem; width: 12rem; padding: 0; border: 0; background: none; color: var(--ink); text-align: left; cursor: pointer; font-family: var(--font); transition: transform 0.3s var(--ease-out); } .ds-card::after { content: ''; position: absolute; left: -12%; right: -12%; bottom: 30%; height: 160%; z-index: -2; pointer-events: none; background: radial-gradient(50% 60% at 50% 0%, rgba(51, 231, 255, 0.44), transparent 75%); opacity: 0; transform: translateY(-14%) skewX(var(--lean)); transition: opacity 0.3s var(--ease-out), transform 0.4s var(--ease-out); bottom: auto; top: -18%; height: 70%; } .ds-cover { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 1; margin-bottom: 0.55rem; overflow: hidden; border-radius: 4px; background: linear-gradient(135deg, hsl(140 72% 52%) 0 52%, hsl(190 70% 30%) 52% 100%); outline: 3px solid transparent; outline-offset: 4px; box-shadow: 0 16px 30px -18px rgba(0, 0, 0, 0.9); transition: box-shadow 0.3s, outline-color 0.2s; } .ds-cover > span:first-child { font-size: 5rem; font-weight: 900; font-style: italic; font-stretch: 62%; line-height: 1; color: #fff; text-shadow: 0 0.06em 0.3em rgba(0, 0, 0, 0.35); } .ds-sheen { position: absolute; top: -10%; bottom: -10%; left: 0; width: 45%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent); transform: translateX(-160%) skewX(var(--lean)); } .ds-card:hover { transform: translateY(-4px); } .ds-card:hover .ds-sheen, .ds-card:focus-visible .ds-sheen { transform: translateX(330%) skewX(var(--lean)); transition: transform 0.75s var(--ease-out); } .ds-card:focus-visible { outline: none; transform: translateY(-6px); } .ds-card:focus-visible .ds-cover { outline-color: var(--cyan); box-shadow: 0 22px 36px -14px rgba(51, 231, 255, 0.45); } .ds-card:focus-visible::after { opacity: 1; transform: translateY(0) skewX(var(--lean)); } .ds-title { font-weight: 850; font-size: 1.12rem; line-height: 1.12; font-style: italic; font-stretch: 68%; text-transform: uppercase; } .ds-artist { color: var(--ink-2); font-size: 1rem; } .ds-len { color: var(--ink-2); font-size: 1rem; font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Slider",
+      "kind": "input",
+      "refersTo": "text-input",
+      "description": "Flat track with a magenta fill to the value and a skewed ink thumb; cyan outline on focus.",
+      "html": "<input class=\"ds-range\" type=\"range\" min=\"0\" max=\"100\" value=\"70\" style=\"--pct: 70%\" aria-label=\"Volume\">",
+      "css": ".ds-range { -webkit-appearance: none; appearance: none; width: 18rem; height: 6px; margin: 0.6rem 0; border-radius: 0; cursor: pointer; background: linear-gradient(90deg, var(--magenta) 0 var(--pct, 0%), rgba(196, 187, 239, 0.18) var(--pct, 0%)); } .ds-range::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 22px; background: var(--ink); transform: skewX(var(--lean)); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); } .ds-range::-moz-range-thumb { width: 14px; height: 22px; border: 0; border-radius: 0; background: var(--ink); } .ds-range:focus-visible { outline: 2px solid var(--cyan); outline-offset: 6px; }"
+    },
+    {
+      "name": "Keycap Binding",
+      "kind": "custom",
+      "refersTo": "keycap",
+      "description": "A bound key or button as a slab with a 4px underline in its lane colour; pulses magenta while listening.",
+      "html": "<div class=\"ds-keys\"><button class=\"ds-key\" style=\"--lane: var(--lane-0)\">D</button><button class=\"ds-key\" style=\"--lane: var(--lane-1)\">F</button><button class=\"ds-key ds-listen\" style=\"--lane: var(--lane-2)\">J</button><button class=\"ds-key\" style=\"--lane: var(--lane-3)\">K</button></div>",
+      "css": ".ds-keys { display: flex; gap: 0.7rem; } .ds-key { position: relative; isolation: isolate; border: 0; background: none; color: var(--ink); cursor: pointer; font-family: var(--font); font-style: italic; font-stretch: 68%; text-transform: uppercase; transition: transform 0.25s var(--ease-out), color 0.2s; min-width: 3.4rem; height: 3rem; padding: 0 1rem; font-weight: 900; font-size: 1.05rem; } .ds-key::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--slab); border: 1px solid var(--slab-line); transform: skewX(var(--lean)); transition: background 0.2s, border-color 0.2s, box-shadow 0.3s var(--ease-out); border-bottom: 4px solid var(--lane, rgba(196, 187, 239, 0.4)); } .ds-key::after { content: ''; position: absolute; left: -12%; right: -12%; bottom: 30%; height: 160%; z-index: -2; pointer-events: none; background: radial-gradient(50% 60% at 50% 0%, rgba(51, 231, 255, 0.44), transparent 75%); opacity: 0; transform: translateY(-14%) skewX(var(--lean)); transition: opacity 0.3s var(--ease-out), transform 0.4s var(--ease-out); } .ds-key:hover::before { background: var(--slab-2); } .ds-key:focus-visible { outline: none; transform: translateY(-3px); } .ds-key:focus-visible::before { border-color: var(--cyan); box-shadow: 0 10px 24px -8px rgba(51, 231, 255, 0.55), inset 0 0 0 1px var(--cyan); } .ds-key:focus-visible::after { opacity: 1; transform: translateY(0) skewX(var(--lean)); } .ds-listen::before { background: rgba(255, 46, 139, 0.3); border-color: var(--magenta); animation: ds-listen 0.9s ease-in-out infinite alternate; } @keyframes ds-listen { to { background: rgba(255, 46, 139, 0.1); } } @media (prefers-reduced-motion: reduce) { .ds-listen::before { animation: none; } }"
+    },
+    {
+      "name": "Tags, Pills and Stars",
+      "kind": "chip",
+      "refersTo": "tag-new-best",
+      "description": "Small 3px-cornered condensed labels: solid magenta New best, solid gold Full combo, washed status pills; gold stars for earned results.",
+      "html": "<div class=\"ds-tagrow\"><span class=\"ds-tag ds-hot\">New best</span><span class=\"ds-tag ds-gold\">Full combo</span><span class=\"ds-tag ds-err\">Analysis failed</span><span class=\"ds-tag\">Not analyzed</span><span class=\"ds-stars\"><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"var(--gold)\" stroke=\"var(--gold)\" stroke-width=\"2.25\" stroke-linejoin=\"round\" aria-hidden=\"true\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"var(--gold)\" stroke=\"var(--gold)\" stroke-width=\"2.25\" stroke-linejoin=\"round\" aria-hidden=\"true\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"var(--gold)\" stroke=\"var(--gold)\" stroke-width=\"2.25\" stroke-linejoin=\"round\" aria-hidden=\"true\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"rgba(196,187,239,0.3)\" stroke-width=\"2.25\" stroke-linejoin=\"round\" aria-hidden=\"true\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"rgba(196,187,239,0.3)\" stroke-width=\"2.25\" stroke-linejoin=\"round\" aria-hidden=\"true\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg></span></div>",
+      "css": ".ds-tagrow { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; } .ds-tag { display: inline-block; font-family: var(--font); font-style: italic; font-stretch: 68%; font-size: 1rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.15rem 0.55rem; border-radius: 3px; background: rgba(196, 187, 239, 0.12); color: var(--ink-2); white-space: nowrap; } .ds-hot { background: var(--magenta); color: #fff; } .ds-gold { background: var(--gold); color: #2a1d00; } .ds-err { background: rgba(255, 77, 102, 0.18); color: #ffa3b0; } .ds-stars { display: inline-flex; gap: 2px; }"
+    },
+    {
+      "name": "Toast",
+      "kind": "custom",
+      "refersTo": "toast",
+      "description": "Problem notice at bottom right: raised slab, magenta left edge, rises in; dismissed on press or after 6s.",
+      "html": "<button class=\"ds-toast\">\"Demo Track\" is already in your library.</button>",
+      "css": ".ds-toast { max-width: 26rem; text-align: left; padding: 0.8rem 1rem; background: var(--slab-2); border: 1px solid var(--slab-line); border-left: 3px solid var(--magenta); color: var(--ink); font-family: var(--font); font-size: 1rem; line-height: 1.4; cursor: pointer; box-shadow: 0 16px 30px -14px rgba(0, 0, 0, 0.8); animation: ds-toast-in 0.35s var(--ease-out); } .ds-toast:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; } @keyframes ds-toast-in { from { transform: translateY(0.8rem); opacity: 0; } } @media (prefers-reduced-motion: reduce) { .ds-toast { animation: none; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Stage Between Songs",
+    "overview": "The menus are the stage a player stands on between songs. The house lights are down to a deep indigo, a violet haze rises from the bottom of the screen, and every choice is a riser: a squared slab that leans forward with the type. The control that has focus is the one under the spotlight: it lifts a few pixels and a cyan light falls onto it. What the player has chosen is lit from inside and carries a white edge underneath, and when the choice changes that lit slab travels to the new item instead of blinking. The player's own cover art is the setlist and carries most of the colour on the library screen; the interface around it stays dark and inky so the covers and the single magenta action read first.\n\nThe type does the shouting. Archivo is set condensed, black and leaning italic for everything that is display, a control name or a number, and at normal width and upright for everything a player reads as a sentence. Nothing is rounded except the cover art corners (barely), tiny tags, and the round multiplier disc in the HUD. Density is couch-first: one primary column of decisions, large targets, and type sized in rem off a root that grows with the window so the same layout reads at a desk and from across a room.\n\nMotion and feedback are physical but brief. Screens slide in from the side the player is heading, entrances stagger by tens of milliseconds, starting a song sweeps three stage-light bands across the screen, and every move and press has a synthesized sound and, on a controller, a matching rumble pulse. During play the menu world steps back: the HUD is quiet chrome around the highway, and nothing in it animates for decoration.",
+    "keyCharacteristics": [
+      "Deep indigo ground with a violet haze field; ink tinted from the ground, never pure grey.",
+      "Squared slabs skewed forward by one shared lean angle (-9deg), matching the italic type.",
+      "Three light roles that never trade places: magenta acts, cyan focuses, a lit white-edged slab marks the selection.",
+      "Lane colours are data (part, difficulty, key binding, multiplier level), not decoration.",
+      "Condensed black italic Archivo for display, controls and numbers; normal-width upright Archivo for reading.",
+      "Rem sizing off a clamped root (16px to 26px) so the whole interface scales for TV distance.",
+      "Every interaction has sound; on a controller it also has a pulse. Reduced motion keeps state changes and drops travel."
+    ],
+    "rules": [
+      {
+        "name": "The Three Lights Rule",
+        "body": "Magenta acts, cyan focuses, a lit slab selects. Cyan never fills, never marks a choice and never decorates in a menu; a selected item is never magenta; focus and selection on the same item show both (lit slab plus cyan ring).",
+        "section": "colors"
+      },
+      {
+        "name": "The One Magenta Rule",
+        "body": "Each screen has at most one magenta button at rest, and it is the step forward (usually the one that starts music). Everything else is a slab or a ghost.",
+        "section": "colors"
+      },
+      {
+        "name": "The Lanes Are Data Rule",
+        "body": "A lane colour always means a lane, a difficulty level or a multiplier level. Never use one as a brand accent or a decorative stripe.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Voices Rule",
+        "body": "If it is a name, a control or a number, set it condensed, black, italic and uppercase. If a player reads it as a sentence, set it at normal width, upright and in sentence case. Never set a sentence in the stage voice.",
+        "section": "typography"
+      },
+      {
+        "name": "The Couch Floor Rule",
+        "body": "The root size is `clamp(16px, 0.62vw + 7px, 26px)` and every menu size is in rem, so the whole interface grows with the window for TV distance. Labels, hints, pills, tags, metadata and small buttons are 1rem or larger.",
+        "section": "typography"
+      },
+      {
+        "name": "The Spotlight Rule",
+        "body": "Nothing lifts at rest. A control rises and glows only because it has focus (keyboard, controller) or, for covers, because the pointer is on it.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** draw every control background as a squared slab skewed by `var(--lean)` (-9deg), with the label upright inside.",
+      "**Do** keep exactly three light roles: magenta for the forward or music-starting action, cyan for focus, a lit slab with a white 4px underline for selection.",
+      "**Do** show focus with the spotlight: 3px lift, cyan edge and ring, cyan glow, and the radial cone from above, for keyboard and controller focus alike.",
+      "**Do** move selection with one travelling lit slab per group (0.42s, --ease-out) rather than toggling each item's fill.",
+      "**Do** use lane colours only to mean lane, difficulty or multiplier level.",
+      "**Do** size menu type in rem off the clamped root, and keep labels, hints, pills and small buttons at 1rem or larger.",
+      "**Do** set names, controls and numbers condensed, black, italic and uppercase; set sentences at normal width, upright.",
+      "**Do** give every new control a sound through the shared interface sound handler (`data-sfx` for back, tab, launch or none) and its matching controller pulse.",
+      "**Do** guard every new entrance, stagger or travel with `prefers-reduced-motion: reduce`, keeping the state change.",
+      "**Do** keep the HUD in px over the highway geometry and keep it still except for gameplay feedback."
+    ],
+    "donts": [
+      "**Don't** use cyan for anything in the menus except focus: no cyan fills, edges, badges, status or decoration.",
+      "**Don't** put more than one magenta button on a screen at rest, and don't mark a selected item in magenta.",
+      "**Don't** round slabs or use pill-shaped buttons; only tags, pills, the text field (3px), covers (4px) and the HUD disc have corners.",
+      "**Don't** use a lane colour as a brand accent or a decorative stripe.",
+      "**Don't** set sentences in the condensed italic stage voice, or controls in the upright reading voice.",
+      "**Don't** animate anything in the HUD for decoration, or let menu motion run during play.",
+      "**Don't** depend on the product name; the wordmark is a working title.",
+      "**Don't** name, imitate or recreate any existing commercial rhythm game in look, copy, assets or layout."
+    ]
+  }
+}
