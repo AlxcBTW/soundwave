@@ -368,8 +368,12 @@ export class PlayController {
     el.dataset.kind = kind;
     if (delta === undefined) delete el.dataset.timing;
     else {
-      el.dataset.timing = Math.abs(delta) < WINDOWS.perfect * 0.35 ? 'on' : delta < 0 ? 'early' : 'late';
-      el.style.setProperty('--off', Math.max(-1, Math.min(1, delta / WINDOWS.good)).toFixed(2));
+      // A perfect hit sits dead centre. Anything else is shown clearly off it, further the later or
+      // earlier it was, so early and late can be told apart at a glance.
+      const on = kind === 'perfect';
+      el.dataset.timing = on ? 'on' : delta < 0 ? 'early' : 'late';
+      const off = on ? 0 : Math.sign(delta || 1) * Math.min(1, 0.45 + 0.55 * (Math.abs(delta) / WINDOWS.good));
+      el.style.setProperty('--off', off.toFixed(2));
     }
     el.classList.remove('pop');
     void el.offsetWidth;
