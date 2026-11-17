@@ -186,3 +186,14 @@ describe('empty parts', () => {
     }
   });
 });
+
+describe('local feel', () => {
+  it('switches to triplets for a triplet passage inside a straight part', async () => {
+    const { localFeel } = await import('../src/chart/generator');
+    const straight = Array.from({ length: 64 }, (_, i) => i * 0.25 + 0.25 * (i % 2));
+    const triplets = Array.from({ length: 12 }, (_, i) => 32 + i / 3);
+    const feel = localFeel([...straight.filter((p) => p < 30 || p > 38), ...triplets]);
+    expect(feel(10)).toBe('straight');
+    expect(feel(34)).toBe('triplet');
+  });
+});

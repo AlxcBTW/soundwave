@@ -100,13 +100,61 @@ export function detectFeel(positions: number[]): Feel {
   let trip = 0;
   let six = 0;
   for (const p of positions) {
-    const f = p - Math.floor(p);
-    const d12 = Math.min(Math.abs(f - 1 / 3), Math.abs(f - 2 / 3));
-    const d16 = Math.min(Math.abs(f - 0.25), Math.abs(f - 0.75));
-    if (d12 < 0.05 && d16 > 0.06) trip++;
-    else if (d16 < 0.05 && d12 > 0.06) six++;
+    const k = subdivision(p);
+    if (k > 0) trip++;
+    else if (k < 0) six++;
   }
   return trip >= 12 && trip > six * 1.5 ? 'triplet' : 'straight';
+}
+
+/** 1 when a position is clearly on a triplet, -1 when clearly on a sixteenth, else 0. */
+function subdivision(p: number): number {
+  const f = p - Math.floor(p);
+  const d12 = Math.min(Math.abs(f - 1 / 3), Math.abs(f - 2 / 3));
+  const d16 = Math.min(Math.abs(f - 0.25), Math.abs(f - 0.75));
+  return d12 < 0.05 && d16 > 0.06 ? 1 : d16 < 0.05 && d12 > 0.06 ? -1 : 0;
+}
+
+/** Beats on either side that decide the local feel (about a bar each way). */
+const FEEL_WINDOW = 4;
+/** Clear triplets (or sixteenths) needed in that window to switch feel. */
+const FEEL_MIN = 4;
+
+/**
+ * Feel at each position: a straight song can switch to a triplet flow for a few bars (and a
+ * shuffle can straighten out), so the notes around each beat decide, with the whole part's feel
+ * as the default when they are too few or mixed.
+ */
+export function localFeel(positions: number[]): (pos: number) => Feel {
+  const global = detectFeel(positions);
+  if (!positions.length) return () => global;
+  const first = Math.floor(Math.min(...positions));
+  const last = Math.floor(Math.max(...positions));
+  // Prefix sums of clear triplets and sixteenths per beat.
+  const trip = new Array<number>(last - first + 2).fill(0);
+  const six = new Array<number>(last - first + 2).fill(0);
+  for (const p of positions) {
+    const k = subdivision(p);
+    const b = Math.floor(p) - first + 1;
+    if (k > 0) trip[b]++;
+    else if (k < 0) six[b]++;
+  }
+  for (let i = 1; i < trip.length; i++) {
+    trip[i] += trip[i - 1];
+    six[i] += six[i - 1];
+  }
+  const count = (arr: number[], b: number) => {
+    const lo = Math.max(0, Math.min(arr.length - 1, b - FEEL_WINDOW - first));
+    const hi = Math.max(0, Math.min(arr.length - 1, b + FEEL_WINDOW - first));
+    return arr[hi] - arr[lo];
+  };
+  return (pos) => {
+    const b = Math.floor(pos);
+    const t = count(trip, b);
+    const x = count(six, b);
+    if (global === 'triplet') return x >= FEEL_MIN && x > t * 1.5 ? 'straight' : 'triplet';
+    return t >= FEEL_MIN && t > x * 1.5 ? 'triplet' : 'straight';
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -114,10 +162,11 @@ export function detectFeel(positions: number[]): Feel {
 
 function pitchedExpert(line: PitchedNote[], grid: Grid, duration: number, chords: boolean): Ev[] {
   const byPos = new Map<number, Ev>();
-  const feel = detectFeel(line.map((n) => grid.pos(n.t)));
+  const feel = localFeel(line.map((n) => grid.pos(n.t)));
   for (const n of line) {
     if (n.t < 0.2 || n.t > duration - 0.05) continue;
-    const pos = snap(grid.pos(n.t), feel);
+    const raw = grid.pos(n.t);
+    const pos = snap(raw, feel(raw));
     const endPos = grid.pos(n.t + n.dur);
     const ev: Ev = {
       pos,
@@ -135,10 +184,11 @@ function pitchedExpert(line: PitchedNote[], grid: Grid, duration: number, chords
 
 function drumsExpert(a: AnalysisResult, grid: Grid): Ev[] {
   const byKey = new Map<string, Ev>();
-  const feel = detectFeel(a.drums.map((d) => grid.pos(d.t)));
+  const feel = localFeel(a.drums.map((d) => grid.pos(d.t)));
   for (const d of a.drums) {
     if (d.t < 0.2 || d.t > a.duration - 0.05) continue;
-    const pos = snap(grid.pos(d.t), feel);
+    const raw = grid.pos(d.t);
+    const pos = snap(raw, feel(raw));
     const key = `${Math.round(pos * 48)}:${d.kind}`;
     const prev = byKey.get(key);
     if (!prev || d.strength > prev.strength) byKey.set(key, { pos, len: 0, midi: 0, strength: d.strength, kind: d.kind });
