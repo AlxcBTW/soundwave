@@ -377,8 +377,13 @@ def finale_crowd() -> np.ndarray:
     The end of a song, while the stage fires off its finale: the whole crowd clapping and cheering
     for about four seconds, up at once and held, then down quickly as the result comes up.
     """
-    x = crowd.cheer(4.9, peak_at=0.3, hold=3.3, decay=1.2, seed=23, people=260, whistles=6, clapping=1.9, excitement=0.85)
-    return highpass(crowd.arena(x), 120)
+    # Real people: recordings of applause and cheering, when they are there. A synthesized crowd
+    # of this size has no distinct hands in it and comes out as wind.
+    x = crowd.recorded_ovation(4.9)
+    if x is None:
+        x = crowd.ovation(4.9, peak_at=0.25, hold=3.4, decay=1.15)
+    # Less of the diffuse wash than a cheer gets: it would smear the claps back into noise.
+    return highpass(crowd.arena(x, wet_db=-16.0), 120)
 
 
 SOUNDS = {

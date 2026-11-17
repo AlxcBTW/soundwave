@@ -195,7 +195,138 @@ def cheer(seconds: float, *, peak_at: float, hold: float, decay: float, seed: in
     return out
 
 
-def arena(x: np.ndarray, seed: int = 9) -> np.ndarray:
+def clap(rng, distance: float) -> np.ndarray:
+    """
+    One hand clap, mono: a hard onset and a few milliseconds of ring from the hollow of the hands.
+    `distance` (0 = beside you, 1 = across the field) dulls it and softens its onset.
+    """
+    m = int(SR * rng.uniform(0.02, 0.045))
+    t = np.arange(m) / SR
+    noise = rng.standard_normal(m)
+    # The crack: broadband, gone in a couple of milliseconds.
+    crack = noise * np.exp(-t / rng.uniform(0.0012, 0.0025))
+    # The body: the cupped hands ring between about 1 and 2.6 kHz.
+    fc = rng.uniform(1000, 2600)
+    body = signal.lfilter(*signal.iirpeak(fc, rng.uniform(2.5, 5.0), fs=SR), noise * np.exp(-t / rng.uniform(0.004, 0.011)))
+    body /= np.abs(body).max() + 1e-9
+    x = crack * 0.7 + body * 1.0
+    x = signal.sosfilt(signal.butter(2, 500, "highpass", fs=SR, output="sos"), x)
+    if distance > 0.05:
+        x = signal.sosfilt(signal.butter(1, 9000 - 6500 * distance, "lowpass", fs=SR, output="sos"), x)
+    return (x / (np.abs(x).max() + 1e-9)).astype(np.float32)
+
+
+def clappers(n: int, rng, people: int, near: float, far: float, env: np.ndarray) -> np.ndarray:
+    """
+    `people` people clapping, each in a rhythm of their own (three to five claps a second, never
+    quite even), with their own pair of hands, at a distance between `near` and `far`. This is
+    what makes applause sound like applause and not like rain or wind: claps come in runs, and the
+    nearest hands can be picked out.
+    """
+    out = np.zeros((n, 2), dtype=np.float32)
+    for _ in range(people):
+        distance = rng.uniform(near, far)
+        hands = [clap(rng, distance) for _ in range(3)]
+        rate = rng.uniform(2.9, 4.8)
+        gain = (1 - 0.8 * distance) ** 2 * rng.uniform(0.6, 1.0)
+        pan = rng.uniform(0.05, 0.95)
+        left, right = np.cos(pan * np.pi / 2), np.sin(pan * np.pi / 2)
+        t = rng.uniform(0, 0.35) + distance * 0.25
+        end = n / SR - rng.uniform(0, 0.5)
+        while t < end:
+            i = int(t * SR)
+            c = hands[rng.integers(len(hands))] * gain * rng.uniform(0.75, 1.0) * env[min(n - 1, i)]
+            j = min(n, i + len(c))
+            out[i:j, 0] += c[: j - i] * left
+            out[i:j, 1] += c[: j - i] * right
+            # People speed up a little as they go, and nobody keeps perfect time.
+            rate = min(5.2, rate * rng.uniform(0.995, 1.012))
+            t += (1 / rate) * rng.uniform(0.9, 1.1)
+    return out
+
+
+def ovation(seconds: float, *, peak_at: float, hold: float, decay: float, seed: int = 23, voices: int = 46, whistles: int = 6) -> np.ndarray:
+    """
+    A crowd clapping and cheering once the music has stopped. Hands first: a dozen people close by
+    whose claps can be told apart, a few dozen further off, and the field behind them as a dense
+    crackle. Over that, people shouting and whistling, the nearest ones clearly. The noise bed that
+    carries a roar is kept far down: on its own it is only wind.
+    """
+    rng = np.random.default_rng(seed)
+    n = int(seconds * SR)
+    env = envelope(n, peak_at, hold, decay, curve=1.8)
+    out = clappers(n, rng, 12, 0.0, 0.25, env) * 0.5
+    out += clappers(n, rng, 60, 0.25, 0.7, env) * 0.5
+    out += clappers(n, rng, 420, 0.6, 1.0, env) * 0.55
+
+    cdf = np.cumsum(env**1.2)
+    cdf /= cdf[-1]
+    kinds = ["woo"] * 6 + ["yeah"] * 5 + ["aah"] * 2
+    for k in range(voices):
+        v = shout(rng, kinds[rng.integers(len(kinds))])
+        i = max(0, min(n - len(v) - 1, int(np.searchsorted(cdf, rng.random())) - len(v) // 3))
+        # A handful are close and clear; the rest are further off.
+        distance = rng.uniform(0.0, 0.3) if k < 9 else rng.uniform(0.3, 1.0)
+        v = signal.sosfilt(signal.butter(1, 7500 - 5500 * distance, "lowpass", fs=SR, output="sos"), v).astype(np.float32) * (1 - 0.85 * distance) ** 1.5
+        pan = rng.uniform(0.05, 0.95)
+        out[i : i + len(v), 0] += v * 0.3 * np.cos(pan * np.pi / 2)
+        out[i : i + len(v), 1] += v * 0.3 * np.sin(pan * np.pi / 2)
+    for _ in range(whistles):
+        w = whistle(rng)
+        i = max(0, min(n - len(w) - 1, int(np.searchsorted(cdf, rng.uniform(0.05, 0.9)))))
+        pan = rng.uniform(0.1, 0.9)
+        g = rng.uniform(0.05, 0.11)
+        out[i : i + len(w), 0] += w * g * np.cos(pan * np.pi / 2)
+        out[i : i + len(w), 1] += w * g * np.sin(pan * np.pi / 2)
+
+    out += roar(n, rng) * (env**1.2)[:, None] * 0.07
+    real = walla(n, rng)
+    if real is not None:
+        out += real * env[:, None] * 0.5
+    return out
+
+
+# Real applause and cheering, for the finale. Recordings from Wikimedia Commons, all free to use
+# without conditions (see "Music and sound" in the README for where each comes from):
+# (file, start in seconds, gain).
+RECORDED = ROOT / "local-audio" / "samples" / "crowd" / "commons"
+OVATION_TAKES = [
+    ("Applause-i.wav", 1.3, 1.0),  # an audience applauding with cheers and whoops (public domain)
+    ("277021-sandermotions-applause-2.wav", 0.6, 0.55),  # a concert hall applauding, for size (CC0)
+    ("Clapping-hurray.wav", 0.5, 0.65),  # clapping with shouts of hurray close by (public domain)
+]
+
+
+def recorded_ovation(seconds: float, fade_in: float = 0.12, fade_out: float = 1.0) -> np.ndarray | None:
+    """
+    A crowd clapping and cheering, mixed from real recordings: `seconds` of each take, levelled
+    against each other, up at once and down over the last second. None when the recordings are not
+    there (then the synthesized `ovation` stands in).
+    """
+    n = int(seconds * SR)
+    out = np.zeros((n, 2), dtype=np.float32)
+    for name, start, gain in OVATION_TAKES:
+        path = RECORDED / name
+        if not path.exists():
+            return None
+        x, sr = sf.read(str(path), dtype="float32", always_2d=True)
+        if sr != SR:
+            x = signal.resample_poly(x, SR, sr, axis=0).astype(np.float32)
+        if x.shape[1] == 1:
+            # A mono take is spread a little: the same sound a few milliseconds later on one side.
+            d = int(0.011 * SR)
+            x = np.stack([x[:, 0], np.concatenate([np.zeros(d, dtype=np.float32), x[:-d, 0]])], axis=1)
+        seg = x[int(start * SR) : int(start * SR) + n]
+        if len(seg) < n:
+            seg = np.concatenate([seg, np.zeros((n - len(seg), 2), dtype=np.float32)])
+        level = np.sqrt((seg[: int(3.5 * SR)] ** 2).mean()) + 1e-9
+        out += seg / level * gain
+    t = np.arange(n) / SR
+    env = np.clip(t / fade_in, 0, 1) * np.clip((seconds - t) / fade_out, 0, 1) ** 1.5
+    return (out * env[:, None] * 0.2).astype(np.float32)
+
+
+def arena(x: np.ndarray, seed: int = 9, wet_db: float = -9.0) -> np.ndarray:
     """Open-air space: a slap off the far side and a short diffuse wash, no long hall."""
     rng = np.random.default_rng(seed)
     n = int(SR * 0.9)
@@ -208,4 +339,4 @@ def arena(x: np.ndarray, seed: int = 9) -> np.ndarray:
     d = int(0.13 * SR)
     slap[d:] = x[:-d, ::-1] * 0.22
     slap = signal.sosfilt(signal.butter(1, 3500, "lowpass", fs=SR, output="sos"), slap, axis=0)
-    return (x + wet * db(-9) + slap).astype(np.float32)
+    return (x + wet * db(wet_db) + slap).astype(np.float32)
