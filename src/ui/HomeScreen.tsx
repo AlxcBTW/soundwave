@@ -42,7 +42,6 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
   const ready = useMemo(() => songs.filter((s) => status[s.id]?.state === 'ready'), [songs, status]);
   const sets: SuggestedSet[] = useMemo(() => suggestSets(ready, played, seed), [ready, played, seed]);
   const busy = songs.filter((s) => status[s.id]?.state === 'analyzing' || status[s.id]?.state === 'queued');
-  const progress = busy.length ? busy.reduce((t, s) => t + (status[s.id]?.progress ?? 0), 0) / busy.length : 0;
 
   const touch = mode === 'touch';
   // Tiles that were here when the screen opened arrive together; one that turns up later (a set
@@ -63,10 +62,8 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
       <header className="page-head">
         <h1 className="wordmark">Festival</h1>
         {busy.length > 0 && (
+          // Just the count: each song's progress is shown with the song itself.
           <p className="head-status" role="status">
-            <span className="meter" aria-hidden>
-              <span style={{ width: `${Math.round(progress * 100)}%` }} />
-            </span>
             Analyzing {count(busy.length)}
           </p>
         )}
