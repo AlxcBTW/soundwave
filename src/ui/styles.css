@@ -342,7 +342,12 @@ img.cover { animation: fade-in 0.35s var(--ease) backwards; }
 .hero-song.open .hero-name { color: var(--ink-3); font-weight: 700; }
 .tile-stack { flex: 1 1 0; min-width: 0; max-width: 34rem; display: flex; flex-direction: column; gap: clamp(0.6rem, 1.4vh, 1.1rem); }
 .tile-stack .tile { max-width: none; flex-direction: row; min-height: 0; }
-.tile-stack .tile .mosaic { flex: none; align-self: stretch; aspect-ratio: 1; }
+.tile-stack .tile .mosaic { flex: none; align-self: stretch; aspect-ratio: 1; max-width: 45%; }
+/* A suggested set on its own has the whole height to itself: it stands upright like the feature,
+   covers on top and its name below, instead of a square of covers that leaves its text no room. */
+.tile-stack .tile:only-child { flex-direction: column; }
+.tile-stack .tile:only-child .mosaic { flex: 1; align-self: auto; aspect-ratio: auto; max-width: none; min-height: 0; }
+.tile-stack .tile:only-child .tile-text { flex: none; }
 .tile-stack .tile-text { flex: 1; min-width: 0; justify-content: center; }
 .tile-text { flex: none; display: flex; flex-direction: column; gap: 0.3rem; padding: 0.9rem 1.1rem 1.1rem; }
 .tile-title { font-size: clamp(1.15rem, 1.7vw, 1.6rem); }

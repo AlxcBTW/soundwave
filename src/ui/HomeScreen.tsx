@@ -33,6 +33,8 @@ interface Props {
 }
 
 const total = (songs: SongMeta[]) => formatTime(songs.reduce((t, s) => t + s.duration, 0));
+/** "3 songs · 9:12", or just "3 songs" while the length is not known yet. */
+const summary = (songs: SongMeta[]) => [count(songs.length), total(songs)].filter(Boolean).join(' · ');
 const count = (n: number) => `${n} ${n === 1 ? 'song' : 'songs'}`;
 
 export function HomeScreen({ songs, status, setlist, played, seed, importing, empty, onLibrary, onSet, onAdd, onSettings, onExit, settings }: Props) {
@@ -79,7 +81,7 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
         <h2 className="page-title">Pick a set</h2>
         <div className="tiles" data-nav-group="tiles">
           {/* The feature: the player's own set, with its covers, and its songs in order. */}
-          <button type="button" className="tile hero" data-autofocus aria-label={setlist.length ? `Your setlist: ${count(setlist.length)}, ${total(setlist)}` : 'Your setlist: empty. Pick up to four songs from your library.'} onClick={onLibrary}>
+          <button type="button" className="tile hero" data-autofocus aria-label={setlist.length ? `Your setlist: ${summary(setlist).replace(' · ', ', ')}` : 'Your setlist: empty. Pick up to four songs from your library.'} onClick={onLibrary}>
             {setlist.length ? (
               <Mosaic songs={setlist} />
             ) : (
@@ -89,7 +91,7 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
             )}
             <span className="tile-text">
               <span className="tile-title">Your setlist</span>
-              <span className="tile-cap">{setlist.length ? `${count(setlist.length)} · ${total(setlist)}` : 'Pick up to four songs from your library'}</span>
+              <span className="tile-cap">{setlist.length ? summary(setlist) : 'Pick up to four songs from your library'}</span>
               <span className="hero-songs">
                 {Array.from({ length: SET_MAX }, (_, i) => {
                   const s = setlist[i];
@@ -115,7 +117,7 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
                   <span className="tile-title">{set.title}</span>
                   <span className="tile-cap">{set.caption}</span>
                   <span className="tile-meta">
-                    {count(list.length)} · {total(list)}
+                    {summary(list)}
                   </span>
                 </span>
               </button>
