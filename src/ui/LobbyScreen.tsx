@@ -86,6 +86,7 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
     ...PARTS.map((p, i) => ({ id: `part-${p}`, label: PART_LABEL[p], icon: PART_ICON[p], kbd: `Digit${i + 1}`, bar: false, run: () => onPick({ ...pick, part: p }) })),
   ]);
 
+  const pad = hints.mode === 'pad';
   const partRow = useSlide<HTMLDivElement>(pick.part);
   const diffRow = useSlide<HTMLDivElement>(pick.difficulty);
   const lanes = lanesFor(pick.difficulty);
@@ -149,49 +150,57 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
         <section className="ready-panel" data-nav-group="ready" aria-label="Part and difficulty">
           <h2 className="label" id="part-label">
             Part
-            <span className="label-hints" aria-hidden>
-              <Hint pad="b3" {...hints} />
-            </span>
           </h2>
-          <div className="part-row slide" ref={partRow} role="radiogroup" aria-labelledby="part-label">
-            <span className="sel" aria-hidden />
-            {PARTS.map((p, i) => {
-              const Icon = PART_ICON[p];
-              const on = pick.part === p;
-              return (
-                <button key={p} type="button" className={`choice part ${on ? 'on' : ''}`} data-on={on} data-action={`part-${p}`} role="radio" aria-checked={on} onClick={() => onPick({ ...pick, part: p })}>
-                  <Icon strokeWidth={ICON_STROKE} aria-hidden />
-                  <span>{PART_LABEL[p]}</span>
-                  <Hint kbd={`Digit${i + 1}`} mode={hints.mode === 'pad' ? 'touch' : hints.mode} style={hints.style} />
-                </button>
-              );
-            })}
+          {/* On a controller the button that steps through a row sits to its left. */}
+          <div className="pick-line">
+            {pad && (
+              <span className="pick-hint" aria-hidden>
+                <PadGlyph input="b3" style={hints.style} />
+              </span>
+            )}
+            <div className="part-row slide" ref={partRow} role="radiogroup" aria-labelledby="part-label">
+              <span className="sel" aria-hidden />
+              {PARTS.map((p, i) => {
+                const Icon = PART_ICON[p];
+                const on = pick.part === p;
+                return (
+                  <button key={p} type="button" className={`choice part ${on ? 'on' : ''}`} data-on={on} data-action={`part-${p}`} role="radio" aria-checked={on} onClick={() => onPick({ ...pick, part: p })}>
+                    <Icon strokeWidth={ICON_STROKE} aria-hidden />
+                    <span>{PART_LABEL[p]}</span>
+                    <Hint kbd={`Digit${i + 1}`} mode={pad ? 'touch' : hints.mode} style={hints.style} />
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <h2 className="label" id="diff-label">
             Difficulty
-            <span className="label-hints" aria-hidden>
-              {hints.mode === 'pad' ? (
-                <Hint pad="b2" {...hints} />
-              ) : (
-                <>
-                  <Hint kbd="KeyQ" {...hints} />
-                  <Hint kbd="KeyE" {...hints} />
-                </>
-              )}
-            </span>
+            {!pad && (
+              <span className="label-hints" aria-hidden>
+                <Hint kbd="KeyQ" {...hints} />
+                <Hint kbd="KeyE" {...hints} />
+              </span>
+            )}
           </h2>
-          <div className="diff-row slide" ref={diffRow} role="radiogroup" aria-labelledby="diff-label">
-            <span className="sel" aria-hidden />
-            {DIFFICULTIES.map((d: Difficulty) => {
-              const on = pick.difficulty === d;
-              return (
-                <button key={d} type="button" className={`choice diff ${on ? 'on' : ''}`} data-on={on} role="radio" aria-checked={on} onClick={() => onPick({ ...pick, difficulty: d })}>
-                  <Pips difficulty={d} />
-                  <span>{DIFFICULTY_LABEL[d]}</span>
-                </button>
-              );
-            })}
+          <div className="pick-line">
+            {pad && (
+              <span className="pick-hint" aria-hidden>
+                <PadGlyph input="b2" style={hints.style} />
+              </span>
+            )}
+            <div className="diff-row slide" ref={diffRow} role="radiogroup" aria-labelledby="diff-label">
+              <span className="sel" aria-hidden />
+              {DIFFICULTIES.map((d: Difficulty) => {
+                const on = pick.difficulty === d;
+                return (
+                  <button key={d} type="button" className={`choice diff ${on ? 'on' : ''}`} data-on={on} role="radio" aria-checked={on} onClick={() => onPick({ ...pick, difficulty: d })}>
+                    <Pips difficulty={d} />
+                    <span>{DIFFICULTY_LABEL[d]}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <p className="lane-info">
@@ -203,7 +212,7 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
             label={(PART_LABEL[pick.part] as Part | string) + ' · ' + DIFFICULTY_LABEL[pick.difficulty]}
             hint={!known ? 'Getting the charts ready…' : playable === 0 ? 'No notes on this part. Pick another one.' : hints.mode === 'keyboard' ? 'Hold Enter to start' : 'Hold to start'}
             disabled={!known || playable === 0}
-            glyph={hints.mode === 'pad' ? <PadGlyph input={confirmInput(hints.style)} style={hints.style} /> : undefined}
+            glyph={pad ? <PadGlyph input={confirmInput(hints.style)} style={hints.style} /> : undefined}
             glyphStyle={hints.style}
             onComplete={onStart}
           />
