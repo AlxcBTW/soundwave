@@ -67,6 +67,87 @@ function PsSymbol({ face, color }: { face: Face; color: string }) {
   return <path d="M16 9.6 L22.4 20.8 L9.6 20.8 Z" {...s} />;
 }
 
+const INK = '#f2f0ff';
+const LINE = { stroke: INK, strokeWidth: 2.3, fill: 'none', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+
+/** Three bars: Options on a PlayStation controller, Menu on an Xbox one. */
+const bars = (cx: number) => <path d={`M${cx - 5.5} 11.4 H${cx + 5.5} M${cx - 5.5} 16 H${cx + 5.5} M${cx - 5.5} 20.6 H${cx + 5.5}`} {...LINE} />;
+
+/**
+ * The small buttons in the middle of a controller, drawn the way they look on it: the button's own
+ * shape with its symbol on it, not its name spelled out. Undefined for inputs that are not one.
+ */
+function menuArt(input: PadInput, style: GlyphStyle): { w: number; body: React.ReactNode } | undefined {
+  if (!MENU[style][input]) return undefined;
+  const round = (r = 13) => <circle cx="16" cy="16" r={r} fill={BASE} stroke={RING} strokeWidth="1.6" />;
+  const home = <path d="M9.8 16.2 L16 10.4 L22.2 16.2 M11.8 15 V21.4 H20.2 V15" {...LINE} />;
+
+  if (style === 'ps4' || style === 'ps5') {
+    // Options and Create/Share are small capsules; the touchpad is the wide plate between them.
+    const capsule = <rect x="1.5" y="5" width="35" height="22" rx="11" fill={BASE} stroke={RING} strokeWidth="1.6" />;
+    if (input === 'b9') return { w: 38, body: <>{capsule}{bars(19)}</> };
+    if (input === 'b8') {
+      return style === 'ps5'
+        ? // Create: three short strokes fanning out.
+          { w: 38, body: <>{capsule}<path d="M19 10.6 V15.4 M12.4 12.6 L15 16.6 M25.6 12.6 L23 16.6 M14.4 21 H23.6" {...LINE} /></> }
+        : // Share: one point feeding two.
+          {
+            w: 38,
+            body: (
+              <>
+                {capsule}
+                <path d="M14.2 16 L23.6 11.4 M14.2 16 L23.6 20.6" {...LINE} strokeWidth={1.8} />
+                <circle cx="13.6" cy="16" r="2.6" fill={INK} />
+                <circle cx="24.2" cy="11.2" r="2.6" fill={INK} />
+                <circle cx="24.2" cy="20.8" r="2.6" fill={INK} />
+              </>
+            ),
+          };
+    }
+    if (input === 'b17') {
+      return {
+        w: 44,
+        body: (
+          <>
+            <path d="M5 6 H39 Q42.5 6 42.5 9.5 V19 Q42.5 26 35.5 26 H8.5 Q1.5 26 1.5 19 V9.5 Q1.5 6 5 6 Z" fill={BASE} stroke={RING} strokeWidth="1.6" />
+            <circle cx="22" cy="16" r="3.2" fill={INK} />
+            <circle cx="22" cy="16" r="6.6" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />
+          </>
+        ),
+      };
+    }
+    return { w: 32, body: <>{round()}<text x="16" y="20.4" textAnchor="middle" fontSize="11.5" fontWeight="900" fill={INK}>PS</text></> };
+  }
+
+  if (style === 'xbox') {
+    if (input === 'b9') return { w: 32, body: <>{round()}{bars(16)}</> };
+    // View: one window in front of another.
+    if (input === 'b8') {
+      return {
+        w: 32,
+        body: (
+          <>
+            {round()}
+            <rect x="9.6" y="10" width="9.6" height="7.6" rx="1.4" {...LINE} strokeWidth={2} />
+            <rect x="13" y="14.2" width="9.6" height="7.6" rx="1.4" {...LINE} strokeWidth={2} fill={BASE} />
+          </>
+        ),
+      };
+    }
+    // Share: an arrow out of a tray.
+    if (input === 'b17') return { w: 32, body: <>{round()}<path d="M10.6 17 V21.6 H21.4 V17 M16 18.2 V9.8 M12.6 13 L16 9.6 L19.4 13" {...LINE} /></> };
+    return { w: 32, body: <>{round()}{home}</> };
+  }
+
+  // Switch: − and + are small round buttons, Capture a square with a ring, Home a round one.
+  if (input === 'b8') return { w: 32, body: <>{round(12)}<path d="M10.4 16 H21.6" {...LINE} strokeWidth={2.8} /></> };
+  if (input === 'b9') return { w: 32, body: <>{round(12)}<path d="M10.4 16 H21.6 M16 10.4 V21.6" {...LINE} strokeWidth={2.8} /></> };
+  if (input === 'b17') {
+    return { w: 32, body: <><rect x="4" y="4" width="24" height="24" rx="5" fill={BASE} stroke={RING} strokeWidth="1.6" /><circle cx="16" cy="16" r="6" {...LINE} /></> };
+  }
+  return { w: 32, body: <>{round()}{home}</> };
+}
+
 /** A controller button, trigger or stick direction drawn in the given controller's style. */
 export function PadGlyph({ input, style, className }: { input: PadInput; style: GlyphStyle; className?: string }) {
   const name = inputName(input, style);
@@ -127,7 +208,16 @@ export function PadGlyph({ input, style, className }: { input: PadInput; style: 
       </svg>
     );
   }
-  // Shoulders, triggers, menu buttons and anything else: a labelled pill sized to its text.
+  const menu = menuArt(input, style);
+  if (menu) {
+    return (
+      <svg className={cls} viewBox={`0 0 ${menu.w} 32`} style={{ aspectRatio: `${menu.w} / 32` }} role="img" aria-label={name}>
+        <title>{name}</title>
+        {menu.body}
+      </svg>
+    );
+  }
+  // Shoulders, triggers and anything else: a labelled pill sized to its text.
   const label = SHOULDER[style][input] ?? MENU[style][input] ?? name;
   const trigger = input === 'b6' || input === 'b7';
   const w = Math.max(32, 12 + label.length * 8.2);
