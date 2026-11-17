@@ -118,7 +118,7 @@ Both scripts write the same format: plain meshes whose vertices carry up to four
 
 ## Music and sound
 
-The menu theme and every interface sound are the project's own. `tools/audio` holds a small offline orchestra (a sampler, a concert hall and a mastering chain in `orchestra.py`), the score of the theme (`theme.py`), the recipes for the interface sounds (`sfx.py`) and a synthesized festival crowd (`crowd.py`). Two commands regenerate everything in `public/audio`:
+The menu theme and every interface sound are the project's own. `tools/audio` holds a small offline orchestra (a sampler, a concert hall and a mastering chain in `orchestra.py`), the score of the theme (`theme.py`), a few synthesized instruments that sit under the orchestra (`synth.py`), the recipes for the interface sounds (`sfx.py`) and a synthesized festival crowd (`crowd.py`). Two commands regenerate everything in `public/audio`:
 
 ```
 python tools/audio/theme.py

@@ -15,7 +15,8 @@ import numpy as np
 from scipy import signal
 
 import crowd
-from orchestra import OUT, SR, Mix, Orchestra, Seat, _k_weight, db, hall_ir, highpass, limit, lowpass, midi, mixdown, sample, write
+import synth
+from orchestra import OUT, SR, Mix, Orchestra, Seat, _k_weight, db, hall_ir, highpass, limit, lowpass, midi, mixdown, sample, shelf, write
 
 PERC = "Percussion/"
 V1 = "VSCO 1 Percussion/"
@@ -47,6 +48,7 @@ LOW = Seat(0.1, wet=0.15, width=0.4)
 o = Orchestra(seed=21)
 ROOM = hall_ir(0.9, predelay=0.006, seed=3)
 HALL = hall_ir(2.4, seed=7)
+STAGE = hall_ir(1.3, predelay=0.01, seed=5)
 
 
 def pluck(mix: Mix, seat: Seat, inst: str, art: str, note: int | str, vel: float, t: float, decay: float | None = None, skip: int = 0, gain: float = 1.0):
@@ -234,85 +236,92 @@ def best() -> np.ndarray:
 # ---------------------------------------------------------------- the launch
 
 
+def sheen(seconds: float = 0.5, seed: int = 4) -> np.ndarray:
+    """Steel being drawn: a cluster of high, slightly rising partials that die away fast."""
+    rng = np.random.default_rng(seed)
+    n = int(seconds * SR)
+    t = np.arange(n) / SR
+    out = np.zeros((n, 2), dtype=np.float32)
+    for _ in range(16):
+        f = rng.uniform(2600, 9800) * (1 + rng.uniform(0.01, 0.05) * (1 - np.exp(-t / 0.08)))
+        x = np.sin(2 * np.pi * np.cumsum(f) / SR + rng.uniform(0, 6)) * np.exp(-t / rng.uniform(0.06, 0.22))
+        out += synth.stereo(x.astype(np.float32) * rng.uniform(0.3, 1.0), rng.uniform(-0.8, 0.8))
+    out *= (1 - np.exp(-t / 0.002))[:, None].astype(np.float32)
+    return out / np.abs(out).max()
+
+
 def launch() -> np.ndarray:
     """
-    Starting a song: half a second of everything rushing upward, one enormous downbeat, and
-    the crowd going up as it rings out.
+    Starting a song, in the manner of a fighting game's "ready" confirm: no wind-up to speak
+    of, one tight, bright slam that lands the instant the button goes down, a glint of bells
+    after it, and the crowd answering.
     """
-    hit_at = 0.62  # the wipe has closed over the screen by now
-    total = 7.4
+    hit_at = 0.085
+    total = 4.8
     m = Mix(total)
-    back_row = Seat(0.0, wet=0.55, width=0.9)
-    cym = Seat(-0.15, wet=0.5)
-    vln = Seat(-0.45, wet=0.4, voices=2)
-    vc = Seat(0.42, wet=0.36, voices=2)
-    cb = Seat(0.6, wet=0.32, voices=3, width=0.6)
-    hn = Seat(-0.3, wet=0.55, voices=4, width=0.7)
-    tpt = Seat(0.18, wet=0.5, voices=3, width=0.6)
-    tbn = Seat(0.38, wet=0.5, voices=3, width=0.7)
+    front = Seat(0.0, wet=0.3, width=0.7)
+    cym = Seat(-0.12, wet=0.35)
+    vln = Seat(-0.45, wet=0.32, voices=2)
+    vla = Seat(0.2, wet=0.32, voices=2)
+    vc = Seat(0.42, wet=0.3, voices=2)
+    cb = Seat(0.6, wet=0.28, voices=2, width=0.6)
+    hn = Seat(-0.3, wet=0.4, voices=3, width=0.7)
+    tpt = Seat(0.18, wet=0.38, voices=3, width=0.6)
+    tbn = Seat(0.38, wet=0.38, voices=2, width=0.7)
 
-    # The rush: a cymbal played backwards, rolls on timpani and snare, tremolo strings, a harp run.
-    o.hit(m, cym, V1 + "varMetal/Cymbals/clash/crash_hit_ff_loose.wav", 0.0, 0.5, length=hit_at, fade=hit_at * 0.9, reverse=True)
-    held(m, Seat(-0.08, wet=0.5), "timpani", "roll", 54, 0.9, 0.0, hit_at - 0.03, release=0.04, attack=0.1, shape=(0.1, 0.4, 1.0))
-    roll = sample(PERC + "Snare2-rollSN_v3_rr1_Sum.wav")[: int(hit_at * SR)].copy()
-    roll *= (np.linspace(0.05, 1, len(roll), dtype=np.float32) ** 2)[:, None]
-    m.add(roll * (0.3 / np.abs(roll).max()), 0.0, Seat(0.12, wet=0.45))
-    for n in ("F#5", "A#5", "C#6"):
-        held(m, vln, "violins", "trem", n, 0.8, 0.0, hit_at - 0.04, release=0.05, attack=0.15, shape=(0.1, 0.45, 1.15))
-    held(m, vc, "celli", "sus", "F#2", 0.8, 0.0, hit_at - 0.04, release=0.05, attack=0.15, shape=(0.2, 0.5, 1.1))
-    run = [47 + s + 12 * k for k in range(3) for s in (0, 2, 3, 5, 7, 8, 11)][3:19]
-    for i, n in enumerate(run):
-        pluck(m, Seat(-0.6, wet=0.4, width=0.5), "harp", "pluck", n, 0.5 + 0.4 * i / len(run), 0.14 + (hit_at - 0.16) * i / len(run), decay=0.8)
+    # The draw: a cymbal played backwards for the blink before the hit.
+    o.hit(m, cym, V1 + "varMetal/Cymbals/clash/crash_hit_ff_tight.wav", 0.0, 0.3, length=hit_at, fade=hit_at * 0.9, reverse=True)
 
-    # The downbeat: every drum on the stage, low brass and horns on an open fifth, trumpets on top.
+    # The slam. Low: damped bass drum, a giant drum, timpani. Middle: a whip crack, a rimshot and
+    # the brass and strings on a short open fifth. Top: an anvil, two choked cymbals, bells.
     t = hit_at
-    o.hit(m, back_row, V1 + "drums/bass/bdrum_fff_2.wav", t - 0.07, 1.0, length=4.5, fade=2.0)
-    o.hit(m, back_row, V1 + "drums/bass/bdrum3_fff_1.wav", t - 0.07, 0.7, pitch=-4, length=4.5, fade=2.0)
-    o.hit(m, Seat(-0.3, wet=0.5), V1 + "drums/other/ethnic/giant/mallet/EthnicLargeMallet_hit_ff_1.wav", t - 0.02, 0.9)
-    o.hit(m, Seat(0.3, wet=0.5), V1 + "drums/other/ethnic/giant/mallet/EthnicLargeMallet_hit_ff_2.wav", t - 0.008, 0.8, pitch=-2)
-    o.hit(m, Seat(0.1, wet=0.45), PERC + "timpsnaretenor_fff.wav", t - 0.06, 0.45)
-    o.play(m, Seat(-0.08, wet=0.55), "timpani", "hit", 47, 1.0, t)
-    o.play(m, Seat(-0.08, wet=0.55), "timpani", "hit", 54, 0.9, t + 0.004)
-    o.hit(m, cym, V1 + "varMetal/Cymbals/clash/crash_hit_fff_loose.wav", t - 0.1, 0.8, length=6.0, fade=3.5)
-    o.hit(m, Seat(0.2, wet=0.5), PERC + "cymbal-crash1_ff_rr1.wav", t - 0.03, 0.5, length=6.0, fade=4.0)
-    o.hit(m, cym, PERC + "gongHit_fff.wav", t - 0.15, 0.5, length=6.5, fade=5.0)
-    ring = (1.0, 0.8, 0.55, 0.3)
-    for n in ("B1", "B2", "F#3", "B3"):
-        held(m, tbn, "trombone", "sus", max(midi(n), 34), 1.0, t, 1.5, release=0.6, shape=ring)
+    o.hit(m, front, V1 + "drums/bass/bdrum_muted_fff_1.wav", t - 0.07, 1.0, length=0.9, fade=0.5)
+    o.hit(m, Seat(-0.2, wet=0.3), V1 + "drums/other/ethnic/giant/mallet/EthnicLargeMallet_hit_ff_1.wav", t - 0.02, 0.9)
+    o.play(m, Seat(-0.08, wet=0.4), "timpani", "hit", 47, 1.0, t)
+    o.hit(m, front, V1 + "varWood/slapstick1.wav", t - 0.004, 0.75, length=0.5, fade=0.3)
+    o.hit(m, Seat(0.1, wet=0.3), V1 + "drums/snare/drum3_marching/snare3_rimshot_ff_1.wav", t - 0.045, 0.6)
+    o.hit(m, Seat(0.1, wet=0.3), PERC + "timpsnaretenor_fff.wav", t - 0.06, 0.4)
+    o.hit(m, Seat(0.25, wet=0.35), PERC + "Anvil_Hit1_v3_Sum.wav", t - 0.004, 0.45, length=1.1, fade=0.8)
+    o.hit(m, cym, PERC + "cymbal-crashshort_v1.wav", t - 0.004, 0.6)
+    o.hit(m, Seat(0.2, wet=0.35), V1 + "varMetal/Cymbals/clash/crash_hit_ff_verytight.wav", t - 0.04, 0.5, length=1.6, fade=1.2)
+    for n in ("B1", "B2", "F#3"):
         o.play(m, tbn, "trombone", "stac", max(midi(n), 34), 1.0, t)
-    held(m, Seat(0.5, wet=0.45), "tuba", "sus", "B1", 1.0, t, 1.5, release=0.6, shape=ring)
+    o.play(m, Seat(0.5, wet=0.35), "tuba", "stac", midi("B1"), 1.0, t)
     for n in ("B2", "F#3", "B3"):
-        held(m, hn, "horn", "sus", n, 1.0, t, 1.5, release=0.6, shape=ring)
         o.play(m, hn, "horn", "stac", midi(n), 1.0, t)
     for n in ("B3", "F#4", "B4", "F#5"):
-        held(m, tpt, "trumpet", "sus", n, 1.0, t, 1.3, release=0.5, shape=ring)
         o.play(m, tpt, "trumpet", "stac", midi(n), 1.0, t)
     for n in ("B4", "F#5", "B5"):
         o.play(m, vln, "violins", "spic", midi(n), 1.0, t)
-        held(m, vln, "violins", "trem", n, 0.9, t, 2.2, release=0.9, shape=(1.0, 0.6, 0.35, 0.15))
+    for n in ("B3", "F#4"):
+        o.play(m, vla, "violas", "spic", midi(n), 1.0, t)
     o.play(m, vc, "celli", "spic", midi("B2"), 1.0, t)
     o.play(m, cb, "basses", "spic", midi("B1"), 1.0, t)
-    held(m, cb, "basses", "sus", "B1", 0.9, t, 1.8, release=0.8, shape=ring)
 
-    x = mixdown(m, HALL, wet_db=-4.0, tail=0.0)
+    # The glint: bells running up out of the hit.
+    o.hit(m, Seat(-0.3, wet=0.4), PERC + "BellTree_Stroke3_v1_Sum.wav", t, 0.3, length=1.6, fade=1.2)
+    for i, n in enumerate(("B5", "D6", "F#6", "B6")):
+        when = t + 0.06 + i * 0.042
+        pluck(m, Seat(-0.3 + 0.2 * i, wet=0.4, width=0.5), "glock", "hit", n, 0.75, when, decay=0.9, gain=0.55)
+        pluck(m, Seat(0.3 - 0.2 * i, wet=0.4, width=0.5), "harp", "pluck", midi(n) - 12, 0.7, when, decay=0.7, gain=0.6)
 
-    # Under it, felt more than heard: a sine that drops as the drum head settles.
-    n = int(1.1 * SR)
-    f = 68 * np.exp(-np.arange(n) / (0.35 * SR)) + 36
-    sub = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-np.arange(n) / (0.32 * SR)) * (1 - np.exp(-np.arange(n) / (0.004 * SR)))
+    x = mixdown(m, STAGE, wet_db=-7.0, tail=0.0)
+    level = float(np.abs(x).max())
     i = int(t * SR)
-    x[i : i + n] += (sub * 0.5 * np.abs(x).max())[:, None].astype(np.float32)
 
-    # The crowd: already stirring before the hit, at full voice a second after it.
-    people = crowd.arena(crowd.cheer(total, peak_at=hit_at + 0.95, hold=1.9, decay=3.6, seed=5, people=260, whistles=10, clapping=0.55))
-    people = people[: len(x)]
-    orchestra_peak = float(np.sqrt((x[i : i + SR // 2] ** 2).mean()))
-    crowd_level = float(np.sqrt((people[int(2.0 * SR) : int(3.0 * SR)] ** 2).mean()))
-    x[: len(people)] += people * (orchestra_peak / crowd_level) * db(-10.5)
+    # A synthesized kick for the punch in the chest, a short drop under it, and the sheen of steel.
+    for extra, gain in ((synth.kick(1.0, low=50, sweep=170, length=0.5), 0.8), (synth.boom(1.0, top=95, bottom=44, length=0.7), 0.35), (sheen(), 0.3)):
+        x[i : i + len(extra)] += extra[: len(x) - i] * gain * level
 
-    x = highpass(x, 26)
-    x = x * (db(1.5) / np.abs(x).max())  # lean into the limiter a little: this one should feel huge
-    return limit(x, ceiling_db=-1.0, lookahead=0.004, release=0.18)
+    # The crowd, answering at once and settling quickly: the hit is the point.
+    people = crowd.arena(crowd.cheer(total, peak_at=hit_at + 0.5, hold=0.9, decay=2.9, seed=5, people=200, whistles=7, clapping=0.5))[: len(x)]
+    hit_level = float(np.sqrt((x[i : i + SR // 4] ** 2).mean()))
+    crowd_level = float(np.sqrt((people[int(1.0 * SR) : int(1.8 * SR)] ** 2).mean()))
+    x[: len(people)] += people * (hit_level / crowd_level) * db(-13.0)
+
+    x = shelf(highpass(x, 28), 3500, 2.0)
+    x = x * (db(2.5) / np.abs(x).max())  # into the limiter: a slam should be dense
+    return limit(x, ceiling_db=-1.0, lookahead=0.003, release=0.09)
 
 
 def results_crowd(big: bool) -> np.ndarray:
