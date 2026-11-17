@@ -19,7 +19,7 @@ export interface DeckInfo {
 const PAINT_FRAGMENT = /* glsl */ `
 ${COMMON}
 uniform vec3 uA; uniform vec3 uB; uniform vec3 uC; uniform vec3 uRim;
-uniform float uGlitter; uniform float uGlow;
+uniform float uGlitter; uniform float uGlow; uniform float uPanels; uniform float uVeins;
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
 
 float glitterLayer(vec3 p, vec3 n, vec3 v) {
@@ -56,20 +56,37 @@ void main() {
   float aa = fwidth(vv) * 1.5 + 0.004;
   float face = 1.0 - smoothstep(0.34 - aa, 0.34 + aa, vv);
   float pipe = 1.0 - smoothstep(0.012, 0.012 + aa, abs(vv - 0.34));
-  base *= mix(1.18, 0.8, face) * (1.0 - 0.3 * seam * face);
+  base *= mix(1.18, 0.8, face) * (1.0 - 0.3 * seam * face * (1.0 - uPanels));
+  if (uPanels > 0.5) {
+    // Triangulated cladding on the shell: every panel a touch lighter or darker, fine joints between.
+    vec2 pp = vec2(atan(vWPos.y, abs(vWPos.x) + 1e-3) * 13.0, vWPos.z * 0.42);
+    vec2 sk = vec2(pp.x + pp.y * 0.5, pp.y);
+    vec2 cell = floor(sk);
+    vec2 f = fract(sk);
+    float upper = step(1.0, f.x + f.y);
+    vec2 g = mix(f, 1.0 - f, upper);
+    float edge = min(min(g.x, g.y), abs(f.x + f.y - 1.0) * 0.7071);
+    float joint = smoothstep(0.0, (fwidth(sk.x) + fwidth(sk.y)) * 1.2 + 0.02, edge);
+    base *= (0.82 + 0.34 * hash21(cell + upper * 37.0)) * mix(0.55, 1.0, joint * face + (1.0 - face));
+  }
+  if (uVeins > 0.5) {
+    // Ribs running the length of a crest, like the veins of a leaf.
+    float rib = abs(fract(vv * 9.0) - 0.5);
+    base *= 1.0 + 0.22 * face * (1.0 - smoothstep(0.03, 0.03 + fwidth(vv * 9.0) * 1.5, rib));
+  }
 
   vec3 toGlow = uGlowPos - vWPos;
   float gd = length(toGlow);
   float moonLit = (max(0.0, dot(n, toGlow / gd)) * 0.75 + 0.25) / (1.0 + gd * gd * 0.0022);
   vec3 moonCol = mix(uKey, vec3(1.0), 0.55) * uScreenLevel;
   float up = n.y * 0.5 + 0.5;
-  vec3 light = mix(uWash * 0.5, vec3(0.1, 0.17, 0.46), up) + moonCol * min(0.5, moonLit) * 1.0;
+  vec3 light = mix(uWash * 0.42, vec3(0.085, 0.145, 0.4), up) + moonCol * min(0.5, moonLit) * 0.8;
   vec3 col = base * light * ao;
-  col += base * uGlow * mix(0.55, 1.0, ao) * (0.7 + 0.3 * uBarPulse);
+  col += base * uGlow * mix(0.55, 1.0, ao) * (0.5 + 0.22 * uBarPulse);
 
   float fres = pow(1.0 - ndv, 3.0);
-  col += uRim * fres * (0.3 + 0.35 * uEnergy) * ao;
-  col += uRim * pipe * (0.35 + 0.5 * (0.5 + 0.5 * sin(vUv.x * 14.0 - uTime * 1.6)) + 0.4 * uPulse) * mix(0.5, 1.0, ao);
+  col += uRim * fres * (0.22 + 0.26 * uEnergy) * ao;
+  col += uRim * pipe * (0.2 + 0.3 * (0.5 + 0.5 * sin(vUv.x * 14.0 - uTime * 1.6)) + 0.22 * uPulse) * mix(0.5, 1.0, ao);
   col += skyGradient(reflect(-v, n)) * (0.04 + fres) * 1.6;
   #ifdef GLITTER
     col += mix(uC, vec3(1.0), 0.5) * glitter(vWPos, n, v, dist) * uGlitter * 3.0 * mix(0.4, 1.0, ao);
@@ -95,7 +112,7 @@ void main() {
     float rr = pow(pow(abs(d.x), uDeckShape.z) + pow(abs(d.y), uDeckShape.z), 1.0 / uDeckShape.z);
     float ring = abs(fract(rr * 5.0 - uBeat * 0.25) - 0.5);
     float w = fwidth(rr * 5.0) + 0.012;
-    col += mix(uAccent, uKey, 0.5 + 0.5 * sin(rr * 9.0)) * smoothstep(w, 0.0, ring - 0.006) * (0.5 + 0.7 * uPulse);
+    col += mix(uAccent, uKey, 0.5 + 0.5 * sin(rr * 9.0)) * smoothstep(w, 0.0, ring - 0.006) * (0.3 + 0.4 * uPulse);
     // A polished floor: it mirrors the moon and the sky.
     vec3 r = reflect(-v, n);
     if (r.z < -1e-3) {
@@ -142,7 +159,7 @@ ${COMMON}
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
 void main() {
   float run = 0.5 + 0.5 * sin(vUv.x * 60.0 - uTime * 2.5 - vWPos.y * 0.3);
-  vec3 col = mix(uKey, uAccent, run) * (1.5 + 1.6 * uPulse + 0.8 * uEnergy);
+  vec3 col = mix(uKey, uAccent, run) * (0.8 + 0.7 * uPulse + 0.35 * uEnergy);
   gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
   ${OUTPUT}
 }`;
@@ -151,7 +168,7 @@ const LENS_FRAGMENT = /* glsl */ `
 ${COMMON}
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
 void main() {
-  gl_FragColor = vec4(mix(uKey, vec3(1.0), 0.5) * (2.0 + 2.0 * uEnergy), 1.0);
+  gl_FragColor = vec4(mix(uKey, vec3(1.0), 0.5) * (1.1 + 0.9 * uEnergy), 1.0);
   ${OUTPUT}
 }`;
 
@@ -161,10 +178,10 @@ uniform float uCells;
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
 void main() {
   #ifdef MOON
-    vec3 col = moonContent(vUv) * 1.15;
+    vec3 col = moonContent(vUv) * 0.9;
     vec2 cells = vUv * uCells;
   #else
-    vec3 col = wingContent(vUv) * 1.5;
+    vec3 col = wingContent(vUv) * 1.0;
     vec2 cells = vUv * vec2(uCells * 5.0, uCells);
   #endif
   // The LED grid shows up close and melts away with distance.
@@ -198,7 +215,7 @@ export function applyVenueMaterials(root: THREE.Object3D, deck: DeckInfo, glitte
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;
     const src = mesh.material as THREE.Material;
-    const info = src.userData as { kind?: string; a?: string; b?: string; c?: string; rim?: string; glitter?: number; glow?: number };
+    const info = src.userData as { kind?: string; a?: string; b?: string; c?: string; rim?: string; glitter?: number; glow?: number; panels?: number; veins?: number };
     const kind = info.kind && FRAGMENTS[info.kind] ? info.kind : 'black';
     const moon = kind === 'screen' && /Moon/.test(mesh.name);
     const key = kind === 'screen' ? `screen-${moon}` : src.name;
@@ -212,6 +229,8 @@ export function applyVenueMaterials(root: THREE.Object3D, deck: DeckInfo, glitte
         uniforms.uRim = { value: new THREE.Color(info.rim ?? '#ffffff') };
         uniforms.uGlitter = { value: info.glitter ?? 0.5 };
         uniforms.uGlow = { value: info.glow ?? 0.3 };
+        uniforms.uPanels = { value: info.panels ?? 0 };
+        uniforms.uVeins = { value: info.veins ?? 0 };
       } else if (kind === 'deck') {
         uniforms.uDeckC = { value: new THREE.Vector3(...deck.center) };
         uniforms.uDeckShape = { value: new THREE.Vector3(deck.a, deck.b, deck.power) };

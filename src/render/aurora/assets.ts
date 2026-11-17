@@ -13,6 +13,8 @@ export interface VenueData {
   moon: { center: Vec3; radius: number };
   fireworks: FireworkSpec[];
   co2: Vec3[];
+  /** Spots in the audience that stay free: the mix position, delay towers. */
+  clear?: { pos: Vec3; radius: number }[];
   deck: DeckInfo;
 }
 

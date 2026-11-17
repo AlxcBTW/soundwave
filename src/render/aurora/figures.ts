@@ -306,6 +306,7 @@ export function makeCrowd(data: VenueData, characters: string[], share: number, 
       let nearest = Infinity;
       for (const c of cameras) nearest = Math.min(nearest, Math.hypot(px - c[0], pz - c[2]));
       if (nearest < 2.2) continue;
+      if (data.clear?.some((c) => Math.hypot(px - c.pos[0], pz - c.pos[2]) < c.radius)) continue;
       const style = rand();
       people.push({
         pos: [px, 0, pz],

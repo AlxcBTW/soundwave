@@ -3,8 +3,8 @@ import { COMMON, OUTPUT, shared } from './shared';
 import type { Fixture } from './assets';
 
 const DOWN = new THREE.Vector3(0, -1, 0);
-const LENGTH: Record<string, number> = { Sky: 90, Shell0: 52, Shell2: 44, Ribbon: 40, Truss: 34, Floor: 26 };
-const SPREAD: Record<string, number> = { Sky: 0.02, Shell0: 0.034, Shell2: 0.034, Ribbon: 0.03, Truss: 0.045, Floor: 0.04 };
+const LENGTH: Record<string, number> = { Sky: 90, Shell0: 52, Shell2: 44, Ribbon: 40, Truss: 34, Floor: 26, Halo: 30, Delay: 40, Foh: 60 };
+const SPREAD: Record<string, number> = { Sky: 0.02, Shell0: 0.034, Shell2: 0.034, Ribbon: 0.03, Truss: 0.045, Floor: 0.04, Halo: 0.06, Delay: 0.03, Foh: 0.012 };
 
 export interface BeamState {
   /** Pan and tilt away from the fixture's rest direction, radians. */
@@ -133,14 +133,14 @@ export class Beams {
       p.set(...f.pos);
       m.compose(p, q, s.set(radius, len, radius));
       this.mesh.setMatrixAt(i, m);
-      this.mesh.setColorAt(i, c.copy(st.color).multiplyScalar(st.level * 0.5));
+      this.mesh.setColorAt(i, c.copy(st.color).multiplyScalar(st.level * 0.36));
       // The flare swells when the beam swings toward the camera.
       dir.copy(DOWN).applyQuaternion(q);
       toCam.copy(camera.position).sub(p).normalize();
       const facing = Math.pow(Math.max(0, dir.dot(toCam)), 6);
-      const k = Math.min(1, st.level * 1.4);
+      const k = Math.min(0.8, st.level * 1.1);
       this.flareColor.set([st.color.r * k, st.color.g * k, st.color.b * k], i * 3);
-      this.flareSize[i] = st.level > 0.01 ? 1.7 + 7 * facing : 0;
+      this.flareSize[i] = st.level > 0.01 ? 1.3 + 5 * facing : 0;
     });
     this.mesh.instanceMatrix.needsUpdate = true;
     this.mesh.instanceColor!.needsUpdate = true;

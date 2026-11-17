@@ -63,10 +63,10 @@ def material(name, color, **props):
 
 # Paint: a three-stop gradient along the form (foot, body, tip), a rim colour, glitter amount and
 # how much of the gradient glows by itself.
-material('PaintShellA', (0.10, 0.16, 0.62), kind='paint', a='#0b1470', b='#2a55e8', c='#7fd8ff', rim='#9fe8ff', glitter=0.55, glow=0.34)
-material('PaintShellB', (0.26, 0.12, 0.62), kind='paint', a='#1a0b63', b='#6a3df0', c='#c9a2ff', rim='#ffb0f0', glitter=0.75, glow=0.3)
-material('PaintCrest', (0.12, 0.3, 0.75), kind='paint', a='#0a1a6e', b='#2f7af2', c='#b4f4ff', rim='#c8f6ff', glitter=0.9, glow=0.36)
-material('PaintEcho', (0.5, 0.15, 0.62), kind='paint', a='#2a0a66', b='#b032d8', c='#ff9ad6', rim='#ffc2ec', glitter=0.6, glow=0.4)
+material('PaintShellA', (0.10, 0.16, 0.62), kind='paint', a='#0b1470', b='#2a55e8', c='#7fd8ff', rim='#9fe8ff', glitter=0.55, glow=0.34, panels=1.0)
+material('PaintShellB', (0.26, 0.12, 0.62), kind='paint', a='#1a0b63', b='#6a3df0', c='#c9a2ff', rim='#ffb0f0', glitter=0.75, glow=0.3, panels=1.0)
+material('PaintCrest', (0.12, 0.3, 0.75), kind='paint', a='#0a1a6e', b='#2f7af2', c='#b4f4ff', rim='#c8f6ff', glitter=0.9, glow=0.36, veins=1.0)
+material('PaintEcho', (0.5, 0.15, 0.62), kind='paint', a='#2a0a66', b='#b032d8', c='#ff9ad6', rim='#ffc2ec', glitter=0.6, glow=0.4, veins=1.0)
 material('PaintRibbon', (0.1, 0.5, 0.75), kind='paint', a='#0d2a8a', b='#18b8e8', c='#e6fbff', rim='#ffffff', glitter=0.35, glow=0.5)
 material('Deck', (0.03, 0.03, 0.08), kind='deck')
 material('Black', (0.01, 0.01, 0.015), kind='black')
@@ -216,13 +216,52 @@ def slab(bm, scale, z0, z1, chamfer=0.12):
 FIXTURES = []
 
 
-def fixture(bm_body, bm_lens, pos, direction, group):
+def fixture(bm_body, bm_lens, pos, direction, group, mount=(0, 0, -1)):
+    """
+    A moving head: a head with a lit lens, held by a yoke on a base. `pos` is the lens, `mount` the
+    direction from the head to whatever carries it.
+    """
     d = Vector(direction).normalized()
     pos = Vector(pos)
+    m = Vector(mount).normalized()
     q = d.to_track_quat('Z', 'Y').to_matrix().to_4x4()
-    bmesh.ops.create_cone(bm_body, cap_ends=True, segments=10, radius1=0.26, radius2=0.3, depth=0.6, matrix=Matrix.Translation(pos - d * 0.3) @ q)
-    bmesh.ops.create_circle(bm_lens, cap_ends=True, segments=10, radius=0.24, matrix=Matrix.Translation(pos + d * 0.01) @ q)
+    bmesh.ops.create_cone(bm_body, cap_ends=True, segments=12, radius1=0.19, radius2=0.25, depth=0.5, matrix=Matrix.Translation(pos - d * 0.25) @ q)
+    bmesh.ops.create_circle(bm_lens, cap_ends=True, segments=12, radius=0.21, matrix=Matrix.Translation(pos + d * 0.012) @ q)
+    side = m.cross(d)
+    if side.length < 1e-3:
+        side = m.cross(Vector((1, 0, 0)))
+    side.normalize()
+    rot = Matrix((side, m.cross(side).normalized(), m)).transposed()
+    c = pos - d * 0.25
+    for sgn in (-1, 1):
+        box(bm_body, (0.06, 0.16, 0.5), c + side * (0.3 * sgn) + m * 0.2, rot)
+    box(bm_body, (0.66, 0.2, 0.08), c + m * 0.44, rot)
+    box(bm_body, (0.46, 0.46, 0.16), c + m * 0.56, rot)
     FIXTURES.append({'group': group, 'pos': pos.copy(), 'dir': d.copy()})
+
+
+def truss(bm, stations, s=0.3, closed=False):
+    """A box truss through `stations` (centre, across, depth): four chords, braced bay by bay."""
+    corners = [[c + n * (s * a) + b * (s * e) for (a, e) in ((-1, -1), (1, -1), (1, 1), (-1, 1))] for (c, n, b) in stations]
+    count = len(corners)
+    for k in range(count if closed else count - 1):
+        a, b = corners[k], corners[(k + 1) % count]
+        for i in range(4):
+            cyl(bm, a[i], b[i], 0.045, 5)
+            j = (i + 1) % 4
+            if k % 2:
+                cyl(bm, a[i], b[j], 0.028, 4)
+            else:
+                cyl(bm, a[j], b[i], 0.028, 4)
+        if k % 3 == 0:
+            for i in range(4):
+                cyl(bm, a[i], a[(i + 1) % 4], 0.028, 4)
+
+
+def dots(bm, points, size=0.16):
+    """Small lamps: a string of light points."""
+    for q in points:
+        box(bm, (size, size, size), q)
 
 
 # =================================================================== THE STAGE
@@ -270,7 +309,7 @@ for i in range(5):
     loft('Arch%d' % i, path, th_of, d_of, 'PaintShellA' if i % 2 == 0 else 'PaintShellB', sides=28, power=2.3, flare=flare, u_of=crown)
     ARCHES.append((path, half_w, height, y))
     # a line of light along the front lip, and moving heads on the outer two ridges
-    lip, heads = [], []
+    lip, heads, rig = [], [], []
     for (t, p, tan, n_, b) in frames(path, Y):
         rot = Matrix.Rotation(flare, 3, tan)
         n2, b2 = rot @ n_, rot @ b
@@ -278,12 +317,19 @@ for i in range(5):
             b2 = -b2
         lip.append(p - b2 * (d_of(t) * 0.5 + 0.02))
         heads.append((p - n2 * (th_of(t) * 0.5) - b2 * (d_of(t) * 0.3), -n2))
+        rig.append((p - n2 * (th_of(t) * 0.5 + 0.75) - b2 * (d_of(t) * 0.3), -n2, b2))
     tube(led, lip[3:-3], 0.06)
     if i in (0, 2):
-        count = 13 if i == 0 else 9
+        # a truss stands off the ridge on brackets and carries the moving heads
+        lo, hi = round(0.11 * n), round(0.89 * n)
+        truss(black, rig[lo:hi + 1])
+        for k in range(lo, hi + 1, 6):
+            c, out, b2 = rig[k]
+            cyl(black, c, c - out * 0.8, 0.05, 5)
+        count = 15 if i == 0 else 11
         for j in range(count):
-            pos, out = heads[round((0.16 + 0.68 * j / (count - 1)) * n)]
-            fixture(black, lens, pos + out * 0.3, out * 0.55 - Y * 0.75 + Z * 0.15, 'Shell%d' % i)
+            c, out, b2 = rig[round((0.14 + 0.72 * j / (count - 1)) * n)]
+            fixture(black, lens, c - b2 * 0.78 + out * 0.1, out * 0.55 - Y * 0.75 + Z * 0.15, 'Shell%d' % i, mount=b2)
 
 # ---------------------------------------------------------------- the moon: a round screen behind the shell
 moon = bmesh.new()
@@ -297,6 +343,24 @@ ring = [MOON_C + Vector((math.cos(a) * (MOON_R + 0.7), -0.2, math.sin(a) * (MOON
 loft('MoonRim', ring, lambda t: 2.0, lambda t: 1.6, 'PaintRibbon', sides=16, u_of=lambda t: 0.5 + 0.5 * math.sin(2 * math.pi * t - math.pi / 2))
 tube(led, [p + Vector((0, -0.75, 0)) + (p - MOON_C).normalized() * -0.55 for p in ring], 0.07)
 
+# ---------------------------------------------------------------- the halo: a ring truss flown over the band
+HALO_C, HALO_R = Vector((0, 8.5, 21.0)), 8.5
+halo_tilt = Matrix.Rotation(math.radians(-14), 3, 'X')
+halo_up = (halo_tilt @ Z).normalized()
+halo = []
+for k in range(48):
+    a = 2 * math.pi * k / 48
+    radial = (halo_tilt @ Vector((math.cos(a), math.sin(a), 0))).normalized()
+    halo.append((HALO_C + radial * HALO_R, radial, halo_up))
+truss(black, halo, closed=True)
+tube(led, [c - n_ * 0.42 - up * 0.36 for (c, n_, up) in halo] + [halo[0][0] - halo[0][1] * 0.42 - halo_up * 0.36], 0.05)
+for k in range(0, 48, 4):
+    c, radial, up = halo[k]
+    fixture(black, lens, c - up * 0.95, radial * 0.38 - Y * 0.3 - Z, 'Halo', mount=up)
+for k in (6, 18, 30, 42):
+    c = halo[k][0]
+    cyl(black, c, c + Vector((0, 0, 7.5)), 0.02, 4)
+
 
 # ---------------------------------------------------------------- crests: waves curling outward on both wings
 def crest(name, base, height, mat, turn=0.0, lean=0.0):
@@ -306,8 +370,12 @@ def crest(name, base, height, mat, turn=0.0, lean=0.0):
         m = Matrix.Translation(Vector((base[0] * side, base[1], 0))) @ Matrix.Rotation(turn * side, 4, 'Z') @ Matrix.Rotation(lean, 4, 'X')
         path = catmull([m @ Vector((x * side, 0, z)) for x, z in local], 72)
         axis = (m.to_3x3() @ Y).normalized()
-        loft('%s_%s' % (name, 'R' if side > 0 else 'L'), path, lambda t: 0.44 * h * (1 - t) ** 0.62 + 0.1, lambda t: 0.05 * h * (1 - t) ** 0.4 + 0.2,
+        width = lambda t: 0.44 * h * (1 - t) ** 0.62 + 0.1
+        loft('%s_%s' % (name, 'R' if side > 0 else 'L'), path, width, lambda t: 0.05 * h * (1 - t) ** 0.4 + 0.2,
              mat, depth_axis=axis, sides=24, power=2.0)
+        fr = frames(path, axis)
+        for sgn in (-1, 1):
+            dots(led, [q + n_ * (sgn * (width(t) * 0.5 + 0.06)) - axis * 0.05 for (t, q, tan, n_, b) in fr[3:-1:2]])
         FIXTURES.append({'group': 'Sky', 'pos': path[40] - axis * (0.05 * h), 'dir': (Vector((0.25 * side, -0.35, 1))).normalized()})
 
 
@@ -386,6 +454,73 @@ for j in range(11):
     fixture(black, lens, p, (sx * 0.5, -0.45, 1.0), 'Floor')
 barrier = deck_outline(1.44, 0.6, 96, front_only=True)
 loft('', barrier, lambda t: 0.12, lambda t: 1.2, None, depth_axis=Z, sides=6, power=6, bm=black)
+
+# ---------------------------------------------------------------- backline and what stands around the deck
+for x in (-8.5, -5.0, -1.6, 1.6, 5.0, 8.5):
+    box(black, (0.75, 0.5, 0.42), Vector((x, -0.6, DECK_H + 0.2)), Matrix.Rotation(math.radians(-32), 3, 'X'))
+for side in (1, -1):
+    for col in range(2):
+        for row in range(2):
+            c = Vector((side * (6.6 + col * 1.35), 16.2, DECK_H + 0.55 + row * 1.08))
+            box(black, (1.25, 0.6, 1.02), c)
+            dots(led, [c + Vector((-0.4, -0.31, 0.38))], 0.05)
+    # side fills turned toward the band
+    turn = Matrix.Rotation(math.radians(38 * side), 3, 'Z')
+    for row in range(2):
+        box(black, (1.5, 1.0, 1.15), Vector((side * 19.5, 6.5, DECK_H + 0.6 + row * 1.2)), turn)
+# subs in the pit, along the barrier
+for j in range(15):
+    a = math.pi * (1.17 + 0.66 * j / 14)
+    sx, sy = superpoint(a, DECK_P)
+    c = Vector((DECK_C.x + sx * DECK_A * 1.355, DECK_C.y + sy * DECK_B * 1.355, 0.36))
+    box(black, (1.4, 0.95, 0.72), c, Matrix.Rotation(math.atan2(sx * DECK_A, -sy * DECK_B), 3, 'Z'))
+# a camera jib in the pit
+jib = Vector((DECK_C.x + 0.62 * DECK_A * 1.36, DECK_C.y - 0.72 * DECK_B * 1.36, 0))
+for leg in ((0.5, 0.3), (-0.5, 0.3), (0, -0.55)):
+    cyl(black, jib + Vector((leg[0], leg[1], 0)), jib + Vector((0, 0, 1.7)), 0.035, 5)
+arm_a, arm_b = jib + Vector((1.4, 1.0, 1.25)), jib + Vector((-5.5, -3.6, 5.6))
+cyl(black, arm_a, arm_b, 0.07, 6)
+cyl(black, jib + Vector((0, 0, 1.7)), arm_a.lerp(arm_b, 0.2), 0.05, 5)
+box(black, (0.5, 0.5, 0.5), arm_a)
+box(black, (0.4, 0.6, 0.32), arm_b + Vector((0, 0.1, -0.3)))
+dots(led, [arm_b + Vector((0, 0.42, -0.2))], 0.05)
+
+# ---------------------------------------------------------------- the mix position and two delay towers in the crowd
+CLEAR = []
+FOH = Vector((0, -84, 0))
+for sx in (-1, 1):
+    for sy in (-1, 1):
+        base = FOH + Vector((sx * 4.2, sy * 3.0, 0))
+        truss(black, [(base + Vector((0, 0, z)), Vector((1, 0, 0)), Vector((0, 1, 0))) for z in (0, 1.2, 2.4, 3.6, 4.8, 6.0)], s=0.18)
+box(black, (9.0, 6.6, 0.22), FOH + Vector((0, 0, 2.5)))
+box(black, (9.6, 7.2, 0.2), FOH + Vector((0, 0, 6.1)), Matrix.Rotation(math.radians(-5), 3, 'X'))
+box(black, (6.0, 1.1, 0.9), FOH + Vector((0, 1.6, 3.1)))
+loft('', [FOH + Vector((x, y, 3.2)) for (x, y) in ((-4.5, 3.3), (4.5, 3.3), (4.5, -3.3), (-4.5, -3.3), (-4.5, 3.3))], lambda t: 0.06, lambda t: 1.1, None, depth_axis=Z, sides=4, power=6, bm=black)
+dots(led, [FOH + Vector((x, 1.02, 3.72)) for x in (-2.4, -1.2, 0, 1.2, 2.4)], 0.09)
+tube(led, [FOH + Vector((-4.7, 3.55, 6.0)), FOH + Vector((4.7, 3.55, 6.0))], 0.04)
+for sx in (-1, 1):
+    fixture(black, lens, FOH + Vector((sx * 3.4, 3.2, 6.7)), (-sx * 0.04, 1, 0.16), 'Foh', mount=(0, 0, -1))
+CLEAR.append((FOH, 7.5))
+for side in (1, -1):
+    base = Vector((52 * side, -40, 0))
+    truss(black, [(base + Vector((0, 0, z)), Vector((1, 0, 0)), Vector((0, 1, 0))) for z in [k * 1.2 for k in range(13)]], s=0.3)
+    box(black, (2.2, 0.8, 0.4), base + Vector((0, 0.9, 14.2)))
+    pos, ang = base + Vector((0, 1.5, 13.9)), 0.0
+    for k in range(7):
+        ang += math.radians(1.5 + 0.9 * k)
+        rot = Matrix.Rotation(ang, 3, 'X')
+        pos = pos + rot @ Vector((0, 0, -0.48))
+        box(black, (1.3, 0.8, 0.44), pos, rot)
+    fixture(black, lens, base + Vector((0, 0.6, 15.0)), (-0.3 * side, 0.55, 0.78), 'Delay', mount=(0, 0, -1))
+    dots(led, [base + Vector((0.34, -0.34, z)) for z in (3, 6, 9, 12)], 0.07)
+    CLEAR.append((base, 2.6))
+
+# ---------------------------------------------------------------- spray: small crests where the big forms meet the ground
+SPRAY = [((31.5, 1.0), 6.5, 'PaintEcho', -4, 10), ((34.5, -1.5), 4.2, 'PaintCrest', -10, 14), ((30.2, -2.6), 3.0, 'PaintEcho', 6, 12),
+         ((70.5, -15.0), 7.5, 'PaintCrest', -30, 10), ((74.5, -19.5), 5.0, 'PaintEcho', -36, 14), ((67.0, -17.5), 3.6, 'PaintCrest', -22, 12),
+         ((64.0, 12.0), 9.0, 'PaintEcho', -34, 6)]
+for index, (base, height, paint, turn, lean) in enumerate(SPRAY):
+    crest('Spray%d' % index, base, height, paint, turn=math.radians(turn), lean=math.radians(lean))
 
 new_obj('Leds', led, 'Led')
 new_obj('Rigging', black, 'Black')
@@ -508,6 +643,7 @@ def export(out_dir):
         'moon': {'center': to_three(MOON_C), 'radius': MOON_R},
         'fireworks': [{**f, 'origin': to_three(f['origin'])} for f in FIREWORKS],
         'co2': [to_three(c) for c in CO2],
+        'clear': [{'pos': to_three(c), 'radius': r} for c, r in CLEAR],
         'deck': {'center': to_three(DECK_C), 'a': DECK_A, 'b': DECK_B, 'power': DECK_P, 'height': DECK_H, 'barrier': 1.44},
     }
     glb = os.path.join(out_dir, 'venue.glb')

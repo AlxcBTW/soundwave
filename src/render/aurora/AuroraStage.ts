@@ -47,7 +47,7 @@ const LOOKS: { key: Rgb; accent: Rgb; wash: Rgb }[] = [
   { key: [1, 0.3, 0.6], accent: [0.76, 0.52, 1], wash: [0.72, 0.15, 0.72] },
   { key: [0.62, 0.56, 1], accent: [1, 0.6, 0.86], wash: [0.08, 0.5, 0.78] },
 ];
-const EXPOSURE = 1.0;
+const EXPOSURE = 0.86;
 
 /**
  * The Moonrise venue in real time: painted forms, a polished deck, screens, haze, a clouded night
@@ -263,7 +263,7 @@ export class AuroraStage {
     shared.uKey.value.copy(this.key);
     shared.uAccent.value.copy(this.accent);
     shared.uWash.value.copy(this.wash);
-    shared.uScreenLevel.value = 0.75 + 0.2 * s.washLevel + 0.25 * s.barPulse;
+    shared.uScreenLevel.value = 0.62 + 0.16 * s.washLevel + 0.18 * s.barPulse;
     shared.uHazeNear.value.setRGB(0.03, 0.035, 0.15).lerp(this.wash, 0.14).multiplyScalar(0.6 + 0.35 * s.beamLevel);
 
     for (let i = 0; i < this.beams.states.length; i++) {
@@ -284,6 +284,15 @@ export class AuroraStage {
           break;
         case 'Truss':
           level = 0.25 + 0.2 * s.barPulse;
+          break;
+        case 'Halo':
+          // The ring over the band breathes with the bar and opens on the beat.
+          b.tilt = 0.12 * s.pulse + Math.sin(t * 0.4 + i) * 0.05;
+          level *= 0.3 + 0.35 * s.barPulse;
+          break;
+        case 'Delay':
+        case 'Foh':
+          level = 0.14;
           break;
         case 'Floor':
           b.pan = Math.sin(t * 0.5 + i * 0.6) * 0.25;
@@ -366,7 +375,7 @@ export class AuroraStage {
     const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: this.g.antialias ? 4 : 0 });
     const composer = new EffectComposer(this.renderer, target);
     composer.addPass(new RenderPass(this.scene, this.camera));
-    composer.addPass(new UnrealBloomPass(new THREE.Vector2(512, 512), 0.4, 0.6, 0.9));
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(512, 512), 0.2, 0.45, 1.0));
     composer.addPass(new OutputPass());
     this.composer = composer;
   }
