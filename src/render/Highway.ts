@@ -287,8 +287,6 @@ export class Highway {
   /** The darker top face of each tile, inside its bright rim. */
   private readonly cores: THREE.InstancedMesh;
   private readonly shines: THREE.InstancedMesh;
-  /** The light every tile gives off while overdrive lasts: a soft bloom round it, facing the camera. */
-  private readonly auras: THREE.InstancedMesh;
   private readonly tails: THREE.InstancedMesh;
   /** Release markers: a light tile at the end of the hold with an upright pointer standing on it. */
   private readonly capTiles: THREE.InstancedMesh;
@@ -486,18 +484,6 @@ export class Highway {
     this.shines.frustumCulled = false;
     this.shines.renderOrder = 1;
     this.root.add(this.shines);
-    // Light, not a shadow on the lane: it is drawn over the tile and everything round it.
-    this.auras = new THREE.InstancedMesh(
-      new THREE.PlaneGeometry(1, 1),
-      new THREE.MeshBasicMaterial({ map: radialTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }),
-      MAX_GEMS,
-    );
-    this.auras.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_GEMS * 3), 3);
-    this.auras.frustumCulled = false;
-    this.auras.renderOrder = 2;
-    this.auras.count = 0;
-    this.root.add(this.auras);
-
     // Sustain tails
     const tailGeo = new THREE.PlaneGeometry(1, 1);
     tailGeo.rotateX(-Math.PI / 2);
@@ -966,24 +952,11 @@ export class Highway {
       this.cores.setColorAt(gi, this.c);
       this.c.lerp(WHITE, missed ? 0.1 : 0.42);
       this.gems.setColorAt(gi, this.c);
-      if (drive > 0.01) {
-        // In overdrive only: a faint, low bloom close round the tile, turned to the camera. It is
-        // a hint of light, not a halo: the tile's own colour does the talking.
-        this.v.set(x, 0.1, z);
-        this.s.set(1.45 * here, 0.7 * here, 1);
-        this.m.compose(this.v, this.camera.quaternion, this.s);
-        this.auras.setMatrixAt(gi, this.m);
-        this.c.copy(OVERDRIVE_TILE).multiplyScalar(here * drive * (missed ? 0.02 : 0.08 + 0.05 * swell));
-        this.auras.setColorAt(gi, this.c);
-      }
       gi++;
     }
     this.gems.count = gi;
     this.cores.count = gi;
     this.shines.count = gi;
-    this.auras.count = drive > 0.01 ? gi : 0;
-    this.auras.instanceMatrix.needsUpdate = true;
-    if (this.auras.instanceColor) this.auras.instanceColor.needsUpdate = true;
     this.tails.count = ti;
     for (const mesh of [this.capTiles, this.capPointers, this.capCores]) {
       mesh.count = ci;
