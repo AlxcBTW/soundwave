@@ -1,4 +1,6 @@
-import { getAudio, getSong } from '../storage/db';
+import { loadSongBuffer } from '../audio/songAudio';
+import { encodeWav } from '../audio/wav';
+import { getAudio } from '../storage/db';
 import { isAnalysisResult, STEM_NAMES, type AnalysisResult, type StemName } from './types';
 import type { RemoteAnalyzer, RemoteResult } from './manager';
 
@@ -32,11 +34,12 @@ export function mlAnalyzer(url: string): RemoteAnalyzer {
   const base = trimUrl(url);
   return async (songId, onProgress, signal) => {
     if (!(await checkHealth(base))) return null;
-    const [blob, meta] = await Promise.all([getAudio(songId), getSong(songId)]);
-    if (!blob) return null;
+    if (!(await getAudio(songId))) return null;
     onProgress(0, 'Uploading');
+    // Upload what the app decoded, as WAV: files are often not what their extension says (an
+    // MP4/AAC download named .mp3), and the browser reads more formats than the service does.
     const form = new FormData();
-    form.append('file', blob, meta?.fileName ?? 'song');
+    form.append('file', encodeWav(await loadSongBuffer(songId)), 'song.wav');
     const res = await fetch(`${base}/jobs`, { method: 'POST', body: form, signal });
     if (!res.ok) throw new Error(`analysis service rejected the upload (${res.status})`);
     const { id } = (await res.json()) as { id: string };

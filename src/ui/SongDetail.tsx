@@ -115,6 +115,7 @@ export function SongDetail({ song, builtin, status, noteCounts, stems, previewin
             <div className="card-progress inline"><div style={{ width: `${Math.round((status.progress ?? 0) * 100)}%` }} /></div>
           )}
           {status.state === 'error' && <p className="error">{status.error}</p>}
+          {status.state === 'ready' && status.warning && <p className="error">{status.warning}</p>}
 
           <div className="section-label">Part</div>
           <div className="seg">

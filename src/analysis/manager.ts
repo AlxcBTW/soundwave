@@ -10,6 +10,8 @@ export interface AnalysisStatus {
   progress?: number;
   step?: string;
   error?: string;
+  /** Set when the analysis succeeded without the ML service although it was enabled. */
+  warning?: string;
 }
 
 const STEP_LABEL: Record<AnalysisStep, string> = {
@@ -146,7 +148,7 @@ export class AnalysisManager {
       this.current = { id, abort };
       const stale = () => (this.generation.get(id) ?? 0) !== gen;
       try {
-        const { result, stems } = await this.analyze(id, abort.signal);
+        const { result, stems, warning } = await this.analyze(id, abort.signal);
         if (stale()) continue;
         this.results.set(id, result);
         if (stems && Object.keys(stems).length) {
@@ -165,7 +167,7 @@ export class AnalysisManager {
           /* cache is best-effort */
         }
         if (stale()) continue;
-        this.set(id, { state: 'ready' });
+        this.set(id, { state: 'ready', warning });
       } catch (e) {
         if (!stale()) this.set(id, { state: 'error', error: (e as Error).message });
       } finally {
@@ -175,13 +177,14 @@ export class AnalysisManager {
     this.running = false;
   }
 
-  private async analyze(id: string, signal: AbortSignal): Promise<{ result: AnalysisResult; stems?: Assist['stems'] }> {
+  private async analyze(id: string, signal: AbortSignal): Promise<{ result: AnalysisResult; stems?: Assist['stems']; warning?: string }> {
     const progress = (s: AnalysisStatus) => {
       if (!signal.aborted) this.set(id, s);
     };
     // The ML service separates stems and transcribes each one; the in-app pipeline then adds the
     // rhythm (beat grid, drums from the drum stem) and structure around those lines.
     let assist: Assist | undefined;
+    let warning: string | undefined;
     if (this.remote) {
       try {
         const r = await this.remote(id, (p, step) => progress({ state: 'analyzing', progress: p * 0.6, step }), signal);
@@ -197,6 +200,7 @@ export class AnalysisManager {
       } catch (e) {
         if (signal.aborted) throw abortError();
         console.warn('remote analysis failed, using in-app analysis', e);
+        warning = `The analysis service failed (${(e as Error).message}), so the in-app analysis was used and no stems were separated.`;
       }
     }
     if (signal.aborted) throw abortError();
@@ -208,7 +212,7 @@ export class AnalysisManager {
       signal,
       assist,
     );
-    return { result, stems: assist?.stems };
+    return { result, stems: assist?.stems, warning };
   }
 
   async analysis(id: string): Promise<AnalysisResult | undefined> {
