@@ -1,8 +1,13 @@
 import type { PitchedNote } from '../types';
+import { bendActivity } from './noteEvents';
+
+export { bendActivity };
 
 /**
- * Polyphonic note transcription with Spotify's Basic Pitch model (TF.js, Apache-2.0).
- * Loaded lazily so the main bundle stays small. Expects mono audio at 22050 Hz.
+ * Polyphonic note transcription with Spotify's Basic Pitch model (TF.js, Apache-2.0), for the
+ * offline tooling in scripts/dev. The game itself runs the same network on ONNX Runtime
+ * (basicPitchOnnx.ts), which gives the same notes in a fraction of the time.
+ * Expects mono audio at 22050 Hz.
  */
 export async function transcribe(
   audio: Float32Array,
@@ -67,15 +72,4 @@ export async function transcribe(
     }))
     .sort((a, b) => a.t - b.t);
   return { notes, backend };
-}
-
-/**
- * Standard deviation of a note's pitch-bend curve, in semitones (Basic Pitch reports bends in
- * thirds of a semitone). Vibrato and slides make sung notes score far higher than synth or keys.
- */
-export function bendActivity(bends: number[] | undefined): number {
-  if (!bends || bends.length < 3) return 0;
-  const mean = bends.reduce((a, b) => a + b, 0) / bends.length;
-  const variance = bends.reduce((a, b) => a + (b - mean) ** 2, 0) / bends.length;
-  return Math.round((Math.sqrt(variance) / 3) * 1000) / 1000;
 }

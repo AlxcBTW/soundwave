@@ -91,7 +91,7 @@ export const stemAnalyzer: StemAnalyzer = async (songId, onProgress, signal) => 
       right,
       model,
       device,
-      pitchModelUrl: new URL(`${import.meta.env.BASE_URL}models/basic-pitch/model.json`, location.href).href,
+      pitchModelUrl: new URL(`${import.meta.env.BASE_URL}models/basic-pitch/nmp.onnx`, location.href).href,
     };
     worker.postMessage(req, [left.buffer, right.buffer, ...model.files.map((f) => f.data)]);
   });

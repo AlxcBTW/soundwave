@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import * as ort from 'onnxruntime-web/webgpu';
-import { transcribe } from '../pitch/basicPitch';
-import { ANALYSIS_SAMPLE_RATE, type PitchedNote, type StemName, type StemNotes } from '../types';
+import { transcribeOnnx } from '../pitch/basicPitchOnnx';
+import type { StemName, StemNotes } from '../types';
 import type { LoadedModel } from './model';
 import { halve } from './resample';
 import { MODEL_STEMS, separate, type SegmentModel } from './separate';
@@ -25,13 +25,17 @@ export type SeparationResponse =
 
 const post = (m: SeparationResponse, transfer: Transferable[] = []) => (self as DedicatedWorkerGlobalScope).postMessage(m, transfer);
 
-/** Errors thrown asynchronously inside the libraries (timers, backends) never reach an await. */
-let asyncFailure: ((e: unknown) => void) | null = null;
-self.addEventListener('unhandledrejection', (e) => {
-  post({ type: 'log', message: `unhandled: ${(e.reason as Error)?.stack ?? e.reason}` });
-  e.preventDefault();
-  asyncFailure?.(e.reason);
-});
+/** The transcription model (Basic Pitch, 230 KB) on the same device as the stem model. */
+async function openPitchSession(url: string, device: 'gpu' | 'cpu'): Promise<ort.InferenceSession> {
+  const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
+  try {
+    return await ort.InferenceSession.create(bytes, { executionProviders: [device === 'gpu' ? 'webgpu' : 'wasm'] });
+  } catch (err) {
+    if (device !== 'gpu') throw err;
+    post({ type: 'log', message: `the graphics card could not load the transcription model (${(err as Error).message}); using the processor` });
+    return ort.InferenceSession.create(bytes, { executionProviders: ['wasm'] });
+  }
+}
 
 async function openSession(model: LoadedModel, provider: 'webgpu' | 'wasm'): Promise<ort.InferenceSession> {
   const entry = model.files.find((f) => f.name === model.entry)!;
@@ -54,38 +58,6 @@ function runner(session: ort.InferenceSession): SegmentModel {
       return result;
     },
   };
-}
-
-/** Transcribes one stem, giving up if the transcriber throws out of sight or stops making progress. */
-function transcribeStem(audio: Float32Array, modelUrl: string, onProgress: (p: number) => void): Promise<PitchedNote[]> {
-  return new Promise((resolve, reject) => {
-    let last = performance.now();
-    const watchdog = setInterval(() => performance.now() - last > 45_000 && finish(new Error('the transcriber stalled')), 2000);
-    const finish = (err: unknown, notes?: PitchedNote[]) => {
-      clearInterval(watchdog);
-      asyncFailure = null;
-      if (err) reject(err instanceof Error ? err : new Error(String(err)));
-      else resolve(notes!);
-    };
-    asyncFailure = (e) => finish(e);
-    const started = performance.now();
-    const seconds = audio.length / ANALYSIS_SAMPLE_RATE;
-    transcribe(
-      audio,
-      modelUrl,
-      (p) => {
-        last = performance.now();
-        onProgress(p);
-      },
-      Math.max(180_000, seconds * 3000),
-    ).then(
-      ({ notes, backend }) => {
-        post({ type: 'log', message: `basic-pitch on ${backend} took ${Math.round(performance.now() - started)} ms` });
-        finish(null, notes);
-      },
-      (e) => finish(e),
-    );
-  });
 }
 
 self.onmessage = async (e: MessageEvent<SeparationRequest>) => {
@@ -119,8 +91,8 @@ self.onmessage = async (e: MessageEvent<SeparationRequest>) => {
     }
     post({ type: 'log', message: `stem model on ${device} loaded in ${Math.round(performance.now() - opened)} ms` });
 
-    // Separation is nearly all of the work on a processor and most of it on a graphics card.
-    const share = 0.8;
+    // Separation is nearly all of the work, on a graphics card and on a processor alike.
+    const share = 0.9;
     const started = performance.now();
     const full = await separate(req.left, req.right, runner(session), (p) => post({ type: 'progress', progress: p * share, step: 'Separating stems' }));
     await session.release();
@@ -130,12 +102,16 @@ self.onmessage = async (e: MessageEvent<SeparationRequest>) => {
     MODEL_STEMS.forEach((name, i) => (stems[name] = halve(full[i])));
     const notes = {} as StemNotes;
     const pitched = ['bass', 'vocals', 'other'] as const;
+    const transcriber = await openPitchSession(req.pitchModelUrl, device);
     for (const [i, name] of pitched.entries()) {
       const at = share + ((1 - share) * i) / pitched.length;
       const label = name === 'other' ? 'Transcribing instruments' : `Transcribing ${name}`;
       post({ type: 'progress', progress: at, step: label });
-      notes[name] = await transcribeStem(stems[name], req.pitchModelUrl, (p) => post({ type: 'progress', progress: at + ((1 - share) * p) / pitched.length, step: label }));
+      const t = await transcribeOnnx(ort, transcriber, stems[name], (p) => post({ type: 'progress', progress: at + ((1 - share) * p) / pitched.length, step: label }));
+      notes[name] = t.notes;
+      post({ type: 'log', message: `transcribed ${name} on ${device} in ${Math.round(t.modelMs + t.notesMs)} ms (${Math.round(t.notesMs)} ms of it decoding notes)` });
     }
+    await transcriber.release();
     post({ type: 'done', stems, notes, device }, Object.values(stems).map((s) => s.buffer));
   } catch (err) {
     post({ type: 'error', message: (err as Error).message || String(err) });

@@ -61,11 +61,11 @@ export default defineConfig({
   },
   // Only index.html is an entry. By default every .html under the project is scanned for
   // dependencies (including stray ones in the virtualenv), and the page waits for that scan.
-  // The analysis worker loads these lazily; bundling them up front avoids a reload mid-analysis.
+  // Bundled up front so the dev server does not reload the page mid-analysis on finding it.
   // ONNX Runtime in the build that loads its script and WebAssembly file from public/ort (see
   // scripts/copy-models.mjs) instead of carrying them inside the bundle.
   resolve: { conditions: ['onnxruntime-web-use-extern-wasm', ...defaultClientConditions] },
-  optimizeDeps: { entries: ['index.html'], include: ['@tensorflow/tfjs', '@spotify/basic-pitch', 'fft.js'], exclude: ['onnxruntime-web'] },
+  optimizeDeps: { entries: ['index.html'], include: ['fft.js'], exclude: ['onnxruntime-web'] },
   worker: { format: 'es' },
   build: { target: 'es2023', chunkSizeWarningLimit: 4000 },
   test: { environment: 'node', include: ['tests/**/*.test.ts'] },
