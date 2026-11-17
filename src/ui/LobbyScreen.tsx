@@ -64,8 +64,16 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
     return () => window.removeEventListener(TAB_EVENT, onTab);
   }, [pick, onPick]);
 
+  // The top face button (Triangle, Y, X on a Switch pad) steps to the next part, round and round.
+  const nextPart = () => {
+    playSfx('tab');
+    menuPulse('tab-right');
+    onPick({ ...pick, part: PARTS[(PARTS.indexOf(pick.part) + 1) % PARTS.length] });
+  };
+
   useActions([
     { id: 'back', label: 'Back', icon: ArrowLeft, kbd: 'Escape', sfx: 'back', run: onBack },
+    { id: 'part-next', label: 'Next part', icon: PART_ICON[pick.part], pad: 'b3', bar: false, run: nextPart },
     ...PARTS.map((p, i) => ({ id: `part-${p}`, label: PART_LABEL[p], icon: PART_ICON[p], kbd: `Digit${i + 1}`, bar: false, run: () => onPick({ ...pick, part: p }) })),
   ]);
 
@@ -132,7 +140,12 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
         </ol>
 
         <section className="ready-panel" data-nav-group="ready" aria-label="Part and difficulty">
-          <h2 className="label" id="part-label">Part</h2>
+          <h2 className="label" id="part-label">
+            Part
+            <span className="label-hints" aria-hidden>
+              <Hint pad="b3" {...hints} />
+            </span>
+          </h2>
           <div className="part-row slide" ref={partRow} role="radiogroup" aria-labelledby="part-label">
             <span className="sel" aria-hidden />
             {PARTS.map((p, i) => {
