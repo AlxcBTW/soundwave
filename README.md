@@ -9,7 +9,7 @@ A rhythm game for your own music. Drop in a song (MP3, WAV, FLAC, OGG, M4A). The
 | Hard | 4 | sixteenths, two-note chords |
 | Expert | 5 | literal transcription, three-note chords |
 
-You play them on a 3D note highway with the keyboard, in front of a music-reactive 2D stage backdrop. Features: sustains, streak multiplier (up to ×4), overdrive phrases (Space doubles the multiplier), Perfect/Great/Good timing, star rating, best scores, tap calibration and key rebinding.
+You play them on a 3D note highway with the keyboard or a controller, in front of a music-reactive 2D stage backdrop. Features: sustains, streak multiplier (up to ×4), overdrive phrases (Space doubles the multiplier), Perfect/Great/Good timing, star rating, best scores, tap calibration and key rebinding.
 
 It runs in the browser and as a desktop app (Tauri).
 
@@ -23,6 +23,8 @@ npm run dev
 Open http://localhost:5173. A built-in demo track is always available.
 
 Default keys are `D F J K` (plus `L` on Expert), `Space` for overdrive and `Esc` to pause. All of them can be changed in Settings.
+
+Controllers (Xbox, PlayStation 4 and 5, Nintendo Switch and most others) work in the menus and in songs. By default the lanes are left trigger, left bumper, right bumper, right trigger (Expert adds the bottom face button in the middle), the top face button triggers overdrive and Start/Options/+ pauses. Every lane and overdrive can be rebound to any button, trigger or stick direction in Settings → Controller, where the button glyphs follow the connected controller or can be fixed to one style. Rumble is adjustable there too; a PS5 DualSense connected by USB can instead play hits on its left or right haptic motor, following the lane.
 
 ## Desktop app
 
