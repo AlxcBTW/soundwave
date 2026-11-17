@@ -24,7 +24,7 @@ Open http://localhost:5173. A built-in demo track is always available.
 
 Default keys are `D F J K` (plus `L` on Expert), `Space` for overdrive and `Esc` to pause. All of them can be changed in Settings.
 
-Controllers (Xbox, PlayStation 4 and 5, Nintendo Switch and most others) work in the menus and in songs. By default the lanes are left trigger, left bumper, right bumper, right trigger (Expert adds the bottom face button in the middle), the top face button triggers overdrive and Start/Options/+ pauses. Every lane and overdrive can be rebound to any button, trigger or stick direction in Settings → Controller, where the button glyphs follow the connected controller or can be fixed to one style. Rumble is adjustable there too; a PS5 DualSense connected by USB can instead play hits on its left or right haptic motor, following the lane.
+Controllers (Xbox, PlayStation 4 and 5, Nintendo Switch and most others) work in the menus and in songs. By default the lanes are D-pad left, D-pad right and the left, top and right face buttons (four-lane difficulties skip the top one), the right trigger triggers overdrive and Start/Options/+ pauses. Every lane and overdrive can be rebound to any button, trigger or stick direction in Settings → Controller, where the button glyphs follow the connected controller or can be fixed to one style. Rumble is off, weak or strong. In the desktop app, a PS5 DualSense connected by USB automatically plays each hit on its left or right haptic motor, following the lane.
 
 ## Desktop app
 

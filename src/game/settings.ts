@@ -17,16 +17,14 @@ export interface Settings {
   padOverdrive: PadInput;
   /** Button glyphs: matched to the controller in use, or a fixed style. */
   glyphs: 'auto' | GlyphStyle;
-  rumble: boolean;
-  /** 0..1 */
-  rumbleStrength: number;
+  rumble: RumbleLevel;
   rumbleHits: boolean;
   rumbleMisses: boolean;
   rumbleSustains: boolean;
   rumbleOverdrive: boolean;
-  /** PS5 DualSense over USB: drive its haptic actuators directly, panned to the lane. */
-  dualSenseHaptics: boolean;
 }
+
+export type RumbleLevel = 'off' | 'weak' | 'strong';
 
 export const DEFAULT_SETTINGS: Settings = {
   noteSpeed: 9,
@@ -37,23 +35,35 @@ export const DEFAULT_SETTINGS: Settings = {
   overdriveKey: 'Space',
   mlEnabled: false,
   mlUrl: 'http://127.0.0.1:8765',
-  // Index and middle fingers on the shoulders; the thumb takes the middle lane on Expert.
-  pad4: ['b6', 'b4', 'b5', 'b7'],
-  pad5: ['b6', 'b4', 'b0', 'b5', 'b7'],
-  padOverdrive: 'b3',
+  // The usual five-lane controller layout: D-pad left and right for the left hand, the left, top
+  // and right face buttons for the right hand (four lanes skip the top one), right trigger for
+  // overdrive. Positional names, so the same buttons on every controller.
+  pad4: ['b14', 'b15', 'b2', 'b1'],
+  pad5: ['b14', 'b15', 'b2', 'b3', 'b1'],
+  padOverdrive: 'b7',
   glyphs: 'auto',
-  rumble: true,
-  rumbleStrength: 0.7,
+  rumble: 'strong',
   rumbleHits: true,
   rumbleMisses: true,
   rumbleSustains: true,
   rumbleOverdrive: true,
-  dualSenseHaptics: false,
 };
+
+/** Controller defaults of an earlier version, replaced by the current ones when stored unchanged. */
+const OLD_PAD_DEFAULTS = { pad4: 'b6,b4,b5,b7', pad5: 'b6,b4,b0,b5,b7', padOverdrive: 'b3' };
 
 /** Settings stored by an older version may lack fields or have bindings of the wrong length. */
 export function normalizeSettings(raw: Partial<Settings>): Settings {
   const s = { ...DEFAULT_SETTINGS, ...raw };
+  if (`${s.pad4}` === OLD_PAD_DEFAULTS.pad4 && `${s.pad5}` === OLD_PAD_DEFAULTS.pad5 && s.padOverdrive === OLD_PAD_DEFAULTS.padOverdrive) {
+    Object.assign(s, { pad4: [...DEFAULT_SETTINGS.pad4], pad5: [...DEFAULT_SETTINGS.pad5], padOverdrive: DEFAULT_SETTINGS.padOverdrive });
+  }
+  // Rumble used to be on/off plus a strength.
+  const r = s.rumble as unknown;
+  if (r === true) s.rumble = 'strong';
+  else if (r === false) s.rumble = 'off';
+  else if (r !== 'off' && r !== 'weak' && r !== 'strong') s.rumble = DEFAULT_SETTINGS.rumble;
+  for (const old of ['rumbleStrength', 'dualSenseHaptics']) delete (s as Record<string, unknown>)[old];
   for (const k of ['keys4', 'keys5', 'pad4', 'pad5'] as const) {
     if (!Array.isArray(s[k]) || s[k].length !== DEFAULT_SETTINGS[k].length) s[k] = [...DEFAULT_SETTINGS[k]];
   }

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { DEFAULT_SETTINGS, keyLabel, type Settings } from '../game/settings';
+import { DEFAULT_SETTINGS, keyLabel, type RumbleLevel, type Settings } from '../game/settings';
 import { PadGlyph, STYLE_LABEL } from '../input/glyphs';
 import { TAB_EVENT } from '../input/menuNav';
 import { PAUSE_INPUT, pads, styleFor, SYSTEM_INPUT, type GlyphStyle } from '../input/pads';
-import { DualSenseHaptics, findDualSense, Rumbler } from '../input/rumble';
+import { dualSenseHaptics, Rumbler } from '../input/rumble';
 import { usePads } from '../input/usePads';
 import { Calibration } from './Calibration';
 
@@ -31,7 +31,12 @@ const RESERVED = new Set(['Escape', 'Enter', 'Tab']);
 const GLYPH_CHOICES: ('auto' | GlyphStyle)[] = ['auto', 'xbox', 'ps4', 'ps5', 'switch'];
 
 const KEYBOARD_FIELDS = ['keys4', 'keys5', 'overdriveKey'] as const;
-const CONTROLLER_FIELDS = ['pad4', 'pad5', 'padOverdrive', 'glyphs', 'rumble', 'rumbleStrength', 'rumbleHits', 'rumbleMisses', 'rumbleSustains', 'rumbleOverdrive', 'dualSenseHaptics'] as const;
+const CONTROLLER_FIELDS = ['pad4', 'pad5', 'padOverdrive', 'glyphs', 'rumble', 'rumbleHits', 'rumbleMisses', 'rumbleSustains', 'rumbleOverdrive'] as const;
+const RUMBLE_LEVELS: [RumbleLevel, string][] = [
+  ['off', 'Off'],
+  ['weak', 'Weak'],
+  ['strong', 'Strong'],
+];
 const GENERAL_FIELDS = ['noteSpeed', 'volume', 'offsetMs'] as const;
 const ANALYSIS_FIELDS = ['mlEnabled', 'mlUrl'] as const;
 const FIELDS: Record<Tab, readonly (keyof Settings)[]> = { general: GENERAL_FIELDS, keyboard: KEYBOARD_FIELDS, controller: CONTROLLER_FIELDS, analysis: ANALYSIS_FIELDS };
@@ -245,7 +250,20 @@ function ControllerTab({ settings, set, binding, onBind }: { settings: Settings;
   const snap = usePads();
   const detected = styleFor(snap.family);
   const style = settings.glyphs === 'auto' ? detected : settings.glyphs;
-  const [haptics, setHaptics] = useState<string>('');
+  // A PS5 controller gets 3D haptics when the desktop app can reach it (USB); say which it is.
+  const ps5 = snap.pads.some((p) => p.family === 'ps5');
+  const [haptics, setHaptics] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!ps5) return setHaptics(null);
+    let live = true;
+    const check = () => void dualSenseHaptics().then((ok) => live && setHaptics(ok));
+    check();
+    const timer = setInterval(check, 4000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [ps5]);
 
   const padButton = (group: PadGroup, index: number, input: string, lane?: number) => {
     const active = binding?.kind === 'pad' && binding.group === group && binding.index === index;
@@ -256,25 +274,9 @@ function ControllerTab({ settings, set, binding, onBind }: { settings: Settings;
     );
   };
 
-  const testRumble = async (lanes: number) => {
-    const r = new Rumbler({ ...settings, rumble: true }, lanes, settings.pad5);
-    if (settings.dualSenseHaptics) await r.ready();
-    r.test();
-    setTimeout(() => r.dispose(), lanes * 160 + 600);
-  };
-
-  const enableHaptics = async (on: boolean) => {
-    set({ dualSenseHaptics: on });
-    if (!on) return setHaptics('');
-    setHaptics('Looking for a DualSense…');
-    try {
-      const id = await findDualSense();
-      const h = id ? await DualSenseHaptics.open(id) : null;
-      h?.close();
-      setHaptics(h ? 'DualSense found: haptics are on.' : 'No DualSense audio device found. Connect the controller with a USB cable; over Bluetooth it uses normal rumble.');
-    } catch {
-      setHaptics('Access to audio devices was refused, so the DualSense can’t be found. Normal rumble is used.');
-    }
+  const testRumble = (lanes: number) => {
+    const r = new Rumbler(settings, lanes, settings.pad5);
+    void r.test().then(() => setTimeout(() => r.dispose(), lanes * 160 + 600));
   };
 
   return (
@@ -324,11 +326,12 @@ function ControllerTab({ settings, set, binding, onBind }: { settings: Settings;
       </p>
 
       <div className="section-label">Rumble</div>
-      <Check id="rumble" label="Rumble" checked={settings.rumble} onChange={(v) => set({ rumble: v })} />
-      <div className="setting">
-        <label htmlFor="rumble-strength">Strength</label>
-        <input id="rumble-strength" type="range" min={0} max={1} step={0.05} value={settings.rumbleStrength} disabled={!settings.rumble} onChange={(e) => set({ rumbleStrength: +e.target.value })} />
-        <span className="value">{Math.round(settings.rumbleStrength * 100)}%</span>
+      <div className="seg small">
+        {RUMBLE_LEVELS.map(([level, label]) => (
+          <button key={level} className={`seg-btn ${settings.rumble === level ? 'on' : ''}`} onClick={() => set({ rumble: level })}>
+            {label}
+          </button>
+        ))}
       </div>
       <div className="check-row">
         <Check id="rumble-hits" label="Hits" checked={settings.rumbleHits} onChange={(v) => set({ rumbleHits: v })} />
@@ -336,13 +339,19 @@ function ControllerTab({ settings, set, binding, onBind }: { settings: Settings;
         <Check id="rumble-sustains" label="Held notes" checked={settings.rumbleSustains} onChange={(v) => set({ rumbleSustains: v })} />
         <Check id="rumble-od" label="Overdrive" checked={settings.rumbleOverdrive} onChange={(v) => set({ rumbleOverdrive: v })} />
       </div>
-      <Check id="dualsense" label="PS5 DualSense haptics (USB)" checked={settings.dualSenseHaptics} onChange={(v) => void enableHaptics(v)} />
-      <p className="hint">
-        {haptics ||
-          'Plays each hit on the DualSense’s left or right haptic motor, following the lane, with a different feel for hits, misses, held notes and overdrive. Needs a USB cable; finding the controller asks for audio device access (nothing is recorded).'}
-      </p>
+      {ps5 && (
+        <p className="hint">
+          {haptics === null
+            ? 'Checking the PS5 controller…'
+            : haptics
+              ? 'PS5 controller: 3D haptics on. Hits play on the left or right motor, following the lane, with a different feel for hits, misses, held notes and overdrive.'
+              : '__TAURI_INTERNALS__' in window
+                ? 'PS5 controller: connect it with a USB cable for 3D haptics. Over Bluetooth it uses standard rumble.'
+                : 'PS5 controller: 3D haptics work in the desktop app with a USB cable. Here it uses standard rumble.'}
+        </p>
+      )}
       <div className="row left">
-        <button className="btn small" disabled={!snap.pads.length && !settings.dualSenseHaptics} onClick={() => void testRumble(5)}>Test rumble</button>
+        <button className="btn small" disabled={!snap.pads.length || settings.rumble === 'off'} onClick={() => testRumble(5)}>Test rumble</button>
       </div>
     </>
   );

@@ -27,6 +27,7 @@
   "homepage": "https://github.com/DavidNiessen/festival#readme",
   "dependencies": {
     "@spotify/basic-pitch": "^1.0.1",
+    "@tauri-apps/api": "^2.12.5",
     "fft.js": "^4.0.4",
     "idb": "^8.0.4",
     "music-metadata": "^12.5.0",

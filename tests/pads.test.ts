@@ -86,6 +86,20 @@ describe('settings', () => {
     expect(s.pad5).toHaveLength(5);
     expect(s.noteSpeed).toBe(12);
   });
+
+  it('moves unchanged old controller defaults to the current ones, keeping custom bindings', () => {
+    const old = normalizeSettings({ pad4: ['b6', 'b4', 'b5', 'b7'], pad5: ['b6', 'b4', 'b0', 'b5', 'b7'], padOverdrive: 'b3' });
+    expect(old.pad5).toEqual(['b14', 'b15', 'b2', 'b3', 'b1']);
+    expect(old.padOverdrive).toBe('b7');
+    const custom = normalizeSettings({ pad4: ['b0', 'b1', 'b2', 'b3'] });
+    expect(custom.pad4).toEqual(['b0', 'b1', 'b2', 'b3']);
+  });
+
+  it('turns the old rumble switch into a level', () => {
+    expect(normalizeSettings({ rumble: true } as never).rumble).toBe('strong');
+    expect(normalizeSettings({ rumble: false } as never).rumble).toBe('off');
+    expect('rumbleStrength' in normalizeSettings({ rumbleStrength: 0.3 } as never)).toBe(false);
+  });
 });
 
 describe('GamepadInput', () => {
