@@ -605,6 +605,8 @@ A dialog dims and blurs the screen, takes focus and directional navigation, keep
 ### Toasts
 Plum cards (#4a1a52, 0.75rem radius) with a Pink Light alert icon, stacked at the bottom right above the action bar (full width on phones), rising in over 0.35s, dismissed on press or after 6s. Each one plays the error sound and an error pulse.
 
+A notice that is not a problem uses the same card in Raised Violet (#4a31c4) and makes no sound. A download is one such card that is kept up to date: a download icon, its name, a 6px Mint bar filling beside the amount so far, staying until it ends; the same card then shows a green check and how it ended (or turns into a plum error card), and leaves after 6s. Put away while it is under way, it stays away until it has ended.
+
 ### Results
 Two panels. The first holds the cover and title, five stars that spin and scale in one by one (140ms apart), the score counting up, and tags fading in at 1.2s. The second holds up to nine Well stat cells (value over caption, the miss count in soft red) rising in 45ms apart, and the next song under a hairline. The set summary lists every song as a card with its tags, stars and score; a skipped song is dimmed.
 

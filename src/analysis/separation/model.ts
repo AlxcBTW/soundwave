@@ -147,7 +147,8 @@ class StemModel {
           data.set(value, at);
           at += value.length;
           received += value.length;
-          this.set({ received });
+          // Not for every network chunk: listeners redraw.
+          if (received - this.status.received >= this.bytes / 200) this.set({ received });
         }
         if (at !== file.bytes) throw new Error('the file arrived incomplete');
         // Only a secure page can hash; elsewhere the size has to do.
