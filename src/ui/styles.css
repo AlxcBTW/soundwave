@@ -253,7 +253,7 @@ img.cover { animation: fade-in 0.35s var(--ease) backwards; }
 .page-title { font-size: clamp(1.6rem, 2.9vw, 2.7rem); }
 .wordmark { font-size: clamp(1.6rem, 2.6vw, 2.5rem); color: var(--ink); text-shadow: 0 0.08em 0.5em rgb(255 77 157 / 0.55); }
 .head-count { color: var(--ink-2); font-weight: 700; font-variant-numeric: tabular-nums; }
-.head-status { margin-left: auto; display: flex; align-items: center; gap: 0.7rem; color: var(--ink-2); font-weight: 700; }
+.head-status { margin-left: auto; align-self: center; display: flex; align-items: center; gap: 0.7rem; color: var(--ink-2); font-weight: 700; line-height: 1; }
 .head-status .meter { width: 7rem; }
 /* Leaving the game: a quiet button in the corner of the home screen. */
 .exit-btn { margin-left: auto; align-self: center; background: var(--well); color: var(--ink-2); }
