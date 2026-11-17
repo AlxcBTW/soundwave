@@ -377,8 +377,13 @@ def finale_crowd() -> np.ndarray:
     The end of a song, while the stage fires off its finale: the whole crowd clapping and cheering
     for about four seconds, up at once and held, then down quickly as the result comes up.
     """
-    # Real people: recordings of applause and cheering, when they are there. A synthesized crowd
-    # of this size has no distinct hands in it and comes out as wind.
+    # Real people. First choice: the recording of a large crowd cheering, which already sounds like
+    # the place it was made in and needs no space added.
+    x = crowd.crowd_ovation(4.9)
+    if x is not None:
+        return highpass(x, 90)
+    # Otherwise the smaller recordings of applause and cheering, when they are there. A synthesized
+    # crowd of this size has no distinct hands in it and comes out as wind.
     x = crowd.recorded_ovation(4.9)
     if x is None:
         x = crowd.ovation(4.9, peak_at=0.25, hold=3.4, decay=1.15)

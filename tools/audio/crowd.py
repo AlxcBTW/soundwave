@@ -372,6 +372,52 @@ def recorded_ovation(seconds: float, fade_in: float = 0.12, fade_out: float = 1.
     return (out * env[:, None] * 0.2).astype(np.float32)
 
 
+# The finale's crowd proper: a recording of a large crowd cheering (see "Music and sound" in the
+# README). It holds three cheers; the cut starts where the third one erupts, so it is up within
+# half a second, and runs through the fullest part of it.
+CHEERING = ROOT / "local-audio" / "samples" / "crowd" / "crowd-cheering.wav"
+CHEERING_FROM = 28.55
+
+
+def crowd_ovation(seconds: float, fade_out: float = 1.0, applause: float = 0.22) -> np.ndarray | None:
+    """
+    A large crowd cheering, cut from the recording, with real applause laid quietly under it so
+    hands can be heard among the voices (`applause` is its level against the cheering). It rises as
+    the recording does and is brought down over the last second. None when the recording is not
+    there (then `recorded_ovation` or the synthesized `ovation` stands in).
+    """
+    if not CHEERING.exists():
+        return None
+    x, sr = sf.read(str(CHEERING), dtype="float32", always_2d=True)
+    if sr != SR:
+        x = signal.resample_poly(x, SR, sr, axis=0).astype(np.float32)
+    if x.shape[1] == 1:
+        x = np.repeat(x, 2, axis=1)
+    n = int(seconds * SR)
+    seg = x[int(CHEERING_FROM * SR) : int(CHEERING_FROM * SR) + n].copy()
+    if len(seg) < n:
+        return None
+    level = lambda y: np.sqrt((y[int(0.8 * SR) : int(3.8 * SR)] ** 2).mean()) + 1e-9
+    out = seg / level(seg)
+    hands = np.zeros((n, 2), dtype=np.float32)
+    for name, start, gain in APPLAUSE_TAKES:
+        take = _take(name)
+        if take is None:
+            hands = None
+            break
+        if take.shape[1] == 1:
+            take = np.repeat(take, 2, axis=1)
+        part = take[int(start * SR) : int(start * SR) + n]
+        if len(part) < n:
+            part = np.concatenate([part, np.zeros((n - len(part), 2), dtype=np.float32)])
+        hands += part / level(part) * gain
+    if hands is not None and applause > 0:
+        out = out + hands / level(hands) * applause
+    t = np.arange(n) / SR
+    env = np.clip(t / 0.02, 0, 1) * np.clip((seconds - t) / fade_out, 0, 1) ** 1.5
+    return (out * env[:, None] * 0.2).astype(np.float32)
+
+
 def arena(x: np.ndarray, seed: int = 9, wet_db: float = -9.0) -> np.ndarray:
     """Open-air space: a slap off the far side and a short diffuse wash, no long hall."""
     rng = np.random.default_rng(seed)
