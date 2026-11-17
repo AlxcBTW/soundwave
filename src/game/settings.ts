@@ -1,4 +1,5 @@
 import type { GlyphStyle, PadInput } from '../input/pads';
+import { DEFAULT_GRAPHICS, normalizeGraphics, type GraphicsSettings } from './graphics';
 
 export interface Settings {
   /** Highway units per second. */
@@ -24,6 +25,8 @@ export interface Settings {
   rumbleMisses: boolean;
   rumbleSustains: boolean;
   rumbleOverdrive: boolean;
+  /** The 3D stage behind the highway. */
+  graphics: GraphicsSettings;
 }
 
 export type RumbleLevel = 'off' | 'weak' | 'strong';
@@ -50,6 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
   rumbleMisses: true,
   rumbleSustains: true,
   rumbleOverdrive: true,
+  graphics: DEFAULT_GRAPHICS,
 };
 
 /** Controller defaults of an earlier version, replaced by the current ones when stored unchanged. */
@@ -67,6 +71,7 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
   else if (r === false) s.rumble = 'off';
   else if (r !== 'off' && r !== 'weak' && r !== 'strong') s.rumble = DEFAULT_SETTINGS.rumble;
   for (const old of ['rumbleStrength', 'dualSenseHaptics']) delete (s as Record<string, unknown>)[old];
+  s.graphics = normalizeGraphics(s.graphics);
   for (const k of ['keys4', 'keys5', 'pad4', 'pad5'] as const) {
     if (!Array.isArray(s[k]) || s[k].length !== DEFAULT_SETTINGS[k].length) s[k] = [...DEFAULT_SETTINGS[k]];
   }

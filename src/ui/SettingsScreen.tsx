@@ -1,6 +1,7 @@
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_SETTINGS, keyLabel, type RumbleLevel, type Settings } from '../game/settings';
+import { applyPreset, autoTier, resolveGraphics, type CameraMode, type GraphicsPreset, type GraphicsSettings, type Level } from '../game/graphics';
 import { PadGlyph, STYLE_LABEL } from '../input/glyphs';
 import { TAB_EVENT } from '../input/menuNav';
 import { PAUSE_INPUT, pads, styleFor, SYSTEM_INPUT, type GlyphStyle } from '../input/pads';
@@ -18,9 +19,10 @@ interface Props {
   onBack(): void;
 }
 
-type Tab = 'general' | 'keyboard' | 'controller' | 'analysis';
+type Tab = 'general' | 'graphics' | 'keyboard' | 'controller' | 'analysis';
 const TABS: [Tab, string][] = [
   ['general', 'General'],
+  ['graphics', 'Graphics'],
   ['keyboard', 'Keyboard'],
   ['controller', 'Controller'],
   ['analysis', 'Analysis'],
@@ -43,7 +45,8 @@ const RUMBLE_LEVELS: [RumbleLevel, string][] = [
 ];
 const GENERAL_FIELDS = ['noteSpeed', 'volume', 'sfxVolume', 'offsetMs'] as const;
 const ANALYSIS_FIELDS = ['mlEnabled', 'mlUrl'] as const;
-const FIELDS: Record<Tab, readonly (keyof Settings)[]> = { general: GENERAL_FIELDS, keyboard: KEYBOARD_FIELDS, controller: CONTROLLER_FIELDS, analysis: ANALYSIS_FIELDS };
+const GRAPHICS_FIELDS = ['graphics'] as const;
+const FIELDS: Record<Tab, readonly (keyof Settings)[]> = { general: GENERAL_FIELDS, graphics: GRAPHICS_FIELDS, keyboard: KEYBOARD_FIELDS, controller: CONTROLLER_FIELDS, analysis: ANALYSIS_FIELDS };
 
 function loadTab(): Tab {
   try {
@@ -163,6 +166,7 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack }: Props) 
         <h1 className="page-title">Settings</h1>
         <TabBar tab={tab} onTab={setTab} />
         {tab === 'general' && <GeneralTab settings={settings} set={set} onCalibrate={() => setCalibrating(true)} />}
+        {tab === 'graphics' && <GraphicsTab settings={settings} set={set} />}
         {tab === 'keyboard' && <KeyboardTab settings={settings} binding={binding} onBind={setBinding} />}
         {tab === 'controller' && <ControllerTab settings={settings} set={set} binding={binding} onBind={setBinding} />}
         {tab === 'analysis' && <AnalysisTab settings={settings} set={set} mlStatus={mlStatus} />}
@@ -232,6 +236,81 @@ function GeneralTab({ settings, set, onCalibrate }: { settings: Settings; set: S
         <button className="btn small" onClick={onCalibrate}>Calibrate by tapping</button>
         <span className="hint">If notes feel late, raise the offset. If they feel early, lower it.</span>
       </div>
+    </>
+  );
+}
+
+const PRESET_LABEL: Record<Exclude<GraphicsPreset, 'auto' | 'custom'>, string> = { low: 'Low', medium: 'Medium', high: 'High', ultra: 'Ultra' };
+const LEVEL_CHOICES: [Level, string][] = [
+  ['off', 'Off'],
+  ['low', 'Low'],
+  ['medium', 'Medium'],
+  ['high', 'High'],
+];
+const CAMERA_CHOICES: [CameraMode, string, string][] = [
+  ['auto', 'Director', 'Cuts between shots with the music.'],
+  ['calm', 'Calm', 'Slow wide shots, few cuts.'],
+  ['fixed', 'Fixed', 'One view from the crowd.'],
+];
+
+function GraphicsTab({ settings, set }: { settings: Settings; set: SetFn }) {
+  const g = settings.graphics;
+  // Auto shows what it picked; touching any option turns that into a custom setup.
+  const shown = resolveGraphics(g);
+  const setG = (patch: Partial<GraphicsSettings>) => set({ graphics: { ...shown, ...patch, preset: 'custom', camera: patch.camera ?? g.camera } });
+  const seg = <K extends keyof GraphicsSettings>(key: K, choices: [GraphicsSettings[K], string][], disabled = false) => (
+    <div className="seg small wrap">
+      {choices.map(([v, label]) => (
+        <button key={String(v)} className={`seg-btn ${shown[key] === v ? 'on' : ''}`} disabled={disabled} onClick={() => setG({ [key]: v } as Partial<GraphicsSettings>)}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+  const off = !shown.stage3d;
+  return (
+    <>
+      <div className="section-label">Quality</div>
+      <div className="seg small wrap">
+        {(['auto', 'low', 'medium', 'high', 'ultra'] as const).map((p) => (
+          <button key={p} className={`seg-btn ${g.preset === p ? 'on' : ''}`} onClick={() => set({ graphics: applyPreset(g, p) })}>
+            {p === 'auto' ? `Auto (${PRESET_LABEL[autoTier()]})` : PRESET_LABEL[p]}
+          </button>
+        ))}
+        {g.preset === 'custom' && <button className="seg-btn on">Custom</button>}
+      </div>
+      <p className="hint">The highway always runs at full quality. These settings only change the stage behind it.</p>
+
+      <div className="check-row">
+        <Check id="g-stage" label="3D stage" checked={shown.stage3d} onChange={(v) => setG({ stage3d: v })} />
+        <Check id="g-glow" label="Glow" checked={shown.glow} onChange={(v) => setG({ glow: v })} />
+        <Check id="g-aa" label="Smooth edges" checked={shown.antialias} onChange={(v) => setG({ antialias: v })} />
+        <Check id="g-dyn" label="Adaptive resolution" checked={shown.dynamicResolution} onChange={(v) => setG({ dynamicResolution: v })} />
+      </div>
+      <div className="setting">
+        <label htmlFor="g-res">Stage resolution</label>
+        <input id="g-res" type="range" min={0.5} max={1} step={0.05} disabled={off} value={shown.resolution} onChange={(e) => setG({ resolution: +e.target.value })} />
+        <span className="value">{Math.round(shown.resolution * 100)}%</span>
+      </div>
+      <div className="section-label">Stage frame rate</div>
+      {seg('fpsCap', [[0, 'Display'], [30, '30'], [60, '60'], [120, '120']], off)}
+      <div className="section-label">Crowd</div>
+      {seg('crowd', LEVEL_CHOICES, off)}
+      <div className="section-label">Beams</div>
+      {seg('beams', LEVEL_CHOICES, off)}
+      <div className="section-label">Lights and bulbs</div>
+      {seg('lights', LEVEL_CHOICES, off)}
+      <div className="section-label">Fireworks and smoke</div>
+      {seg('effects', LEVEL_CHOICES, off)}
+      <div className="section-label">Camera</div>
+      <div className="seg small wrap">
+        {CAMERA_CHOICES.map(([v, label]) => (
+          <button key={v} className={`seg-btn ${g.camera === v ? 'on' : ''}`} disabled={off} onClick={() => set({ graphics: { ...g, camera: v } })}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="hint">{CAMERA_CHOICES.find(([v]) => v === g.camera)?.[2]}</p>
     </>
   );
 }
