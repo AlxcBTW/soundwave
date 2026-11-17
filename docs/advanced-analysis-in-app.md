@@ -2,12 +2,15 @@
 
 Research only, 17 November 2026. No product code was changed. The scripts behind the measurements are in the shared notes folder under `advanced-analysis-experiments/`.
 
+> **Status, same day:** the recommended route is built (see "How analysis works" in the README). What was decided differently from this report: there is no fast mode and no fallback, so every song is separated into stems and phones do not analyze songs; the model downloads automatically on first launch, for now from Intel's published copy (171 MB), while the repository's own 90 MB export waits in `models/htdemucs/` for the repository to become readable without signing in. Measured in the finished app on the same machine: 20 s to separate a 245 s song on WebGPU, plus 39 s for Basic Pitch on the three stems, which is now the slowest step. Not yet checked: the desktop app's own web view.
+
 ## Summary
 
 - The only thing the service adds that the app cannot do itself is **stem separation** (Demucs). The app already ships the transcription model and already rebuilds the lines, beats, drums and chords itself.
 - **Desktop: recommended route is to run the separation model in the web view with ONNX Runtime Web**, WebGPU first and WASM as the fallback. I exported the model and ran it this way: output matches PyTorch, and one 7.8 s segment takes about 0.2 s on WebGPU, so roughly 10 s per 4-minute song on this machine.
 - **Web app: partly.** Desktop browsers with WebGPU: yes, with the same code. Browsers without WebGPU: possible but slow (minutes per song). Phones: not realistic today; they keep the existing in-app analysis.
 - **Two things need your decision before any work starts**: the licence of the Demucs weights is unclear (their author says so), and the model is a 90 MB file that has to be either bundled or downloaded.
+- **The smaller alternative, SCNet, was tested (section f)**: clear licence and a 13 MB file, but worse vocal charts on the one song with a reference, no faster on CPU, and about nine times slower on WebGPU.
 
 ## (a) What the advanced analysis does today
 
@@ -81,7 +84,7 @@ Not tested: the app's own web view (WebView2), any integrated, AMD or Intel GPU,
 - **Model download and caching**: 90 MB once, stored in Cache Storage or the origin private file system; the runtime accepts the bytes directly. Chromium allows this easily. Safari deletes site storage after 7 days without a visit unless the site is on the home screen (read).
 - **Fallback**: anything that cannot run it (no WebGPU and no isolation, too little memory, a phone, a failed download) uses today's in-app analysis, exactly as when the service is unreachable now.
 
-A smaller model could change the phone answer later: SCNet (13 to 43 MB, weights explicitly MIT according to its author, read) is the candidate. It was not tested and would need its own chart-quality check.
+A smaller model does not change the phone answer: SCNet (13 to 43 MB, weights explicitly MIT according to its author) was tested afterwards and is no faster and nearly as memory-hungry as Demucs. See section (f).
 
 ## (d) Work for the recommended route
 
@@ -98,10 +101,69 @@ Rough sizes for one developer; about two weeks in total.
 
 ## (e) Decisions that are yours
 
-1. **Weights licence.** Today the user's own Python install fetches the weights; in-app, the project would distribute them (bundled or from a host you control). Accept that, or evaluate SCNet instead, or keep stem separation as an opt-in download with its terms shown?
+1. **Weights licence.** Today the user's own Python install fetches the weights; in-app, the project would distribute them (bundled or from a host you control). Accept that, keep stem separation as an opt-in download with its terms shown, or switch to SCNet and accept what section (f) found: worse vocal charts on the one song with a reference, and about nine times slower on WebGPU?
 2. **Bundle or download.** Installer of about 110 MB with everything inside, or about 20 MB plus a 90 MB download on first use (which needs a host)?
 3. **Minimum hardware.** Is the feature offered on CPU-only machines at 3 to 10 minutes per song, or only where WebGPU is available?
 4. **Phones.** Recommended: off, with the existing analysis. Agree?
 5. **Web hosting.** Where is the web build served, and can it send the two isolation headers?
 6. **macOS and Linux.** Both would run on WASM for now. Is that acceptable, or does the native CPU path become part of the first version?
 7. **The Python service.** Keep it as a developer reference tool or remove it once the in-app route works?
+
+## (f) Would the smaller model (SCNet) cost accuracy?
+
+Tested after the main research. Short answer: **yes on vocals, no on drums and lead, and it was better on bass, on the one song where there is something to score against. It brings no speed or memory advantage, only a smaller download and a clear licence.**
+
+Setup: the official SCNet code and checkpoint (10.6 million parameters, 42.4 MB, hash checked against the published one), 11 s segments with 50 % overlap. Both models' stems went through the same Basic Pitch step and the game's own pipeline (`npm run dev:analyze` with `ANALYSIS=hybrid`). Four songs: `alive`, `rivers`, `layall` and `sna`. A fifth, `givenchy.mp3`, had disappeared from `local-audio/` by the time its turn came.
+
+### Against a human-made chart (one song, `sna`)
+
+Scored with the existing `scripts/dev/compare.dev.ts`. Demucs was run twice because its random time shift makes results vary between runs.
+
+| Expert chart, onset F1 | Demucs run 1 | Demucs run 2 | SCNet |
+|---|---|---|---|
+| Vocals (within 100 ms) | 74 % | 74 % | **65 %** |
+| Vocals precision | 61 % | 61 % | **49 %** |
+| Lead | 66 % | 66 % | 66 % |
+| Bass | 58 % | 56 % | **69 %** |
+| Drums | 93 % | 93 % | 93 % |
+
+The vocal loss has a visible cause. That song's reference comes with the true isolated vocal track. In the stretches where nobody sings, SCNet's vocal stem still carries sound at −12 dB relative to the sung parts; Demucs's is at −33 dB. The transcriber turns that leak into notes: 492 vocal notes against 390, for 252 in the reference.
+
+### Against each other (four songs)
+
+Share of note onsets the two analyses agree on (lines within 50 ms, drums within 30 ms). The first number is a second Demucs run against the first, which is the noise floor; the second is SCNet against Demucs.
+
+| Song | Vocals | Lead | Bass | Kick | Snare | Hat |
+|---|---|---|---|---|---|---|
+| alive | 92 / 67 | 85 / 48 | 88 / 64 | 97 / 91 | 99 / 93 | 99 / 92 |
+| rivers | 92 / 75 | 98 / 87 | 99 / 98 | 99 / 84 | 99 / 96 | 98 / 73 |
+| layall | 95 / 76 | 94 / 78 | 95 / 89 | 98 / 89 | 98 / 88 | 100 / 98 |
+| sna | 97 / 81 | 92 / 68 | 88 / 70 | 95 / 90 | 98 / 93 | 98 / 82 |
+
+SCNet's charts differ from Demucs's on every song by clearly more than Demucs differs from itself. Different is not the same as worse: only `sna` has a reference, and there the difference went against SCNet on vocals and for it on bass. The line-building thresholds in `src/analysis/pitch/stemLines.ts` were tuned on Demucs stems, so some of the gap may be tuning.
+
+### Cost (same song and machine as above)
+
+| | Demucs | SCNet |
+|---|---|---|
+| Model file | 90 MB | 12.9 MB (published 8-bit ONNX) or 42.4 MB |
+| PyTorch, GPU | 3 to 6 s | 7 to 9 s |
+| PyTorch, CPU 8 threads | 55 s | 57 s |
+| ONNX Runtime, CPU, one segment | 1.3 s per 7.8 s | 1.5 s per 11 s |
+| Peak memory, CPU, one segment | 2.5 GiB | 1.8 GiB |
+| Browser WebGPU, one segment | 0.2 s per 7.8 s | **2.0 s per 11 s** |
+| Browser WASM, 4 threads, one segment | 4.6 s per 7.8 s | 5.0 s per 11 s |
+
+SCNet's recurrent layers do not run on the WebGPU provider and fall back to the CPU, so the GPU route that makes Demucs take about 10 s per song takes about 90 s with SCNet.
+
+### What this means
+
+- Stay with Demucs for quality and speed if its weights licence is acceptable.
+- SCNet is the fallback if it is not. Expect noisier vocal charts until the vocal line-building is re-tuned, and analysis that takes one to two minutes even with a GPU.
+- It does not make phones viable.
+
+Limits of this test: one song with a reference chart; chart quality was measured with the full-precision checkpoint and speed with the published 8-bit file (its page reports the two score within 0.01 dB of each other); the larger SCNet variant (better published scores, same licence) was not tried; SCNet ran without the random-shift trick its authors use, which they say adds up to 0.2 dB.
+
+Side finding: with Demucs, two analyses of the same song already disagree on 1 to 15 % of line onsets, and on two of the four songs many bass notes landed an octave apart (same note name 98 to 100 %, same octave 50 and 73 %). The in-app version should use a fixed shift so a song always charts the same way.
+
+The compared stems and analyses are in `local-audio/cmp_<song>_demucs.*` and `local-audio/cmp_<song>_scnet.*` (478 MB, safe to delete).
