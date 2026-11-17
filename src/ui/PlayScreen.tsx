@@ -53,7 +53,6 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
       root,
       score: q('[data-hud=score]'),
       multiplier: q('[data-hud=mult]'),
-      streak: q('[data-hud=streak]'),
       stars: q('[data-hud=stars]'),
       progress: q('[data-hud=progress]'),
       feedback: q('[data-hud=feedback]'),
@@ -164,7 +163,6 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
               <circle cx="50" cy="50" r="44" className="fill" pathLength={1} />
             </svg>
             <span className="hud-mult" data-hud="mult" data-level="1">×1</span>
-            <span className="hud-streak" data-hud="streak" />
           </div>
           <button type="button" className="hud-od" data-hud="od" data-sfx="none" tabIndex={-1} aria-label="Start overdrive">
             <Zap strokeWidth={ICON_STROKE} aria-hidden />

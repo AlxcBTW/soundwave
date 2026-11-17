@@ -15,7 +15,6 @@ import type { Settings } from './settings';
 export interface HudRefs {
   score: HTMLElement;
   multiplier: HTMLElement;
-  streak: HTMLElement;
   stars: HTMLElement;
   progress: HTMLElement;
   feedback: HTMLElement;
@@ -317,7 +316,6 @@ export class PlayController {
       this.hud.multiplier.dataset.level = String(Math.min(mult, 8));
     }
     if (s.streak !== c.streak) {
-      this.hud.streak.textContent = s.streak > 0 ? `${s.streak}` : '';
       // The dial's ring: how far the streak is toward the next multiplier step (full at the top one).
       const top = multiplierFor(s.streak) >= MAX_MULTIPLIER;
       this.hud.root.style.setProperty('--streak-p', top ? '1' : ((s.streak % STREAK_PER_MULTIPLIER) / STREAK_PER_MULTIPLIER).toFixed(2));

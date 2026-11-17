@@ -104,7 +104,7 @@ ul, ol { list-style: none; }
 
 /* The stage voice: wide, black, leaning. */
 .display, .page-title, .wordmark, .tile-title, .panel-title, .set-heading, .now-title, .num, .slot-num, .countdown,
-.hud-score, .hud-mult, .hud-streak, .hud-feedback, .hud-part, .hud-pos, .hud-break-num, .hud-od-word {
+.hud-score, .hud-mult, .hud-feedback, .hud-part, .hud-pos, .hud-break-num, .hud-od-word {
   font-stretch: 112%;
   font-style: italic;
   font-weight: 900;
@@ -625,7 +625,6 @@ ul, ol { list-style: none; }
 .hud-dial-ring .track { stroke: rgb(255 255 255 / 0.14); }
 .hud-dial-ring .fill { stroke: var(--dial); stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--streak-p, 0)); transition: stroke-dashoffset 0.15s, stroke 0.2s; }
 .hud-mult { font-size: 36cqw; color: var(--ink); }
-.hud-streak { font-size: 16cqw; color: var(--ink-2); min-height: 1em; }
 
 /* Overdrive: its name and key beside the dial; pressing it starts overdrive. */
 .hud-od { grid-area: od; justify-self: start; position: relative; display: flex; align-items: center; gap: 6px; padding: 0; color: var(--ink-3); font-size: clamp(12px, 0.85vw, 20px); white-space: nowrap; pointer-events: auto; }
