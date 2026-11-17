@@ -77,7 +77,16 @@ export function FocusRing() {
       if (ring.classList.contains('glide') && performance.now() - movedAt > GLIDE) ring.classList.remove('glide');
       const r = el.getBoundingClientRect();
       if (r.width === 0 && r.height === 0) return;
-      const radius = getComputedStyle(el).borderTopLeftRadius;
+      const style = getComputedStyle(el);
+      // A control that is still fading in gets its ring once it has arrived, not around thin air.
+      if (Number(style.opacity) < 0.6 && el.getAnimations?.().some((a) => a.playState === 'running')) {
+        if (shown) {
+          shown = false;
+          ring.classList.remove('on', 'glide');
+        }
+        return;
+      }
+      const radius = style.borderTopLeftRadius;
       const next = `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)},${radius}`;
       if (next !== last) {
         last = next;

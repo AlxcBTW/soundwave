@@ -79,6 +79,10 @@ export function App() {
   const [view, setView] = useState<View>({ name: 'home' });
   const [songs, setSongs] = useState<SongMeta[]>([]);
   const [scores, setScores] = useState<BestScore[]>([]);
+  /** What has come back from storage since the game opened. */
+  const [loaded, setLoaded] = useState({ songs: false, scores: false });
+  /** The first screen waits for the library, so it arrives whole instead of filling in piece by piece. */
+  const [booted, setBooted] = useState(false);
   const [importing, setImporting] = useState(0);
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [setlist, setSetlistState] = useState<string[]>(loadSetlist);
@@ -148,6 +152,7 @@ export function App() {
       setSongs([DEMO_SONG]);
       toast('Song storage is unavailable in this browser window. Imported songs will not be saved.');
     }
+    setLoaded((l) => (l.songs ? l : { ...l, songs: true }));
   }, [toast]);
   const refreshScores = useCallback(async () => {
     try {
@@ -155,6 +160,7 @@ export function App() {
     } catch {
       /* scores are best-effort */
     }
+    setLoaded((l) => (l.scores ? l : { ...l, scores: true }));
   }, []);
 
   useEffect(() => {
@@ -188,6 +194,23 @@ export function App() {
   useEffect(() => {
     for (const s of songs) if (s.id !== DEMO_ID && !analysisStatus[s.id]) void analysisManager.check(s.id, true);
   }, [songs, analysisStatus]);
+
+  // The game opens once it knows the library, the scores and which songs have charts (or after a
+  // moment, whatever is still missing), and then in a quiet moment, so the entrance plays smoothly.
+  const known = loaded.songs && loaded.scores && songs.every((s) => s.id === DEMO_ID || analysisStatus[s.id]);
+  useEffect(() => {
+    if (booted) return;
+    if (!known) {
+      const late = window.setTimeout(() => setBooted(true), 1500);
+      return () => clearTimeout(late);
+    }
+    if (typeof requestIdleCallback !== 'function') {
+      const soon = window.setTimeout(() => setBooted(true), 60);
+      return () => clearTimeout(soon);
+    }
+    const idle = requestIdleCallback(() => setBooted(true), { timeout: 400 });
+    return () => cancelIdleCallback(idle);
+  }, [known, booted]);
 
   const byId = useMemo(() => new Map(songs.map((s) => [s.id, s])), [songs]);
   // Songs that were removed leave the setlist with them.
@@ -388,7 +411,7 @@ export function App() {
       heading.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(raf);
-  }, [sceneKey, view.name]);
+  }, [sceneKey, view.name, booted]);
 
   // The settings over a paused song take focus as they open (the pause menu takes it back, see PlayScreen).
   useEffect(() => {
@@ -504,9 +527,11 @@ export function App() {
         <MenuBackground graphics={settings.graphics} />
         <div className="veil" aria-hidden />
         {/* One entrance per screen change; the stage behind it stays. */}
-        <div className={`scene ${sceneDirRef.current}`} key={sceneKey}>
-          {screen}
-        </div>
+        {booted && (
+          <div className={`scene ${sceneDirRef.current}`} key={sceneKey}>
+            {screen}
+          </div>
+        )}
       </div>
     );
   }

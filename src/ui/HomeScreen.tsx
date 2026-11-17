@@ -1,7 +1,7 @@
 import { ListMusic, Plus, Power, Settings as SettingsIcon, Upload } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { AnalysisStatus } from '../analysis/manager';
-import { formatTime, suggestSets, type SuggestedSet } from '../game/setlist';
+import { formatTime, SET_MAX, suggestSets, type SuggestedSet } from '../game/setlist';
 import type { SongMeta } from '../storage/db';
 import { useInputMode } from '../input/inputMode';
 import type { Settings } from '../game/settings';
@@ -45,6 +45,11 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
   const progress = busy.length ? busy.reduce((t, s) => t + (status[s.id]?.progress ?? 0), 0) / busy.length : 0;
 
   const touch = mode === 'touch';
+  // Tiles that were here when the screen opened arrive together; one that turns up later (a set
+  // that became possible after an import) opens its own space instead of shoving the others aside.
+  const opening = useRef<Set<string> | null>(null);
+  opening.current ??= new Set([...sets.map((s) => s.id), ...(empty ? ['add'] : [])]);
+  const late = (id: string) => (opening.current!.has(id) ? '' : 'late');
 
   useActions([
     { id: 'add', label: importing ? `Importing ${importing}…` : 'Add songs', icon: Upload, kbd: 'KeyA', pad: 'b3', run: onAdd },
@@ -76,7 +81,8 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
       <main className="page-body home-body">
         <h2 className="page-title">Pick a set</h2>
         <div className="tiles" data-nav-group="tiles">
-          <button type="button" className="tile hero" data-autofocus onClick={onLibrary}>
+          {/* The feature: the player's own set, with its covers, and its songs in order. */}
+          <button type="button" className="tile hero" data-autofocus aria-label={setlist.length ? `Your setlist: ${count(setlist.length)}, ${total(setlist)}` : 'Your setlist: empty. Pick up to four songs from your library.'} onClick={onLibrary}>
             {setlist.length ? (
               <Mosaic songs={setlist} />
             ) : (
@@ -87,12 +93,26 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
             <span className="tile-text">
               <span className="tile-title">Your setlist</span>
               <span className="tile-cap">{setlist.length ? `${count(setlist.length)} · ${total(setlist)}` : 'Pick up to four songs from your library'}</span>
+              <span className="hero-songs">
+                {Array.from({ length: SET_MAX }, (_, i) => {
+                  const s = setlist[i];
+                  return (
+                    <span key={i} className={`hero-song ${s ? '' : 'open'}`}>
+                      <span className="hero-num">{i + 1}</span>
+                      <span className="hero-name">{s ? s.title : 'Open slot'}</span>
+                      {s && <span className="hero-by">{s.artist}</span>}
+                    </span>
+                  );
+                })}
+              </span>
             </span>
           </button>
+          {(sets.length > 0 || empty) && (
+          <div className="tile-stack">
           {sets.map((set, i) => {
             const list = set.songs.map((id) => byId.get(id)!).filter(Boolean);
             return (
-              <button type="button" key={set.id} className="tile" style={{ ['--i' as string]: i + 1 }} onClick={() => onSet(set.songs)}>
+              <button type="button" key={set.id} className={`tile ${late(set.id)}`} style={{ ['--i' as string]: i + 1 }} onClick={() => onSet(set.songs)}>
                 <Mosaic songs={list} />
                 <span className="tile-text">
                   <span className="tile-title">{set.title}</span>
@@ -105,7 +125,7 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
             );
           })}
           {empty && (
-            <button type="button" className="tile add" style={{ ['--i' as string]: sets.length + 1 }} onClick={onAdd}>
+            <button type="button" className={`tile add ${late('add')}`} style={{ ['--i' as string]: sets.length + 1 }} onClick={onAdd}>
               <span className="mosaic blank dashed" aria-hidden>
                 <Plus strokeWidth={ICON_STROKE} />
               </span>
@@ -114,6 +134,8 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
                 <span className="tile-cap">{touch ? 'Pick files from this device.' : 'Drop files anywhere or browse.'} MP3, WAV, FLAC, OGG and M4A. Each song takes about a minute to turn into charts.</span>
               </span>
             </button>
+          )}
+          </div>
           )}
         </div>
       </main>
