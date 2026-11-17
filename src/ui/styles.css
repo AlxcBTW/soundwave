@@ -632,11 +632,23 @@ ul, ol { list-style: none; }
 .hud-mult { font-size: 36cqw; color: var(--ink); }
 
 /* Overdrive: its name and key beside the dial; pressing it starts overdrive. */
-.hud-od { grid-area: od; justify-self: start; position: relative; display: flex; align-items: center; gap: 6px; padding: 0; color: var(--ink-3); font-size: clamp(12px, 0.85vw, 20px); white-space: nowrap; pointer-events: auto; }
-.hud-od svg { width: 1.1em; height: 1.1em; flex: none; }
+.hud-od { grid-area: od; justify-self: start; position: relative; display: flex; align-items: center; gap: 6px; padding: 0; border-radius: 999px; color: var(--ink-3); font-size: clamp(12px, 0.85vw, 20px); white-space: nowrap; pointer-events: auto; transform-origin: 0 50%; transition: font-size 0.2s var(--ease), padding 0.2s var(--ease), background 0.2s, color 0.2s; }
+.hud-od > svg { width: 1.1em; height: 1.1em; flex: none; }
 .hud-od-key kbd { display: inline-grid; place-items: center; min-width: 1.7em; height: 1.5em; padding: 0 0.4em; border-radius: 4px; background: rgb(0 0 0 / 0.6); font: 800 0.85em/1 var(--font); color: var(--ink); }
 .hud-od-key .glyph { font-size: 0.95em; }
-.hud.od-ready .hud-od, .hud.overdrive .hud-od { color: var(--od); }
+.hud.overdrive .hud-od { color: var(--od); }
+/* Charged: the prompt turns into a lit plate half as large again that beats, with its key on it,
+   so it is seen out of the corner of the eye while the notes keep coming. */
+/* It also reads as an instruction then: Press, the key, Overdrive. */
+.hud-od-press { display: none; order: 1; }
+.hud-od-key { order: 3; }
+.hud.od-ready .hud-od-press { display: inline; }
+.hud.od-ready .hud-od-key { order: 2; }
+.hud.od-ready .hud-od-word:not(.hud-od-press) { order: 3; }
+.hud.od-ready .hud-od { padding: 0.45em 1em 0.45em 0.8em; gap: 0.4em; background: var(--od); color: #06203a; font-size: clamp(20px, 1.6vw, 36px); box-shadow: 0 0 24px var(--od); animation: od-call 0.8s ease-in-out infinite; }
+.hud.od-ready .hud-od-key kbd { background: #06203a; color: #fff; }
+.hud.od-ready .hud-od-key .glyph { font-size: 0.85em; }
+@keyframes od-call { 50% { transform: scale(1.08); box-shadow: 0 0 40px var(--od), 0 0 0 5px rgb(191 230 255 / 0.3); } }
 .hud.od-ready .hud-od-bar { box-shadow: 0 0 14px var(--od); animation: odpulse 0.6s infinite alternate; }
 .hud.overdrive .hud-od-bar { box-shadow: 0 0 18px var(--od); }
 @keyframes odpulse { to { box-shadow: 0 0 26px var(--od); } }
@@ -727,8 +739,9 @@ ul, ol { list-style: none; }
 /* There the meter is the button's own ring, like the streak's ring on the dial. */
 :root[data-input='touch'] .hud-od::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(var(--od) calc(var(--od-level, 0) * 1turn), rgb(255 255 255 / 0.18) 0); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5.5px)); }
 :root[data-input='touch'] .hud-od-word { display: none; }
-:root[data-input='touch'] .hud-od svg { width: 26px; height: 26px; }
-:root[data-input='touch'] .hud.od-ready .hud-od { background: color-mix(in srgb, var(--od) 30%, var(--panel-hud)); color: #fff; box-shadow: 0 0 14px var(--od); animation: odpulse 0.6s infinite alternate; }
+:root[data-input='touch'] .hud-od > svg { width: 26px; height: 26px; }
+:root[data-input='touch'] .hud.od-ready .hud-od { padding: 0; background: var(--od); color: #06203a; transform-origin: 50% 50%; }
+:root[data-input='touch'] .hud.od-ready .hud-od::before { opacity: 0; }
 /* With the button on the left, it leaves the column for the other edge, level with the dial. */
 :root[data-input='touch'] .play[data-od-side='left'] .hud-od { position: absolute; top: 0; right: calc(100vw - var(--edge-r) - var(--safe-l) - 12px - var(--edge)); }
 :root[data-input='touch'] .hud-scorebox { left: calc(12px + var(--safe-l)); bottom: auto; top: calc(10px + var(--safe-t)); flex-direction: column-reverse; }

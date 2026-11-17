@@ -111,6 +111,8 @@ export function ActionBar({ settings }: { settings: Settings }) {
       if (e.defaultPrevented || e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
       // Typing never triggers a letter shortcut; Escape still leaves the field's screen.
       if (isTextField(e.target) && e.code !== 'Escape') return;
+      // Enter on a focused control presses that control, not the bar's Enter action.
+      if (e.code === 'Enter' && e.target instanceof HTMLElement && e.target.closest('button, a, input, [role="slider"]')) return;
       const a = top().find((x) => x.kbd === e.code);
       if (a && trigger(a)) e.preventDefault();
     };

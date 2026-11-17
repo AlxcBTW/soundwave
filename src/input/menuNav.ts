@@ -34,13 +34,21 @@ export function navScope(): ParentNode {
 /** Menus take directions unless a song is running (the pause menu takes them again). */
 const navLive = () => !document.querySelector('[data-nav-off]');
 
+const shown = (el: HTMLElement) => {
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+};
+
 export function focusables(scope: ParentNode = navScope()): HTMLElement[] {
-  return Array.from(scope.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => {
+  const list = Array.from(scope.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => {
     // Out of the tab order means out of directional navigation too (a row's own step arrows).
     if (el.tabIndex < 0 || el.closest('[data-nav-skip]')) return false;
-    const r = el.getBoundingClientRect();
-    return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+    return shown(el);
   });
+  if (list.length || scope !== document) return list;
+  // A screen with no controls of its own (results, the set summary): the action bar's buttons take
+  // the focus instead of standing outside it, so there is always something to move between.
+  return Array.from(document.querySelectorAll<HTMLElement>('.action-bar button:not([disabled])')).filter(shown);
 }
 
 const center = (r: DOMRect) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });

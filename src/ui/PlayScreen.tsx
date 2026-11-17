@@ -166,6 +166,7 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
           </div>
           <button type="button" className="hud-od" data-hud="od" data-sfx="none" tabIndex={-1} aria-label="Start overdrive">
             <Zap strokeWidth={ICON_STROKE} aria-hidden />
+            {mode !== 'touch' && <span className="hud-od-word hud-od-press">Press</span>}
             <span className="hud-od-word">Overdrive</span>
             {mode !== 'touch' && <span className="hud-od-key">{usingPad ? <PadGlyph input={settings.padOverdrive} style={style} /> : <kbd>{keyLabel(settings.overdriveKey)}</kbd>}</span>}
           </button>
