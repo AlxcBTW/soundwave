@@ -11,6 +11,12 @@ export interface Settings {
   musicVolume: number;
   /** Menu and interface sound effects, 0..1 (separate from the music). */
   sfxVolume: number;
+  /** Silence while the game's window is not the focused one. */
+  muteUnfocused: boolean;
+  /** The audio output to play through: a device id of this browser, or '' for the system's default. */
+  outputDevice: string;
+  /** That device's name, to show it while it is unplugged. */
+  outputDeviceName: string;
   keys4: string[];
   keys5: string[];
   overdriveKey: string;
@@ -54,6 +60,9 @@ export const DEFAULT_SETTINGS: Settings = {
   volume: 0.9,
   musicVolume: 0.6,
   sfxVolume: 0.7,
+  muteUnfocused: true,
+  outputDevice: '',
+  outputDeviceName: '',
   keys4: ['KeyD', 'KeyF', 'KeyJ', 'KeyK'],
   keys5: ['KeyD', 'KeyF', 'KeyJ', 'KeyK', 'KeyL'],
   overdriveKey: 'Space',
@@ -99,6 +108,9 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
   s.uiScale = Math.min(1.3, Math.max(0.85, Number(s.uiScale) || 1));
   if (!['system', 'reduced', 'full'].includes(s.motion)) s.motion = 'system';
   s.touchHaptics = Boolean(s.touchHaptics);
+  s.muteUnfocused = Boolean(s.muteUnfocused);
+  if (typeof s.outputDevice !== 'string') s.outputDevice = '';
+  if (typeof s.outputDeviceName !== 'string' || !s.outputDevice) s.outputDeviceName = '';
   if (s.touchOverdriveSide !== 'left') s.touchOverdriveSide = 'right';
   for (const k of ['keys4', 'keys5', 'pad4', 'pad5'] as const) {
     if (!Array.isArray(s[k]) || s[k].length !== DEFAULT_SETTINGS[k].length) s[k] = [...DEFAULT_SETTINGS[k]];

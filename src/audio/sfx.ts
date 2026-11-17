@@ -1,8 +1,8 @@
 /**
  * Interface sound effects: short orchestral recordings in public/audio/sfx, rendered by
  * tools/audio/sfx.py in the key of the menu theme. They share the game's AudioContext but have
- * their own volume and go straight to the output, so they neither follow the music volume nor
- * drive the visualizer.
+ * their own volume and go straight to the master output, so they neither follow the music volume
+ * nor drive the visualizer.
  */
 import { getEngine } from './engine';
 
@@ -98,7 +98,7 @@ function graph(): { ctx: AudioContext; out: GainNode } | null {
   if (!out) {
     out = ctx.createGain();
     out.gain.value = volume * TRIM;
-    out.connect(ctx.destination);
+    out.connect(getEngine().master);
   }
   return { ctx, out };
 }

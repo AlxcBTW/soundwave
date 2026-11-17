@@ -15,6 +15,7 @@ import { loadPick, loadSetlist, pruneSetlist, savePick, saveSetlist, SET_MAX, to
 import { loadSettings, saveSettings, type Settings } from '../game/settings';
 import { getInputMode, installInputMode, setInputMode, usesFocus } from '../input/inputMode';
 import { focusStart, installMenuNav } from '../input/menuNav';
+import { followOutputDevice, muteWhileUnfocused } from '../audio/output';
 import { pads, resolveStyle } from '../input/pads';
 import { menuPulse, setMenuRumble } from '../input/rumble';
 import { deleteSong, getSong, listAllScores, listSongs, putSong, submitScore, type BestScore, type SongMeta } from '../storage/db';
@@ -123,6 +124,8 @@ export function App() {
   }, []);
   useEffect(() => setSfxVolume(settings.sfxVolume), [settings.sfxVolume]);
   useEffect(() => setMusicVolume(settings.musicVolume), [settings.musicVolume]);
+  useEffect(() => (settings.muteUnfocused ? muteWhileUnfocused() : undefined), [settings.muteUnfocused]);
+  useEffect(() => followOutputDevice(settings.outputDevice), [settings.outputDevice]);
   useEffect(() => setMenuRumble(settings.rumble), [settings.rumble]);
   useEffect(() => void applyDisplayMode(settings.displayMode), [settings.displayMode]);
   useEffect(() => document.documentElement.style.setProperty('--ui-scale', String(settings.uiScale)), [settings.uiScale]);

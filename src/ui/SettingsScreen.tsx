@@ -1,5 +1,6 @@
 import { ArrowLeft, ChevronLeft, ChevronRight, Gamepad2, Hand, Keyboard, Monitor, RotateCcw, ScanSearch, Target, Volume2, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { allowOutputList, canPickOutput, listOutputs, type OutputList } from '../audio/output';
 import { playSfx } from '../audio/sfx';
 import { inDesktopApp } from '../game/displayMode';
 import { applyPreset, autoTier, resolveGraphics, type GraphicsPreset, type GraphicsSettings, type Level } from '../game/graphics';
@@ -45,7 +46,7 @@ const RESERVED = new Set(['Escape', 'Enter', 'Tab']);
 /** The settings each tab's Restore defaults puts back. */
 const FIELDS: Record<Tab, readonly (keyof Settings)[]> = {
   video: ['graphics', 'displayMode', 'uiScale', 'motion'],
-  audio: ['volume', 'musicVolume', 'sfxVolume'],
+  audio: ['volume', 'musicVolume', 'sfxVolume', 'muteUnfocused', 'outputDevice', 'outputDeviceName'],
   game: ['noteSpeed', 'offsetMs'],
   keyboard: ['keys4', 'keys5', 'overdriveKey'],
   controller: ['pad4', 'pad5', 'padOverdrive', 'glyphs', 'rumble', 'rumbleHits', 'rumbleMisses', 'rumbleSustains', 'rumbleOverdrive'],
@@ -222,6 +223,26 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack, inSong = 
     };
   }, [ps5, tab]);
 
+  // The audio outputs, kept current while the Audio tab is open (plugging one in changes the list).
+  const [outputs, setOutputs] = useState<OutputList>({ devices: [], listed: false });
+  const [outputsRefused, setOutputsRefused] = useState(false);
+  useEffect(() => {
+    if (tab !== 'audio' || !canPickOutput()) return;
+    let live = true;
+    const load = () => void listOutputs().then((o) => live && setOutputs(o));
+    load();
+    navigator.mediaDevices.addEventListener('devicechange', load);
+    return () => {
+      live = false;
+      navigator.mediaDevices.removeEventListener('devicechange', load);
+    };
+  }, [tab]);
+  const askOutputs = async () => {
+    const ok = await allowOutputList();
+    setOutputsRefused(!ok);
+    if (ok) setOutputs(await listOutputs());
+  };
+
   const resetTab = () => {
     const patch: Partial<Settings> = {};
     for (const f of FIELDS[tab]) (patch as Record<string, unknown>)[f] = structuredClone(DEFAULT_SETTINGS[f]);
@@ -233,7 +254,7 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack, inSong = 
     { id: 'reset', label: 'Restore defaults', icon: RotateCcw, kbd: 'KeyR', pad: 'b3', run: resetTab },
   ]);
 
-  const sections = buildSections(tab, { settings, set, binding, setBinding, snap, haptics, mlStatus, calibrate: () => setCalibrating(true), inSong });
+  const sections = buildSections(tab, { settings, set, binding, setBinding, snap, haptics, mlStatus, calibrate: () => setCalibrating(true), inSong, outputs, outputsRefused, askOutputs: () => void askOutputs() });
   const rows = sections.flatMap((s) => s.rows);
   const active = rows.find((r) => r.id === activeId) ?? rows[0];
   const tabRow = useSlide<HTMLDivElement>(tab);
@@ -299,6 +320,9 @@ interface Ctx {
   mlStatus: Props['mlStatus'];
   calibrate(): void;
   inSong: boolean;
+  outputs: OutputList;
+  outputsRefused: boolean;
+  askOutputs(): void;
 }
 
 function buildSections(tab: Tab, c: Ctx): Section[] {
@@ -388,14 +412,50 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
     const volume = (id: 'volume' | 'musicVolume' | 'sfxVolume', label: string, help: string): Row => ({
       kind: 'slider', id, label, help, value: s[id], min: 0, max: 1, step: 0.05, format: pct, set: (v) => set({ [id]: v }),
     });
-    return [{
-      title: 'Volume',
-      rows: [
-        volume('volume', 'Songs', 'The songs you play and their previews.'),
-        volume('musicVolume', 'Menu music', 'The theme behind the menus.'),
-        volume('sfxVolume', 'Interface sounds', 'Moves, presses and the results fanfare.'),
-      ],
-    }];
+    // Browsers add the USB id to a device's name: "Headset (046d:0a44)".
+    const tidy = (label: string) => label.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/i, '');
+    const outputRow = (): Row => {
+      const base = { id: 'outputDevice', label: 'Output device' };
+      if (!canPickOutput()) {
+        return { ...base, kind: 'info', help: 'This browser always plays through the system’s default output. To hear the game somewhere else, change the output in the system’s sound settings.', body: 'System default' };
+      }
+      if (!c.outputs.listed) {
+        return {
+          ...base, kind: 'action', button: 'Show devices', run: c.askOutputs,
+          help: c.outputsRefused
+            ? 'Microphone access was refused, so the outputs cannot be listed. The game plays through the system’s default output.'
+            : 'The game plays through the system’s default output. To list speakers and headphones by name, the browser first asks for microphone access. The microphone is closed again at once and nothing is recorded.',
+        };
+      }
+      const options: Option[] = [
+        { value: '', label: 'System default', help: 'Follows the output the system is set to.' },
+        ...c.outputs.devices.map((d) => ({ value: d.id, label: tidy(d.label) })),
+      ];
+      if (s.outputDevice && !options.some((o) => o.value === s.outputDevice)) {
+        options.push({ value: s.outputDevice, label: s.outputDeviceName || 'Unknown device', help: 'Not connected. The system default plays until it is back.' });
+      }
+      return {
+        ...base, kind: 'choice', help: 'Where the game’s sound plays: songs, menu music and interface sounds together.', value: s.outputDevice, options,
+        set: (v) => set({ outputDevice: v, outputDeviceName: v ? (options.find((o) => o.value === v)?.label ?? '') : '' }),
+      };
+    };
+    return [
+      {
+        title: 'Volume',
+        rows: [
+          volume('volume', 'Songs', 'The songs you play and their previews.'),
+          volume('musicVolume', 'Menu music', 'The theme behind the menus.'),
+          volume('sfxVolume', 'Interface sounds', 'Moves, presses and the results fanfare.'),
+        ],
+      },
+      {
+        title: 'Output',
+        rows: [
+          outputRow(),
+          toggle('muteUnfocused', 'Mute in the background', 'Silences the game while its window is not the one in front, and brings the sound back when you return to it. A song keeps running unless the window is hidden, which pauses it.', s.muteUnfocused, (v) => set({ muteUnfocused: v })),
+        ],
+      },
+    ];
   }
 
   if (tab === 'game') {

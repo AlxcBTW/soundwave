@@ -6,6 +6,8 @@ export class AudioEngine {
   readonly ctx: AudioContext;
   readonly analyser: AnalyserNode;
   readonly gain: GainNode;
+  /** Everything the game plays (songs, menu music, interface sounds) leaves through this. */
+  readonly master: GainNode;
   private source: AudioBufferSourceNode | null = null;
   private buffer: AudioBuffer | null = null;
   /** Context time (scheduling clock) at which song time `startSong` plays. */
@@ -26,7 +28,17 @@ export class AudioEngine {
     this.analyser.fftSize = 2048;
     this.analyser.smoothingTimeConstant = 0.6;
     this.gain.connect(this.analyser);
-    this.analyser.connect(this.ctx.destination);
+    this.master = this.ctx.createGain();
+    this.analyser.connect(this.master);
+    this.master.connect(this.ctx.destination);
+  }
+
+  /** Silences or restores everything at once, with a short fade so nothing clicks. */
+  set muted(m: boolean) {
+    const g = this.master.gain;
+    const now = this.ctx.currentTime;
+    g.cancelScheduledValues(now);
+    g.setTargetAtTime(m ? 0 : 1, now, 0.03);
   }
 
   set volume(v: number) {
