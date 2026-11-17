@@ -23,8 +23,10 @@ export const shared = {
   uHazeDensity: { value: 0.0024 },
   /** Centre of the stage's glow (the moon screen). */
   uGlowPos: { value: new THREE.Vector3(0, 16, -25.5) },
-  /** Moon screen: centre x, y, z and radius. */
-  uMoon: { value: new THREE.Vector4(0, 16, -25.5, 11.5) },
+  /** Main screen: centre x, y, z and radius of the moon drawn on it. */
+  uMoon: { value: new THREE.Vector4(0, 8.4, -23.6, 12.7) },
+  /** The arch outline the main screen fills: half width, height, superellipse power. */
+  uArch: { value: new THREE.Vector3(12.7, 16.9, 2.25) },
   /** Overall brightness of the screens. */
   uScreenLevel: { value: 1 },
 };
@@ -45,6 +47,7 @@ uniform vec3 uHazeNear;
 uniform float uHazeDensity;
 uniform vec3 uGlowPos;
 uniform vec4 uMoon;
+uniform vec3 uArch;
 uniform float uScreenLevel;
 
 float hash11(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
@@ -81,7 +84,13 @@ vec3 applyHaze(vec3 col, vec3 wpos) {
   return mix(col, mix(uHazeFar, uHazeNear, lit), f);
 }
 
-/** The moon screen's picture; q runs 0..1 across its square. */
+/** 1 where a point of the main screen's plane (x, height) lies on the screen. */
+float onScreen(vec2 p) {
+  vec2 d = vec2(abs(p.x - uMoon.x) / uArch.x, max(0.0, p.y) / uArch.y);
+  return step(pow(d.x, uArch.z) + pow(d.y, uArch.z), 1.0) * step(0.0, p.y);
+}
+
+/** The main screen's picture: a moon with ripples; q runs 0..1 across the moon's own square. */
 vec3 moonContent(vec2 q) {
   vec2 p = (q - 0.5) * 2.0;
   float r = length(p);
@@ -94,7 +103,6 @@ vec3 moonContent(vec2 q) {
   vec2 c = p - 0.42 * vec2(cos(uTime * 0.07), sin(uTime * 0.07));
   float lune = smoothstep(0.95, 0.35, length(c));
   col += vec3(1.0, 0.96, 1.0) * lune * (0.25 + 0.3 * uPulse);
-  col *= smoothstep(1.0, 0.985, r);
   return col * uScreenLevel;
 }
 

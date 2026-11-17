@@ -41,9 +41,11 @@ Z = Vector((0, 0, 1))
 
 DECK_C = Vector((0, 10, 0))
 DECK_A, DECK_B, DECK_H, DECK_P = 24.0, 12.0, 2.4, 2.6
-# Sized and placed to sit wholly inside the innermost arch: no edge shows between the ridges.
-MOON_C = Vector((0, 25.5, 8.4))
-MOON_R = 9.3
+# The screen fills the innermost arch (half width 13.2, height 17.8, see the shell below); the moon
+# drawn on it is centred on MOON_C.
+SCREEN_W, SCREEN_H, SCREEN_POWER = 13.2 - 0.5, 17.8 - 0.9, 2.25
+MOON_C = Vector((0, 23.6, 8.4))
+MOON_R = SCREEN_W
 
 # ---------------------------------------------------------------- materials
 MATS = {}
@@ -334,17 +336,20 @@ for i in range(5):
             c, out, b2 = rig[round((0.14 + 0.72 * j / (count - 1)) * n)]
             fixture(black, lens, c - b2 * 0.78 + out * 0.1, out * 0.55 - Y * 0.75 + Z * 0.15, 'Shell%d' % i, mount=b2)
 
-# ---------------------------------------------------------------- the moon: a round screen behind the shell
+# ---------------------------------------------------------------- the moon screen: it fills the innermost arch
+# The screen has the arch's own outline, drawn half a metre inside its centre line on a plane that
+# runs through the arch's body: its edge is buried in the arch all the way round, with no gap.
 moon = bmesh.new()
 uvl = moon.loops.layers.uv.verify()
-bmesh.ops.create_circle(moon, cap_ends=True, segments=96, radius=MOON_R, matrix=Matrix.Translation(MOON_C) @ Matrix.Rotation(math.radians(90), 4, 'X'))
-for f in moon.faces:
-    for loop in f.loops:
-        loop[uvl].uv = ((loop.vert.co.x - MOON_C.x) / (2 * MOON_R) + 0.5, (loop.vert.co.z - MOON_C.z) / (2 * MOON_R) + 0.5)
+outline = []
+for k in range(97):
+    sx, sz = superpoint(math.pi - math.pi * k / 96, SCREEN_POWER)
+    outline.append(moon.verts.new((sx * SCREEN_W, MOON_C.y, max(0.0, sz) * SCREEN_H)))
+face = moon.faces.new(outline)
+for loop in face.loops:
+    # the picture's own square: the moon drawn on the screen is centred on MOON_C with radius MOON_R
+    loop[uvl].uv = ((loop.vert.co.x - MOON_C.x) / (2 * MOON_R) + 0.5, (loop.vert.co.z - MOON_C.z) / (2 * MOON_R) + 0.5)
 new_obj('ScreenMoon', moon, 'Screen', smooth=False)
-ring = [MOON_C + Vector((math.cos(a) * (MOON_R + 0.35), -0.2, math.sin(a) * (MOON_R + 0.35))) for a in [2 * math.pi * i / 96 for i in range(97)]]
-loft('MoonRim', ring, lambda t: 1.0, lambda t: 1.2, 'PaintRibbon', sides=16, u_of=lambda t: 0.5 + 0.5 * math.sin(2 * math.pi * t - math.pi / 2))
-tube(led, [p + Vector((0, -0.62, 0)) + (p - MOON_C).normalized() * -0.3 for p in ring], 0.06)
 
 # ---------------------------------------------------------------- the halo: a ring truss flown over the band
 # Small and low enough to clear the underside of every ridge above it.
@@ -651,7 +656,7 @@ def export(out_dir):
         'cameras': {k: {'pos': to_three(loc), 'target': to_three(tgt), 'hfov': hfov} for k, (loc, tgt, hfov) in VIEWS.items()},
         'band': {k: to_three(v) for k, v in BAND.items()},
         'fixtures': [{'group': f['group'], 'pos': to_three(f['pos']), 'dir': to_three(f['dir'])} for f in FIXTURES],
-        'moon': {'center': to_three(MOON_C), 'radius': MOON_R},
+        'moon': {'center': to_three(MOON_C), 'radius': MOON_R, 'arch': {'halfWidth': SCREEN_W, 'height': SCREEN_H, 'power': SCREEN_POWER}},
         'fireworks': [{**f, 'origin': to_three(f['origin'])} for f in FIREWORKS],
         'co2': [to_three(c) for c in CO2],
         'clear': [{'pos': to_three(c), 'radius': r} for c, r in CLEAR],

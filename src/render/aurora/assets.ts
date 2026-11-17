@@ -10,7 +10,8 @@ export interface VenueData {
   cameras: StageCameras;
   band: Record<string, Vec3>;
   fixtures: Fixture[];
-  moon: { center: Vec3; radius: number };
+  /** The main screen: centre and radius of the moon drawn on it, and the arch outline it fills. */
+  moon: { center: Vec3; radius: number; arch?: { halfWidth: number; height: number; power: number } };
   fireworks: FireworkSpec[];
   co2: Vec3[];
   /** Spots in the audience that stay free: the mix position, delay towers. */

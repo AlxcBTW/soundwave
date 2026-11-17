@@ -110,6 +110,7 @@ export class AuroraStage {
     const moon = this.data.moon;
     shared.uGlowPos.value.set(...moon.center);
     shared.uMoon.value.set(moon.center[0], moon.center[1], moon.center[2], moon.radius);
+    if (moon.arch) shared.uArch.value.set(moon.arch.halfWidth, moon.arch.height, moon.arch.power);
 
     const sky = buildSky();
     this.scene.add(sky);

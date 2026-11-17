@@ -119,7 +119,7 @@ void main() {
       float t = (uMoon.z - vWPos.z) / r.z;
       vec3 hit = vWPos + r * t;
       vec2 q = (hit.xy - uMoon.xy) / (2.0 * uMoon.w) + 0.5;
-      col += moonContent(q) * step(length(q - 0.5), 0.5) * fres * 0.8;
+      col += moonContent(q) * onScreen(hit.xy) * fres * 0.8;
     }
     col += skyGradient(r) * fres;
     col += uWash * 0.05;
@@ -178,7 +178,7 @@ uniform float uCells;
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
 void main() {
   #ifdef MOON
-    vec3 col = moonContent(vUv) * 0.9;
+    vec3 col = moonContent(vUv) * 0.8;
     vec2 cells = vUv * uCells;
   #else
     vec3 col = wingContent(vUv) * 1.0;
