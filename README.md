@@ -13,7 +13,7 @@ You play them on a 3D note highway with the keyboard, a controller or a touchscr
 
 You pick up to four songs as a setlist, choose a part and a difficulty for the set and play the songs back to back, with a result after each and a total at the end. The home screen also deals a few sets from your library (a shuffle, your newest songs, songs without a score).
 
-It runs in the browser, on phones and tablets too, and as a desktop app (Tauri).
+It runs in the browser, on phones and tablets too, and as a desktop app (Tauri). The desktop window has no title bar: Exit is at the top right of the home screen (or Esc, or the controller's back button, there), and in Window mode the window is moved by its top edge.
 
 ## Quick start (browser)
 

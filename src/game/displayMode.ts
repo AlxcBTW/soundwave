@@ -23,6 +23,22 @@ export function windowedSize(monitorWidth: number, monitorHeight: number): { wid
   };
 }
 
+/** Whether the game runs somewhere it can close itself: the desktop app, or a window installed from the browser. */
+export const canExit = () => inDesktopApp() || (typeof matchMedia !== 'undefined' && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches);
+
+/** Closes the game. */
+export async function exitApp() {
+  if (inDesktopApp()) {
+    try {
+      await getCurrentWindow().close();
+      return;
+    } catch (err) {
+      console.warn('Could not close the window', err);
+    }
+  }
+  window.close();
+}
+
 let queue: Promise<void> = Promise.resolve();
 let applied: DisplayMode | null = null;
 let shown = false;
@@ -55,7 +71,9 @@ async function apply(mode: DisplayMode) {
           await win.setSize(monitor.size);
         }
       } else {
-        await win.setDecorations(true);
+        // No native title bar in any mode: the window keeps its shadow and its resize edges, and is
+        // moved by the strip along its top edge (see the drag strip in App).
+        await win.setDecorations(false);
         await win.setShadow(true);
         await win.setResizable(true);
         const area = monitor?.size.toLogical(monitor.scaleFactor);

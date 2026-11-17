@@ -241,6 +241,11 @@ ul, ol { list-style: none; }
 .head-count { color: var(--ink-2); font-weight: 700; font-variant-numeric: tabular-nums; }
 .head-status { margin-left: auto; display: flex; align-items: center; gap: 0.7rem; color: var(--ink-2); font-weight: 700; }
 .head-status .meter { width: 7rem; }
+/* Leaving the game: a quiet button in the corner of the home screen. */
+.exit-btn { margin-left: auto; align-self: center; background: var(--well); color: var(--ink-2); }
+.head-status + .exit-btn { margin-left: 0; }
+/* The desktop window is moved by a thin strip along its top edge (it has no title bar). */
+.drag-strip { position: absolute; top: 0; left: 0; right: 0; height: 12px; z-index: 90; -webkit-app-region: drag; }
 .page-body { flex: 1; min-height: 0; }
 
 /* Action bar */
@@ -432,9 +437,11 @@ ul, ol { list-style: none; }
 /* Hold to start: the button fills while held and fires when full. */
 .hold-btn { position: relative; isolation: isolate; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem; min-height: 4.6rem; margin-top: 0.5rem; border-radius: var(--r-m); background: var(--pink); color: var(--pink-ink); transition: transform 0.2s var(--ease), background 0.2s; touch-action: none; }
 .hold-fill { position: absolute; inset: 0; z-index: -1; background: #ffc4e0; transform-origin: left; transform: scaleX(var(--hold, 0)); }
-/* With a controller, the button to hold stands large at the left end; the words stay centred. */
+/* With a controller, the button to hold stands large at the left end once the button is focused; the words stay centred. */
 .hold-btn:has(.hold-glyph) { display: grid; grid-template-columns: 1fr auto 1fr; padding-inline: 0.9rem; }
-.hold-glyph { justify-self: start; display: grid; place-items: center; }
+/* It shows only while the button has the focus: holding that button anywhere else does not start the set. */
+.hold-glyph { justify-self: start; display: grid; place-items: center; opacity: 0; transform: scale(0.6); transition: opacity 0.18s, transform 0.25s var(--ease); }
+.hold-btn:is(:focus, .is-focus) .hold-glyph { opacity: 1; transform: none; }
 .hold-glyph .glyph { height: 3rem; }
 .hold-text { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; }
 .hold-label { font-size: 1.3rem; font-weight: 900; font-style: italic; font-stretch: 112%; text-transform: uppercase; }

@@ -326,7 +326,7 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
             options: [
               { value: 'fullscreen', label: 'Fullscreen', help: 'The game takes over the whole screen.' },
               { value: 'borderless', label: 'Windowed fullscreen', help: 'A borderless window that fills the screen. Switching to other apps stays instant.' },
-              { value: 'windowed', label: 'Window', help: 'A normal window that you can move and resize.' },
+              { value: 'windowed', label: 'Window', help: 'A window without a title bar. Drag its top edge to move it and its sides to resize it.' },
             ],
             set: (v) => set({ displayMode: v as DisplayMode }),
           }],

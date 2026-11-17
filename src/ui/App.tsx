@@ -10,7 +10,7 @@ import type { Chart } from '../chart/types';
 import { DebugScreen } from '../debug/DebugScreen';
 import type { Results } from '../game/GameSession';
 import { demoChart } from '../game/demo';
-import { applyDisplayMode } from '../game/displayMode';
+import { applyDisplayMode, canExit, exitApp, inDesktopApp } from '../game/displayMode';
 import { loadPick, loadSetlist, pruneSetlist, savePick, saveSetlist, SET_MAX, toggleSong, type Pick } from '../game/setlist';
 import { loadSettings, saveSettings, type Settings } from '../game/settings';
 import { getInputMode, installInputMode, setInputMode, usesFocus } from '../input/inputMode';
@@ -19,6 +19,7 @@ import { pads, resolveStyle } from '../input/pads';
 import { menuPulse, setMenuRumble } from '../input/rumble';
 import { deleteSong, getSong, listAllScores, listSongs, putSong, submitScore, type BestScore, type SongMeta } from '../storage/db';
 import { ActionBar, useActions } from './actions';
+import { Dialog } from './Dialog';
 import { FocusRing } from './FocusRing';
 import { HomeScreen } from './HomeScreen';
 import { DIFFICULTY_LABEL, PART_LABEL } from './icons';
@@ -84,6 +85,7 @@ export function App() {
   const [seed, setSeed] = useState(() => Date.now());
   const [sheet, setSheet] = useState<SongMeta | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [exitAsk, setExitAsk] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const updateSettings = useCallback((s: Settings) => {
     setSettings(s);
@@ -466,6 +468,8 @@ export function App() {
           onSet={(ids) => setView({ name: 'lobby', ids, from: 'home' })}
           onAdd={addSongs}
           onSettings={() => setView({ name: 'settings', back: view })}
+          onExit={canExit() ? () => setExitAsk(true) : undefined}
+          settings={settings}
         />
       );
     }
@@ -512,6 +516,24 @@ export function App() {
           onClose={() => setSheet(null)}
         />
       )}
+      {exitAsk && (
+        <Dialog title="Close the game" variant="card" closeLabel="Stay" onClose={() => setExitAsk(false)}>
+          {(close) => (
+            <div className="pause-card">
+              <h2 className="display">Close the game?</h2>
+              <p className="hint">Your library, scores and settings are saved.</p>
+              <button type="button" className="btn wide" data-autofocus data-sfx="back" onClick={close}>
+                Stay
+              </button>
+              <button type="button" className="btn primary wide" onClick={() => void exitApp()}>
+                Close the game
+              </button>
+            </div>
+          )}
+        </Dialog>
+      )}
+      {/* The desktop window has no title bar: in Window mode this strip along the top moves it. */}
+      {inDesktopApp() && settings.displayMode === 'windowed' && <div className="drag-strip" data-tauri-drag-region aria-hidden />}
       <ActionBar settings={settings} />
       <FocusRing />
       {dragging && (
