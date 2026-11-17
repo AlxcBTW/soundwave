@@ -122,6 +122,7 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
     return () => clearTimeout(timer);
   }, [covered, run]);
   useEffect(() => {
+    if (ctrlRef.current) ctrlRef.current.frozen = settingsOpen;
     // Back from the settings, focus returns to the button that opened them.
     if (!settingsOpen && ctrlRef.current && pauseRef.current) {
       const from = pauseRef.current.querySelector<HTMLElement>('[data-opens="settings"]');
@@ -177,7 +178,7 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
   const usingPad = mode === 'pad';
 
   return (
-    <div className={`play ${paused ? 'is-paused' : ''}`} data-lanes={chart.lanes} data-od-side={settings.touchOverdriveSide} data-nav-off={paused ? undefined : ''} inert={settingsOpen}>
+    <div className={`play ${paused ? 'is-paused' : ''} ${settingsOpen ? 'under-settings' : ''}`} data-lanes={chart.lanes} data-od-side={settings.touchOverdriveSide} data-nav-off={paused ? undefined : ''} inert={settingsOpen}>
       <canvas ref={bgRef} className="layer" />
       <div ref={stageRef} className="layer stage-host" />
       <canvas ref={hwRef} className="layer highway" />

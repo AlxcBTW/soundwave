@@ -70,6 +70,13 @@ export class PlayController {
 
   /** Keeps the song paused whatever is pressed (while the settings are open over the pause menu). */
   holdPause = false;
+  /**
+   * All but stops drawing the stage and the highway while the song is paused (the settings are open
+   * over it): the picture stays on screen and the screen on top gets the machine to itself. A frame
+   * is still drawn now and then, so a resized window is not left blank.
+   */
+  frozen = false;
+  private frozenFrame = 0;
 
   onPhase: (p: PlayPhase, countdown?: number) => void = () => {};
   onFinish: (r: Results) => void = () => {};
@@ -267,6 +274,11 @@ export class PlayController {
   private loop = () => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
+    if (this.frozen && this.phase === 'paused') {
+      const now = performance.now();
+      if (now - this.frozenFrame < 500) return;
+      this.frozenFrame = now;
+    }
     const t = this.engine.time();
 
     if (this.phase === 'countdown') {
