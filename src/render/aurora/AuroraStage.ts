@@ -273,8 +273,8 @@ export class AuroraStage {
   }
 
   /**
-   * The song is over: for `seconds` the stage keeps firing its flame jets and fireworks, one
-   * salvo after another, and the crowd applauds.
+   * The song is over: for `seconds` the flame jets burn in one long burst, the fireworks go off
+   * one salvo after another, and the crowd applauds.
    */
   finale(seconds = 4) {
     this.show.finale();
@@ -339,7 +339,7 @@ export class AuroraStage {
       else this.co2(e.strength);
     }
     // In overdrive the jets keep time: all of them on the bar, every other one on the beats between.
-    if (this.flames && this.show.state.overdrive > 0.5 && beat !== 'none') {
+    if (this.flames && this.finaleLeft <= 0 && this.show.state.overdrive > 0.5 && beat !== 'none') {
       const turn = this.beats;
       if (beat === 'downbeat') this.flames.fire(this.show.state.time, undefined, 0.9);
       else this.flames.fire(this.show.state.time, (i) => (i + turn) % 2 === 0, 0.55);
@@ -356,6 +356,8 @@ export class AuroraStage {
       }
     }
     this.crowd.clap.value = this.finaleLeft > 0 ? 1 : 0;
+    // Through the finale the jets burn without a break, and are let go as it ends.
+    this.flames?.hold(this.show.state.time, this.finaleLeft > 0);
     shared.uFire.value = this.flames?.glow(this.show.state.time) ?? 0;
     this.sparks.update(dt, -9);
     this.smoke.update(dt, 0.4);
@@ -565,8 +567,9 @@ export class AuroraStage {
 
   // ------------------------------------------------------------------ effects
   private fireworks(which: 'all' | 'center' | 'sides') {
-    // The flame jets go off with them: the middle ones, the outer ones, or the lot.
-    this.flames?.fire(this.show.state.time, (i) => which === 'all' || (which === 'center') === (i >= 2 && i <= 4));
+    // The flame jets go off with them: the middle ones, the outer ones, or the lot. (Not while they
+    // are held burning through the finale: a new shot would start each flame again from its foot.)
+    if (!this.flames?.holding) this.flames?.fire(this.show.state.time, (i) => which === 'all' || (which === 'center') === (i >= 2 && i <= 4));
     const perRay = SPARKS_PER_RAY[this.g.effects];
     if (!perRay) return;
     const origin = new THREE.Vector3();

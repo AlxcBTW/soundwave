@@ -3,6 +3,8 @@ import { COMMON, OUTPUT, shared } from './shared';
 
 /** Seconds one shot burns, from the first lick to the last wisp. */
 const LIFE = 1.3;
+/** How far into a shot the flame stands at its full height, fuel still running (a share of LIFE). */
+const FULL = 0.32;
 
 /**
  * Flame jets: a row of projectors that each throw a column of fire a few metres high. A shot is a
@@ -15,6 +17,8 @@ export class Flames {
   readonly mesh: THREE.Mesh;
   private readonly shots: THREE.InstancedBufferAttribute;
   private readonly count: number;
+  /** 1 while the jets are held burning (see hold), 0 otherwise. */
+  private readonly held = { value: 0 };
 
   constructor(bases: readonly (readonly [number, number, number])[]) {
     this.count = bases.length;
@@ -32,19 +36,22 @@ export class Flames {
     this.shots = new THREE.InstancedBufferAttribute(shots, 3).setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('aShot', this.shots);
     const material = new THREE.ShaderMaterial({
-      uniforms: { ...shared },
+      uniforms: { ...shared, uHeld: this.held },
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
       vertexShader: /* glsl */ `
         uniform float uTime;
+        uniform float uHeld;
         attribute vec3 aBase;
         attribute vec3 aShot;
         varying vec2 vUv; varying float vAge; varying float vSeed;
         void main() {
           vUv = uv;
           vAge = (uTime - aShot.x) / ${LIFE.toFixed(2)};
+          // Held, a shot climbs to its full height and stays there: the fuel keeps running.
+          if (uHeld > 0.5) vAge = min(vAge, ${FULL.toFixed(2)});
           vSeed = aShot.y;
           // A jet that is not burning is folded away to nothing.
           float live = step(0.0, vAge) * step(vAge, 1.0);
@@ -95,12 +102,33 @@ export class Flames {
     this.shots.needsUpdate = true;
   }
 
+  /**
+   * One long burst: every jet fires and keeps burning at full height until it is let go, when the
+   * fuel stops and the flames rise and burn out as after any shot.
+   */
+  hold(time: number, on: boolean, size = 1.15) {
+    if (on === this.held.value > 0.5) return;
+    if (on) this.fire(time, undefined, size);
+    else {
+      // Let go from full height: as if each shot had been fired just long enough ago to stand there.
+      const a = this.shots.array as Float32Array;
+      for (let i = 0; i < this.count; i++) a[i * 3] = Math.min(a[i * 3], time - FULL * LIFE);
+      this.shots.needsUpdate = true;
+    }
+    this.held.value = on ? 1 : 0;
+  }
+
+  /** Whether the jets are being held burning. */
+  get holding(): boolean {
+    return this.held.value > 0.5;
+  }
+
   /** How strongly the jets are burning at `time`, 0..1: the light they throw on what stands near. */
   glow(time: number): number {
     const a = this.shots.array as Float32Array;
     let most = 0;
     for (let i = 0; i < this.count; i++) {
-      const age = (time - a[i * 3]) / LIFE;
+      const age = Math.min((time - a[i * 3]) / LIFE, this.holding ? FULL : Infinity);
       if (age < 0 || age > 1) continue;
       most = Math.max(most, Math.min(1, age / 0.12) * Math.max(0, 1 - Math.max(0, age - 0.45) / 0.5) * Math.min(1, a[i * 3 + 2]));
     }
