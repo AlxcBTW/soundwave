@@ -450,7 +450,7 @@ A violet night with four lights that have fixed jobs, and five lane colours that
 - **Ink 3** (ink-3): tertiary text: slot numbers, counts, stat captions, placeholders.
 
 ### Lane colours (data)
-- **Lane 0 Green, Lane 1 Red, Lane 2 Yellow, Lane 3 Blue, Lane 4 Orange** (lane-0 to lane-4): the five note lanes left to right: tiles, strike targets, and the light a lane gives off along its length when it is played. They also colour the 3 to 4px underline on a bound key (settings caps, the lane keys on Ready up and under the highway), difficulty pips (Easy green, Medium yellow, Hard orange, Expert red) and multiplier levels on the HUD dial (x2 blue, x3 green, x4 orange). Lane 2 Yellow and Encore Gold are the same value; context tells them apart.
+- **Lane 0 Green, Lane 1 Red, Lane 2 Yellow, Lane 3 Blue, Lane 4 Orange** (lane-0 to lane-4): the five note lanes left to right: tiles, strike targets, and the light a lane gives off along its length when it is played. They also colour the 3 to 4px underline on a bound key (settings caps, the lane keys under the highway), difficulty pips (Easy green, Medium yellow, Hard orange, Expert red) and multiplier levels on the HUD dial (x2 blue, x3 green, x4 orange). Lane 2 Yellow and Encore Gold are the same value; context tells them apart.
 - **Overdrive Ice** (overdrive): the overdrive meter, its ready pulse, the x6 and x8 dial ring and the "Overdrive ready" call-out.
 
 ### Named Rules
@@ -566,7 +566,7 @@ One element for the whole interface. Each frame it reads the focused control's b
 One Lavender sheet per group (0.75rem radius, soft drop) that slides to the chosen item over 0.36s, resizing as it goes; the first placement appears in place. The chosen item's label turns Lavender Ink. Used by the part choices, the difficulty choices and the settings tabs, each inside a Well trough with 0.3rem of padding. The settings detail pane shows its chosen option with the same fill, placed statically.
 
 ### Choices (part and difficulty)
-Radio groups in a trough of four equal columns. Part: icon over name, 4.8rem tall, the icon growing to 1.12 when chosen, with a 1 to 4 keycap in the corner for keyboard and mouse. Difficulty: four round pips lit to the level in its lane colour over the name, 3.6rem tall; Q and E or the shoulder buttons step through it, hinted beside the label. Unchosen labels are Ink 2.
+Radio groups in a trough of four equal columns. Part: icon over name, 4.8rem tall, the icon growing to 1.12 when chosen, with a 1 to 4 keycap in the corner for keyboard and mouse. Difficulty: four round pips lit to the level in its lane colour over the name, 3.6rem tall. On a controller the top face button (Triangle, Y) steps round the parts and the left face button (Square, X) round the difficulties, each symbol shown beside its label; on a keyboard 1 to 4 pick the part and Q and E step the difficulty (the shoulder buttons do too). The hold button below carries the controller's confirm symbol, 3rem tall, at its left end while a controller is in use, with its words still centred. Unchosen labels are Ink 2.
 
 ### Hold to start
 The pink button that starts a set asks to be held: a paler pink (#ffc4e0) fills it from the left over 650ms while a pointer, Enter, Space or the controller's confirm button is down, and it fires when full; letting go early drains it. It carries the part and difficulty as its label (1.3rem stage voice) and one line beneath that says what to do or why it cannot start. Activated without a press (assistive technology) it fires at once. If nothing starts, it empties after 2.6s and can be held again. On phones it sticks to the foot of the ready panel.
@@ -623,7 +623,7 @@ Quiet chrome on translucent indigo (rgb(16 9 50 / 0.76)): stage-voice tabular nu
 - **Entrances:** tiles, set cards and song rows rise in 0.9rem with a short stagger (55ms, 60ms and 22ms apart); action-bar buttons rise in over 0.3s; a filled slot slides in from the left; a slot badge pops from 0.4 scale; a changed setting value rises in 0.3rem.
 - **Dialogs:** the dim fades in over 0.22s; a side sheet slides in 3rem over 0.34s, a phone sheet rises 2.5rem, a card rises and scales from 0.96 over 0.3s; all leave in 0.18s.
 - **Press:** everything pressable scales down briefly (buttons 0.96, tiles 0.98, rows 0.99, choices 0.95, icon buttons 0.9, step arrows 0.85).
-- **Launch wipe:** starting a song opens three sheets of light (pink, violet, night) as circles from the foot of the screen in 0.55s, 60ms apart; they hold at least 620ms while the song loads, then close upward in 0.5s, in reverse order.
+- **Launch wipe:** starting a song opens three sheets of light (pink, violet, night) as circles from the foot of the screen in 0.55s, 60ms apart; they hold at least 620ms while the song loads. Once the play screen has built its highway behind them they lift off upward one after another, night first and pink last, 80ms apart over 0.55s each, with a curved lower edge. The way out moves by transform only, so it stays smooth while the stage is still loading.
 - **Reduced motion:** `data-motion='reduced'` on the root (the player's setting, or the system preference when the setting is left on System) cuts every animation and transition to nothing: screens, sheets, the ring and the selection change in place, tiles do not lift, and scores appear at their final value. Hit feedback and the break ring's draining stay; the ring's bounces go, and the countdown numbers fade without scaling.
 
 ### Sound and rumble
@@ -633,10 +633,11 @@ Every interface sound is a short recording of the same orchestra in the theme's 
 - **Move** (focus change or pointer entering a control): one soft damped harp note, in three takes that rotate; light centred pulse (22ms). Rate-limited so held directions do not pile up.
 - **Select:** two harp notes rising a fifth with a glockenspiel on top and a plucked cello under them; medium pulse (45ms).
 - **Back** (Back in the action bar, Esc, the controller's back button, Close, Cancel, Keep, taking a song out of a slot, leaving a set): the same fifth falling, darker; pulse leaning left.
-- **Tab** (settings tabs by press, Q and E or the shoulder buttons; stepping the difficulty on Ready up the same way): four harp strings brushed upwards; pulse on the side moved toward.
+- **Tab** (settings tabs by press, Q and E or the shoulder buttons; stepping the part or the difficulty on Ready up): four harp strings brushed upwards; pulse on the side moved toward.
 - **Next / previous choice** (a settings row stepped right or left): two glockenspiel notes up or down.
 - **Launch** (the Ready up button filling, Play again and Next song on results, Play the set again on the summary): a confirm, not a fanfare. One tight, bright slam the instant the button goes down (damped bass drum, a giant drum, a whip crack, an anvil and choked cymbals, brass and strings on a short open fifth), a run of bells out of it, and the crowd answering and settling within about four seconds; full-strength sweep (480ms).
 - **Results:** the crowd answers first, with a cheer for three stars or more and applause otherwise. Each star rings a step higher up the D major chord (glockenspiel, harp, triangle; the fifth adds a bell tree), a wood tick counts the score, and a new best gets a brass fanfare. The set summary gets the crowd again.
+- **Hold** (the Ready up button filling): a plucked cello under the finger, then a harp running up the scale, quicker and brighter as it climbs, over a cymbal swelling in. It stops short of an arrival, because the launch is the arrival; letting go early fades it out where it is, and pressing again picks it up from where the fill stands.
 - **Add / pause / resume / error:** a harp run up the chord with bells on import, two plucked steps down onto a soft drum on pause and back up on resume, two dull low knocks a tritone apart with a thud pulse for errors.
 During a song only the pause menu makes menu sounds.
 

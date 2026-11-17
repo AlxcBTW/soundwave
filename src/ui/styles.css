@@ -427,14 +427,16 @@ ul, ol { list-style: none; }
 .choice.diff { flex-direction: column; gap: 0.3rem; min-height: 3.6rem; }
 :root[data-input='mouse'] .choice:not(.on):hover { color: var(--ink); }
 .lane-info { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; min-height: 2rem; color: var(--ink-2); font-weight: 700; }
-.lane-keys { display: inline-flex; gap: 0.3rem; }
-.mini-key { display: inline-grid; place-items: center; min-width: 1.9rem; height: 1.9rem; padding: 0 0.35rem; border-radius: 0.4rem; background: var(--well); color: var(--ink); font: 800 0.85rem/1 var(--font); box-shadow: inset 0 -3px 0 var(--lane); }
-.mini-key.pad { background: none; box-shadow: none; padding: 0; }
 .lane-0 { --lane: var(--lane-0); } .lane-1 { --lane: var(--lane-1); } .lane-2 { --lane: var(--lane-2); } .lane-3 { --lane: var(--lane-3); } .lane-4 { --lane: var(--lane-4); }
 
 /* Hold to start: the button fills while held and fires when full. */
 .hold-btn { position: relative; isolation: isolate; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem; min-height: 4.6rem; margin-top: 0.5rem; border-radius: var(--r-m); background: var(--pink); color: var(--pink-ink); transition: transform 0.2s var(--ease), background 0.2s; touch-action: none; }
 .hold-fill { position: absolute; inset: 0; z-index: -1; background: #ffc4e0; transform-origin: left; transform: scaleX(var(--hold, 0)); }
+/* With a controller, the button to hold stands large at the left end; the words stay centred. */
+.hold-btn:has(.hold-glyph) { display: grid; grid-template-columns: 1fr auto 1fr; padding-inline: 0.9rem; }
+.hold-glyph { justify-self: start; display: grid; place-items: center; }
+.hold-glyph .glyph { height: 3rem; }
+.hold-text { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; }
 .hold-label { font-size: 1.3rem; font-weight: 900; font-style: italic; font-stretch: 112%; text-transform: uppercase; }
 .hold-hint { font-size: 0.9rem; font-weight: 700; opacity: 0.92; }
 .hold-btn.holding { transform: scale(0.985); }
@@ -562,10 +564,13 @@ ul, ol { list-style: none; }
 .launch-wipe.in span:nth-child(2) { animation-delay: 0.06s; }
 .launch-wipe.in span:nth-child(3) { animation-delay: 0.12s; }
 @keyframes iris-in { to { clip-path: circle(150% at 50% 100%); } }
-.launch-wipe.out span { clip-path: circle(150% at 50% 0%); animation: iris-out 0.5s var(--ease-in) forwards; }
-.launch-wipe.out span:nth-child(2) { animation-delay: 0.05s; }
-.launch-wipe.out span:nth-child(1) { animation-delay: 0.1s; }
-@keyframes iris-out { to { clip-path: circle(0% at 50% 0%); } }
+/* Out: the sheets lift off one after another, night first and pink last, each with a curved lower
+   edge. They move by transform alone, which keeps going smoothly while the song's stage is still
+   being set up behind them. */
+.launch-wipe.out span { clip-path: none; border-radius: 0 0 50% 50% / 0 0 16% 16%; will-change: transform; animation: sheet-lift 0.55s var(--ease-in) forwards; }
+.launch-wipe.out span:nth-child(2) { animation-delay: 0.08s; }
+.launch-wipe.out span:nth-child(1) { animation-delay: 0.16s; }
+@keyframes sheet-lift { to { transform: translateY(-112%); } }
 
 /* ------------------------------------------------------------------------------------------- */
 /* Play (sizes in px: they sit over the highway's own geometry)                                 */

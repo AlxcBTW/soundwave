@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { startSfx } from '../audio/sfx';
 import { confirmInput, pads, type GlyphStyle } from '../input/pads';
 
 /** How long the button must be held, ms. */
@@ -7,6 +8,8 @@ const HOLD_MS = 650;
 interface Props {
   label: string;
   hint: ReactNode;
+  /** A large symbol at the button's left end (the controller button to hold). */
+  glyph?: ReactNode;
   disabled?: boolean;
   glyphStyle: GlyphStyle;
   onComplete(): void;
@@ -17,7 +20,7 @@ interface Props {
  * or Space key, or the controller's confirm button is down, and fires when full. Letting go early
  * drains it. A click that comes without a press (a screen reader, switch access) fires at once.
  */
-export function HoldButton({ label, hint, disabled, glyphStyle, onComplete }: Props) {
+export function HoldButton({ label, hint, glyph, disabled, glyphStyle, onComplete }: Props) {
   const ref = useRef<HTMLButtonElement>(null);
   const done = useRef(onComplete);
   done.current = onComplete;
@@ -32,6 +35,8 @@ export function HoldButton({ label, hint, disabled, glyphStyle, onComplete }: Pr
     let holding = false;
     let fired = false;
     let reset = 0;
+    /** Fades the swell out (it runs on into the launch when the hold completes). */
+    let quiet = () => {};
     /** A press was seen, so the click that follows it is not a bare activation. */
     let pressed = 0;
 
@@ -63,6 +68,9 @@ export function HoldButton({ label, hint, disabled, glyphStyle, onComplete }: Pr
       pressed = performance.now();
       if (btn.disabled || holding || fired) return;
       holding = true;
+      // The swell picks up where the fill is, so a press that resumes does not start over.
+      quiet();
+      quiet = startSfx('hold', (level * HOLD_MS) / 1000);
       start = performance.now() - level * HOLD_MS;
       btn.classList.add('holding');
       cancelAnimationFrame(raf);
@@ -70,6 +78,7 @@ export function HoldButton({ label, hint, disabled, glyphStyle, onComplete }: Pr
     };
     const end = () => {
       if (!holding) return;
+      quiet();
       holding = false;
       btn.classList.remove('holding');
     };
@@ -120,6 +129,7 @@ export function HoldButton({ label, hint, disabled, glyphStyle, onComplete }: Pr
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(reset);
+      quiet();
       releasePad();
       btn.removeEventListener('pointerdown', pointerdown);
       btn.removeEventListener('pointerup', end);
@@ -134,8 +144,11 @@ export function HoldButton({ label, hint, disabled, glyphStyle, onComplete }: Pr
   return (
     <button ref={ref} type="button" className="hold-btn primary" data-sfx="none" data-autofocus disabled={disabled}>
       <span className="hold-fill" aria-hidden />
-      <span className="hold-label">{label}</span>
-      <span className="hold-hint">{hint}</span>
+      {glyph && <span className="hold-glyph" aria-hidden>{glyph}</span>}
+      <span className="hold-text">
+        <span className="hold-label">{label}</span>
+        <span className="hold-hint">{hint}</span>
+      </span>
     </button>
   );
 }

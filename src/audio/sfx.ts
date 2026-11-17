@@ -21,6 +21,7 @@ export type Sfx =
   | 'resume'
   | 'error'
   | 'add'
+  | 'hold'
   | 'cheer'
   | 'applause';
 
@@ -43,6 +44,7 @@ const TAKES: Record<Sfx, number> = {
   resume: 1,
   error: 1,
   add: 1,
+  hold: 1,
   cheer: 1,
   applause: 1,
 };
@@ -126,6 +128,36 @@ export function playSfx(name: Sfx, opts: { index?: number } = {}) {
   src.connect(out);
   src.onended = () => src.disconnect();
   src.start(t);
+}
+
+/**
+ * Starts an effect that may be cut short (the swell under a held button), from offset seconds
+ * into it. Returns the function that fades it out; calling that after it has ended does nothing.
+ */
+export function startSfx(name: Sfx, offset = 0): () => void {
+  const g = graph();
+  const buffer = buffers.get(files(name)[0]);
+  if (!g || !buffer || offset >= buffer.duration - 0.02) return () => {};
+  const { ctx, out } = g;
+  const level = ctx.createGain();
+  level.connect(out);
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(level);
+  let over = false;
+  src.onended = () => {
+    over = true;
+    src.disconnect();
+    level.disconnect();
+  };
+  src.start(ctx.currentTime + 0.005, Math.max(0, offset));
+  return () => {
+    if (over) return;
+    const t = ctx.currentTime;
+    level.gain.setValueAtTime(1, t);
+    level.gain.linearRampToValueAtTime(0, t + 0.07);
+    src.stop(t + 0.08);
+  };
 }
 
 /** For checking the bank from the console in development. */

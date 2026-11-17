@@ -1,13 +1,14 @@
-import { ArrowLeft, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Gauge, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { analysisManager } from '../analysis/manager';
 import { DEMO_ID } from '../audio/songAudio';
 import { DIFFICULTIES, lanesFor, PARTS, type Difficulty, type Part } from '../chart/types';
 import { demoChart } from '../game/demo';
-import { keyLabel, type Settings } from '../game/settings';
+import type { Settings } from '../game/settings';
 import { formatTime, type Pick } from '../game/setlist';
 import { PadGlyph } from '../input/glyphs';
 import { TAB_EVENT } from '../input/menuNav';
+import { confirmInput } from '../input/pads';
 import { playSfx } from '../audio/sfx';
 import { menuPulse } from '../input/rumble';
 import type { BestScore, SongMeta } from '../storage/db';
@@ -71,17 +72,23 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
     onPick({ ...pick, part: PARTS[(PARTS.indexOf(pick.part) + 1) % PARTS.length] });
   };
 
+  // The left face button (Square, X, Y on a Switch pad) does the same for the difficulty.
+  const nextDifficulty = () => {
+    playSfx('tab');
+    menuPulse('tab-right');
+    onPick({ ...pick, difficulty: DIFFICULTIES[(DIFFICULTIES.indexOf(pick.difficulty) + 1) % DIFFICULTIES.length] });
+  };
+
   useActions([
     { id: 'back', label: 'Back', icon: ArrowLeft, kbd: 'Escape', sfx: 'back', run: onBack },
     { id: 'part-next', label: 'Next part', icon: PART_ICON[pick.part], pad: 'b3', bar: false, run: nextPart },
+    { id: 'difficulty-next', label: 'Next difficulty', icon: Gauge, pad: 'b2', bar: false, run: nextDifficulty },
     ...PARTS.map((p, i) => ({ id: `part-${p}`, label: PART_LABEL[p], icon: PART_ICON[p], kbd: `Digit${i + 1}`, bar: false, run: () => onPick({ ...pick, part: p }) })),
   ]);
 
   const partRow = useSlide<HTMLDivElement>(pick.part);
   const diffRow = useSlide<HTMLDivElement>(pick.difficulty);
   const lanes = lanesFor(pick.difficulty);
-  const keys = lanes === 5 ? settings.keys5 : settings.keys4;
-  const padKeys = lanes === 5 ? settings.pad5 : settings.pad4;
   const known = songs.every((s) => counts[s.id] !== undefined);
   const playable = songs.filter((s) => (counts[s.id] ?? 0) > 0).length;
   const total = formatTime(songs.reduce((t, s) => t + s.duration, 0));
@@ -164,8 +171,14 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
           <h2 className="label" id="diff-label">
             Difficulty
             <span className="label-hints" aria-hidden>
-              <Hint kbd="KeyQ" pad="b4" {...hints} />
-              <Hint kbd="KeyE" pad="b5" {...hints} />
+              {hints.mode === 'pad' ? (
+                <Hint pad="b2" {...hints} />
+              ) : (
+                <>
+                  <Hint kbd="KeyQ" {...hints} />
+                  <Hint kbd="KeyE" {...hints} />
+                </>
+              )}
             </span>
           </h2>
           <div className="diff-row slide" ref={diffRow} role="radiogroup" aria-labelledby="diff-label">
@@ -183,25 +196,14 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
 
           <p className="lane-info">
             <span>{lanes} lanes</span>
-            {hints.mode === 'touch' ? (
-              <span className="dim">Tap the lanes to play</span>
-            ) : (
-              <span className="lane-keys" aria-label={hints.mode === 'pad' ? 'Controller buttons' : `Keys ${keys.map(keyLabel).join(', ')}`}>
-                {(hints.mode === 'pad' ? padKeys : keys).map((k, i) =>
-                  hints.mode === 'pad' ? (
-                    <span key={i} className={`mini-key pad lane-${i}`}><PadGlyph input={k} style={hints.style} /></span>
-                  ) : (
-                    <kbd key={i} className={`mini-key lane-${i}`}>{keyLabel(k)}</kbd>
-                  ),
-                )}
-              </span>
-            )}
+            {hints.mode === 'touch' && <span className="dim">Tap the lanes to play</span>}
           </p>
 
           <HoldButton
             label={(PART_LABEL[pick.part] as Part | string) + ' · ' + DIFFICULTY_LABEL[pick.difficulty]}
             hint={!known ? 'Getting the charts ready…' : playable === 0 ? 'No notes on this part. Pick another one.' : hints.mode === 'keyboard' ? 'Hold Enter to start' : 'Hold to start'}
             disabled={!known || playable === 0}
+            glyph={hints.mode === 'pad' ? <PadGlyph input={confirmInput(hints.style)} style={hints.style} /> : undefined}
             glyphStyle={hints.style}
             onComplete={onStart}
           />

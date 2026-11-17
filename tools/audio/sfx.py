@@ -34,6 +34,7 @@ LEVELS = {
     "resume": -16.5,
     "error": -15.0,
     "add": -15.5,
+    "hold": -21.0,
     "star": -15.5,
     "best": -11.0,
     "applause": -15.5,
@@ -233,6 +234,31 @@ def best() -> np.ndarray:
     return mixdown(m, HALL, wet_db=-6.0, tail=2.0)
 
 
+def hold() -> np.ndarray:
+    """
+    The Ready up button filling under a held press (0.65 s): a harp running up the scale, quicker
+    and louder as it climbs, over a cymbal swelling in from nothing. It stops short of an arrival,
+    because the launch is the arrival. Let go early and the game fades it out where it is.
+    """
+    length = 0.72
+    m = Mix(length + 0.3)
+    notes = ("B3", "D4", "F#4", "A4", "B4", "D5", "E5", "F#5", "A5", "B5", "D6", "F#6")
+    # Each step a little shorter than the last, so the run gathers speed toward the top.
+    gaps = np.geomspace(0.085, 0.032, len(notes) - 1)
+    t = 0.0
+    for i, n in enumerate(notes):
+        k = i / (len(notes) - 1)
+        pluck(m, Seat(-0.45 + 0.9 * k, wet=0.25, width=0.5), "harp", "pluck", n, 0.7 + 0.25 * k, t, decay=0.24 + 0.14 * k, gain=2.6 - 1.6 * k)
+        if i < len(gaps):
+            t += float(gaps[i])
+    # The press itself: a plucked cello under the first string, so the sound starts with the finger.
+    pluck(m, LOW, "celli", "pizz", "B2", 0.7, 0.0, decay=0.3, gain=1.6)
+    o.hit(m, Seat(0.0, wet=0.3), PERC + "susCymb1-hit_pp_rr1.wav", 0.0, 0.2, length=0.66, fade=0.6, reverse=True)
+    x = highpass(room(m, 0.25, -9), 90)[: int(length * SR)]
+    # One slow swell over the whole of it.
+    return x * np.linspace(0.6, 1.0, len(x), dtype=np.float32)[:, None]
+
+
 # ---------------------------------------------------------------- the launch
 
 
@@ -346,6 +372,7 @@ SOUNDS = {
     "resume": resume,
     "error": error,
     "add": add,
+    "hold": hold,
     **{f"star-{k + 1}": (lambda k=k: star(k)) for k in range(5)},
     "count": count,
     "best": best,
