@@ -8,6 +8,8 @@ import './ui/styles.css';
 const root = document.getElementById('root')!;
 if (import.meta.env.DEV && location.hash.startsWith('#stage')) {
   void import('./debug/StagePreview').then((m) => m.runStagePreview(root));
+} else if (import.meta.env.DEV && location.hash.startsWith('#slice')) {
+  void import('./debug/SlicePreview').then((m) => m.runSlicePreview(root));
 } else {
   createRoot(root).render(
     <StrictMode>
