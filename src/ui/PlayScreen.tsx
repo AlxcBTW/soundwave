@@ -4,7 +4,11 @@ import { getEngine } from '../audio/engine';
 import type { Results } from '../game/GameSession';
 import { PlayController, type PlayPhase } from '../game/PlayController';
 import { keyLabel, type Settings } from '../game/settings';
+import { LogOut, Play, RotateCcw } from 'lucide-react';
+import { playSfx } from '../audio/sfx';
+import { menuPulse } from '../input/rumble';
 import { PadGlyph } from '../input/glyphs';
+import { ICON_STROKE, Stars } from './icons';
 import { useGlyphStyle, usePads } from '../input/usePads';
 
 interface Props {
@@ -45,7 +49,16 @@ export function PlayScreen({ title, buffer, chart, settings, onFinish, onQuit }:
       breakLabel: q('[data-hud=break-label]'),
       breakRing: root.querySelector<SVGCircleElement>('[data-hud=break-ring]')!,
     });
+    let prev: PlayPhase = 'countdown';
     ctrl.onPhase = (p, n) => {
+      if (p === 'paused' && prev !== 'paused') {
+        playSfx('pause');
+        menuPulse('back');
+      } else if (prev === 'paused' && p !== 'paused') {
+        playSfx('resume');
+        menuPulse('select');
+      }
+      prev = p;
       setPhase(p);
       if (n !== undefined) setCount(n);
     };
@@ -75,7 +88,9 @@ export function PlayScreen({ title, buffer, chart, settings, onFinish, onQuit }:
         </div>
         <div className="hud-left">
           <div className="hud-score" data-hud="score">0</div>
-          <div className="hud-stars" data-hud="stars">☆☆☆☆☆</div>
+          <div className="hud-stars" data-hud="stars" data-count="0">
+            <Stars n={5} />
+          </div>
         </div>
         <div className="hud-right">
           <div className="hud-mult" data-hud="mult" data-level="1">×1</div>
@@ -101,11 +116,21 @@ export function PlayScreen({ title, buffer, chart, settings, onFinish, onQuit }:
       {phase === 'countdown' && count > 0 && <div className="countdown" key={count}>{count}</div>}
       {phase === 'paused' && (
         <div className="overlay">
-          <div className="panel">
-            <h2>Paused</h2>
-            <button className="btn primary" autoFocus onClick={() => void ctrlRef.current?.resume()}>Resume</button>
-            <button className="btn" onClick={() => setRun((r) => r + 1)}>Restart</button>
-            <button className="btn" onClick={onQuit}>Quit</button>
+          <div className="pause-card" role="dialog" aria-label="Paused">
+            <h2 className="pause-title">Paused</h2>
+            <p className="pause-song">{title}</p>
+            <button className="btn primary" data-sfx="none" autoFocus onClick={() => void ctrlRef.current?.resume()}>
+              <Play strokeWidth={ICON_STROKE} aria-hidden />
+              Resume
+            </button>
+            <button className="btn" onClick={() => setRun((r) => r + 1)}>
+              <RotateCcw strokeWidth={ICON_STROKE} aria-hidden />
+              Restart
+            </button>
+            <button className="btn" onClick={onQuit}>
+              <LogOut strokeWidth={ICON_STROKE} aria-hidden />
+              Quit to song
+            </button>
           </div>
         </div>
       )}

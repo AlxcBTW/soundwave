@@ -1,4 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { playSfx } from '../audio/sfx';
+import { menuPulse } from '../input/rumble';
 
 interface Toast {
   id: number;
@@ -12,6 +14,8 @@ export function useToasts() {
   const push = useCallback(
     (text: string) => {
       const id = next.current++;
+      playSfx('error');
+      menuPulse('error');
       setItems((t) => [...t.slice(-3), { id, text }]);
       setTimeout(() => dismiss(id), 6000);
     },

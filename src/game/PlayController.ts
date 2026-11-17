@@ -242,7 +242,7 @@ export class PlayController {
     }
     if (s.overdriveActive !== c.odActive) this.hud.root.classList.toggle('overdrive', s.overdriveActive);
     const stars = s.progressStars;
-    if (stars !== c.stars) this.hud.stars.textContent = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+    if (stars !== c.stars) this.hud.stars.dataset.count = String(stars);
     this.hud.progress.style.width = `${Math.max(0, Math.min(1, t / this.chart.duration)) * 100}%`;
     this.updateBreak(t);
     Object.assign(c, { score, mult, streak: s.streak, od, stars, odActive: s.overdriveActive });

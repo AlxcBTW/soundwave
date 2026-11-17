@@ -91,14 +91,14 @@ export function Calibration({ onDone }: { onDone(offsetMs: number | null): void 
   const median = sorted.length ? Math.round(sorted[Math.floor(sorted.length / 2)] * 1000) : null;
   return (
     <div className="overlay">
-      <div className="panel">
-        <h2>Calibration</h2>
-        <p className="dim center">
-          {beat < 0 ? `Get ready… ${-beat}` : 'Press any key or controller button exactly on each click.'}
-        </p>
+      <div className="pause-card calib-card" role="dialog" aria-label="Calibration">
+        <h2 className="pause-title">Calibrate</h2>
+        <p className="pause-song">{beat < 0 ? `Get ready… ${-beat}` : 'Press any key or controller button exactly on each click.'}</p>
         <div className={`calib-dot ${beat >= 0 && beat % 2 === 0 ? 'on' : ''}`} />
-        <p className="dim">{taps.length} taps{median !== null ? ` · median ${median} ms` : ''}</p>
-        <button className="btn ghost" onClick={() => onDone(null)}>Cancel (Esc)</button>
+        <p className="calib-count">
+          {taps.length} taps{median !== null ? ` · median ${median} ms` : ''}
+        </p>
+        <button className="btn" data-sfx="back" onClick={() => onDone(null)}>Cancel (Esc)</button>
       </div>
     </div>
   );

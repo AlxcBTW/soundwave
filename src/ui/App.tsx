@@ -9,6 +9,9 @@ import type { Results } from '../game/GameSession';
 import { demoChart } from '../game/demo';
 import { loadSettings, saveSettings, type Settings } from '../game/settings';
 import { installMenuNav } from '../input/menuNav';
+import { playSfx, setSfxVolume } from '../audio/sfx';
+import { installUiSounds } from './uiSounds';
+import { setMenuRumble } from '../input/rumble';
 import { pads, resolveStyle } from '../input/pads';
 import { deleteSong, getSong, getStem, listSongs, listStems, putSong, submitScore, type SongMeta } from '../storage/db';
 import type { StemName } from '../analysis/types';
@@ -58,8 +61,15 @@ export function App() {
   settingsRef.current = settings;
   useEffect(() => {
     pads.start();
-    return installMenuNav(() => resolveStyle(settingsRef.current.glyphs, pads.snapshot().family));
+    const stopNav = installMenuNav(() => resolveStyle(settingsRef.current.glyphs, pads.snapshot().family));
+    const stopSounds = installUiSounds();
+    return () => {
+      stopNav();
+      stopSounds();
+    };
   }, []);
+  useEffect(() => setSfxVolume(settings.sfxVolume), [settings.sfxVolume]);
+  useEffect(() => setMenuRumble(settings.rumble), [settings.rumble]);
 
   const refresh = useCallback(async () => {
     try {
@@ -112,6 +122,7 @@ export function App() {
           if (await getSong(meta.id)) toast(`"${meta.title}" is already in your library.`);
           else {
             await putSong(meta, new Blob([bytes], { type: meta.mime }));
+            playSfx('add');
             // A re-import of a removed song starts clean: no stale status or failed analysis.
             forgetSongBuffer(meta.id);
             analysisManager.forget(meta.id);
@@ -157,15 +168,26 @@ export function App() {
     [settings.volume, toast],
   );
 
+  // Stage-light wipe while a song loads: bands sweep in, the play screen mounts behind them,
+  // and they sweep out.
+  const [launch, setLaunch] = useState<'in' | 'out' | null>(null);
   const play = async (song: SongMeta, part: Part, difficulty: Difficulty) => {
+    setLaunch('in');
+    const minWipe = new Promise((r) => setTimeout(r, 620));
     try {
       getEngine().stop();
       const buffer = await loadSongBuffer(song.id);
       const chart = song.id === DEMO_ID ? { ...demoChart(difficulty), part } : await analysisManager.chart(song.id, part, difficulty);
-      if (!chart) return toast('This song has not been analyzed yet.');
-      if (chart.notes.length === 0) return toast('No notes were found for this part. Try another part.');
+      if (!chart || chart.notes.length === 0) {
+        setLaunch(null);
+        return toast(chart ? 'No notes were found for this part. Try another part.' : 'This song has not been analyzed yet.');
+      }
+      await minWipe;
       setView({ name: 'play', song, buffer, chart, key: Date.now() });
+      setLaunch('out');
+      setTimeout(() => setLaunch(null), 560);
     } catch (e) {
+      setLaunch(null);
       toast((e as Error).message);
     }
   };
@@ -232,6 +254,16 @@ export function App() {
     [view.name === 'detail' ? view.song.id : null, preview],
   );
 
+  // Going deeper (setlist → song → results) enters from the right; going back, from the left.
+  const depth = (v: View) => (v.name === 'library' ? 0 : v.name === 'results' ? 2 : 1);
+  const prevDepth = useRef(depth(view));
+  const sceneDirRef = useRef<'fwd' | 'back'>('fwd');
+  if (depth(view) !== prevDepth.current) {
+    sceneDirRef.current = depth(view) > prevDepth.current ? 'fwd' : 'back';
+    prevDepth.current = depth(view);
+  }
+  const sceneDir = sceneDirRef.current;
+
   let content: React.ReactNode;
   if (view.name === 'debug') {
     content = <DebugScreen song={view.song} settings={settings} onBack={() => setView({ name: 'detail', song: view.song })} />;
@@ -249,7 +281,7 @@ export function App() {
     );
   } else if (view.name === 'results') {
     content = (
-      <div className="screen">
+      <div className="menu">
         <MenuBackground />
         <ResultsScreen
           title={view.song.title}
@@ -265,43 +297,46 @@ export function App() {
     content = (
       <div className="menu">
         <MenuBackground />
-        {view.name === 'settings' ? (
-          <SettingsScreen settings={settings} mlStatus={mlStatus} onChange={updateSettings} onBack={() => setView(view.back)} />
-        ) : view.name === 'library' ? (
-          <LibraryScreen
-            songs={songs}
-            status={status}
-            importing={importing}
-            onImport={(f) => void importFiles(f)}
-            onOpen={(song) => setView({ name: 'detail', song })}
-            onSettings={() => setView({ name: 'settings', back: view })}
-          />
-        ) : (
-          <SongDetail
-            song={view.song}
-            builtin={view.song.id === DEMO_ID}
-            status={status[view.song.id] ?? { state: 'idle' }}
-            noteCounts={noteCounts}
-            stems={stems}
-            previewing={previewing}
-            onDebug={() => {
-              void preview(view.song, null);
-              setView({ name: 'debug', song: view.song });
-            }}
-            onBack={() => setView({ name: 'library' })}
-            onPlay={(p, d) => void play(view.song, p, d)}
-            onAnalyze={() => analysisManager.enqueue(view.song.id, true)}
-            onPreview={detailPreview}
-            onDelete={async () => {
-              getEngine().stop();
-              forgetSongBuffer(view.song.id);
-              analysisManager.forget(view.song.id);
-              await deleteSong(view.song.id);
-              await refresh();
-              setView({ name: 'library' });
-            }}
-          />
-        )}
+        {/* One entrance per screen change; the stage behind it stays. */}
+        <div className={`scene ${sceneDir}`} key={view.name === 'detail' ? `detail:${view.song.id}` : view.name}>
+          {view.name === 'settings' ? (
+            <SettingsScreen settings={settings} mlStatus={mlStatus} onChange={updateSettings} onBack={() => setView(view.back)} />
+          ) : view.name === 'library' ? (
+            <LibraryScreen
+              songs={songs}
+              status={status}
+              importing={importing}
+              onImport={(f) => void importFiles(f)}
+              onOpen={(song) => setView({ name: 'detail', song })}
+              onSettings={() => setView({ name: 'settings', back: view })}
+            />
+          ) : (
+            <SongDetail
+              song={view.song}
+              builtin={view.song.id === DEMO_ID}
+              status={status[view.song.id] ?? { state: 'idle' }}
+              noteCounts={noteCounts}
+              stems={stems}
+              previewing={previewing}
+              onDebug={() => {
+                void preview(view.song, null);
+                setView({ name: 'debug', song: view.song });
+              }}
+              onBack={() => setView({ name: 'library' })}
+              onPlay={(p, d) => void play(view.song, p, d)}
+              onAnalyze={() => analysisManager.enqueue(view.song.id, true)}
+              onPreview={detailPreview}
+              onDelete={async () => {
+                getEngine().stop();
+                forgetSongBuffer(view.song.id);
+                analysisManager.forget(view.song.id);
+                await deleteSong(view.song.id);
+                await refresh();
+                setView({ name: 'library' });
+              }}
+            />
+          )}
+        </div>
       </div>
     );
   }
@@ -310,6 +345,13 @@ export function App() {
     <>
       {content}
       {view.name !== 'play' && <PadHints settings={settings} />}
+      {launch && (
+        <div className={`launch-wipe ${launch}`} aria-hidden>
+          <span />
+          <span />
+          <span />
+        </div>
+      )}
       <Toasts items={toasts.items} onDismiss={toasts.dismiss} />
     </>
   );

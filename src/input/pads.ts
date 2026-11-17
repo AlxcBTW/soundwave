@@ -123,7 +123,8 @@ class PadHub {
     this.started = true;
     window.addEventListener('gamepadconnected', () => this.poll());
     window.addEventListener('gamepaddisconnected', () => this.poll());
-    const usedKeyboard = () => this.snap.lastDevice !== 'keyboard' && this.update({ lastDevice: 'keyboard' });
+    // Only real input counts: menu navigation sends synthetic Esc presses for the controller's back.
+    const usedKeyboard = (e: Event) => e.isTrusted && this.snap.lastDevice !== 'keyboard' && this.update({ lastDevice: 'keyboard' });
     window.addEventListener('keydown', usedKeyboard, true);
     window.addEventListener('pointerdown', usedKeyboard, true);
     const loop = () => {

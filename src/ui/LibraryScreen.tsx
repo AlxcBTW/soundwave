@@ -1,9 +1,10 @@
+import { Plus, Settings, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import type { AnalysisStatus } from '../analysis/manager';
 import { ACCEPTED } from '../audio/importSong';
 import type { SongMeta } from '../storage/db';
 import { Cover } from './Cover';
-
-import type { AnalysisStatus } from '../analysis/manager';
+import { ICON_STROKE } from './icons';
 
 export type SongStatus = AnalysisStatus;
 
@@ -57,12 +58,16 @@ export function LibraryScreen({ songs, status, importing, onImport, onOpen, onSe
   return (
     <div className="library">
       <header className="topbar">
-        <h1 className="logo small">FESTIVAL</h1>
-        <div className="row">
+        <h1 className="wordmark">Festival</h1>
+        <div className="topbar-actions">
           <button className="btn primary" onClick={() => input.current?.click()}>
+            <Upload strokeWidth={ICON_STROKE} aria-hidden />
             {importing ? `Importing ${importing}…` : 'Add songs'}
           </button>
-          <button className="btn" onClick={onSettings}>Settings</button>
+          <button className="btn" onClick={onSettings}>
+            <Settings strokeWidth={ICON_STROKE} aria-hidden />
+            Settings
+          </button>
         </div>
         <input
           ref={input}
@@ -77,47 +82,55 @@ export function LibraryScreen({ songs, status, importing, onImport, onOpen, onSe
           }}
         />
       </header>
+      <h2 className="setlist-title">
+        Setlist <span className="setlist-count">{songs.length}</span>
+      </h2>
       <div className="song-grid">
-        {songs.map((s) => {
+        {songs.map((s, i) => {
           const st = status[s.id];
           return (
-            <button key={s.id} className="song-card" onClick={() => onOpen(s)}>
-              <Cover blob={s.cover} title={s.title} />
-              <div className="song-info">
-                <div className="song-title">{s.title}</div>
-                <div className="song-artist">{s.artist}</div>
-                <div className="song-meta">
-                  <span>{fmtTime(s.duration)}</span>
-                  {st && <StatusPill status={st} />}
-                </div>
-              </div>
-              {st?.state === 'analyzing' && (
-                <div className="card-progress"><div style={{ width: `${Math.round((st.progress ?? 0) * 100)}%` }} /></div>
+            <button key={s.id} className="song-card" style={{ ['--i' as string]: Math.min(i, 14) }} onClick={() => onOpen(s)}>
+              <span className="cover-frame">
+                <Cover blob={s.cover} title={s.title} />
+                <span className="sheen" aria-hidden />
+              </span>
+              <span className="song-title">{s.title}</span>
+              <span className="song-artist">{s.artist}</span>
+              <span className="song-meta">
+                <span className="song-length">{fmtTime(s.duration)}</span>
+                {st && <StatusPill status={st} />}
+              </span>
+              {(st?.state === 'analyzing' || st?.state === 'queued') && (
+                <span className="card-progress" aria-hidden>
+                  <span style={{ width: `${Math.round((st.progress ?? 0) * 100)}%` }} />
+                </span>
               )}
             </button>
           );
         })}
-        <button className="song-card add" onClick={() => input.current?.click()}>
-          <div className="add-icon">+</div>
-          <div className="dim">Drop audio files here or click to browse</div>
-          <div className="dim small">MP3 · WAV · FLAC · OGG · M4A</div>
+        <button className="song-card add" style={{ ['--i' as string]: Math.min(songs.length, 14) }} onClick={() => input.current?.click()}>
+          <span className="add-icon">
+            <Plus strokeWidth={ICON_STROKE} aria-hidden />
+          </span>
+          <span className="song-title">Add your music</span>
+          <span className="song-artist">Drop files here or browse. MP3, WAV, FLAC, OGG, M4A.</span>
         </button>
       </div>
-      {dragging && <div className="drop-overlay">Drop to add songs</div>}
+      {dragging && <div className="drop-overlay">Drop to add to your setlist</div>}
     </div>
   );
 }
 
+/** Only problems get a pill: a ready song needs no label, and analysis shows as a lit bar. */
 export function StatusPill({ status }: { status: SongStatus }) {
-  const label =
-    status.state === 'analyzing'
-      ? `${status.step ?? 'Analyzing'} · ${Math.round((status.progress ?? 0) * 100)}%`
-      : status.state === 'queued'
-        ? 'Queued'
-        : status.state === 'ready'
-          ? 'Ready'
-          : status.state === 'error'
-            ? 'Analysis failed'
-            : 'Not analyzed';
-  return <span className={`pill ${status.state}`} title={status.error}>{label}</span>;
+  if (status.state === 'ready' || status.state === 'analyzing' || status.state === 'queued') return null;
+  return (
+    <span className={`pill ${status.state}`} title={status.error}>
+      {status.state === 'error' ? 'Analysis failed' : 'Not analyzed'}
+    </span>
+  );
 }
+
+/** What analysis is doing right now, for the label beside its progress bar. */
+export const analysisLabel = (status: SongStatus) =>
+  status.state === 'queued' ? 'Waiting to analyze' : `${status.step ?? 'Analyzing'} · ${Math.round((status.progress ?? 0) * 100)}%`;

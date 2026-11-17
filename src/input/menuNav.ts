@@ -12,6 +12,8 @@ const FOCUSABLE = 'button:not([disabled]), input:not([type=hidden]):not([disable
 
 /** Event the settings screen listens to for tab switching (detail: -1 or 1). */
 export const TAB_EVENT = 'pad-tab';
+/** Sent when controller navigation moves focus (for move sounds and pulses). */
+export const MOVE_EVENT = 'pad-move';
 
 function scope(): ParentNode {
   const overlays = document.querySelectorAll('.overlay');
@@ -61,6 +63,7 @@ function focus(el: HTMLElement) {
   ringed = el;
   el.classList.add('pad-focus');
   el.addEventListener('blur', () => el.classList.remove('pad-focus'), { once: true });
+  window.dispatchEvent(new Event(MOVE_EVENT));
   el.focus({ preventScroll: true });
   el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }

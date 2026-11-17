@@ -1,11 +1,15 @@
+import { ArrowLeft } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_SETTINGS, keyLabel, type RumbleLevel, type Settings } from '../game/settings';
 import { PadGlyph, STYLE_LABEL } from '../input/glyphs';
 import { TAB_EVENT } from '../input/menuNav';
 import { PAUSE_INPUT, pads, styleFor, SYSTEM_INPUT, type GlyphStyle } from '../input/pads';
-import { dualSenseHaptics, Rumbler } from '../input/rumble';
+import { dualSenseHaptics, menuPulse, Rumbler } from '../input/rumble';
 import { usePads } from '../input/usePads';
+import { playSfx } from '../audio/sfx';
 import { Calibration } from './Calibration';
+import { ICON_STROKE } from './icons';
+import { useSlide } from './useSlide';
 
 interface Props {
   settings: Settings;
@@ -37,7 +41,7 @@ const RUMBLE_LEVELS: [RumbleLevel, string][] = [
   ['weak', 'Weak'],
   ['strong', 'Strong'],
 ];
-const GENERAL_FIELDS = ['noteSpeed', 'volume', 'offsetMs'] as const;
+const GENERAL_FIELDS = ['noteSpeed', 'volume', 'sfxVolume', 'offsetMs'] as const;
 const ANALYSIS_FIELDS = ['mlEnabled', 'mlUrl'] as const;
 const FIELDS: Record<Tab, readonly (keyof Settings)[]> = { general: GENERAL_FIELDS, keyboard: KEYBOARD_FIELDS, controller: CONTROLLER_FIELDS, analysis: ANALYSIS_FIELDS };
 
@@ -89,7 +93,12 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack }: Props) 
       }
       return TABS[i][0];
     });
-    const onPad = (e: Event) => step((e as CustomEvent<number>).detail);
+    const onPad = (e: Event) => {
+      const d = (e as CustomEvent<number>).detail;
+      playSfx('tab');
+      menuPulse(d < 0 ? 'tab-left' : 'tab-right');
+      step(d);
+    };
     window.addEventListener(TAB_EVENT, onPad);
     return () => window.removeEventListener(TAB_EVENT, onPad);
   }, []);
@@ -145,11 +154,13 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack }: Props) 
   return (
     <div className="detail">
       <header className="topbar">
-        <button className="btn ghost" onClick={onBack}>← Back</button>
-        <h2>Settings</h2>
-        <span />
+        <button className="btn ghost" data-sfx="back" onClick={onBack}>
+          <ArrowLeft strokeWidth={ICON_STROKE} aria-hidden />
+          Back
+        </button>
       </header>
-      <div className="settings panel left">
+      <div className="settings">
+        <h1 className="page-title">Settings</h1>
         <TabBar tab={tab} onTab={setTab} />
         {tab === 'general' && <GeneralTab settings={settings} set={set} onCalibrate={() => setCalibrating(true)} />}
         {tab === 'keyboard' && <KeyboardTab settings={settings} binding={binding} onBind={setBinding} />}
@@ -175,14 +186,18 @@ function TabBar({ tab, onTab }: { tab: Tab; onTab(t: Tab): void }) {
   const snap = usePads();
   const style = styleFor(snap.family);
   const showPad = snap.pads.length > 0;
+  const row = useSlide<HTMLDivElement>(tab);
   return (
-    <div className="tabs" role="tablist">
+    <div className="tabs">
       {showPad && <PadGlyph input="b4" style={style} className="tab-hint" />}
-      {TABS.map(([id, label]) => (
-        <button key={id} role="tab" aria-selected={tab === id} className={`tab ${tab === id ? 'on' : ''}`} onClick={() => onTab(id)}>
-          {label}
-        </button>
-      ))}
+      <div className="tab-row slide" role="tablist" aria-label="Settings sections" ref={row}>
+        <span className="sel" aria-hidden />
+        {TABS.map(([id, label]) => (
+          <button key={id} role="tab" aria-selected={tab === id} data-on={tab === id} className={`tab ${tab === id ? 'on' : ''}`} onClick={() => onTab(id)}>
+            {label}
+          </button>
+        ))}
+      </div>
       {showPad && <PadGlyph input="b5" style={style} className="tab-hint" />}
     </div>
   );
@@ -202,6 +217,11 @@ function GeneralTab({ settings, set, onCalibrate }: { settings: Settings; set: S
         <label htmlFor="volume">Volume</label>
         <input id="volume" type="range" min={0} max={1} step={0.05} value={settings.volume} onChange={(e) => set({ volume: +e.target.value })} />
         <span className="value">{Math.round(settings.volume * 100)}%</span>
+      </div>
+      <div className="setting">
+        <label htmlFor="sfx">Effects volume</label>
+        <input id="sfx" type="range" min={0} max={1} step={0.05} value={settings.sfxVolume} onChange={(e) => set({ sfxVolume: +e.target.value })} />
+        <span className="value">{Math.round(settings.sfxVolume * 100)}%</span>
       </div>
       <div className="setting">
         <label htmlFor="offset">Audio offset</label>

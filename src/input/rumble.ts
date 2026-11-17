@@ -230,3 +230,44 @@ export class Rumbler {
     for (const p of pads.snapshot().pads) void actuator(p.index)?.reset?.().catch(() => {});
   }
 }
+
+export type MenuPulse = 'move' | 'select' | 'back' | 'tab-left' | 'tab-right' | 'launch' | 'star' | 'error';
+
+const MENU_PULSES: Record<MenuPulse, Effect> = {
+  move: { pan: 0, amp: 0.22, ms: 22, kind: 'click' },
+  select: { pan: 0, amp: 0.55, ms: 45, kind: 'click' },
+  back: { pan: -0.3, amp: 0.4, ms: 40, kind: 'click' },
+  'tab-left': { pan: -1, amp: 0.45, ms: 40, kind: 'click' },
+  'tab-right': { pan: 1, amp: 0.45, ms: 40, kind: 'click' },
+  launch: { pan: 0, amp: 1, ms: 480, kind: 'sweep' },
+  star: { pan: 0, amp: 0.5, ms: 50, kind: 'click' },
+  error: { pan: 0, amp: 0.6, ms: 120, kind: 'thud' },
+};
+
+let nativeChecked: { at: number; ok: Promise<boolean> } | null = null;
+let menuLevel: RumbleLevel = 'strong';
+
+/** The rumble level menu pulses use (the player's setting). */
+export function setMenuRumble(level: RumbleLevel) {
+  menuLevel = level;
+}
+
+/**
+ * A short pulse for a menu action, on the controller in use only (a mouse or keyboard user
+ * feels nothing). DualSense haptics play it natively when available.
+ */
+export function menuPulse(kind: MenuPulse) {
+  const k = RUMBLE_SCALE[menuLevel];
+  const snap = pads.snapshot();
+  if (k <= 0 || snap.lastDevice !== 'pad') return;
+  const pad = snap.pads.find((p) => p.index === snap.lastPad);
+  if (!pad) return;
+  const e = MENU_PULSES[kind];
+  if (pad.family === 'ps5') {
+    // Re-check now and then: the controller may have been plugged in by cable since.
+    if (!nativeChecked || performance.now() - nativeChecked.at > 5000) nativeChecked = { at: performance.now(), ok: dualSenseHaptics() };
+    void nativeChecked.ok.then((ok) => (ok ? nativePlay(e, k) : rumblePad(pad.index, e, k)));
+    return;
+  }
+  rumblePad(pad.index, e, k);
+}
