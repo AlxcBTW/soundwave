@@ -1,0 +1,97 @@
+import { loadSongBuffer } from '../../audio/songAudio';
+import { wavBytes } from '../../audio/wav';
+import { ANALYSIS_SAMPLE_RATE, STEM_NAMES, type StemName, type StemNotes } from '../types';
+import { stemModel } from './model';
+import { MODEL_RATE } from './separate';
+import { analysisDevice } from './support';
+import type { SeparationRequest, SeparationResponse } from './worker';
+
+/** What separating a song gives the rest of the analysis. */
+export interface StemResult {
+  /** Each stem as WAV bytes (mono, 16-bit, at the analysis rate), also kept for listening. */
+  stems: Record<StemName, ArrayBuffer>;
+  /** What the transcriber heard in the bass, vocal and instrument stems. */
+  notes: StemNotes;
+}
+
+export type StemAnalyzer = (songId: string, onProgress: (p: number, label: string) => void, signal: AbortSignal) => Promise<StemResult>;
+
+const abortError = () => new DOMException('analysis cancelled', 'AbortError');
+const megabytes = (n: number) => Math.round(n / 1e6);
+
+/** The song in stereo at the model's rate. */
+async function modelInput(buffer: AudioBuffer): Promise<[Float32Array, Float32Array]> {
+  const ctx = new OfflineAudioContext(2, Math.ceil(buffer.duration * MODEL_RATE), MODEL_RATE);
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(ctx.destination);
+  src.start();
+  const out = await ctx.startRendering();
+  return [out.getChannelData(0).slice(), out.getChannelData(1).slice()];
+}
+
+/**
+ * Separates a song into drums, bass, vocals and the other instruments with the stem model, and
+ * transcribes the pitched stems. It downloads the model first when it is not on this device yet.
+ */
+export const stemAnalyzer: StemAnalyzer = async (songId, onProgress, signal) => {
+  const device = await analysisDevice();
+  if (device === 'none') throw new Error('This device cannot analyze songs. Splitting a song into its instruments takes more memory than a phone or tablet gives the game; analyze on a computer.');
+
+  if (stemModel.snapshot().state !== 'ready') {
+    const report = () => {
+      const s = stemModel.snapshot();
+      if (s.state === 'downloading') onProgress(s.received / s.total, `Downloading the analysis model (${megabytes(s.received)} of ${megabytes(s.total)} MB)`);
+    };
+    const stop = stemModel.subscribe(report);
+    try {
+      await stemModel.ensure();
+    } finally {
+      stop();
+    }
+  }
+  if (signal.aborted) throw abortError();
+
+  onProgress(0, 'Decoding');
+  const [left, right] = await modelInput(await loadSongBuffer(songId));
+  const model = await stemModel.load();
+  if (signal.aborted) throw abortError();
+
+  return new Promise<StemResult>((resolve, reject) => {
+    const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+    const stop = () => {
+      worker.terminate();
+      reject(abortError());
+    };
+    signal.addEventListener('abort', stop, { once: true });
+    const end = () => {
+      signal.removeEventListener('abort', stop);
+      worker.terminate();
+    };
+    worker.onmessage = (e: MessageEvent<SeparationResponse>) => {
+      const m = e.data;
+      if (m.type === 'progress') onProgress(m.progress, m.step);
+      else if (m.type === 'log') console.info('[analysis]', m.message);
+      else {
+        end();
+        if (m.type === 'error') return reject(new Error(`The song could not be separated into stems (${m.message}).`));
+        const stems = {} as Record<StemName, ArrayBuffer>;
+        for (const name of STEM_NAMES) stems[name] = wavBytes(m.stems[name], ANALYSIS_SAMPLE_RATE);
+        resolve({ stems, notes: m.notes });
+      }
+    };
+    worker.onerror = (e) => {
+      end();
+      reject(new Error(`The song could not be separated into stems (${e.message || 'the analysis stopped unexpectedly'}).`));
+    };
+    const req: SeparationRequest = {
+      type: 'separate',
+      left,
+      right,
+      model,
+      device,
+      pitchModelUrl: new URL(`${import.meta.env.BASE_URL}models/basic-pitch/model.json`, location.href).href,
+    };
+    worker.postMessage(req, [left.buffer, right.buffer, ...model.files.map((f) => f.data)]);
+  });
+};

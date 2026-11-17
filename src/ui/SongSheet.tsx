@@ -71,7 +71,7 @@ export function SongSheet({ song, builtin, status, scores, slot, setFull, volume
         if (source === 'mix') buf = await loadSongBuffer(song.id);
         else {
           const blob = await getStem(song.id, source);
-          if (!blob) throw new Error('This stem is no longer stored. Analyze the song again with the analysis service.');
+          if (!blob) throw new Error('This stem is no longer stored. Analyze the song again.');
           buf = await engine.decode(await blob.arrayBuffer());
         }
         if (!live.current) return;
@@ -124,7 +124,6 @@ export function SongSheet({ song, builtin, status, scores, slot, setFull, volume
                 )}
               </div>
               {status.state === 'error' && <p className="error">{status.error}</p>}
-              {ready && status.warning && <p className="error">{status.warning}</p>}
             </div>
           </div>
 
@@ -157,7 +156,7 @@ export function SongSheet({ song, builtin, status, scores, slot, setFull, volume
               })}
             </div>
             <PreviewBar active={previewing !== null} label={previewing === 'mix' || previewing === null ? 'Song' : STEM_LABEL[previewing]} />
-            {!builtin && stems.length === 0 && <p className="hint">Separated stems appear here after an analysis with the analysis service (Settings, Analysis).</p>}
+            {!builtin && stems.length === 0 && <p className="hint">The song’s separated stems appear here once it is analyzed.</p>}
           </section>
 
           <section className="sheet-section" aria-label="Best scores">

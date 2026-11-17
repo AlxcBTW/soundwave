@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { analysisManager } from '../analysis/manager';
-import { checkHealth, mlAnalyzer } from '../analysis/mlClient';
+import { stemModel } from '../analysis/separation/model';
+import { analysisDevice, type AnalysisDevice } from '../analysis/separation/support';
 import { getEngine } from '../audio/engine';
 import { ACCEPTED, isAudioFile, readSongFile } from '../audio/importSong';
 import { menuMusicStatus, setMenuMusic, setMusicVolume } from '../audio/menuMusic';
@@ -136,7 +137,7 @@ export function App() {
     const stopNav = installMenuNav(() => resolveStyle(settingsRef.current.glyphs, pads.snapshot().family));
     const stopSounds = installUiSounds();
     void loadSfx();
-    if (import.meta.env.DEV) Object.assign(window, { __audio: { sfx: sfxStatus, music: menuMusicStatus }, __input: setInputMode });
+    if (import.meta.env.DEV) Object.assign(window, { __audio: { sfx: sfxStatus, music: menuMusicStatus }, __input: setInputMode, __analysis: analysisManager, __stemModel: stemModel });
     return () => {
       stopMode();
       stopNav();
@@ -185,36 +186,46 @@ export function App() {
     void refreshScores();
   }, [refresh, refreshScores]);
 
-  // Optional ML service: route analyses through it while it is enabled and reachable.
-  const [mlStatus, setMlStatus] = useState<'off' | 'checking' | 'online' | 'offline'>('off');
+  // Every song is separated into stems before it is charted. The model for that is fetched once,
+  // the first time the game opens on a device that can run it.
+  const model = useSyncExternalStore(stemModel.subscribe, stemModel.snapshot);
+  const [device, setDevice] = useState<AnalysisDevice | null>(null);
   useEffect(() => {
-    analysisManager.remote = settings.mlEnabled ? mlAnalyzer(settings.mlUrl) : null;
-    if (!settings.mlEnabled) return setMlStatus('off');
-    let cancelled = false;
-    const check = async () => {
-      const h = await checkHealth(settings.mlUrl);
-      if (!cancelled) setMlStatus(h ? 'online' : 'offline');
-    };
-    setMlStatus('checking');
-    void check();
-    const timer = setInterval(check, 15000);
+    let live = true;
+    void analysisDevice().then(async (d) => {
+      if (!live) return;
+      // A device that cannot separate keeps the charts it already has.
+      analysisManager.legacy = d === 'none';
+      setDevice(d);
+      if (d !== 'none' && (await stemModel.check()) === 'absent') void stemModel.ensure().catch(() => {});
+    });
     return () => {
-      cancelled = true;
-      clearInterval(timer);
+      live = false;
     };
-  }, [settings.mlEnabled, settings.mlUrl]);
+  }, []);
+  const modelWas = useRef(model.state);
+  useEffect(() => {
+    const was = modelWas.current;
+    modelWas.current = model.state;
+    if (was === model.state) return;
+    if (model.state === 'downloading') toast(`Downloading the analysis model (${Math.round(model.total / 1e6)} MB). Songs are analyzed as soon as it is here.`);
+    else if (model.state === 'ready' && was === 'downloading') toast('The analysis model is ready.');
+    else if (model.state === 'error' && model.error) toast(model.error);
+  }, [model, toast]);
 
   const analysisStatus = useSyncExternalStore(analysisManager.subscribe, analysisManager.snapshot);
   const status: Record<string, SongStatus> = useMemo(() => ({ ...analysisStatus, [DEMO_ID]: { state: 'ready' } }), [analysisStatus]);
 
   // Analyze new songs automatically; previously analyzed ones load from the cache.
   useEffect(() => {
+    // Not before it is known what this device can do: that decides which stored analyses count.
+    if (!device) return;
     for (const s of songs) if (s.id !== DEMO_ID && !analysisStatus[s.id]) void analysisManager.check(s.id, true);
-  }, [songs, analysisStatus]);
+  }, [songs, analysisStatus, device]);
 
   // The game opens once it knows the library, the scores and which songs have charts (or after a
   // moment, whatever is still missing), and then in a quiet moment, so the entrance plays smoothly.
-  const known = loaded.songs && loaded.scores && songs.every((s) => s.id === DEMO_ID || analysisStatus[s.id]);
+  const known = loaded.songs && loaded.scores && !!device && songs.every((s) => s.id === DEMO_ID || analysisStatus[s.id]);
   useEffect(() => {
     if (booted) return;
     if (!known) {
@@ -478,7 +489,7 @@ export function App() {
   } else {
     let screen: React.ReactNode;
     if (view.name === 'settings') {
-      screen = <SettingsScreen settings={settings} mlStatus={mlStatus} onChange={updateSettings} onBack={() => setView(view.back)} />;
+      screen = <SettingsScreen settings={settings} model={model} device={device} onChange={updateSettings} onBack={() => setView(view.back)} />;
     } else if (view.name === 'library') {
       screen = (
         <LibraryScreen
@@ -588,7 +599,7 @@ export function App() {
         <div className="menu settings-over" data-modal>
           <div className="veil" aria-hidden />
           <div className="scene fwd">
-            <SettingsScreen settings={settings} mlStatus={mlStatus} onChange={updateSettings} onBack={() => setSongSettings(false)} inSong />
+            <SettingsScreen settings={settings} model={model} device={device} onChange={updateSettings} onBack={() => setSongSettings(false)} inSong />
           </div>
         </div>
       )}

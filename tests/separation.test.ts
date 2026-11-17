@@ -1,0 +1,101 @@
+import { describe, expect, it } from 'vitest';
+import { halve } from '../src/analysis/separation/resample';
+import { MODEL_STEMS, separate, type SegmentModel } from '../src/analysis/separation/separate';
+import { addInverse, BINS, FRAMES, SEGMENT, spectrogram } from '../src/analysis/separation/stft';
+
+const PLANE = BINS * FRAMES;
+const tone = (i: number) => Math.fround(Math.sin(0.01 * i) + 0.5 * Math.sin(0.37 * i + 1));
+const left = Float32Array.from({ length: SEGMENT }, (_, i) => tone(i));
+const right = Float32Array.from({ length: SEGMENT }, (_, i) => tone(SEGMENT - 1 - i));
+
+describe('the stem model transform', () => {
+  const planes = new Float32Array(4 * PLANE);
+  spectrogram(left, planes, 0);
+  spectrogram(right, planes, 2);
+
+  // Values of Demucs' own transform (HTDemucs._spec in PyTorch) for the same two signals.
+  it('gives the spectrogram Demucs computes', () => {
+    const expected: [number, number, number, number, number][] = [
+      [0, 0, 0, 2.7123203, 0],
+      [0, 7, 0, 8.4252815, -1.3430045],
+      [0, 6, 1, 4.199441, 12.7649422],
+      [0, 241, 100, -5.6133399, -5.4022985],
+      [1, 241, 335, -5.8176765, 4.6615067],
+      [1, 2047, 17, 0, 0],
+      [0, 100, 335, 0.0311209, 0.0159586],
+    ];
+    for (const [channel, bin, frame, re, im] of expected) {
+      const at = bin * FRAMES + frame;
+      expect(planes[channel * 2 * PLANE + at]).toBeCloseTo(re, 3);
+      expect(planes[(channel * 2 + 1) * PLANE + at]).toBeCloseTo(im, 3);
+    }
+  });
+
+  // HTDemucs._ispec of that spectrogram: the signal again, except near the ends, where the frames
+  // the model never sees are missing.
+  it('inverts it the way Demucs does', () => {
+    const back = [new Float32Array(SEGMENT), new Float32Array(SEGMENT)];
+    addInverse(planes, 0, PLANE, back[0], 1);
+    addInverse(planes, 2 * PLANE, 3 * PLANE, back[1], 1);
+    const expected: [number, number, number][] = [
+      [0, 0, 0.2103746],
+      [0, 1, 0.2503317],
+      [0, 500, -1.042137],
+      [0, 1535, 0.192258],
+      [0, 4000, 0.2620387],
+      [0, 170000, -0.3719783],
+      [1, 343979, 0.2361629],
+      [1, 343000, -0.8136026],
+      [0, 342500, 0.8272322],
+    ];
+    for (const [channel, i, v] of expected) expect(back[channel][i]).toBeCloseTo(v, 4);
+  });
+});
+
+describe('separating a song', () => {
+  // A stand-in network: every stem gets a quarter of the song through the spectrogram and none
+  // through the time branch, so the four stems must add up to the song.
+  const quarter: SegmentModel = {
+    async run(x) {
+      const out = new Float32Array(MODEL_STEMS.length * 4 * PLANE);
+      for (let s = 0; s < MODEL_STEMS.length; s++) for (let i = 0; i < x.length; i++) out[s * x.length + i] = x[i] / 4;
+      return { x: out, xt: new Float32Array(MODEL_STEMS.length * 2 * SEGMENT) };
+    },
+  };
+
+  it('puts overlapping segments back together, also for a song that ends inside one', async () => {
+    const length = Math.round(SEGMENT * 1.9);
+    const l = Float32Array.from({ length }, (_, i) => 0.3 * tone(i));
+    const r = Float32Array.from({ length }, (_, i) => 0.2 * tone(i * 2));
+    const seen: number[] = [];
+    const stems = await separate(l, r, quarter, (p) => seen.push(p));
+    expect(stems).toHaveLength(4);
+    expect(seen.length).toBe(3);
+    expect(seen[seen.length - 1]).toBe(1);
+    // Away from the very ends the stems add up to the mono mix. Not exactly: the stand-in gives each
+    // stem the whole of the (small) means the inputs were normalised by, not a quarter of them.
+    let worst = 0;
+    for (let i = 6000; i < length - 6000; i += 97) {
+      const sum = stems[0][i] + stems[1][i] + stems[2][i] + stems[3][i];
+      worst = Math.max(worst, Math.abs(sum - (l[i] + r[i]) / 2));
+    }
+    expect(worst).toBeLessThan(0.02);
+  }, 120_000);
+
+  it('stops when the analysis is cancelled', async () => {
+    const l = new Float32Array(SEGMENT);
+    await expect(separate(l, l, quarter, () => {}, () => true)).rejects.toThrow(/cancelled/);
+  });
+});
+
+describe('halving the sample rate', () => {
+  it('keeps what is below the new limit and removes what would fold back', () => {
+    const n = 44100;
+    const low = Float32Array.from({ length: n }, (_, i) => Math.sin((2 * Math.PI * 1000 * i) / 44100));
+    const high = Float32Array.from({ length: n }, (_, i) => Math.sin((2 * Math.PI * 15000 * i) / 44100));
+    const rms = (a: Float32Array) => Math.sqrt(a.slice(500, -500).reduce((s, v) => s + v * v, 0) / (a.length - 1000));
+    expect(halve(low)).toHaveLength(n / 2);
+    expect(rms(halve(low))).toBeCloseTo(Math.SQRT1_2, 2);
+    expect(rms(halve(high))).toBeLessThan(0.001);
+  });
+});

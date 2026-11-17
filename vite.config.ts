@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { defineConfig, type Plugin } from 'vite';
+import { defaultClientConditions, defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
 /**
@@ -39,12 +39,20 @@ function debugAnnotations(): Plugin {
   };
 }
 
+/**
+ * Lets the page use threads (SharedArrayBuffer), which the stem model needs to run at a bearable
+ * speed on a processor. A host serving the built game has to send the same two headers.
+ */
+const isolation = { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' };
+
 export default defineConfig({
   plugins: [react(), debugAnnotations()],
   clearScreen: false,
+  preview: { headers: isolation },
   server: {
     port: 5173,
     strictPort: true,
+    headers: isolation,
     // The ML service's virtualenv, the Rust build output and the test audio hold tens of
     // thousands of files the app never imports; watching them slows every dev start.
     // The built stage files are left out too: a change under public/ reloads the whole page, and
@@ -54,7 +62,10 @@ export default defineConfig({
   // Only index.html is an entry. By default every .html under the project is scanned for
   // dependencies (including stray ones in the virtualenv), and the page waits for that scan.
   // The analysis worker loads these lazily; bundling them up front avoids a reload mid-analysis.
-  optimizeDeps: { entries: ['index.html'], include: ['@tensorflow/tfjs', '@spotify/basic-pitch', 'fft.js'] },
+  // ONNX Runtime in the build that loads its script and WebAssembly file from public/ort (see
+  // scripts/copy-models.mjs) instead of carrying them inside the bundle.
+  resolve: { conditions: ['onnxruntime-web-use-extern-wasm', ...defaultClientConditions] },
+  optimizeDeps: { entries: ['index.html'], include: ['@tensorflow/tfjs', '@spotify/basic-pitch', 'fft.js'], exclude: ['onnxruntime-web'] },
   worker: { format: 'es' },
   build: { target: 'es2023', chunkSizeWarningLimit: 4000 },
   test: { environment: 'node', include: ['tests/**/*.test.ts'] },

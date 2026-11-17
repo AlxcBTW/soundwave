@@ -1,4 +1,6 @@
-# Festival analysis service (optional)
+# Festival analysis service (reference)
+
+The game does this work itself now (see "How analysis works" in the main README) and no longer connects to this service. It is kept as the reference the in-app stem separation is checked against, and its environment runs `tools/analysis/export_stem_model.py` and the offline tooling in `scripts/dev/`.
 
 A local HTTP service that makes charts more accurate by working on separated stems:
 
@@ -6,7 +8,6 @@ A local HTTP service that makes charts more accurate by working on separated ste
 2. **Basic Pitch** transcribes the bass, vocal and instrument stems separately, so each part follows exactly one instrument. Lead keeps chords as chords.
 3. The service returns those lines plus the separated stems. The app keeps the stems for preview on the song page. The app then runs its own beat tracking on the full mix and drum detection on the clean drum stem.
 
-The game works without it. When the service is enabled in **Settings → Analysis service** and reachable, new analyses use it. If it is unavailable, the game falls back to in-app analysis.
 
 ## Setup
 

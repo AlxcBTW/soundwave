@@ -2,6 +2,7 @@ import { loadSongBuffer } from '../audio/songAudio';
 import { generateAll } from '../chart/generator';
 import type { Chart, Difficulty, Part } from '../chart/types';
 import { analysisKey, deleteAnalyses, getAnalysis, putAnalysis, putStems } from '../storage/db';
+import { stemAnalyzer, type StemAnalyzer } from './separation/analyzer';
 import { ANALYSIS_SAMPLE_RATE, ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult, type AnalysisStep, type PartLines, type StemName, type StemNotes } from './types';
 import type { WorkerRequest, WorkerResponse } from './worker';
 
@@ -10,8 +11,6 @@ export interface AnalysisStatus {
   progress?: number;
   step?: string;
   error?: string;
-  /** Set when the analysis succeeded without the ML service although it was enabled. */
-  warning?: string;
 }
 
 const STEP_LABEL: Record<AnalysisStep, string> = {
@@ -24,21 +23,7 @@ const STEP_LABEL: Record<AnalysisStep, string> = {
   finishing: 'Charting',
 };
 
-/** What the optional ML service contributes: lines from separated stems and the drum stem. */
-export interface RemoteResult {
-  result: AnalysisResult;
-  /** WAV bytes of each separated stem, when the service separated stems. */
-  stems: Partial<Record<StemName, ArrayBuffer>>;
-}
-
-/** Pluggable remote analyzer (the optional ML service). Returns null when unavailable. */
-export type RemoteAnalyzer = (
-  songId: string,
-  onProgress: (p: number, label: string) => void,
-  signal: AbortSignal,
-) => Promise<RemoteResult | null>;
-
-/** Help for the in-app analyzer from the ML service. */
+/** What the separated stems give the rest of the analysis. */
 export interface Assist {
   lines: PartLines;
   drumStem?: ArrayBuffer;
@@ -48,7 +33,7 @@ export interface Assist {
   stemNotes?: StemNotes;
 }
 
-/** In-app analyzer: decode, then run the DSP/transcription pipeline in a worker. */
+/** The rest of the analysis: decode, then run the pipeline (rhythm, harmony, lines, structure) in a worker. */
 export type LocalAnalyzer = (
   songId: string,
   onProgress: (p: { step: AnalysisStep; progress: number }) => void,
@@ -57,6 +42,8 @@ export type LocalAnalyzer = (
 ) => Promise<AnalysisResult>;
 
 const abortError = () => new DOMException('analysis cancelled', 'AbortError');
+/** How much of the progress bar separating and transcribing the stems takes. */
+const SEPARATION_SHARE = 0.85;
 
 type Listener = () => void;
 
@@ -70,9 +57,20 @@ export class AnalysisManager {
   private queue: string[] = [];
   private running = false;
   private listeners = new Set<Listener>();
-  remote: RemoteAnalyzer | null = null;
+  /**
+   * Also accept analyses made before songs were separated into stems. Only for devices that cannot
+   * separate: everywhere else such a song is analyzed again.
+   */
+  legacy = false;
 
-  constructor(private readonly local: LocalAnalyzer = localAnalyzer) {}
+  /**
+   * `separator` splits the song into stems first; every analysis in the game goes through it, and a
+   * song it cannot separate is not charted. Without one (tests), the pipeline runs on the mix alone.
+   */
+  constructor(
+    private readonly local: LocalAnalyzer = localAnalyzer,
+    private readonly separator: StemAnalyzer | null = null,
+  ) {}
 
   subscribe = (l: Listener) => {
     this.listeners.add(l);
@@ -98,7 +96,7 @@ export class AnalysisManager {
   private async loadCached(id: string): Promise<AnalysisResult | undefined> {
     const mem = this.results.get(id);
     if (mem) return mem;
-    for (const source of ['ml', 'local']) {
+    for (const source of this.legacy ? ['ml', 'local'] : ['ml']) {
       try {
         const r = await getAnalysis<AnalysisResult>(analysisKey(id, ANALYSIS_VERSION, source));
         if (r && isAnalysisResult(r)) {
@@ -148,7 +146,7 @@ export class AnalysisManager {
       this.current = { id, abort };
       const stale = () => (this.generation.get(id) ?? 0) !== gen;
       try {
-        const { result, stems, warning } = await this.analyze(id, abort.signal);
+        const { result, stems } = await this.analyze(id, abort.signal);
         if (stale()) continue;
         this.results.set(id, result);
         if (stems && Object.keys(stems).length) {
@@ -167,7 +165,7 @@ export class AnalysisManager {
           /* cache is best-effort */
         }
         if (stale()) continue;
-        this.set(id, { state: 'ready', warning });
+        this.set(id, { state: 'ready' });
       } catch (e) {
         if (!stale()) this.set(id, { state: 'error', error: (e as Error).message });
       } finally {
@@ -177,34 +175,26 @@ export class AnalysisManager {
     this.running = false;
   }
 
-  private async analyze(id: string, signal: AbortSignal): Promise<{ result: AnalysisResult; stems?: Assist['stems']; warning?: string }> {
+  private async analyze(id: string, signal: AbortSignal): Promise<{ result: AnalysisResult; stems?: Assist['stems'] }> {
     const progress = (s: AnalysisStatus) => {
       if (!signal.aborted) this.set(id, s);
     };
-    // The ML service separates stems and transcribes each one; the in-app pipeline then adds the
-    // rhythm (beat grid, drums from the drum stem) and structure around those lines.
+    // The song is separated into stems and each pitched stem transcribed; the pipeline then builds
+    // the lines from those and adds the rhythm (beat grid, drums from the drum stem) and structure.
     let assist: Assist | undefined;
-    let warning: string | undefined;
-    if (this.remote) {
-      try {
-        const r = await this.remote(id, (p, step) => progress({ state: 'analyzing', progress: p * 0.6, step }), signal);
-        if (r) {
-          assist = {
-            lines: { bass: r.result.bass, lead: r.result.lead, vocals: r.result.vocals ?? [] },
-            // Copy: the worker transfer and IndexedDB both need their own buffers.
-            drumStem: r.stems.drums?.slice(0),
-            stems: r.stems,
-            stemNotes: (r.result as { stemNotes?: StemNotes }).stemNotes,
-          };
-        }
-      } catch (e) {
-        if (signal.aborted) throw abortError();
-        console.warn('remote analysis failed, using in-app analysis', e);
-        warning = `The analysis service failed (${(e as Error).message}). These charts come from the in-app analysis, which is less accurate without separated stems; re-analyze to try the service again.`;
-      }
+    if (this.separator) {
+      const r = await this.separator(id, (p, step) => progress({ state: 'analyzing', progress: p * SEPARATION_SHARE, step }), signal);
+      assist = {
+        // Each line is rebuilt from its stem; a stem with no notes leaves its line empty.
+        lines: { bass: [], lead: [], vocals: [] },
+        // Copy: the worker transfer and IndexedDB both need their own buffers.
+        drumStem: r.stems.drums.slice(0),
+        stems: r.stems,
+        stemNotes: r.notes,
+      };
     }
     if (signal.aborted) throw abortError();
-    const base = assist ? 0.6 : 0;
+    const base = assist ? SEPARATION_SHARE : 0;
     progress({ state: 'analyzing', progress: base, step: STEP_LABEL.decoding });
     const result = await this.local(
       id,
@@ -212,7 +202,7 @@ export class AnalysisManager {
       signal,
       assist,
     );
-    return { result, stems: assist?.stems, warning };
+    return { result, stems: assist?.stems };
   }
 
   async analysis(id: string): Promise<AnalysisResult | undefined> {
@@ -309,8 +299,6 @@ function runWorker(
     const req: WorkerRequest = {
       type: 'analyze',
       signal,
-      modelUrl: new URL(`${import.meta.env.BASE_URL}models/basic-pitch/model.json`, location.href).href,
-      useTranscriber: !lines,
       lines,
       drumSignal,
       stems,
@@ -321,4 +309,4 @@ function runWorker(
   });
 }
 
-export const analysisManager = new AnalysisManager();
+export const analysisManager = new AnalysisManager(localAnalyzer, stemAnalyzer);

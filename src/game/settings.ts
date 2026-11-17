@@ -20,8 +20,6 @@ export interface Settings {
   keys4: string[];
   keys5: string[];
   overdriveKey: string;
-  mlEnabled: boolean;
-  mlUrl: string;
   /** Controller lanes (positional button names, see input/pads.ts) for 4 and 5 lanes. */
   pad4: PadInput[];
   pad5: PadInput[];
@@ -66,8 +64,6 @@ export const DEFAULT_SETTINGS: Settings = {
   keys4: ['KeyD', 'KeyF', 'KeyJ', 'KeyK'],
   keys5: ['KeyD', 'KeyF', 'KeyJ', 'KeyK', 'KeyL'],
   overdriveKey: 'Space',
-  mlEnabled: false,
-  mlUrl: 'http://127.0.0.1:8765',
   // The usual five-lane controller layout: D-pad left and right for the left hand, the left, top
   // and right face buttons for the right hand (four lanes skip the top one), right trigger for
   // overdrive. Positional names, so the same buttons on every controller.
@@ -102,7 +98,8 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
   if (r === true) s.rumble = 'strong';
   else if (r === false) s.rumble = 'off';
   else if (r !== 'off' && r !== 'weak' && r !== 'strong') s.rumble = DEFAULT_SETTINGS.rumble;
-  for (const old of ['rumbleStrength', 'dualSenseHaptics']) delete (s as Record<string, unknown>)[old];
+  // The analysis service's switch and address went when the analysis moved into the game.
+  for (const old of ['rumbleStrength', 'dualSenseHaptics', 'mlEnabled', 'mlUrl']) delete (s as Record<string, unknown>)[old];
   s.graphics = normalizeGraphics(s.graphics);
   if (!DISPLAY_MODES.includes(s.displayMode)) s.displayMode = DEFAULT_SETTINGS.displayMode;
   s.uiScale = Math.min(1.3, Math.max(0.85, Number(s.uiScale) || 1));

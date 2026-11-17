@@ -1,6 +1,5 @@
 /**
- * Output of song analysis. Both the in-app analyzer and the optional ML service
- * produce this shape, so chart generation does not care where it came from.
+ * Output of song analysis: what chart generation works from.
  */
 export const ANALYSIS_VERSION = 2;
 export const ANALYSIS_SAMPLE_RATE = 22050;
@@ -69,7 +68,7 @@ export interface AnalysisResult {
   pitchSource: 'basic-pitch' | 'salience' | 'ml';
 }
 
-/** Separated stems the ML service can provide. */
+/** The stems a song is separated into before it is charted. */
 export type StemName = 'drums' | 'bass' | 'vocals' | 'other';
 export const STEM_NAMES: StemName[] = ['drums', 'bass', 'vocals', 'other'];
 
@@ -80,7 +79,7 @@ export interface StemNotes {
   other: PitchedNote[];
 }
 
-/** Instrument lines computed elsewhere (e.g. from separated stems by the ML service). */
+/** Instrument lines handed to the pipeline instead of having it find them itself. */
 export interface PartLines {
   bass: PitchedNote[];
   lead: PitchedNote[];
@@ -95,7 +94,7 @@ export interface AnalysisProgress {
   progress: number;
 }
 
-/** Light runtime validation for results that come from outside (cache, ML service). */
+/** Light runtime validation for results that come from storage. */
 export function isAnalysisResult(x: unknown): x is AnalysisResult {
   const a = x as AnalysisResult;
   return (

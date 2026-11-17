@@ -34,7 +34,7 @@ interface FestivalDB extends DBSchema {
   /** Cached analysis results keyed by `${songId}:${analyzerVersion}:${source}`. */
   analysis: { key: string; value: { key: string; songId: string; data: unknown } };
   scores: { key: string; value: BestScore; indexes: { songId: string } };
-  /** Separated stems from the ML service, keyed by `${songId}:${name}` (for previewing). */
+  /** A song's separated stems, keyed by `${songId}:${name}` (for previewing). */
   stems: { key: string; value: { key: string; songId: string; name: StemName; blob: Blob }; indexes: { songId: string } };
   /** Chart problem reports made in the debug view. */
   annotations: { key: string; value: Annotation; indexes: { songId: string } };

@@ -1,5 +1,7 @@
 import { ArrowLeft, ChevronLeft, ChevronRight, Gamepad2, Hand, Keyboard, Monitor, RotateCcw, ScanSearch, Target, Volume2, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { stemModel, type ModelStatus } from '../analysis/separation/model';
+import type { AnalysisDevice } from '../analysis/separation/support';
 import { allowOutputList, canPickOutput, listOutputs, type OutputList } from '../audio/output';
 import { playSfx } from '../audio/sfx';
 import { inDesktopApp } from '../game/displayMode';
@@ -19,7 +21,9 @@ import { useSlide } from './useSlide';
 
 interface Props {
   settings: Settings;
-  mlStatus: 'off' | 'checking' | 'online' | 'offline';
+  /** The stem model on this device, and what it would run on (null while that is being found out). */
+  model: ModelStatus;
+  device: AnalysisDevice | null;
   onChange(s: Settings): void;
   onBack(): void;
   /** Opened from a paused song: what would disturb the song is switched off. */
@@ -52,7 +56,7 @@ const FIELDS: Record<Tab, readonly (keyof Settings)[]> = {
   keyboard: ['keys4', 'keys5', 'overdriveKey'],
   controller: ['pad4', 'pad5', 'padOverdrive', 'glyphs', 'rumble', 'rumbleHits', 'rumbleMisses', 'rumbleSustains', 'rumbleOverdrive'],
   touch: ['touchHaptics', 'touchOverdriveSide'],
-  analysis: ['mlEnabled', 'mlUrl'],
+  analysis: [],
 };
 
 interface Option {
@@ -77,7 +81,7 @@ interface Base {
 type Row =
   | (Base & { kind: 'choice'; value: string; options: Option[]; set(v: string): void })
   | (Base & { kind: 'slider'; value: number; min: number; max: number; step: number; format(v: number): string; set(v: number): void })
-  | (Base & { kind: 'action'; button: string; run(): void })
+  | (Base & { kind: 'action'; button: string; run(): void; note?: ReactNode })
   | (Base & { kind: 'keys'; caps: Cap[] })
   | (Base & { kind: 'text'; value: string; set(v: string): void; note?: ReactNode })
   | (Base & { kind: 'info'; body: ReactNode });
@@ -118,7 +122,7 @@ const LEVELS: Option[] = [
 const PRESET_LABEL: Record<Exclude<GraphicsPreset, 'auto' | 'custom'>, string> = { low: 'Low', medium: 'Medium', high: 'High', ultra: 'Ultra' };
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
-export function SettingsScreen({ settings, mlStatus, onChange, onBack, inSong = false }: Props) {
+export function SettingsScreen({ settings, model, device, onChange, onBack, inSong = false }: Props) {
   const [tab, setTabState] = useState<Tab>(loadTab);
   const [binding, setBinding] = useState<Binding | null>(null);
   const [calibrating, setCalibrating] = useState(false);
@@ -257,7 +261,7 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack, inSong = 
     { id: 'reset', label: 'Restore defaults', icon: RotateCcw, kbd: 'KeyR', pad: 'b3', run: () => setAskReset(true) },
   ]);
 
-  const sections = buildSections(tab, { settings, set, binding, setBinding, snap, haptics, mlStatus, calibrate: () => setCalibrating(true), inSong, outputs, outputsRefused, askOutputs: () => void askOutputs() });
+  const sections = buildSections(tab, { settings, set, binding, setBinding, snap, haptics, model, device, calibrate: () => setCalibrating(true), inSong, outputs, outputsRefused, askOutputs: () => void askOutputs() });
   const rows = sections.flatMap((s) => s.rows);
   const active = rows.find((r) => r.id === activeId) ?? rows[0];
   const tabRow = useSlide<HTMLDivElement>(tab);
@@ -344,7 +348,8 @@ interface Ctx {
   setBinding(b: Binding): void;
   snap: ReturnType<typeof usePads>;
   haptics: boolean | null;
-  mlStatus: Props['mlStatus'];
+  model: ModelStatus;
+  device: AnalysisDevice | null;
   calibrate(): void;
   inSong: boolean;
   outputs: OutputList;
@@ -606,12 +611,28 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
     }];
   }
 
-  const state = c.mlStatus === 'online' ? 'Connected' : c.mlStatus === 'offline' ? 'Not reachable' : c.mlStatus === 'checking' ? 'Checking…' : 'Off';
+  const m = c.model;
+  const mb = (n: number) => `${Math.round(n / 1e6)} MB`;
+  const unsupported = c.device === 'none';
+  const modelNote =
+    unsupported ? <span className="pill">Not used here</span>
+    : m.state === 'ready' ? <span className="pill ready">Ready</span>
+    : m.state === 'downloading' ? <span className="pill">{`${Math.round((m.received / m.total) * 100)}% of ${mb(m.total)}`}</span>
+    : m.state === 'error' ? <span className="pill error">Failed</span>
+    : <span className="pill">{m.state === 'absent' ? 'Not downloaded' : 'Checking…'}</span>;
+  const modelHelp = `Before a song is charted it is split into drums, bass, vocals and the other instruments, so each part follows its own instrument. The model that does this (Demucs, ${mb(stemModel.bytes)}) is downloaded once and kept on this device.${m.state === 'error' && m.error ? ` ${m.error}` : ''}`;
   return [{
-    title: 'Analysis service',
+    title: 'Song analysis',
     rows: [
-      toggle('mlEnabled', 'Use the analysis service', 'With the service running on this computer, new analyses separate each song into stems first, which gives more accurate charts. Without it, analysis runs inside the game.', s.mlEnabled, (v) => set({ mlEnabled: v })),
-      { kind: 'text', id: 'mlUrl', label: 'Service address', help: 'Where the analysis service listens. The default is right for a service started on this computer.', disabled: !s.mlEnabled, value: s.mlUrl, set: (v) => set({ mlUrl: v.trim() }), note: <span className={`pill ${c.mlStatus === 'online' ? 'ready' : c.mlStatus === 'offline' ? 'error' : ''}`}>{state}</span> },
+      // A button only while there is something to press it for.
+      m.state === 'absent' || m.state === 'error'
+        ? { kind: 'action', id: 'stemModel', label: 'Analysis model', help: modelHelp, button: m.state === 'error' ? 'Try again' : 'Download', disabled: unsupported, run: () => void stemModel.ensure().catch(() => {}), note: modelNote }
+        : { kind: 'info', id: 'stemModel', label: 'Analysis model', help: modelHelp, body: modelNote },
+      {
+        kind: 'info', id: 'analysisDevice', label: 'Runs on',
+        help: 'On a graphics card a song takes about a minute. Without one the processor does the work, which takes several minutes per song. Phones and tablets do not have the memory for it: they can play the demo track, but not analyze songs.',
+        body: c.device === 'gpu' ? 'Graphics card' : c.device === 'cpu' ? 'Processor (slower)' : c.device === 'none' ? 'Not available on this device' : 'Checking…',
+      },
     ],
   }];
 }
@@ -748,6 +769,7 @@ function RowView({ row, active, first, touch, onActive }: { row: Row; active: bo
         <span className="set-label">{row.label}</span>
         <span className="set-control">
           <button type="button" className="btn small" disabled={row.disabled} onClick={row.run}>{row.button}</button>
+          {row.note}
         </span>
         {help}
       </div>

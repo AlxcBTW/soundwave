@@ -13,7 +13,7 @@ You play them on a 3D note highway with the keyboard, a controller or a touchscr
 
 You pick up to four songs as a setlist, choose a part and a difficulty for the set and play the songs back to back, with a result after each and a total at the end. The home screen also deals a few sets from your library (a shuffle, your newest songs, songs without a score).
 
-It runs in the browser, on phones and tablets too, and as a desktop app (Tauri). The desktop window has no title bar: Exit is at the top right of the home screen (or Esc, or the controller's back button, there), and in Window mode the window is moved by its top edge.
+It runs in the browser and as a desktop app (Tauri). Phones and tablets can play, but cannot analyze songs (see How analysis works). The desktop window has no title bar: Exit is at the top right of the home screen (or Esc, or the controller's back button, there), and in Window mode the window is moved by its top edge.
 
 ## Quick start (browser)
 
@@ -28,7 +28,7 @@ Default keys are `D F J K` (plus `L` on Expert), `Space` for overdrive and `Esc`
 
 The menus work with whatever you last touched, and change with it. With a keyboard, the arrow keys move a focus ring between controls, `Enter` selects, `Esc` goes back, `Q` and `E` switch tabs, and every action along the bottom of the screen shows its key. With a mouse the same actions are buttons. On a touchscreen the targets grow and the hints go away, and in a song the lanes themselves are the controls: tap anywhere along a lane to play it, hold for long notes, use several fingers for chords.
 
-Text fields (the library search, the analysis service address) open an on-screen keyboard when they are pressed with a controller. Its keys are moved between and pressed like any other control, and the usual console shortcuts work from anywhere on it: right trigger for Done, left trigger for Shift, the left face button deletes, the top one is a space, the shoulder buttons move the text cursor, a click of the left stick turns to the symbols, and Back cancels and puts the text back. On a controller with a touchpad, a finger sliding over the pad moves a cursor across the keys and a click of the pad presses the key under it; in the desktop app this works with a PS5 controller (DualSense or DualSense Edge, by USB or Bluetooth), whose touchpad the app reads itself; in a browser it works only where the browser reports the touchpad (the Gamepad API's `touches`), and otherwise the click alone presses the key in focus. The browser's right-click menu is switched off throughout the game.
+Text fields (the library search) open an on-screen keyboard when they are pressed with a controller. Its keys are moved between and pressed like any other control, and the usual console shortcuts work from anywhere on it: right trigger for Done, left trigger for Shift, the left face button deletes, the top one is a space, the shoulder buttons move the text cursor, a click of the left stick turns to the symbols, and Back cancels and puts the text back. On a controller with a touchpad, a finger sliding over the pad moves a cursor across the keys and a click of the pad presses the key under it; in the desktop app this works with a PS5 controller (DualSense or DualSense Edge, by USB or Bluetooth), whose touchpad the app reads itself; in a browser it works only where the browser reports the touchpad (the Gamepad API's `touches`), and otherwise the click alone presses the key in focus. The browser's right-click menu is switched off throughout the game.
 
 Under Settings → Audio the game can play through a chosen output device instead of the system's default, and it is muted while its window is in the background unless that is switched off. Browsers list output devices by name only after microphone access has been allowed; the game asks when you press Show devices, closes the microphone again at once and records nothing. Browsers that cannot choose an output (Safari, Firefox) always use the system default.
 
@@ -52,18 +52,27 @@ npm run preview
 
 ## How analysis works
 
-Analysis runs in a Web Worker in both the browser and the desktop app:
+Analysis runs in Web Workers in both the browser and the desktop app. Every song is first separated into stems, and each part is charted from its own stem:
+
+- **Stem separation** – [Demucs](https://github.com/adefossez/demucs) (`htdemucs`) splits the song into drums, bass, vocals and the other instruments. It runs on [ONNX Runtime Web](https://onnxruntime.ai/): on the graphics card through WebGPU where the browser has it (about 20 seconds for a four-minute song on a fast card), otherwise on the processor through WebAssembly (several minutes). The game does the model's short-time Fourier transform itself (`src/analysis/separation/`). The same song always gives the same stems.
+- **Transcription** – [Basic Pitch](https://github.com/spotify/basic-pitch) (TF.js, WebGL) transcribes the bass, vocal and instrument stems.
+- The stems are kept, and the **Listen** buttons in a song's details play each one (instruments, bass, drums, vocals) for checking the separation.
+
+The stem model is not part of the game's files. It is downloaded once (171 MB), the first time the game opens, checked against a known hash and kept in the browser's storage; Settings → Analysis shows its state. For now it comes from the copy Intel publishes for its Audacity plugins ([Intel/demucs-openvino](https://huggingface.co/Intel/demucs-openvino) on Hugging Face). This repository holds its own, smaller export of the same model (`models/htdemucs/htdemucs-v1.onnx`, 90 MB, made by `tools/analysis/export_stem_model.py`), and the download will move there once the repository can be read without signing in (`src/analysis/separation/model.ts` has both).
+
+Separating a song needs about 2.5 GB of memory, which phones and tablets do not give a web page: there the game plays the demo track and songs analyzed earlier, and does not analyze new ones. On the processor the model wants threads, which a browser only allows on pages served with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`; the dev and preview servers send both, and a host for the built game should too.
+
+The pipeline then works on the mix and the stems:
 
 1. **Spectrum** – STFT (2048/512 at 22.05 kHz).
 2. **Harmonic/percussive separation** – median-filter HPSS.
 3. **Rhythm** – band-balanced onset envelope, tempo by an autocorrelation comb, dynamic-programming beat tracking. The grid is then calibrated against the detected drum attacks.
-4. **Drums** – kick/snare/hat onsets from band-limited flux of the percussive part, refined to the attack in the time domain.
+4. **Drums** – kick/snare/hat onsets from band-limited flux of the drum stem, refined to the attack in the time domain.
 5. **Harmony** – chroma, chord changes, key.
-6. **Melody** – [Basic Pitch](https://github.com/spotify/basic-pitch) (TF.js, WebGL) transcribes notes, which are split into the parts a band plays (`src/analysis/pitch/lines.ts`):
-   - **Bass**: the lowest line, with octave doublings folded onto one octave.
-   - **Lead**: the main instrument. Chords (three or more steady pitches struck together) stay chords; single-note riffs are followed as one melodic path. Long stretches without an instrument double the vocal melody.
-   - **Vocals**: the sung line. Sung notes carry pitch bends (vibrato, slides) that synths and keys don't, and a dynamic-programming path keeps the line continuous.
-   A harmonic-salience pitch tracker is the fallback.
+6. **Melody** – each part's line is built from its stem's audible attacks and the notes transcribed in it (`src/analysis/pitch/stemLines.ts`):
+   - **Bass**: the bass stem, with octave doublings folded onto one octave.
+   - **Lead**: the instrument stem. Chords (three or more steady pitches struck together) stay chords; single-note riffs are followed as one melodic path.
+   - **Vocals**: the vocal stem, one sung line, with wavering pitches settled onto the note that was meant.
 7. **Structure** – sections and energy drive overdrive placement.
 
 ### Charting
@@ -82,9 +91,9 @@ Charts follow common five-lane authoring practice (`src/chart/generator.ts`, `sr
 
 To tune analysis or charts on your own files without the UI, see `scripts/dev/analyze.dev.ts` (`npm run dev:analyze`).
 
-### Optional ML service
+### The Python reference (`ml-service/`)
 
-`ml-service/` is a local Python service. It adds Demucs stem separation and per-stem transcription, which give more accurate charts. Enable it under **Settings → Analysis service**. If it is not running, the game falls back to in-app analysis. Songs analyzed this way keep their stems, and the **Listen** buttons in a song's details play each one (instruments, bass, drums, vocals) for checking the separation. See [ml-service/README.md](ml-service/README.md).
+`ml-service/` is the Python service the stem analysis started in (Demucs and Basic Pitch behind a small HTTP API). The game no longer talks to it. It stays as the reference the in-app separation is checked against and as the environment `tools/analysis/export_stem_model.py` and the offline tooling in `scripts/dev/` run in. See [ml-service/README.md](ml-service/README.md).
 
 ## Tests
 
@@ -168,13 +177,14 @@ Third-party parts keep their own licences:
 
 | Part | Licence |
 |---|---|
-| three.js, React, fft.js, music-metadata | MIT |
+| three.js, React, fft.js, music-metadata, ONNX Runtime Web | MIT |
 | idb, lucide-react | ISC |
 | Basic Pitch (code and model), Tauri | Apache-2.0 (Tauri also MIT) |
 | Archivo typeface | SIL Open Font License 1.1 |
 | Band and crowd characters, and the crowd's dance loop: Ultimate Modular Men, Ultimate Modular Women and Universal Animation Library by Quaternius | CC0 1.0 (public domain) |
 | The crowd in the finale sound: "Crowd cheering" by voicebosch, from Pixabay | Pixabay Content License (free to use, not to be passed on as a standalone sound) |
 | The applause under it: recordings by thore (public domain) and by Sandermotions (CC0), from Wikimedia Commons | Public domain / CC0 1.0 |
-| Optional analysis service: FastAPI, librosa, Demucs and others | their own licences; see `ml-service/requirements*.txt` |
+| Demucs (the code the stem model was exported from) | MIT |
+| The Python reference in `ml-service/`: FastAPI, librosa, Demucs and others | their own licences; see `ml-service/requirements*.txt` |
 
-The optional analysis service downloads Demucs's pretrained models when it first runs; they are not part of this repository and have their own terms. Songs you import stay on your machine.
+The Demucs stem model (`models/htdemucs/`, and the copy the game downloads) is the published `htdemucs` weights in another file format. Its authors released the code under the MIT licence but state that the licence of the weights is not clear, because part of the music they were trained on was only cleared for research; the Apache licence of this repository does not cover them. Songs you import stay on your machine.

@@ -15,6 +15,7 @@ playwright-report/
 .claude/
 public/models/
 public/draco/
+public/ort/
 local-audio/
 debug-annotations/
 
