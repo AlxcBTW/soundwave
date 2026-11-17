@@ -427,7 +427,7 @@ A violet night with four lights that have fixed jobs, and five lane colours that
 - **Pink Light** (pink-2): the hover state of a pink button, the set position in the HUD title ("2/4"), the toast icon and the dashed outline of the file-drop target.
 
 ### Secondary
-- **Aurora Mint** (mint): focus. It is the 3px ring that travels between controls for keyboard and controller players, with a soft mint glow beneath it, and the text caret in the search and text fields. As atmosphere it appears once, faintly (20% alpha), as the aurora band in the sky behind the panels. Mint appears nowhere else: the HUD's break-countdown ring is pale lavender (lit) and turns gold on the final bar.
+- **Aurora Mint** (mint): focus. It is the 3px ring that travels between controls, with a soft mint glow beneath it: it follows focus for keyboard and controller players and the pointer for mouse players, so pointing at a control looks the same as moving onto it, and the text caret in the search and text fields. As atmosphere it appears once, faintly (20% alpha), as the aurora band in the sky behind the panels. Mint appears nowhere else: the HUD's break-countdown ring is pale lavender (lit) and turns gold on the final bar.
 
 ### Tertiary
 - **Lavender Light** (lit) with **Lavender Ink** (lit-ink): the selection. The sheet that slides behind the chosen part, difficulty or settings tab; the chosen option in the settings detail pane; the numbered badge on a song that is in the setlist. The same pair makes the keycap hints, so a key reads as a printed cap.
@@ -506,7 +506,7 @@ Spacing is a small set of steps: 0.4rem between rows in a list, 0.6rem between c
 
 **Responsive.** At 900px wide the side panes fold: the library's setlist becomes a dock above the action bar (its name and count, then four square cover slots with their numbers), the highlighted-song card goes away, the settings detail pane goes away and the highlighted row shows its help text in place, and Ready up and Results become one column. At 640px Home's tiles stack as rows (cover left, words right), the toolbar buttons and the bar's secondary actions shrink to icons while the pink action keeps its words and stretches, dialogs become sheets that rise from the foot of the screen, setting rows stack name over control, and the hold button sticks to the foot of the ready panel. Below 560px of height (a phone on its side) the chrome tightens and, when the screen is wider than 640px, Ready up and Results stay side by side.
 
-**Input variants.** Touch raises the target size from 2.75rem to 3rem and brings small buttons, step arrows and the search clear button up to 2.75rem; step arrows and the per-row details button are always visible. Hover styles apply only when `data-input` is mouse. The focus ring shows only for keyboard and controller.
+**Input variants.** Touch raises the target size from 2.75rem to 3rem and brings small buttons, step arrows and the search clear button up to 2.75rem; step arrows and the per-row details button are always visible. Hover styles apply only when `data-input` is mouse. The ring follows focus with the keyboard or a controller and the pointer with a mouse; touch players never see it.
 
 ### HUD
 The HUD is sized in px (with vw clamps) because it sits over the highway's own geometry, which it reads from `--hw-x`, `--hw-y`, `--hw-w` and `--lane-w`. On a wide screen the strike line sits 77.5% down and spans about 43% of the width. Top centre: position in the set, song and artist over a 4px pink progress bar. Bottom left: five star discs, the next one ringed in gold by progress toward it, over a panel with the part name and the score. Under the strike line, one grid as wide as the lanes: the overdrive meter across the top, and below it the multiplier dial in the middle with the overdrive button (its name and key) beside it on the dial's centre line. Under each lane: its key on a dark chip with a lane-coloured underline, or the controller symbol alone. Hit feedback pops to the left of the strike line. The break countdown ring sits at 34% height. A round pause button sits top right for mouse and touch players.
@@ -649,7 +649,7 @@ Sounds are wired in one place: a shared handler gives every button, tab and row 
 ### Do:
 - **Do** build surfaces as flat rounded violet sheets: Panel Violet at 1.1rem for panels and tiles, Row at 0.75rem for list rows, Well for recessed troughs and fields.
 - **Do** keep the four light roles: pink for the one forward action, mint for the focus ring, a lavender sheet with dark ink for the selection, gold for what was earned.
-- **Do** let focus be the one travelling ring plus the control's own lit state, and show it only for keyboard and controller players.
+- **Do** let focus be the one travelling ring plus the control's own lit state, following focus for keyboard and controller players and the pointer for mouse players; never show it on touch.
 - **Do** move selection with one travelling lavender sheet per group (0.36s, `--ease`) rather than toggling each item's fill.
 - **Do** use lane colours only to mean lane, difficulty or multiplier level.
 - **Do** put a screen's actions in the action bar with a key and, where it makes sense, a controller button, and let the hint follow `data-input`: keycap, controller symbol, or none on touch.
