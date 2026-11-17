@@ -12,8 +12,10 @@ const WHITE = new THREE.Color(0xffffff);
 /** The rails and the deck's front lip: violet, gold on a full streak, overdrive's blue over both. */
 const RAIL = new THREE.Color(0xbd78ff);
 const STREAK_GOLD = new THREE.Color(0xffd66b);
+/** The motes' own gold: deeper than the rails, so their white-hot cores stand out of it. */
+const MOTE_GOLD = new THREE.Color(0xffb52e);
 /** Motes of light let go by the rails each second while they are gold or in overdrive, and how many can float at once. */
-const MOTE_RATE = 120;
+const MOTE_RATE = 150;
 const MAX_MOTES = 420;
 
 const LANE_W = 1;
@@ -161,30 +163,39 @@ const glowFragment = /* glsl */ `
 const moteVertex = /* glsl */ `
   attribute float aSize;
   attribute float aAlpha;
+  attribute float aStar;
   uniform float uScale;
   varying vec3 vColor;
   varying float vAlpha;
+  varying float vStar;
   void main() {
     vColor = color;
     vAlpha = aAlpha;
+    vStar = aStar;
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = aSize * uScale / max(0.1, -mv.z);
+    gl_PointSize = max(3.0, aSize * uScale / max(0.1, -mv.z));
     gl_Position = projectionMatrix * mv;
   }
 `;
 
-/** A disc of light out of focus: even across, soft at the rim, a little brighter in the middle. */
+/**
+ * A mote of fairy dust: a small solid core, white hot in the middle, in a tight halo of its own
+ * colour. Some carry a four-pointed glint.
+ */
 const moteFragment = /* glsl */ `
   varying vec3 vColor;
   varying float vAlpha;
+  varying float vStar;
   void main() {
-    float d = length(gl_PointCoord - 0.5) * 2.0;
-    float disc = smoothstep(1.0, 0.72, d);
-    float core = smoothstep(0.7, 0.0, d);
-    gl_FragColor = vec4(vColor, vAlpha * disc * (0.6 + 0.4 * core));
+    vec2 p = gl_PointCoord - 0.5;
+    float d = length(p) * 2.0;
+    float core = smoothstep(0.36, 0.16, d);
+    float halo = exp(-d * d * 5.5) * 0.6;
+    float rays = max(0.0, 1.0 - abs(p.x) * 30.0) * max(0.0, 1.0 - abs(p.y) * 2.3) + max(0.0, 1.0 - abs(p.y) * 30.0) * max(0.0, 1.0 - abs(p.x) * 2.3);
+    float a = clamp(core + halo + rays * vStar, 0.0, 1.0) * vAlpha;
+    gl_FragColor = vec4(mix(vColor, vec3(1.0, 0.98, 0.9), core * 0.75), a);
   }
 `;
-
 /**
  * The 3D note highway: track, strike pads, gems, sustain tails, beat lines and hit effects.
  * The canvas is transparent so a 2D background can sit behind it.
@@ -205,6 +216,7 @@ export class Highway {
   private readonly mCol = new Float32Array(MAX_MOTES * 3);
   private readonly mSize = new Float32Array(MAX_MOTES);
   private readonly mAlpha = new Float32Array(MAX_MOTES);
+  private readonly mStar = new Float32Array(MAX_MOTES);
   private readonly mPeak = new Float32Array(MAX_MOTES);
   private readonly mSpan = new Float32Array(MAX_MOTES);
   private readonly mLife = new Float32Array(MAX_MOTES);
@@ -499,6 +511,7 @@ export class Highway {
     mGeo.setAttribute('color', new THREE.BufferAttribute(this.mCol, 3));
     mGeo.setAttribute('aSize', new THREE.BufferAttribute(this.mSize, 1));
     mGeo.setAttribute('aAlpha', new THREE.BufferAttribute(this.mAlpha, 1));
+    mGeo.setAttribute('aStar', new THREE.BufferAttribute(this.mStar, 1));
     this.motes = new THREE.Points(
       mGeo,
       new THREE.ShaderMaterial({
@@ -659,9 +672,9 @@ export class Highway {
   }
 
   /**
-   * Motes of light beside the rails: soft discs of every size, small bright ones and a few large
-   * faint ones, drifting up and outward, fading in and out. `color` is null when none are due;
-   * the ones already afloat still live out their time.
+   * Motes of light rising from the rails, like dust in lantern light: small solid sparks with a
+   * white-hot core and a tight halo, some with a glint, swaying a little and sparkling as they
+   * fade. `color` is null when none are due; the ones already afloat still live out their time.
    */
   private floatMotes(dt: number, now: number, color: THREE.Color | null) {
     if (color) {
@@ -672,23 +685,24 @@ export class Highway {
         this.moteNext = (this.moteNext + 1) % MAX_MOTES;
         const k = i * 3;
         const side = Math.random() < 0.5 ? -1 : 1;
-        const big = Math.random() < 0.15;
-        // They keep close to the rail they come from.
-        this.mPos[k] = side * (this.width / 2 - 0.06 + Math.random() * (big ? 0.55 : 0.4));
-        this.mPos[k + 1] = Math.random() * 0.3;
+        // They keep close to the rail they rise from.
+        this.mPos[k] = side * (this.width / 2 - 0.05 + Math.random() * 0.38);
+        this.mPos[k + 1] = Math.random() * 0.25;
         // More of them toward the player, where the rails are widest on screen.
         this.mPos[k + 2] = FRONT - Math.pow(Math.random(), 1.5) * LENGTH * 0.8;
-        this.mVel[k] = side * Math.random() * 0.12;
-        this.mVel[k + 1] = 0.12 + Math.random() * 0.4;
-        this.mVel[k + 2] = (Math.random() - 0.5) * 0.4;
-        // Lit toward white at the core of the small ones; the large ones keep more of the colour.
-        const white = big ? 0.15 : 0.35 + Math.random() * 0.4;
-        this.mCol[k] = color.r + (1 - color.r) * white;
-        this.mCol[k + 1] = color.g + (1 - color.g) * white;
-        this.mCol[k + 2] = color.b + (1 - color.b) * white;
-        this.mSize[i] = big ? 0.15 + Math.random() * 0.14 : 0.045 + Math.random() * 0.07;
-        this.mPeak[i] = big ? 0.6 + Math.random() * 0.25 : 1;
-        this.mSpan[i] = 1.1 + Math.random() * 1.6;
+        this.mVel[k] = side * Math.random() * 0.08;
+        this.mVel[k + 1] = 0.1 + Math.random() * 0.34;
+        this.mVel[k + 2] = (Math.random() - 0.5) * 0.3;
+        // Each a slightly different gold (or blue), from deep to pale.
+        const pale = Math.random() * 0.35;
+        this.mCol[k] = color.r + (1 - color.r) * pale;
+        this.mCol[k + 1] = color.g * (0.82 + Math.random() * 0.18) + (1 - color.g) * pale;
+        this.mCol[k + 2] = color.b * (0.6 + Math.random() * 0.4) + (1 - color.b) * pale;
+        // The point is three times its core across: the rest is halo and glint.
+        this.mSize[i] = 0.09 + Math.random() * 0.1;
+        this.mStar[i] = Math.random() < 0.3 ? 1 : 0;
+        this.mPeak[i] = 1;
+        this.mSpan[i] = 1.0 + Math.random() * 1.4;
         this.mLife[i] = this.mSpan[i];
       }
     } else this.moteDebt = 0;
@@ -699,13 +713,15 @@ export class Highway {
       alive = true;
       this.mLife[i] -= dt;
       const k = i * 3;
-      this.mPos[k] += this.mVel[k] * dt;
+      // They sway a little as they rise.
+      this.mPos[k] += (this.mVel[k] + Math.sin(now / 420 + i * 2.1) * 0.07) * dt;
       this.mPos[k + 1] += this.mVel[k + 1] * dt;
       this.mPos[k + 2] += this.mVel[k + 2] * dt;
       const age = 1 - Math.max(0, this.mLife[i]) / this.mSpan[i];
       // In over the first fifth, out over the rest, with a slow twinkle.
-      const fade = Math.min(1, age / 0.2) * Math.min(1, (1 - age) / 0.5);
-      this.mAlpha[i] = this.mLife[i] > 0 ? this.mPeak[i] * fade * (0.8 + 0.2 * Math.sin(now / 130 + i)) : 0;
+      const fade = Math.min(1, age / 0.12) * Math.min(1, (1 - age) / 0.35);
+      // A quick sparkle on top of the fade.
+      this.mAlpha[i] = this.mLife[i] > 0 ? this.mPeak[i] * fade * (0.7 + 0.3 * Math.sin(now / 85 + i * 1.7)) : 0;
     }
     this.motes.visible = alive;
     if (!alive) return;
@@ -714,6 +730,7 @@ export class Highway {
     g.attributes.color.needsUpdate = true;
     g.attributes.aSize.needsUpdate = true;
     g.attributes.aAlpha.needsUpdate = true;
+    g.attributes.aStar.needsUpdate = true;
   }
   /** Renders the frame for song time `t`. `beatPulse` (0..1) lets the music drive the track glow. */
   render(t: number, session: GameSession, beatPulse = 0) {
@@ -739,7 +756,7 @@ export class Highway {
     u.uGold.value += ((fullStreak ? 1 : 0) - u.uGold.value) * Math.min(1, dt * 5);
     this.lip.color.copy(RAIL).lerp(STREAK_GOLD, u.uGold.value).lerp(OVERDRIVE_TILE, u.uOverdrive.value);
     const glowLevel = Math.max(u.uGold.value * 0.85, u.uOverdrive.value);
-    this.floatMotes(dt, now, session.overdriveActive ? OVERDRIVE_TILE : fullStreak ? STREAK_GOLD : null);
+    this.floatMotes(dt, now, session.overdriveActive ? OVERDRIVE_TILE : fullStreak ? MOTE_GOLD : null);
     for (const mat of this.glowMats) {
       mat.uniforms.uTime.value = now / 1000;
       mat.uniforms.uLevel.value = glowLevel;
