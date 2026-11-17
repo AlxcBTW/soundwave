@@ -171,7 +171,7 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
           <p className="lane-info">
             <span>{lanes} lanes</span>
             {hints.mode === 'touch' ? (
-              <span className="dim">Tap the pad under each lane</span>
+              <span className="dim">Tap the lanes to play</span>
             ) : (
               <span className="lane-keys" aria-label={hints.mode === 'pad' ? 'Controller buttons' : `Keys ${keys.map(keyLabel).join(', ')}`}>
                 {(hints.mode === 'pad' ? padKeys : keys).map((k, i) =>

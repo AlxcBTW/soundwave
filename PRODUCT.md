@@ -32,7 +32,7 @@ The game charts the player's own music. There is no fixed setlist: every song co
 - Ready up: the set in order, one part and one difficulty for the whole set, and a button that is held to start.
 - Play: the set's songs back to back. Countdown, highway with lanes and hit pads, score, stars, multiplier, overdrive meter, break countdowns for long gaps, pause with resume/restart/skip/leave, results after each song with grades, accuracy, streak and stars, and a summary of the whole set.
 - Settings: Video (window mode, interface size, menu motion, stage quality), Audio (volumes), Gameplay (note speed, audio offset and tap calibration), Keyboard bindings, Controller (detected controllers, glyph style, bindings, rumble), Touch (tap vibration, overdrive button side), Analysis (local service).
-- Input: keyboard, mouse, touch and game controllers (Xbox, PlayStation 4 and 5, Switch and others). Menus are navigated by direction with the arrow keys or a controller (confirm/back conventions per controller family), by pointer, or by touch, and the interface shows the variant for the input used last: key hints, controller symbols or larger touch targets. Songs are played with keys, controller buttons or a touch pad under each lane; rumble and DualSense haptics.
+- Input: keyboard, mouse, touch and game controllers (Xbox, PlayStation 4 and 5, Switch and others). Menus are navigated by direction with the arrow keys or a controller (confirm/back conventions per controller family), by pointer, or by touch, and the interface shows the variant for the input used last: key hints, controller symbols or larger touch targets. Songs are played with keys, controller buttons or by tapping the lanes; rumble and DualSense haptics.
 
 ## Capabilities and Constraints
 
