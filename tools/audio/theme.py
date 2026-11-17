@@ -1,7 +1,8 @@
 """
 The main-menu theme: a cinematic piece in B minor, 40 bars at 100 BPM, written to loop.
 
-    python tools/audio/theme.py            -> public/audio/menu-theme.ogg
+    python tools/audio/theme.py            -> public/audio/menu-theme.ogg (the loop)
+                                              public/audio/menu-theme-intro.ogg (heard once)
     python tools/audio/theme.py --stems    also prints how loud each group is in each section
 
 How it is built: big drums and low strings drive straight eighth notes, a line of snares and
@@ -13,6 +14,10 @@ The form, eight bars each: the theme on horns as the orchestra comes in from not
 theme with violins (2), a second theme in the major with trumpets (3), an interlude where one
 horn sings over held strings and the drums build back (4), and the theme with everyone (5),
 which ebbs in its last bar so the loop comes round to the quiet opening.
+
+A loop has no beginning: its first seconds carry the ring of its own ending. So there is a
+second file for the first time through: two bars that rise out of silence, then the first four
+bars of the piece without that ring. The game plays it once and hands over to the loop.
 """
 from __future__ import annotations
 
@@ -22,13 +27,17 @@ import numpy as np
 from scipy import signal
 
 import synth
-from orchestra import OUT, SR, Mix, Orchestra, Seat, _k_weight, db, hall_ir, highpass, level_ride, limit, lufs, midi, shelf, write
+from orchestra import OUT, SR, Mix, Orchestra, Seat, _k_weight, db, hall_ir, highpass, limit, lufs, midi, ride_gain, shelf, write
 
 BPM = 100
 BEAT = 60 / BPM
 BARS = 40
 LOOP = BARS * 4 * BEAT
 PRE = 1.0  # room before bar 1 for notes that start early; folded onto the end of the loop
+INTRO = 2 * 4 * BEAT  # the bars before bar 1 that are heard once
+#: Bars of the loop that the intro file also holds. src/audio/menuMusic.ts joins the loop at
+#: this point (HANDOVER there, in seconds), so change the two together.
+HEAD_BARS = 4
 
 S1, S2, S3, S4, S5 = 0, 8, 16, 24, 32  # first bar of each section
 
@@ -177,6 +186,7 @@ class Score:
         self.o = Orchestra(seed=3)
         self.rng = np.random.default_rng(11)
         self.stems = {name: Mix(PRE + LOOP) for name in BALANCE}
+        self.opening = {name: Mix(INTRO) for name in BALANCE}
 
     # -- helpers
 
@@ -416,7 +426,26 @@ class Score:
             for i, note in enumerate(notes):
                 self.note("harp", "harp", "harp", "pluck", note, 0.45 + 0.4 * i / len(notes), at(target) - BEAT * 1.1 * (1 - i / len(notes)))
 
+    def intro(self):
+        """Two bars before bar 1: the first chord gathering out of silence, a harp climbing through it."""
+        main, self.stems = self.stems, self.opening
+        try:
+            r, t, f = CHORDS["Bm"]
+            rise = (0.35, 0.7, 1.0)
+            top = near(f, 76)
+            for seat, inst, note, k in (("vln2", "violins", top, 1.0), ("vln2", "violins", near(t, top - 4), 1.0), ("vla", "violas", near(r, 62), 0.95), ("vc", "celli", near(f, 54), 0.9), ("cb", "basses", near(r, 35), 0.9), ("vln", "violins", near(r, 83), 0.7)):
+                self.note("chords", seat, inst, "sus", note, 0.5 * k, 0.0, INTRO, release=1.4, attack=3.0, shape=rise)
+            root = near(r, 52)
+            for note in (root, root + (f - r) % 12, root + 12, root + 12 + (t - r) % 12):
+                self.put("pad", "pad", synth.pad(note, INTRO, 0.55, self.rng, cutoff=1500, attack=3.2, release=2.0), 0.0)
+            self.put("bass", "bass", synth.bass(near(r, 42), INTRO - 0.1, 0.5, attack=2.8, release=0.4), 0.0)
+            for i, note in enumerate((47, 54, 59, 62, 66, 71, 74, 78)):
+                self.short("harp", "harp", "harp", "pluck", note, 0.42 + 0.03 * i, 0.02 + i * BEAT)
+        finally:
+            self.stems = main
+
     def write_all(self):
+        self.intro()
         self.pulse()
         self.ostinato()
         self.drums()
@@ -477,8 +506,9 @@ def main():
         share = lambda *ks: sum(power[k] for k in ks) / total
         print(f"share of energy: drums {share('drums', 'timpani', 'sub', 'snares'):.2f}, bass {share('bass'):.2f}, everything else {1 - share('drums', 'timpani', 'sub', 'snares', 'bass'):.2f}")
 
-    wet = signal.fftconvolve(send, hall_ir(2.6), axes=0)[: len(dry)].astype(np.float32)
-    loop = fold(dry + wet * db(-4.0))
+    hall = hall_ir(2.6)
+    full = dry + signal.fftconvolve(send, hall, axes=0)[: len(dry)].astype(np.float32) * db(-4.0)
+    loop = fold(full)
 
     # Master three laps and keep the middle one, so the processing is seamless too.
     lap = len(loop)
@@ -486,8 +516,10 @@ def main():
     x = highpass(x, 28)
     x = shelf(x, 1500, 3.0)  # presence: the samples are close and a little dark
     x = shelf(x, 8000, 5.0)  # and air
-    x = level_ride(x, amount=0.6, window=4.0)  # menu music: keep the level even
-    x *= db(-15.5 - lufs(x[lap : 2 * lap]))
+    ride = ride_gain(x, amount=0.6, window=4.0)  # menu music: keep the level even
+    x = x * ride[:, None]
+    norm = db(-15.5 - lufs(x[lap : 2 * lap]))
+    x *= norm
     # The loop breathes at its seam: the last beats fall away and the first two bars rise, so
     # the piece starts gently the first time and every time it comes round.
     smooth = lambda u: u * u * (3 - 2 * u)
@@ -502,10 +534,29 @@ def main():
     out = x[lap : 2 * lap]
     print(f"menu theme: {len(out) / SR:.2f} s, {lufs(out):.1f} LUFS, peak {20 * np.log10(np.abs(out).max()):.1f} dBFS")
     write(OUT / "menu-theme.ogg", out, quality=0.6)
+
+    # The first time through: the intro, then the opening bars as they sound without the ring
+    # of the loop's ending, mastered with the loop's own settings so the two meet exactly.
+    o_dry = sum(m.dry * gains[k] for k, m in score.opening.items())
+    o_send = sum(m.send * gains[k] for k, m in score.opening.items())
+    opening = o_dry + signal.fftconvolve(o_send, hall, axes=0)[: len(o_dry)].astype(np.float32) * db(-4.0)
+    i_n, h_n, pre, lead = int(round(INTRO * SR)), int(round(HEAD_BARS * 4 * BEAT * SR)), int(PRE * SR), int(0.25 * SR)
+    head = np.zeros((i_n + h_n, 2), dtype=np.float32)
+    m = min(len(opening), len(head))
+    head[:m] += opening[:m]
+    head[i_n - lead :] += full[pre - lead : pre + h_n]
+    head = shelf(shelf(highpass(head, 28), 1500, 3.0), 8000, 5.0)
+    head *= (np.concatenate([np.full(i_n, ride[lap]), ride[lap : lap + h_n]]) * norm)[:, None]
+    head = limit(head, ceiling_db=-1.0)
+    k = int(0.2 * SR)
+    gap = head[-k:] - out[h_n - k : h_n]
+    print(f"intro: {len(head) / SR:.2f} s; where it meets the loop the two differ by {20 * np.log10(np.sqrt((gap**2).mean()) / np.sqrt((out[h_n - k : h_n] ** 2).mean()) + 1e-9):.0f} dB")
+    write(OUT / "menu-theme-intro.ogg", head, quality=0.6)
     if "--wav" in sys.argv:
         import soundfile as sf
 
         sf.write(str(OUT.parents[1] / "local-audio" / "menu-theme.wav"), out, SR, subtype="PCM_24")
+        sf.write(str(OUT.parents[1] / "local-audio" / "menu-theme-intro.wav"), head, SR, subtype="PCM_24")
 
 
 if __name__ == "__main__":

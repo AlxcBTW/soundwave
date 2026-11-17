@@ -130,7 +130,7 @@ They need Python 3 with `numpy`, `scipy` and `soundfile`, and the instrument sam
 1. Check out the strings, brass and percussion folders of the [Versilian Studios Chamber Orchestra 2 Community Edition](https://github.com/sgossner/VSCO-2-CE) (CC0) into `local-audio/samples/vsco2ce/`. The folders used are listed at the top of `tools/audio/orchestra.py`; about 1.3 GB.
 2. Optional: save the public-domain recording [Festival concert people crowd](https://commons.wikimedia.org/wiki/File:Festival_concert_people_crowd.ogg) as `local-audio/samples/crowd/crowd.wav`. It is layered under the synthesized crowd for texture; without it the crowd is synthesized alone.
 
-The first run measures the pitch of every sample (file names disagree about octaves) and caches the result next to the library. `theme.py --stems` prints how loud each instrument group is in each section. The theme is one seamless loop; each sound is levelled to its place in `LEVELS` in `sfx.py`, so the game plays them all at the same gain.
+The first run measures the pitch of every sample (file names disagree about octaves) and caches the result next to the library. `theme.py --stems` prints how loud each instrument group is in each section. The theme is one seamless loop plus a short intro that is played once before it; each sound is levelled to its place in `LEVELS` in `sfx.py`, so the game plays them all at the same gain.
 
 ## Licence
 

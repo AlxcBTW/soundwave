@@ -1,21 +1,38 @@
 /**
- * The menu theme: one seamless orchestral loop (public/audio/menu-theme.ogg, rendered by
- * tools/audio/theme.py). It plays behind every menu, steps aside for anything else that makes
- * sound (a song preview, a song, the calibration clicks) and comes back where it left off.
+ * The menu theme (public/audio, rendered by tools/audio/theme.py): a short intro that is heard
+ * once, then one seamless loop. It plays behind every menu and steps aside for anything else
+ * that makes sound (a song preview, a song, the calibration clicks). After a short interruption
+ * it comes back where it left off; after a long one, such as a song, it starts from the top.
  * It feeds the engine's analyser, so the menu backdrop moves with it.
  */
 import { getEngine } from './engine';
 
-let buffer: AudioBuffer | null = null;
+/**
+ * Seconds of the loop that the intro file also holds: the intro ends at this point of the loop,
+ * and the loop takes over there. HEAD_BARS in tools/audio/theme.py, in seconds.
+ */
+const HANDOVER = 9.6;
+/** How long the intro and the loop overlap where they meet (they are identical there). */
+const BLEND = 0.08;
+/** An interruption longer than this (seconds) ends the piece: it starts again from the top. */
+const RESTART_AFTER = 20;
+
+let loop: AudioBuffer | null = null;
+let intro: AudioBuffer | null = null;
 let loading: Promise<void> | null = null;
 let volume = 0.6;
 /** The app wants menu music (a menu is showing). */
 let wanted = false;
 /** Things that are making their own sound right now; the theme waits for all of them. */
 let holds = 0;
-/** The voice now sounding, and when and where in the loop it started. */
-let voice: { src: AudioBufferSourceNode; gain: GainNode; startedAt: number } | null = null;
+/**
+ * What is sounding: its sources, its fader, when it started (context time) and where in the
+ * loop it will be at that moment (negative while the intro is still playing).
+ */
+let voice: { sources: AudioBufferSourceNode[]; gain: GainNode; startedAt: number; from: number } | null = null;
+/** Where in the loop to pick up; 0 is the top, which gets the intro. */
 let offset = 0;
+let stoppedAt = 0;
 let waitingForGesture = false;
 let watchingContext = false;
 
@@ -31,21 +48,26 @@ function hold(p: AudioParam, now: number) {
 
 const shouldPlay = () => wanted && holds === 0 && volume > 0 && !document.hidden;
 
+async function fetchBuffer(name: string): Promise<AudioBuffer | null> {
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}audio/${name}.ogg`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await getEngine().ctx.decodeAudioData(await res.arrayBuffer());
+  } catch (err) {
+    console.warn(`Menu music (${name}) is unavailable`, err);
+    return null;
+  }
+}
+
 function load(): Promise<void> {
   loading ??= (async () => {
-    try {
-      const res = await fetch(`${import.meta.env.BASE_URL}audio/menu-theme.ogg`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      buffer = await getEngine().ctx.decodeAudioData(await res.arrayBuffer());
-    } catch (err) {
-      console.warn('Menu music is unavailable', err);
-    }
+    [loop, intro] = await Promise.all([fetchBuffer('menu-theme'), fetchBuffer('menu-theme-intro')]);
   })();
   return loading;
 }
 
 function start() {
-  if (voice || !buffer) return;
+  if (voice || !loop) return;
   const { ctx, analyser } = getEngine();
   if (!watchingContext) {
     watchingContext = true;
@@ -68,40 +90,72 @@ function start() {
     }
     return;
   }
-  const src = ctx.createBufferSource();
-  src.buffer = buffer;
-  src.loop = true;
-  const gain = ctx.createGain();
   const now = ctx.currentTime;
-  // The piece itself comes in from nothing; a return from somewhere in the middle fades in slower.
-  const fadeIn = offset === 0 ? 0.8 : 1.6;
+  if (stoppedAt && now - stoppedAt > RESTART_AFTER) offset = 0;
+  const gain = ctx.createGain();
+  gain.connect(analyser);
+  const play = (buffer: AudioBuffer, looping: boolean) => {
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = looping;
+    const fader = ctx.createGain();
+    src.connect(fader).connect(gain);
+    return { src, fader };
+  };
+  const body = play(loop, true);
+  const sources = [body.src];
+  let fadeIn: number;
+  let from: number;
+  if (offset === 0 && intro && intro.duration > HANDOVER + BLEND) {
+    // From the top: the intro once, the loop taking over where the intro ends.
+    const head = play(intro, false);
+    const join = now + intro.duration - BLEND;
+    head.fader.gain.setValueAtTime(1, join);
+    head.fader.gain.linearRampToValueAtTime(0, join + BLEND);
+    body.fader.gain.setValueAtTime(0, join);
+    body.fader.gain.linearRampToValueAtTime(1, join + BLEND);
+    head.src.start(now);
+    body.src.start(join, HANDOVER - BLEND);
+    sources.push(head.src);
+    from = HANDOVER - intro.duration;
+    fadeIn = 0.05; // the intro itself rises out of silence
+  } else {
+    // Picking up in the middle (or no intro to play): fade in.
+    body.src.start(now, offset % loop.duration);
+    from = offset;
+    fadeIn = 1.6;
+  }
   gain.gain.setValueAtTime(0, now);
   gain.gain.linearRampToValueAtTime(volume, now + fadeIn);
-  src.connect(gain).connect(analyser);
-  src.start(now, offset % buffer.duration);
-  voice = { src, gain, startedAt: now };
+  voice = { sources, gain, startedAt: now, from };
 }
 
 function stop(fadeOut: number) {
-  if (!voice || !buffer) return;
+  if (!voice || !loop) return;
   const { ctx } = getEngine();
-  const { src, gain, startedAt } = voice;
+  const { sources, gain, startedAt, from } = voice;
   voice = null;
   const now = ctx.currentTime;
   hold(gain.gain, now);
   gain.gain.linearRampToValueAtTime(0, now + fadeOut);
-  src.stop(now + fadeOut + 0.02);
-  src.onended = () => {
-    src.disconnect();
-    gain.disconnect();
-  };
-  offset = (offset + now + fadeOut - startedAt) % buffer.duration;
+  for (const src of sources) {
+    try {
+      src.stop(now + fadeOut + 0.02);
+    } catch {
+      /* already ended */
+    }
+  }
+  sources[0].onended = () => gain.disconnect();
+  // Interrupted during the intro, the piece starts over; otherwise it resumes where it was.
+  const at = from + (now + fadeOut - startedAt);
+  offset = at <= 0 ? 0 : at % loop.duration;
+  stoppedAt = now;
 }
 
 /** Brings what is sounding in line with what should be; `fadeOut` is how fast the theme leaves. */
 function sync(fadeOut = 0.5) {
   if (shouldPlay()) {
-    if (!buffer) void load().then(() => shouldPlay() && start());
+    if (!loop) void load().then(() => shouldPlay() && start());
     else start();
   } else stop(fadeOut);
 }
@@ -145,4 +199,8 @@ if (typeof document !== 'undefined') {
 }
 
 /** For checking the player from the console in development. */
-export const menuMusicStatus = () => ({ loaded: !!buffer, playing: !!voice, wanted, holds, volume, offset, duration: buffer?.duration ?? 0 });
+export const menuMusicStatus = () => {
+  const now = voice ? getEngine().ctx.currentTime : 0;
+  const at = voice ? voice.from + (now - voice.startedAt) : offset;
+  return { loaded: !!loop, intro: !!intro, playing: !!voice, inIntro: !!voice && at < 0, position: at, wanted, holds, volume, duration: loop?.duration ?? 0 };
+};

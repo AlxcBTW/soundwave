@@ -461,8 +461,8 @@ def lufs(x: np.ndarray) -> float:
     return float(-0.691 + 10 * np.log10((z2 if len(z2) else z).mean()))
 
 
-def level_ride(x: np.ndarray, amount: float = 0.35, window: float = 2.0) -> np.ndarray:
-    """Narrow the dynamic range the way an engineer rides a fader: slowly, without pumping."""
+def ride_gain(x: np.ndarray, amount: float = 0.35, window: float = 2.0) -> np.ndarray:
+    """The gain curve of `level_ride`, for applying the same ride to another take of the music."""
     mono = np.sqrt((x.astype(np.float64) ** 2).mean(axis=1))
     k = int(window * SR)
     kern = np.hanning(k)
@@ -470,7 +470,12 @@ def level_ride(x: np.ndarray, amount: float = 0.35, window: float = 2.0) -> np.n
     env = np.sqrt(np.maximum(signal.fftconvolve(mono**2, kern, mode="same"), 1e-10))
     ref = np.sqrt((env**2).mean())
     gain = (ref / env) ** amount
-    return (x * np.clip(gain, db(-9), db(9))[:, None]).astype(np.float32)
+    return np.clip(gain, db(-9), db(9)).astype(np.float32)
+
+
+def level_ride(x: np.ndarray, amount: float = 0.35, window: float = 2.0) -> np.ndarray:
+    """Narrow the dynamic range the way an engineer rides a fader: slowly, without pumping."""
+    return (x * ride_gain(x, amount, window)[:, None]).astype(np.float32)
 
 
 def limit(x: np.ndarray, ceiling_db: float = -1.0, lookahead: float = 0.005, release: float = 0.12) -> np.ndarray:
