@@ -12,7 +12,8 @@ Everything that goes in is CC0 (public domain), so the result is part of the rep
   to those skeletons;
 - everything else is made here: the other crowd loops (clap, headbang, cheer, fist pump, jumping)
   and the band's four loops are written as motion in this file, to the beat, with the hands and
-  feet solved onto their targets; the instruments are built here to fit each player.
+  feet solved onto their targets; the instruments are modelled in instruments.py and fitted to
+  each player here.
 
 The packs themselves are not in the repository (they are large): download them from quaternius.com
 and unpack each into its own folder under --src, as modular-men, modular-women and ual1. Only the
@@ -28,7 +29,8 @@ A mesh is plain geometry in its rest pose that carries, per vertex, up to four j
 (packed into two extra UV sets as joint + weight / 2) and its colour (alpha marks tops and bottoms
 so the game can recolour them). The .bin holds one 3x4 matrix per joint per baked frame of each
 loop (half floats, three.js space), so the game can skin thousands of instances in a vertex shader.
-Every character is brought onto the same small skeleton of 22 joints; fingers move as one.
+Every character is brought onto the same small skeleton of 24 joints; the four fingers move as one,
+bending at two knuckles.
 
 Axes: Z up, metres, characters face -Y (their left is +X).
 """
@@ -43,6 +45,10 @@ import bmesh
 import bpy
 import numpy as np
 from mathutils import Matrix, Quaternion, Vector
+from mathutils.bvhtree import BVHTree
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import instruments  # noqa: E402  (the band's instruments are modelled there)
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 ap = argparse.ArgumentParser()
@@ -85,11 +91,12 @@ FRAMES_PER_BEAT = 12
 # ---------------------------------------------------------------- the skeleton everything is brought onto
 JOINTS = ['hips', 'spine', 'chest', 'upper', 'neck', 'head',
           'clav_l', 'uarm_l', 'larm_l', 'hand_l', 'fingers_l', 'clav_r', 'uarm_r', 'larm_r', 'hand_r', 'fingers_r',
-          'thigh_l', 'shin_l', 'foot_l', 'thigh_r', 'shin_r', 'foot_r']
+          'thigh_l', 'shin_l', 'foot_l', 'thigh_r', 'shin_r', 'foot_r', 'tips_l', 'tips_r']
 PARENT = {'spine': 'hips', 'chest': 'spine', 'upper': 'chest', 'neck': 'upper', 'head': 'neck',
           'clav_l': 'upper', 'uarm_l': 'clav_l', 'larm_l': 'uarm_l', 'hand_l': 'larm_l', 'fingers_l': 'hand_l',
           'clav_r': 'upper', 'uarm_r': 'clav_r', 'larm_r': 'uarm_r', 'hand_r': 'larm_r', 'fingers_r': 'hand_r',
-          'thigh_l': 'hips', 'shin_l': 'thigh_l', 'foot_l': 'shin_l', 'thigh_r': 'hips', 'shin_r': 'thigh_r', 'foot_r': 'shin_r'}
+          'thigh_l': 'hips', 'shin_l': 'thigh_l', 'foot_l': 'shin_l', 'thigh_r': 'hips', 'shin_r': 'thigh_r', 'foot_r': 'shin_r',
+          'tips_l': 'fingers_l', 'tips_r': 'fingers_r'}
 # The bone that carries on from each limb bone: its direction at rest is what gets matched between skeletons.
 NEXT = {'uarm_l': 'larm_l', 'larm_l': 'hand_l', 'uarm_r': 'larm_r', 'larm_r': 'hand_r',
         'thigh_l': 'shin_l', 'shin_l': 'foot_l', 'thigh_r': 'shin_r', 'shin_r': 'foot_r'}
@@ -181,7 +188,7 @@ def fitted(loop, rig):
         for j in JOINTS:
             if j in p['turned']:
                 D[j] = p['turned'][j] @ match.get(j, IDENT)
-            elif j.startswith('fingers'):
+            elif j.startswith(('fingers', 'tips')):
                 D[j] = D[PARENT[j]] @ Quaternion(Y, 0.4 if j.endswith('_l') else -0.4)
             else:
                 D[j] = D[PARENT[j]]
@@ -259,6 +266,9 @@ def solve(rig, c):
             D[hand] = (D[la] @ axis).rotation_difference(want) @ D[la]
         place(fing)
         D[fing] = D[hand] @ Quaternion(Y, sx * c.get('curl_' + s, 0.4))
+        # the fingers bend once more past the first knuckle, so a hand can close round what it holds
+        place('tips_' + s)
+        D['tips_' + s] = D[fing] @ Quaternion(Y, sx * 1.1 * c.get('curl_' + s, 0.4))
         thigh, shin, foot = 'thigh_' + s, 'shin_' + s, 'foot_' + s
         place(thigh)
         l1, l2 = (R[shin] - R[thigh]).length, (R[foot] - R[shin]).length
@@ -337,7 +347,7 @@ def excited(b, rig):
 def strings(bass):
     def play(b, rig):
         s, R, g = rig.s, rig.rest, rig.gear
-        fret = g['body'] + g['along'] * ((0.6 if bass else 0.5) + 0.07 * math.sin(TAU * b / 4)) * s + g['front'] * 0.03 * s
+        fret = g['body'] + g['along'] * (g['nut'] - 0.16 + 0.07 * math.sin(TAU * b / 4)) + g['front'] * 0.035 * s
         stroke = 0.022 * math.sin(TAU * b * 2) if bass else 0.06 * math.sin(TAU * b)
         pick = g['body'] - g['along'] * 0.03 * s + g['front'] * 0.07 * s + g['across'] * stroke * s
         sway = math.sin(TAU * b / 4)
@@ -363,22 +373,25 @@ def sing(b, rig):
 
 def drums(b, rig):
     s, R, g = rig.s, rig.rest, rig.gear
-    # the nearer hand keeps time on the hi-hat; the other goes between the ride and the snare
+    # the left hand keeps time on the hi-hat; the right goes between the ride and the snare
     tick = 0.1 * abs(math.sin(TAU * b)) ** 0.7
     blow = 0.2 * abs(math.sin(math.pi * b)) ** 0.7
     k = 0.5 + 0.5 * math.cos(math.pi * b)
     k = k * k * (3 - 2 * k)
     hit = g['snare'].lerp(g['ride'], k)
     tip_l, tip_r = g['hat'] + Z * tick * s, hit + Z * blow * s
-    back = Vector((0, 0.3, 0.05)) * s
-    return {'hips': Vector((0, 0.06 * s, g['seat'] - R['hips'].z - 0.012 * s * on(b))), 'spine': lean(6 + 3 * on(b)),
+    # a stick is held a forearm's length back from where it lands, coming in from the player's side
+    back_l = Vector((-0.04, 0.32, 0.06)) * s
+    back_r = Vector((-0.2, 0.25, 0.08)).lerp(Vector((0.05, 0.32, 0.06)), k) * s
+    # the right foot works the bass drum pedal on the beat
+    kick = 0.02 * s * (1 - on(b)) ** 2
+    return {'hips': Vector((0, 0.07 * s, g['seat'] - R['hips'].z - 0.012 * s * on(b))), 'spine': lean(6 + 3 * on(b)),
             'head': lean(2 + 8 * on(b), yaw=6 * math.sin(TAU * b / 4)),
-            'hand_l': tip_l + back + Z * 0.45 * tick * s, 'hand_r': tip_r + back + Z * 0.45 * blow * s,
+            'hand_l': tip_l + back_l + Z * 0.45 * tick * s, 'hand_r': tip_r + back_r + Z * 0.45 * blow * s,
             'aim_l': (-Y, tip_l), 'aim_r': (-Y, tip_r), 'elbow_l': Vector((0.8, 0.5, -0.5)), 'elbow_r': Vector((-0.8, 0.5, -0.5)),
             'curl_l': 1.45, 'curl_r': 1.45,
-            'foot_l': Vector((R['hips'].x + 0.2 * s, R['hips'].y - 0.42 * s, R['foot_l'].z)),
-            'foot_r': Vector((R['hips'].x - 0.2 * s, R['hips'].y - 0.42 * s, R['foot_r'].z)),
-            'knee_l': Vector((0.3, -1, 0.4)), 'knee_r': Vector((-0.3, -1, 0.4))}
+            'foot_l': g['foot_l'] + Z * (R['foot_l'].z + 0.03 * s), 'foot_r': g['foot_r'] + Z * (R['foot_r'].z + 0.03 * s + kick),
+            'knee_l': Vector((0.55, -1, 0.5)), 'knee_r': Vector((-0.3, -1, 0.5))}
 
 
 def written(rig, move, beats):
@@ -410,7 +423,7 @@ class Rig:
 
 
 def fold(bone, names):
-    """Which of the 22 joints a bone of a character's skeleton belongs to."""
+    """Which of the joints a bone of a character's skeleton belongs to."""
     b = bone
     while b is not None:
         if b.name in names:
@@ -418,7 +431,8 @@ def fold(bone, names):
         low = b.name.lower()
         side = '_l' if low.endswith('.l') else '_r' if low.endswith('.r') else None
         if side and low.startswith(FINGERS):
-            return 'fingers' + side
+            # past the first knuckle the fingers bend again
+            return ('tips' if b.parent and b.parent.name.lower().startswith(FINGERS) else 'fingers') + side
         if side and low.startswith(('thumb', 'wrist')):
             return 'hand' + side
         b = b.parent
@@ -454,6 +468,9 @@ def load(pack, file, height):
                     and not (b.parent and b.parent.name.lower().startswith(FINGERS))]
         hand = arm.data.bones[MODULAR['hand_' + s]]
         rig.rest['fingers_' + s] = (sum(knuckles, Vector()) / len(knuckles) if knuckles else world @ hand.tail_local) * scale
+        second = [head[b.name] for b in arm.data.bones if b.name.lower().endswith('.' + s) and b.name.lower().startswith(FINGERS)
+                  and b.parent and b.parent.name.lower().startswith(FINGERS) and not (b.parent.parent and b.parent.parent.name.lower().startswith(FINGERS))]
+        rig.rest['tips_' + s] = sum(second, Vector()) / len(second) * scale if second else rig.rest['fingers_' + s] + (rig.rest['fingers_' + s] - rig.rest['hand_' + s]) * 0.4
     rig.dir = {j: (rig.rest[n] - rig.rest[j]).normalized() for j, n in NEXT.items()}
     rig.bone_joint = {b.name: fold(b, names) for b in arm.data.bones}
     rig.arm, rig.meshes = arm, meshes
@@ -586,7 +603,7 @@ def body_of(rig, key, material):
         weights[o.name] = weights_of(o, rig)
         paint(o, material)
         detach(o)
-        # carry the weights through the join as vertex groups of the 22 joints
+        # carry the weights through the join as vertex groups of the joints
         o.vertex_groups.clear()
         made = {j: o.vertex_groups.new(name=j) for j in JOINTS}
         for i, pairs in enumerate(weights[o.name]):
@@ -609,80 +626,66 @@ def joints_from_groups(obj):
 
 
 # ---------------------------------------------------------------- instruments (built at the rest pose)
-def capsule(bm, a, b, ra, rb, segs=10, caps=3):
-    a, b = Vector(a), Vector(b)
-    axis = b - a
-    rot = axis.to_track_quat('Z', 'Y').to_matrix()
-    prof = [(-ra * math.sin(math.pi / 2 * i / caps), ra * math.cos(math.pi / 2 * i / caps)) for i in range(caps, 0, -1)]
-    prof += [(0.0, ra), (axis.length, rb)]
-    prof += [(axis.length + rb * math.sin(math.pi / 2 * i / caps), rb * math.cos(math.pi / 2 * i / caps)) for i in range(1, caps + 1)]
-    rings = []
-    for z, r in prof:
-        if r < 1e-5:
-            rings.append([bm.verts.new(a + rot @ Vector((0, 0, z)))])
-        else:
-            rings.append([bm.verts.new(a + rot @ Vector((r * math.cos(TAU * k / segs), r * math.sin(TAU * k / segs), z))) for k in range(segs)])
-    for r0, r1 in zip(rings, rings[1:]):
-        for k in range(segs):
-            k2 = (k + 1) % segs
-            if len(r0) == 1:
-                bm.faces.new((r0[0], r1[k2], r1[k]))
-            elif len(r1) == 1:
-                bm.faces.new((r0[k], r0[k2], r1[0]))
-            else:
-                bm.faces.new((r0[k], r0[k2], r1[k2], r1[k]))
+def props(name, parts, joint):
+    """What was modelled, as one rigid object per kind of surface, riding one joint (None: it stays where it is)."""
+    out = []
+    for kind in parts.KINDS:
+        bm = parts.bm[kind]
+        if bm.faces:
+            bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+            me = bpy.data.meshes.new('%s_%s' % (name, kind))
+            bm.to_mesh(me)
+            me.materials.append(plain('Prop' + kind.title()))
+            me.color_attributes.active_color = me.color_attributes['Col']
+            me.color_attributes.render_color_index = me.color_attributes.find('Col')
+            o = bpy.data.objects.new(me.name, me)
+            scene.collection.objects.link(o)
+            soften(o, 42)
+            pack_weights(o, [[(joint, 1.0)]] * len(me.vertices))
+            out.append(o)
+        bm.free()
+    return out
 
 
-def ellipsoid(bm, center, radii, rot=None, segs=24, rings=12):
-    m = Matrix.Translation(center) @ (rot.to_4x4() if rot else Matrix.Identity(4)) @ Matrix.Diagonal((*radii, 1))
-    bmesh.ops.create_uvsphere(bm, u_segments=segs, v_segments=rings, radius=1.0, matrix=m)
-
-
-def cylinder(bm, a, b, r, segs=20, r2=None):
-    a, b = Vector(a), Vector(b)
-    axis = b - a
-    bmesh.ops.create_cone(bm, cap_ends=True, segments=segs, radius1=r, radius2=r if r2 is None else r2, depth=axis.length,
-                          matrix=Matrix.Translation((a + b) / 2) @ axis.to_track_quat('Z', 'Y').to_matrix().to_4x4())
-
-
-def prop(name, bm, material, joint):
-    """A rigid part riding one joint (None: it stays where it is)."""
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    for f in bm.faces:
-        f.smooth = True
-    me = bpy.data.meshes.new(name)
-    bm.to_mesh(me)
-    bm.free()
-    me.materials.append(material)
-    col = me.color_attributes.new('Col', 'FLOAT_COLOR', 'CORNER')
-    for d in col.data:
-        d.color = (1, 1, 1, 0)
-    o = bpy.data.objects.new(name, me)
-    scene.collection.objects.link(o)
-    pack_weights(o, [[(joint, 1.0)]] * len(me.vertices))
-    return o
-
-
-def string_instrument(rig, key, bass):
+def string_instrument(rig, key, bass, wearer):
     """A guitar or bass slung across the player: body at the right hip, neck up to the left."""
     s, R = rig.s, rig.rest
     along = Vector((0.86, -0.1, 0.5)).normalized()
     front = (-Y - along * (-Y).dot(along)).normalized()
     across = along.cross(front).normalized()
     body = R['hips'] + Vector((-0.1, -0.2, 0.22)) * s
-    rig.gear = {'body': body, 'along': along, 'front': front, 'across': across}
-    rot = Matrix((along, front, across)).transposed()
-    k = (1.12 if bass else 1.0) * s
-    wood, dark = bmesh.new(), bmesh.new()
-    ellipsoid(wood, body, (0.2 * k, 0.042 * s, 0.16 * k), rot)
-    ellipsoid(wood, body - along * 0.13 * k, (0.16 * k, 0.044 * s, 0.2 * k), rot)
-    tip = body + along * (0.86 if bass else 0.72) * s
-    capsule(dark, body + along * 0.12 * s, tip, 0.023 * s, 0.019 * s, 8, 2)
-    ellipsoid(dark, tip + along * 0.05 * s, (0.08 * s, 0.016 * s, 0.034 * s), rot, 12, 6)
-    ellipsoid(dark, body + front * 0.04 * s, (0.07 * s, 0.012 * s, 0.05 * s), rot, 12, 6)
-    kind = 'bass' if bass else 'guitar'
-    return [prop(key + '_wood', wood, plain('PropBody_' + kind, (0.1, 0.7, 0.9) if bass else (0.9, 0.12, 0.4)), 'chest'),
-            prop(key + '_neck', dark, plain('PropDark', (0.02, 0.02, 0.025)), 'chest')]
+    # the instrument's own frame: up the neck, toward the player's head, out of its front
+    base = Matrix.Translation(body + front * 0.02 * s) @ Matrix((along, -across, front)).transposed().to_4x4()
+    parts = instruments.Parts(base)
+    nut = instruments.string_instrument(parts, bass, (0.02, 0.42, 0.7) if bass else (0.72, 0.03, 0.2))
+    rig.gear = {'body': body, 'along': along, 'front': front, 'across': across, 'nut': nut}
+    # the strap: from the upper horn over the left shoulder and round the back to the end of the body
+    horn, tail = base @ Vector(instruments.STRAP_BASS if bass else instruments.STRAP_GUITAR), base @ Vector(((-0.21 if bass else -0.195) - 0.012, 0, -0.022))
+    over = (R['neck'] + R['uarm_l']) / 2 + Z * 0.12 * s
+    worn = instruments.Parts()
+    instruments.strap(worn, [(horn, front)] + round_body(wearer, R['chest'], horn, over, tail) + [(tail, front)])
+    return props(key + '_strings', parts, 'chest') + props(key + '_strap', worn, 'chest')
+
+
+def round_body(wearer, middle, a, over, b, steps=26, off=0.009):
+    """Points on the surface of `wearer`, from near `a` over `over` to near `b`, each with the way out there."""
+    tree = BVHTree.FromObject(wearer, bpy.context.evaluated_depsgraph_get())
+    n = (a - over).cross(b - over).normalized()
+    c = middle - n * (middle - over).dot(n)
+    e1 = (a - c).normalized()
+    e2 = n.cross(e1)
+    angle = lambda q: math.atan2((q - c).dot(e2), (q - c).dot(e1)) % TAU
+    end = angle(b)
+    # go round the way that passes over the shoulder
+    sweep = end if angle(over) < end else end - TAU
+    out = []
+    for i in range(1, steps):
+        t = sweep * i / steps
+        d = e1 * math.cos(t) + e2 * math.sin(t)
+        hit = tree.ray_cast(c + d * 0.6, -d, 0.6)[0]
+        if hit is not None:
+            out.append((hit + d * off, d))
+    return out
 
 
 def grip(rig, side):
@@ -695,45 +698,26 @@ def microphone(rig, key):
     s = rig.s
     rig.gear = {'mouth': rig.rest['head'] + Vector((0, -0.13, 0.055)) * s}
     at, d = grip(rig, 'r')
-    dark, head = bmesh.new(), bmesh.new()
-    capsule(dark, at - d * 0.07 * s, at + d * 0.1 * s, 0.015 * s, 0.018 * s, 8, 2)
-    ellipsoid(head, at + d * 0.135 * s, (0.032 * s, 0.036 * s, 0.032 * s), None, 12, 8)
-    return [prop(key + '_mic', dark, plain('PropDark', (0.02, 0.02, 0.025)), 'hand_r'),
-            prop(key + '_michead', head, plain('PropMetal', (0.55, 0.57, 0.62)), 'hand_r')]
+    parts = instruments.Parts(instruments.frame(at, d))
+    instruments.microphone(parts)
+    return props(key + '_mic', parts, 'hand_r')
 
 
 def drum_kit(rig, key):
     """A kit round the seated drummer, and a stick in each hand."""
     s = rig.s
     o = Vector((rig.rest['hips'].x, rig.rest['hips'].y, 0))
-    at = lambda x, y, z: o + Vector((x, y, z)) * s
-    rig.gear = {'seat': 0.6 * s, 'hat': at(0.44, -0.4, 0.87), 'snare': at(-0.05, -0.36, 0.75), 'ride': at(-0.52, -0.44, 0.98)}
-    shell, metal, glow = bmesh.new(), bmesh.new(), bmesh.new()
-    cylinder(metal, at(0, 0.06, 0.44), at(0, 0.06, 0.52), 0.17 * s)                # stool
-    cylinder(metal, at(0, 0.06, 0), at(0, 0.06, 0.44), 0.03 * s, 8)
-    cylinder(shell, at(0, -0.56, 0.29), at(0, -0.98, 0.29), 0.28 * s, 28)          # kick
-    cylinder(glow, at(0, -0.98, 0.29), at(0, -0.992, 0.29), 0.25 * s, 28)
-    cylinder(shell, at(-0.05, -0.36, 0.61), at(-0.05, -0.36, 0.74), 0.17 * s)      # snare
-    cylinder(metal, at(-0.05, -0.36, 0), at(-0.05, -0.36, 0.61), 0.014 * s, 6)
-    cylinder(shell, at(-0.5, -0.16, 0.26), at(-0.5, -0.16, 0.6), 0.2 * s)          # floor tom
-    for sx in (-1, 1):                                                             # rack toms
-        cylinder(shell, at(sx * 0.18, -0.74, 0.7), at(sx * 0.18, -0.8, 0.86), 0.14 * s)
-    cylinder(metal, at(0.44, -0.4, 0), at(0.44, -0.4, 0.86), 0.013 * s, 6)         # hi-hat
-    cylinder(glow, at(0.44, -0.4, 0.845), at(0.44, -0.4, 0.86), 0.165 * s, 24)
-    cylinder(glow, at(0.44, -0.4, 0.862), at(0.44, -0.4, 0.874), 0.165 * s, 24, 0.02 * s)
-    cylinder(metal, at(-0.52, -0.5, 0), at(-0.52, -0.46, 0.96), 0.013 * s, 6)      # ride
-    cylinder(glow, at(-0.52, -0.44, 0.96), at(-0.515, -0.43, 0.975), 0.24 * s, 24, 0.02 * s)
-    cylinder(metal, at(0.6, -0.8, 0), at(0.6, -0.78, 1.2), 0.013 * s, 6)           # crash
-    cylinder(glow, at(0.6, -0.78, 1.2), at(0.595, -0.77, 1.215), 0.21 * s, 24, 0.02 * s)
-    parts = [prop(key + '_shells', shell, plain('PropBody_drums', (0.22, 0.07, 0.55)), None),
-             prop(key + '_stands', metal, plain('PropDark', (0.02, 0.02, 0.025)), None),
-             prop(key + '_cymbals', glow, plain('PropGlow', (0.75, 0.6, 0.3)), None)]
+    parts = instruments.Parts(Matrix.Translation(o) @ Matrix.Scale(s, 4))
+    g = instruments.drum_kit(parts)
+    rig.gear = {'seat': g['seat'] * s, **{k: o + g[k] * s for k in ('hat', 'snare', 'ride')},
+                **{k: o + Vector((g[k][0], g[k][1], 0)) * s for k in ('foot_l', 'foot_r')}}
+    out = props(key + '_kit', parts, None)
     for side in ('l', 'r'):
-        stick = bmesh.new()
-        p, d = grip(rig, side)
-        capsule(stick, p - d * 0.06 * s, p + d * 0.31 * s, 0.009 * s, 0.006 * s, 6, 2)
-        parts.append(prop('%s_stick_%s' % (key, side), stick, plain('PropMetal', (0.55, 0.57, 0.62)), 'hand_' + side))
-    return parts
+        at, d = grip(rig, side)
+        held = instruments.Parts(instruments.frame(at - d * 0.075 * s, d) @ Matrix.Scale(s, 4))
+        instruments.stick(held)
+        out += props('%s_stick_%s' % (key, side), held, 'hand_' + side)
+    return out
 
 
 # ---------------------------------------------------------------- the two sets
@@ -745,7 +729,7 @@ def build_band(role, spec):
     body = body_of(rig, key, plain('Cast'))
     soften(body, 38)
     pack_weights(body, joints_from_groups(body))
-    props = {'guitar': lambda: string_instrument(rig, key, False), 'bass': lambda: string_instrument(rig, key, True),
+    props = {'guitar': lambda: string_instrument(rig, key, False, body), 'bass': lambda: string_instrument(rig, key, True, body),
              'sing': lambda: microphone(rig, key), 'drums': lambda: drum_kit(rig, key)}[spec['clip']]()
     move, beats = {'guitar': (strings(False), 4), 'bass': (strings(True), 4), 'sing': (sing, 8), 'drums': (drums, 4)}[spec['clip']]
     rows = rows_of(rig, written(rig, move, beats))

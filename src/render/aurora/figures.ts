@@ -110,6 +110,7 @@ uniform sampler2D uMap;
 uniform vec3 uBase;
 uniform float uGloss;
 uniform float uGlow;
+uniform float uMetal;
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying vec4 vCol;
 varying vec3 vTop; varying vec3 vBottom; varying vec2 vLook; varying float vFoot;
 void main() {
@@ -150,7 +151,15 @@ void main() {
   vec3 col = base * light;
   float fres = pow(clamp(1.0 - dot(n, v), 0.0, 1.0), 2.5);
   col += mix(uKey, uAccent, 0.5) * fres * (stage * 0.55 + vLook.y * 0.45) * max(0.0, dot(n, toGlow) + 0.35);
-  col += uGloss * (skyGradient(reflect(-v, n)) * (0.2 + fres) + vLook.y * pow(max(0.0, dot(reflect(-v, n), spotDir)), 30.0));
+  vec3 r = reflect(-v, n);
+  col += uGloss * (1.0 - uMetal) * (skyGradient(r) * (0.2 + fres) + vLook.y * pow(max(0.0, dot(r, spotDir)), 30.0));
+  // Bare metal shows what is round it instead of a colour of its own: the sky, the screen behind
+  // the band, the wash, and the spots as hard glints.
+  vec3 around = skyGradient(r) * 0.7 + stageCol * stage * (0.12 + 0.6 * pow(max(0.0, dot(r, toGlow)), 2.0)) + uWash * 0.2 * stage
+    + vLook.y * vec3(1.0, 0.92, 0.86) * (0.06 + 0.22 * pow(max(0.0, r.y), 2.0) + 1.8 * pow(max(0.0, dot(r, spotDir)), 26.0));
+  // ... and the dark floor below the horizon, which is what gives polished metal its contrast.
+  around *= mix(0.22, 1.0, smoothstep(-0.2, 0.3, r.y));
+  col = mix(col, base * (around * 0.95 + light * 0.22), uMetal);
   col += base * uGlow * (0.25 + 0.5 * uPulse);
   gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
   ${OUTPUT}
@@ -264,7 +273,8 @@ export class Figures {
         uAnim: { value: this.texture },
         uMap: { value: src.map ?? null },
         uBase: { value: textured ? new THREE.Color(1, 1, 1) : src.color.clone() },
-        uGloss: { value: /^Prop(Body|Metal|Glow)/.test(src.name) ? 1 : 0 },
+        uGloss: { value: /^Prop(Body|Paint|Metal|Glow)/.test(src.name) ? 1 : 0 },
+        uMetal: { value: /^PropMetal/.test(src.name) ? 1 : 0 },
         uGlow: { value: /^PropGlow/.test(src.name) ? 1 : 0 },
       },
       defines,
