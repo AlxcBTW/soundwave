@@ -73,8 +73,8 @@ function start() {
   src.loop = true;
   const gain = ctx.createGain();
   const now = ctx.currentTime;
-  // From the top the piece opens with a hit, so it starts at once; a return fades back in.
-  const fadeIn = offset === 0 ? 0.03 : 1.6;
+  // The piece itself comes in from nothing; a return from somewhere in the middle fades in slower.
+  const fadeIn = offset === 0 ? 0.8 : 1.6;
   gain.gain.setValueAtTime(0, now);
   gain.gain.linearRampToValueAtTime(volume, now + fadeIn);
   src.connect(gain).connect(analyser);
