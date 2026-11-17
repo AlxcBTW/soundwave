@@ -10,6 +10,7 @@ import { Director, buildShots } from './Director';
 import { LightShow, type Rgb, type ShowState } from './LightShow';
 import { loadStage, type LightSpec, type Scatter, type StageAssets, type StageData } from './assets';
 import { Particles } from './Particles';
+import { buildEnvironment, detailSurface, surfaceKind, surfaceUniforms } from './surfaces';
 
 export interface StageOptions {
   mode: 'play' | 'menu';
@@ -34,7 +35,7 @@ const SPARKS_PER_RAY: Record<Level, number> = { off: 0, low: 6, medium: 12, high
 const SMOKE: Record<Level, number> = { off: 0, low: 250, medium: 700, high: 1400 };
 /** Blender light watts to three.js candela (both renderers then agree on brightness). */
 const WATT_TO_CD = 1 / (4 * Math.PI);
-const EXPOSURE = 0.6;
+const EXPOSURE = 0.68;
 
 interface Beam {
   pivot: THREE.Object3D;
@@ -104,10 +105,14 @@ export class Stage3D {
   private constructor(private readonly canvas: HTMLCanvasElement, assets: StageAssets, private g: GraphicsSettings, opts: StageOptions) {
     this.data = assets.data;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: g.antialias, powerPreference: 'high-performance', alpha: false });
-    this.renderer.toneMapping = THREE.AgXToneMapping;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = EXPOSURE;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.scene.fog = new THREE.FogExp2(0x07060b, 0.0016);
+    const envMap = buildEnvironment(this.renderer);
+    this.scene.environment = envMap;
+    this.scene.environmentIntensity = 0.8;
+    this.owned.push(envMap);
     const menu = opts.mode === 'menu';
     this.show = new LightShow(menu);
     this.director = new Director(buildShots(this.data.cameras, this.data.band, opts.part), menu ? 'calm' : g.camera, 7, menu);
@@ -271,6 +276,9 @@ export class Stage3D {
       b.flare.material.color.copy(c);
       b.flare.material.opacity = Math.min(1, level * 1.2);
     }
+    surfaceUniforms.uUpColor.value.copy(wash);
+    surfaceUniforms.uUpLevel.value = 0.35 + 0.45 * s.washLevel;
+    surfaceUniforms.uTime.value = t;
     for (const w of this.washes) {
       w.light.color.copy(w.cool ? TMP_C.setRGB(0.3, 0.65, 1).lerp(wash, 0.3) : wash);
       w.light.intensity = w.base * s.washLevel;
@@ -352,7 +360,9 @@ export class Stage3D {
 
   // ------------------------------------------------------------------ building
   private buildComposer() {
-    const composer = new EffectComposer(this.renderer);
+    // The composer renders into its own buffer; give it MSAA so edges stay smooth with glow on.
+    const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: this.g.antialias ? 4 : 0 });
+    const composer = new EffectComposer(this.renderer, target);
     composer.addPass(new RenderPass(this.scene, this.camera));
     composer.addPass(new UnrealBloomPass(new THREE.Vector2(512, 512), 0.32, 0.35, 1.6));
     composer.addPass(new OutputPass());
@@ -420,6 +430,8 @@ export class Stage3D {
       if (!sm.isMeshStandardMaterial) continue;
       const kind = /^Win/.test(sm.name) ? 'window' : /^Bay/.test(sm.name) ? 'bay' : /^Lantern/.test(sm.name) ? 'lantern' : /^Bulbs/.test(sm.name) ? 'bulb' : null;
       // Emissive strengths come from the offline render; real time needs them gentler.
+      const surf = surfaceKind(sm.name);
+      if (surf) detailSurface(sm, surf);
       if (kind) this.glowMats.push({ mat: sm, base: sm.emissiveIntensity * (kind === 'lantern' ? 0.12 : kind === 'window' ? 0.7 : 0.6), kind });
     }
     const variants = new Map<string, THREE.Object3D>();
@@ -453,7 +465,7 @@ export class Stage3D {
       if (o.name.startsWith('Band_')) this.band.push({ obj: o, y: o.position.y, seed: Math.random() * 2 });
     });
     this.scene.add(root);
-    this.scene.add(new THREE.HemisphereLight(0x2a3870, 0x3a2414, 0.5));
+    this.scene.add(new THREE.HemisphereLight(0x2a3870, 0x3a2414, 0.28));
     this.scene.add(new THREE.AmbientLight(0x1a1420, 0.3));
 
     const crowdShare = LEVEL_SHARE[this.g.crowd];
@@ -688,8 +700,10 @@ export class Stage3D {
           varying float vAlong; varying vec3 vN; varying vec3 vV;
           void main() {
             float edge = pow(abs(dot(normalize(vN), normalize(vV))), 2.2);
-            float along = pow(1.0 - clamp(vAlong, 0.0, 1.0), 1.5);
-            gl_FragColor = vec4(uColor * uIntensity * edge * along * 0.55, 1.0);
+            // Bright at the lens, soft and quickly fading into the haze.
+            float a = clamp(vAlong, 0.0, 1.0);
+            float along = pow(1.0 - a, 2.6) + 0.35 * exp(-a * 30.0);
+            gl_FragColor = vec4(uColor * uIntensity * edge * along * 0.5, 1.0);
             #include <tonemapping_fragment>
             #include <colorspace_fragment>
           }`,

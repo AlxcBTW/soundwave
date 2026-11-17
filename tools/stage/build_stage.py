@@ -1698,7 +1698,15 @@ def flatten_material(m):
     pr = next((n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'), None)
     em = next((n for n in nt.nodes if n.type == 'EMISSION'), None)
     if pr:
-        base = tuple(pr.inputs['Base Color'].default_value) if not pr.inputs['Base Color'].is_linked else (0.5, 0.5, 0.6, 1)
+        base = tuple(pr.inputs['Base Color'].default_value)
+        if pr.inputs['Base Color'].is_linked:
+            src = pr.inputs['Base Color'].links[0].from_node
+            if src.type == 'VALTORGB':
+                # a colour ramp (ground, crowd clothes): its average colour
+                el = src.color_ramp.elements
+                base = tuple(sum(e.color[i] for e in el) / len(el) for i in range(3)) + (1,)
+            else:
+                base = (0.5, 0.5, 0.6, 1)
         metal = pr.inputs['Metallic'].default_value
         rough = pr.inputs['Roughness'].default_value
         emit = tuple(pr.inputs['Emission Color'].default_value)
@@ -1743,6 +1751,63 @@ def islands(obj):
         out.append((c, max((q - c).length for q in comp)))
     bm.free()
     return out
+
+
+def smooth_by_angle(obj, angle=38):
+    """Smooth shading with crisp edges: round towers and domes go smooth, box corners stay sharp."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    limit = math.radians(angle)
+    for f in bm.faces:
+        f.smooth = True
+    for e in bm.edges:
+        e.smooth = e.is_manifold and len(e.link_faces) == 2 and e.calc_face_angle(math.pi) < limit
+    bm.to_mesh(obj.data)
+    bm.free()
+
+
+BAKE_MATS = ('Sandstone', 'SandstoneDark', 'Gilt', 'Patina', 'RoseTile', 'BlueTile', 'Deck', 'Trim', 'Truss', 'Bronze', 'Grille', 'Black')
+
+
+def occlusion_group():
+    """The node group the glTF exporter reads ambient occlusion from."""
+    g = bpy.data.node_groups.get('glTF Material Output')
+    if g is None:
+        g = bpy.data.node_groups.new('glTF Material Output', 'ShaderNodeTree')
+        g.interface.new_socket('Occlusion', in_out='INPUT', socket_type='NodeSocketFloat')
+    return g
+
+
+def bake_ao(obj, density=7.0, samples=96):
+    """Unwraps the object and bakes Cycles ambient occlusion into a texture the GLB carries."""
+    area = sum(p.area for p in obj.data.polygons)
+    res = int(min(4096, max(256, 2 ** math.ceil(math.log2(max(1.0, math.sqrt(area) * density))))))
+    for o in bpy.context.view_layer.objects:
+        o.select_set(False)
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    if not obj.data.uv_layers:
+        obj.data.uv_layers.new(name='UVMap')
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=0.004)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    img = bpy.data.images.new(obj.name + '_ao', res, res, alpha=False)
+    img.colorspace_settings.name = 'Non-Color'
+    mat = obj.data.materials[0]
+    nt = mat.node_tree
+    tex = nt.nodes.new('ShaderNodeTexImage')
+    tex.image = img
+    nt.nodes.active = tex
+    scene.cycles.samples = samples
+    bpy.ops.object.bake(type='AO', margin=6, use_clear=True)
+    img.pack()
+    sep = nt.nodes.new('ShaderNodeSeparateColor')
+    grp = nt.nodes.new('ShaderNodeGroup')
+    grp.node_tree = occlusion_group()
+    nt.links.new(tex.outputs['Color'], sep.inputs[0])
+    nt.links.new(sep.outputs[0], grp.inputs['Occlusion'])
+    return res
 
 
 def join(objs, name):
@@ -1847,12 +1912,23 @@ def export_for_game(out_dir):
             groups.setdefault(o.data.materials[0].name, []).append(o)
     for mname, objs in groups.items():
         join(objs, 'M_' + mname)
+    # smooth normals everywhere, then contact shading baked from the full scene
+    for o in scene.objects:
+        if o.type == 'MESH':
+            smooth_by_angle(o)
+    scene.world.light_settings.distance = 4.0
+    baked = []
+    for o in list(scene.objects):
+        if o.type == 'MESH' and o.name.startswith('M_') and o.data.materials[0].name in BAKE_MATS:
+            baked.append((o.name, bake_ao(o)))
+    print('baked ao', baked)
     for o in scene.objects:
         if o.type not in ('MESH',):
             print('warning: non-mesh left in export', o.name, o.type)
     glb = os.path.join(out_dir, 'stage.glb')
     bpy.ops.export_scene.gltf(filepath=glb, export_format='GLB', export_apply=True, export_yup=True, export_lights=False, export_cameras=False,
-                              export_texcoords=False, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6)
+                              export_texcoords=True, export_image_format='JPEG', export_image_quality=85,
+                              export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6)
     with open(os.path.join(out_dir, 'stage.json'), 'w') as f:
         json.dump(data, f, separators=(',', ':'))
     meshes = [o for o in scene.objects if o.type == 'MESH']
