@@ -13,6 +13,7 @@ import { loadVenue, type VenueAssets, type VenueData } from './assets';
 import { Beams } from './beams';
 import { CROWD_RECT, buildCrowdMap } from './crowdMap';
 import { Figures, makeBand, makeCrowd, type Person } from './figures';
+import { Flames } from './flames';
 import { applyVenueMaterials } from './materials';
 import { shared } from './shared';
 import { buildSky } from './sky';
@@ -96,6 +97,8 @@ export class AuroraStage {
   private readonly mirrorCamera = new THREE.PerspectiveCamera();
   /** The big wheel on the festival grounds, turning slowly. */
   private wheel: THREE.Object3D | null = null;
+  /** Flame jets along the front of the deck; they fire with the fireworks and through overdrive. */
+  private flames: Flames | null = null;
   private readonly sparks: Particles;
   private readonly smoke: Particles;
   private readonly data: VenueData;
@@ -223,6 +226,22 @@ export class AuroraStage {
     this.scene.add(this.beams.group);
     this.owned.push(this.beams);
 
+    if (SPARKS[g.effects] && !menu) {
+      // Seven jets along the front edge of the deck, between the CO2 nozzles.
+      const deck = this.data.deck;
+      const bases: [number, number, number][] = [];
+      for (let j = 0; j < 7; j++) {
+        const a = Math.PI * (1.2 + (0.6 * j) / 6);
+        const sx = Math.sign(Math.cos(a)) * Math.abs(Math.cos(a)) ** (2 / deck.power);
+        const sy = Math.sign(Math.sin(a)) * Math.abs(Math.sin(a)) ** (2 / deck.power);
+        bases.push([deck.center[0] + sx * deck.a * 1.02, deck.height, deck.center[2] - sy * deck.b * 1.02]);
+      }
+      // And two more to each side of it, where the note lane does not stand in front of them.
+      for (const side of [-1, 1]) bases.push([deck.center[0] + side * (deck.a + 2.5), 1.9, deck.center[2] + 5], [deck.center[0] + side * (deck.a + 8.5), 0.3, deck.center[2] + 6.5]);
+      this.flames = new Flames(bases);
+      this.scene.add(this.flames.mesh);
+      this.owned.push(this.flames);
+    }
     this.sparks = new Particles(SPARKS[g.effects] || 1, THREE.AdditiveBlending);
     this.smoke = new Particles(SMOKE[g.effects] || 1, THREE.NormalBlending);
     this.scene.add(this.sparks.points, this.smoke.points);
@@ -308,6 +327,13 @@ export class AuroraStage {
       if (e.type === 'fireworks') this.fireworks(e.which);
       else this.co2(e.strength);
     }
+    // In overdrive the jets keep time: all of them on the bar, every other one on the beats between.
+    if (this.flames && this.show.state.overdrive > 0.5 && beat !== 'none') {
+      const turn = this.beats;
+      if (beat === 'downbeat') this.flames.fire(this.show.state.time, undefined, 0.9);
+      else this.flames.fire(this.show.state.time, (i) => (i + turn) % 2 === 0, 0.55);
+    }
+    shared.uFire.value = this.flames?.glow(this.show.state.time) ?? 0;
     this.sparks.update(dt, -9);
     this.smoke.update(dt, 0.4);
     if (this.wheel) this.wheel.rotation.z += dt * 0.045;
@@ -516,6 +542,8 @@ export class AuroraStage {
 
   // ------------------------------------------------------------------ effects
   private fireworks(which: 'all' | 'center' | 'sides') {
+    // The flame jets go off with them: the middle ones, the outer ones, or the lot.
+    this.flames?.fire(this.show.state.time, (i) => which === 'all' || (which === 'center') === (i >= 2 && i <= 4));
     const perRay = SPARKS_PER_RAY[this.g.effects];
     if (!perRay) return;
     const origin = new THREE.Vector3();

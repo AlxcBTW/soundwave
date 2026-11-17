@@ -43,6 +43,8 @@ export const shared = {
   uShoreCol: { value: Array.from({ length: 8 }, () => new THREE.Color(0, 0, 0)) },
   /** The last firework: where it burst and how bright it still is. */
   uBurst: { value: new THREE.Vector4(0, 60, -40, 0) },
+  /** How strongly the flame jets are burning, 0..1: they light what stands near. */
+  uFire: { value: 0 },
   /** Overall brightness of the screens. */
   uScreenLevel: { value: 1 },
   /**
@@ -87,6 +89,7 @@ uniform vec3 uMoonCol;
 uniform vec3 uShore[8];
 uniform vec3 uShoreCol[8];
 uniform vec4 uBurst;
+uniform float uFire;
 
 float hash11(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
 float hash21(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }

@@ -92,6 +92,33 @@ const highwayFragment = /* glsl */ `
   }
 `;
 
+/** Blue fire standing along both edges of the lane while overdrive lasts. */
+const fireFragment = /* glsl */ `
+  uniform float uTime;
+  uniform float uLevel;
+  uniform float uFlare;
+  varying vec2 vUv;
+  float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+  float noise(vec2 p) {
+    vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+  }
+  float fbm(vec2 p) { return 0.5 * noise(p) + 0.25 * noise(p * 2.03 + 17.3) + 0.125 * noise(p * 4.1 + 9.1) + 0.0625 * noise(p * 8.3 + 3.7); }
+  void main() {
+    // vUv.x runs from the strike line to the far end, vUv.y up from the lane.
+    float u = vUv.x * 30.0;
+    float v = vUv.y;
+    float roll = fbm(vec2(u * 1.3, v * 2.4 - uTime * 2.8));
+    // tongues of different heights along the lane, taller for a moment when overdrive starts
+    float tall = 0.5 + 0.5 * fbm(vec2(u * 0.55 + 3.0, uTime * 0.9)) + 0.5 * uFlare;
+    float body = smoothstep(0.0, 0.45, roll * 0.9 + 0.5 - v / tall);
+    float core = smoothstep(0.0, 0.4, roll * 0.8 + 0.22 - v / (tall * 0.55));
+    vec3 col = vec3(0.03, 0.16, 1.0) * body + vec3(0.1, 0.55, 1.0) * body * body + vec3(0.75, 0.92, 1.0) * core;
+    float ends = smoothstep(1.0, 0.6, vUv.x) * smoothstep(0.0, 0.05, vUv.x);
+    gl_FragColor = vec4(col * (1.0 + uFlare), body * uLevel * ends);
+  }
+`;
+
 /**
  * The 3D note highway: track, strike pads, gems, sustain tails, beat lines and hit effects.
  * The canvas is transparent so a 2D background can sit behind it.
@@ -102,6 +129,9 @@ export class Highway {
   private readonly camera = new THREE.PerspectiveCamera(46, 1, 0.1, 100);
   private readonly root = new THREE.Group();
   private readonly trackMat: THREE.ShaderMaterial;
+  private readonly fireMat: THREE.ShaderMaterial;
+  private readonly fire = new THREE.Group();
+  private flare = 0;
   private readonly gems: THREE.InstancedMesh;
   private readonly shines: THREE.InstancedMesh;
   private readonly tails: THREE.InstancedMesh;
@@ -184,6 +214,30 @@ export class Highway {
     track.position.set(0, -0.02, -trackLen / 2 + 1.5);
     track.renderOrder = -2;
     this.root.add(track);
+
+    // Overdrive's fire: a sheet standing along each edge, leaning out so it shows from behind the lane.
+    this.fireMat = new THREE.ShaderMaterial({
+      vertexShader: highwayVertex,
+      fragmentShader: fireFragment,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      uniforms: { uTime: { value: 0 }, uLevel: { value: 0 }, uFlare: { value: 0 } },
+    });
+    const fireHeight = 1.5;
+    for (const side of [-1, 1]) {
+      const lean = new THREE.Group();
+      lean.position.set(side * (this.width / 2 + 0.1), -0.02, 0);
+      lean.rotation.z = -side * 0.4;
+      const sheet = new THREE.Mesh(new THREE.PlaneGeometry(trackLen, fireHeight), this.fireMat);
+      sheet.rotation.y = Math.PI / 2;
+      sheet.position.set(0, fireHeight / 2, -trackLen / 2 + 1.5);
+      lean.add(sheet);
+      this.fire.add(lean);
+    }
+    this.fire.visible = false;
+    this.root.add(this.fire);
 
     // Beat / bar lines
     this.lines = new THREE.InstancedMesh(
@@ -379,6 +433,7 @@ export class Highway {
         break;
       case 'overdrive-start':
         this.pulse = 1.5;
+        this.flare = 1;
         break;
     }
   }
@@ -420,6 +475,12 @@ export class Highway {
     u.uScroll.value = (t * speed * 0.5) % 2;
     this.pulse = Math.max(0, this.pulse - dt * 2);
     u.uPulse.value = this.pulse + beatPulse * 0.6;
+    this.flare = Math.max(0, this.flare - dt * 1.1);
+    const fire = this.fireMat.uniforms;
+    fire.uTime.value = now / 1000;
+    fire.uLevel.value = u.uOverdrive.value;
+    fire.uFlare.value = this.flare;
+    this.fire.visible = u.uOverdrive.value > 0.01;
 
     // Camera shake on misses
     this.shake = Math.max(0, this.shake - dt * 2.5);

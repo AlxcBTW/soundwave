@@ -140,6 +140,8 @@ void main() {
   // People standing shoulder to shoulder shade each other below the shoulders.
   float packed = mix(smoothstep(0.2, 1.7, vWPos.y - vFoot) * 0.85 + 0.15, 1.0, min(1.0, vLook.y));
   vec3 light = (vec3(0.02, 0.035, 0.11) * (0.6 + 0.4 * n.y) + stageCol * wrap * stage * 0.95 + uWash * 0.16 * stage) * packed;
+  // The flame jets light whoever is near the stage, from its side.
+  light += vec3(1.0, 0.52, 0.2) * uFire * stage * (0.45 + 0.55 * max(0.0, dot(n, toGlow)));
   // The pools of light drifting over the field fall on heads and shoulders.
   light += fieldPools(vWPos.xz) * (0.35 + 0.65 * max(0.0, n.y)) * 0.42 * (1.0 - min(1.0, vLook.y));
   // The band stands in the front spots.

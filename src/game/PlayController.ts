@@ -81,6 +81,8 @@ export class PlayController {
 
     this.downbeats = new Set(chart.downbeats);
     this.session = new GameSession(chart);
+    // In development the running game can be reached from the console (to start overdrive, say).
+    if (import.meta.env.DEV) (window as unknown as { __play?: PlayController }).__play = this;
     this.highway = new Highway(highwayCanvas, chart);
     this.highway.speed = settings.noteSpeed;
     this.breaks = findBreaks(chart, this.highway.horizon);
