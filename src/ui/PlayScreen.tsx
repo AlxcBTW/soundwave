@@ -1,4 +1,4 @@
-import { LogOut, Pause, Play, RotateCcw, SkipForward, Zap } from 'lucide-react';
+import { LogOut, Pause, Play, RotateCcw, Settings as SettingsIcon, SkipForward, Zap } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { getEngine } from '../audio/engine';
 import { playSfx } from '../audio/sfx';
@@ -12,6 +12,7 @@ import { focusStart } from '../input/menuNav';
 import { menuPulse } from '../input/rumble';
 import { useGlyphStyle } from '../input/usePads';
 import { useActions } from './actions';
+import { Dialog } from './Dialog';
 import { ICON_STROKE, PART_LABEL } from './icons';
 
 interface Props {
@@ -26,12 +27,28 @@ interface Props {
   onFinish(r: Results): void;
   /** Leaves the song for the next one in the set (absent on the last song). */
   onSkip?(): void;
+  /** Opens the settings over the pause menu; `settingsOpen` says they are showing. */
+  onSettings(): void;
+  settingsOpen: boolean;
   onQuit(): void;
 }
 
+/** What the pause menu asks about before it throws the run away. */
+type Ask = 'restart' | 'skip' | 'leave';
+
 const STAR_PATH = 'M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5L2.6 9.4l6.5-.9z';
 
-export function PlayScreen({ title, artist, position, total, buffer, chart, settings, onFinish, onSkip, onQuit }: Props) {
+export function PlayScreen({ title, artist, position, total, buffer, chart, settings, onFinish, onSkip, onSettings, settingsOpen, onQuit }: Props) {
+  // The song is set up with the settings it starts with; the ones that can change mid-song are
+  // handed over as they change (see applySettings), so opening the settings never restarts it.
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const [ask, setAsk] = useState<Ask | null>(null);
+  // Something is open over the pause menu (the settings, or a question): Esc, Tab and the pause
+  // button belong to it, not to the menu underneath.
+  const covered = settingsOpen || ask !== null;
+  const coveredRef = useRef(covered);
+  coveredRef.current = covered;
   const bgRef = useRef<HTMLCanvasElement>(null);
   const hwRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -49,7 +66,7 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
   useEffect(() => {
     const root = hudRef.current!;
     const q = (s: string) => root.querySelector<HTMLElement>(s)!;
-    const ctrl = new PlayController(getEngine(), buffer, chart, settings, hwRef.current!, bgRef.current!, {
+    const ctrl = new PlayController(getEngine(), buffer, chart, settingsRef.current, hwRef.current!, bgRef.current!, {
       root,
       score: q('[data-hud=score]'),
       multiplier: q('[data-hud=mult]'),
@@ -90,7 +107,28 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
       ctrl.dispose();
       ctrlRef.current = null;
     };
-  }, [buffer, chart, settings, run]);
+  }, [buffer, chart, run]);
+
+  useEffect(() => ctrlRef.current?.applySettings(settings), [settings]);
+  useEffect(() => {
+    if (covered) {
+      if (ctrlRef.current) ctrlRef.current.holdPause = true;
+      return;
+    }
+    // Let go a moment later: the press that closed what was on top must not resume the song too.
+    const timer = window.setTimeout(() => {
+      if (ctrlRef.current) ctrlRef.current.holdPause = false;
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [covered, run]);
+  useEffect(() => {
+    // Back from the settings, focus returns to the button that opened them.
+    if (!settingsOpen && ctrlRef.current && pauseRef.current) {
+      const from = pauseRef.current.querySelector<HTMLElement>('[data-opens="settings"]');
+      if (from) from.focus({ preventScroll: true });
+      else focusStart(pauseRef.current);
+    }
+  }, [settingsOpen]);
 
   // The highway is laid out differently for touch (square targets at the foot of the screen).
   useEffect(() => {
@@ -105,7 +143,7 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
     focusStart();
     const box = pauseRef.current!;
     const trap = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
+      if (e.key !== 'Tab' || coveredRef.current) return;
       const all = Array.from(box.querySelectorAll<HTMLElement>('button:not([disabled])'));
       const i = all.indexOf(document.activeElement as HTMLElement);
       e.preventDefault();
@@ -117,12 +155,28 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
   // No bar during a song: this keeps the menu actions of the screen underneath switched off.
   useActions([]);
 
+  const set = total > 1;
+  const question = {
+    restart: { title: 'Restart the song?', hint: 'This run and its score are thrown away, and the song starts from the top.', yes: 'Restart song' },
+    skip: { title: 'Skip this song?', hint: 'It gets no score, and the next song in the set starts.', yes: 'Skip to next song' },
+    leave: set
+      ? { title: 'Leave the set?', hint: 'The set ends here and this song gets no score. The songs you finished keep theirs.', yes: 'Leave the set' }
+      : { title: 'Leave the song?', hint: 'This run and its score are thrown away.', yes: 'Leave the song' },
+  }[ask ?? 'restart'];
+  const confirm = () => {
+    const what = ask;
+    setAsk(null);
+    if (what === 'restart') setRun((r) => r + 1);
+    else if (what === 'skip') onSkip?.();
+    else onQuit();
+  };
+
   const keys = chart.lanes === 5 ? settings.keys5 : settings.keys4;
   const padKeys = chart.lanes === 5 ? settings.pad5 : settings.pad4;
   const usingPad = mode === 'pad';
 
   return (
-    <div className={`play ${paused ? 'is-paused' : ''}`} data-lanes={chart.lanes} data-od-side={settings.touchOverdriveSide} data-nav-off={paused ? undefined : ''}>
+    <div className={`play ${paused ? 'is-paused' : ''}`} data-lanes={chart.lanes} data-od-side={settings.touchOverdriveSide} data-nav-off={paused ? undefined : ''} inert={settingsOpen}>
       <canvas ref={bgRef} className="layer" />
       <div ref={stageRef} className="layer stage-host" />
       <canvas ref={hwRef} className="layer highway" />
@@ -196,22 +250,42 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
               <Play strokeWidth={ICON_STROKE} aria-hidden />
               Resume
             </button>
-            <button type="button" className="btn wide" onClick={() => setRun((r) => r + 1)}>
+            <button type="button" className="btn wide" onClick={() => setAsk('restart')}>
               <RotateCcw strokeWidth={ICON_STROKE} aria-hidden />
               Restart song
             </button>
+            <button type="button" className="btn wide" data-opens="settings" onClick={onSettings}>
+              <SettingsIcon strokeWidth={ICON_STROKE} aria-hidden />
+              Settings
+            </button>
             {onSkip && (
-              <button type="button" className="btn wide" onClick={onSkip}>
+              <button type="button" className="btn wide" onClick={() => setAsk('skip')}>
                 <SkipForward strokeWidth={ICON_STROKE} aria-hidden />
                 Skip to next song
               </button>
             )}
-            <button type="button" className="btn wide" data-sfx="back" onClick={onQuit}>
+            <button type="button" className="btn wide" data-sfx="back" onClick={() => setAsk('leave')}>
               <LogOut strokeWidth={ICON_STROKE} aria-hidden />
               {total > 1 ? 'Leave the set' : 'Leave the song'}
             </button>
           </div>
         </div>
+      )}
+      {paused && ask && (
+        <Dialog title={question.title} variant="card" closeLabel="Go back" onClose={() => setAsk(null)}>
+          {(close) => (
+            <div className="pause-card">
+              <h2 className="display">{question.title}</h2>
+              <p className="hint">{question.hint}</p>
+              <button type="button" className="btn wide" data-autofocus data-sfx="back" onClick={close}>
+                Go back
+              </button>
+              <button type="button" className="btn primary wide" data-sfx={ask === 'leave' ? 'back' : undefined} onClick={confirm}>
+                {question.yes}
+              </button>
+            </div>
+          )}
+        </Dialog>
       )}
     </div>
   );

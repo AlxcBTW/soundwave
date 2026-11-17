@@ -20,6 +20,8 @@ interface Props {
   mlStatus: 'off' | 'checking' | 'online' | 'offline';
   onChange(s: Settings): void;
   onBack(): void;
+  /** Opened from a paused song: what would disturb the song is switched off. */
+  inSong?: boolean;
 }
 
 type Tab = 'video' | 'audio' | 'game' | 'keyboard' | 'controller' | 'touch' | 'analysis';
@@ -114,7 +116,7 @@ const LEVELS: Option[] = [
 const PRESET_LABEL: Record<Exclude<GraphicsPreset, 'auto' | 'custom'>, string> = { low: 'Low', medium: 'Medium', high: 'High', ultra: 'Ultra' };
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
-export function SettingsScreen({ settings, mlStatus, onChange, onBack }: Props) {
+export function SettingsScreen({ settings, mlStatus, onChange, onBack, inSong = false }: Props) {
   const [tab, setTabState] = useState<Tab>(loadTab);
   const [binding, setBinding] = useState<Binding | null>(null);
   const [calibrating, setCalibrating] = useState(false);
@@ -231,7 +233,7 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack }: Props) 
     { id: 'reset', label: 'Restore defaults', icon: RotateCcw, kbd: 'KeyR', pad: 'b3', run: resetTab },
   ]);
 
-  const sections = buildSections(tab, { settings, set, binding, setBinding, snap, haptics, mlStatus, calibrate: () => setCalibrating(true) });
+  const sections = buildSections(tab, { settings, set, binding, setBinding, snap, haptics, mlStatus, calibrate: () => setCalibrating(true), inSong });
   const rows = sections.flatMap((s) => s.rows);
   const active = rows.find((r) => r.id === activeId) ?? rows[0];
   const tabRow = useSlide<HTMLDivElement>(tab);
@@ -296,6 +298,7 @@ interface Ctx {
   haptics: boolean | null;
   mlStatus: Props['mlStatus'];
   calibrate(): void;
+  inSong: boolean;
 }
 
 function buildSections(tab: Tab, c: Ctx): Section[] {
@@ -402,7 +405,7 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
         title: 'Timing',
         rows: [
           { kind: 'slider', id: 'offsetMs', label: 'Audio offset', help: 'If notes feel late, raise the offset. If they feel early, lower it. Wireless speakers and TVs usually need a higher value.', value: s.offsetMs, min: -200, max: 300, step: 5, format: (v) => `${Math.round(v)} ms`, set: (v) => set({ offsetMs: Math.round(v) }) },
-          { kind: 'action', id: 'calibrate', label: 'Calibrate by tapping', help: 'Tap along to twenty clicks. The offset is set from how early or late you tapped.', button: 'Start', run: c.calibrate },
+          { kind: 'action', id: 'calibrate', label: 'Calibrate by tapping', help: c.inSong ? 'Tap along to twenty clicks. This needs the song out of the way: open it from the main menu.' : 'Tap along to twenty clicks. The offset is set from how early or late you tapped.', button: 'Start', disabled: c.inSong, run: c.calibrate },
         ],
       },
     ];

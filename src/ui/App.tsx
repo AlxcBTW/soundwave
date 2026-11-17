@@ -86,6 +86,8 @@ export function App() {
   const [sheet, setSheet] = useState<SongMeta | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [exitAsk, setExitAsk] = useState(false);
+  /** The settings, open over a paused song. */
+  const [songSettings, setSongSettings] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const updateSettings = useCallback((s: Settings) => {
     setSettings(s);
@@ -385,6 +387,22 @@ export function App() {
     return () => cancelAnimationFrame(raf);
   }, [sceneKey, view.name]);
 
+  // The settings over a paused song take focus as they open (the pause menu takes it back, see PlayScreen).
+  useEffect(() => {
+    if (!songSettings) return;
+    const raf = requestAnimationFrame(() => {
+      const over = document.querySelector<HTMLElement>('.settings-over');
+      if (!over) return;
+      if (usesFocus(getInputMode())) return focusStart(over);
+      const heading = over.querySelector<HTMLElement>('h1');
+      if (!heading) return;
+      heading.tabIndex = -1;
+      heading.dataset.ring = 'none';
+      heading.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [songSettings]);
+
   const subtitle = (run: Run) => `${PART_LABEL[run.pick.part]} · ${DIFFICULTY_LABEL[run.pick.difficulty]}`;
 
   let content: React.ReactNode;
@@ -404,7 +422,12 @@ export function App() {
         buffer={view.buffer}
         chart={run.charts[run.index]}
         settings={settings}
-        onQuit={() => setView(run.lobby)}
+        onSettings={() => setSongSettings(true)}
+        settingsOpen={songSettings}
+        onQuit={() => {
+          setSongSettings(false);
+          setView(run.lobby);
+        }}
         onSkip={more ? () => void playAt(withResult(run, { song, results: null }), run.index + 1) : undefined}
         onFinish={(r) => void finish(run, r)}
       />
@@ -515,6 +538,14 @@ export function App() {
           }}
           onClose={() => setSheet(null)}
         />
+      )}
+      {songSettings && view.name === 'play' && (
+        <div className="menu settings-over" data-modal>
+          <div className="veil" aria-hidden />
+          <div className="scene fwd">
+            <SettingsScreen settings={settings} mlStatus={mlStatus} onChange={updateSettings} onBack={() => setSongSettings(false)} inSong />
+          </div>
+        </div>
       )}
       {exitAsk && (
         <Dialog title="Close the game" variant="card" closeLabel="Stay" onClose={() => setExitAsk(false)}>

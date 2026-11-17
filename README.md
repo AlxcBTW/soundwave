@@ -24,7 +24,7 @@ npm run dev
 
 Open http://localhost:5173. A built-in demo track is always available.
 
-Default keys are `D F J K` (plus `L` on Expert), `Space` for overdrive and `Esc` to pause. All of them can be changed in Settings.
+Default keys are `D F J K` (plus `L` on Expert), `Space` for overdrive and `Esc` to pause. All of them can be changed in Settings. The pause menu also opens Settings (volume, audio offset and note speed take effect in the paused song; the rest from the next one) and asks before a song is restarted, skipped or left.
 
 The menus work with whatever you last touched, and change with it. With a keyboard, the arrow keys move a focus ring between controls, `Enter` selects, `Esc` goes back, `Q` and `E` switch tabs, and every action along the bottom of the screen shows its key. With a mouse the same actions are buttons. On a touchscreen the targets grow and the hints go away, and in a song the lanes themselves are the controls: tap anywhere along a lane to play it, hold for long notes, use several fingers for chords.
 

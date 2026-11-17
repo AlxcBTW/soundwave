@@ -68,6 +68,9 @@ export class PlayController {
   /** Overdrive meter when overdrive was activated, for the progressive rumble. */
   private odMeterAtStart = 1;
 
+  /** Keeps the song paused whatever is pressed (while the settings are open over the pause menu). */
+  holdPause = false;
+
   onPhase: (p: PlayPhase, countdown?: number) => void = () => {};
   onFinish: (r: Results) => void = () => {};
 
@@ -150,7 +153,11 @@ export class PlayController {
       overdrive: () => {
         if (this.phase === 'playing') this.session.activateOverdrive();
       },
-      pause: () => (this.phase === 'paused' ? this.resume() : this.pause()),
+      pause: () => {
+        // With the settings open over the pause menu, Esc and the pause button belong to them.
+        if (this.holdPause) return;
+        void (this.phase === 'paused' ? this.resume() : this.pause());
+      },
     };
     this.input = new KeyboardInput(keys, settings.overdriveKey, handlers);
     // Controllers drive the menus while paused, so only take their input during play.
@@ -205,6 +212,16 @@ export class PlayController {
     root.setProperty('--hw-y', `${first.y.toFixed(1)}px`);
     root.setProperty('--lane-w', `${laneW.toFixed(1)}px`);
     root.setProperty('--hw-w', `${(laneW * pos.length).toFixed(1)}px`);
+  }
+
+  /**
+   * Takes over the settings that can change in the middle of a song: volume, audio offset and note
+   * speed. Bindings, rumble and the stage's graphics are read when a song starts.
+   */
+  applySettings(s: Settings) {
+    this.engine.offset = s.offsetMs / 1000;
+    this.engine.volume = s.volume;
+    this.highway.speed = s.noteSpeed;
   }
 
   async start() {
