@@ -454,11 +454,12 @@ for k in (6, 18, 30, 42):
 
 
 # ---------------------------------------------------------------- crests: waves curling outward on both wings
-def crest(name, base, height, mat, turn=0.0, lean=0.0):
+def crest(name, base, height, mat, turn=0.0, lean=0.0, ground=0.0, beam=True):
+    """A wave curling outward, one on each side of the stage; `ground` is the height it stands at."""
     h = height
     local = [(0, 0), (-0.05 * h, 0.4 * h), (0.03 * h, 0.75 * h), (0.24 * h, 0.96 * h), (0.5 * h, 0.99 * h), (0.7 * h, 0.86 * h), (0.8 * h, 0.72 * h)]
     for side in (1, -1):
-        m = Matrix.Translation(Vector((base[0] * side, base[1], 0))) @ Matrix.Rotation(turn * side, 4, 'Z') @ Matrix.Rotation(lean, 4, 'X')
+        m = Matrix.Translation(Vector((base[0] * side, base[1], ground))) @ Matrix.Rotation(turn * side, 4, 'Z') @ Matrix.Rotation(lean, 4, 'X')
         path = catmull([m @ Vector((x * side, 0, z)) for x, z in local], 72)
         axis = (m.to_3x3() @ Y).normalized()
         width = lambda t: 0.44 * h * (1 - t) ** 0.62 + 0.1
@@ -467,7 +468,8 @@ def crest(name, base, height, mat, turn=0.0, lean=0.0):
         fr = frames(path, axis)
         for sgn in (-1, 1):
             dots(led, [q + n_ * (sgn * (width(t) * 0.5 + 0.06)) - axis * 0.05 for (t, q, tan, n_, b) in fr[3:-1:2]])
-        FIXTURES.append({'group': 'Sky', 'pos': path[40] - axis * (0.05 * h), 'dir': (Vector((0.25 * side, -0.35, 1))).normalized()})
+        if beam:
+            FIXTURES.append({'group': 'Sky', 'pos': path[40] - axis * (0.05 * h), 'dir': (Vector((0.25 * side, -0.35, 1))).normalized()})
 
 
 crest('CrestA', (34.0, 15.0), 36.0, 'PaintCrest', turn=math.radians(-10), lean=math.radians(4))
@@ -679,6 +681,30 @@ SPRAY = [((31.5, 1.0), 6.5, 'PaintEcho', -4, 10), ((34.5, -1.5), 4.2, 'PaintCres
          ((64.0, 12.0), 9.0, 'PaintEcho', -34, 6)]
 for index, (base, height, paint, turn, lean) in enumerate(SPRAY):
     crest('Spray%d' % index, base, height, paint, turn=math.radians(turn), lean=math.radians(lean))
+
+# ---------------------------------------------------------------- the tide wall: waves down both flanks of the field
+# From the shore beside each wing a wall runs forward round the audience, so the stage does not end
+# in open ground: one swell after another, blue and violet by turns, each a blade standing on its
+# edge with lamps along its top, lower the further from the stage; where two meet a small wave
+# curls along it on the field's side. It follows the lie of the land.
+TIDE = [(82, 17), (86, 2), (86, -14), (88, -28), (94, -42), (101, -56), (110, -72), (115, -88)]
+SWELLS = [8.0, 12.0, 11.0, 9.5, 8.5, 7.5, 6.5]
+for side in (1, -1):
+    line = catmull([Vector((x * side, y, 0)) for x, y in TIDE], 28 * len(SWELLS))
+    for k, peak in enumerate(SWELLS):
+        # each swell runs a little into its neighbours, so the wall has no gaps
+        part = line[max(0, k * 28 - 3):(k + 1) * 28 + 4]
+        n = len(part) - 1
+        tall = lambda t, peak=peak: 3.0 + (peak - 3.0) * math.sin(math.pi * t) ** 0.7
+        blade = [p + Z * (terrain.height(p.x, p.y) + tall(i / n) / 2 - 0.7) for i, p in enumerate(part)]
+        loft('Tide%s%d' % ('R' if side > 0 else 'L', k), blade, lambda t: 0.5 + 0.7 * math.sin(math.pi * t), tall,
+             'PaintShellA' if k % 2 == 0 else 'PaintShellB', depth_axis=Z, sides=18, power=2.3, u_of=lambda t: math.sin(math.pi * t))
+        dots(led, [p + Z * (tall(i / n) / 2 + 0.14) for i, p in enumerate(blade)][2:-2:2], 0.14)
+for k in (1, 3, 5):
+    x, y = Vector(line[k * 28 + 28].xy) * 1.0
+    x = abs(x)
+    crest('TideCrest%d' % k, (x - 1.6, y), 0.8 * SWELLS[k], 'PaintCrest' if k % 4 == 1 else 'PaintEcho',
+          turn=math.radians(-58), lean=math.radians(10), ground=terrain.height(x, y) - 0.3, beam=False)
 
 new_obj('Leds', led, 'Led')
 new_obj('Rigging', black, 'Black', sharp=35)
