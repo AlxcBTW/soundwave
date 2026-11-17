@@ -164,8 +164,6 @@ const highwayFragment = /* glsl */ `
     vec2 f = fract(g);
     float facet = hash(vec2(cell.x, mod(cell.y, 8.0)) + step(f.x + f.y, 1.0) * 7.3);
     base *= 1.0 + (facet - 0.5) * (0.16 + 0.2 * uPulse);
-    // A dark groove across the deck on the player's side of the targets: the line the notes are played on.
-    base *= 1.0 - 0.6 * smoothstep(0.3, 0.36, -z) * smoothstep(0.52, 0.46, -z);
     vec3 od = vec3(0.35, 0.65, 1.0);
     // The rails are violet, gold while the streak holds the top multiplier, and overdrive's blue over both.
     vec3 railCol = mix(mix(vec3(0.74, 0.47, 1.0), vec3(1.0, 0.9, 0.56), uGold), od, uOverdrive) * (1.0 + 0.55 * uPulse + 0.55 * uGold);
