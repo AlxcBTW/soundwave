@@ -59,7 +59,7 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
   ]);
 
   return (
-    <div className="page home">
+    <div className="page home" data-nav-bar>
       <header className="page-head">
         <h1 className="wordmark">Festival</h1>
         {busy.length > 0 && (
@@ -71,7 +71,7 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
           </p>
         )}
         {onExit && (
-          <button type="button" className="btn exit-btn" data-action="exit" data-sfx="back" data-nav-skip onClick={onExit}>
+          <button type="button" className="btn exit-btn" data-action="exit" data-sfx="back" onClick={onExit}>
             <Hint kbd="Escape" pad={backInput(style)} mode={mode} style={style} />
             <Power strokeWidth={ICON_STROKE} aria-hidden />
             Exit

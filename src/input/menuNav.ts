@@ -7,7 +7,9 @@
  * a cancelable `nav-move` event (a settings row uses left and right to change its value).
  * Containers marked `data-nav-group` remember their last focused control, so crossing from a list
  * to a side panel and back returns to the same row. `data-nav-skip` keeps a control out of
- * directional navigation (it stays reachable with Tab).
+ * directional navigation (it stays reachable with Tab). The action bar is kept out that way, as a
+ * legend of shortcuts, except on a screen marked `data-nav-bar` (the main menu), where its buttons
+ * can be moved onto like any other, and on a screen with no controls of its own.
  */
 import { isTextField, setInputMode } from './inputMode';
 import { backInput, confirmInput, pads, type GlyphStyle } from './pads';
@@ -45,10 +47,12 @@ export function focusables(scope: ParentNode = navScope()): HTMLElement[] {
     if (el.tabIndex < 0 || el.closest('[data-nav-skip]')) return false;
     return shown(el);
   });
-  if (list.length || scope !== document) return list;
+  if (scope !== document) return list;
   // A screen with no controls of its own (results, the set summary): the action bar's buttons take
-  // the focus instead of standing outside it, so there is always something to move between.
-  return Array.from(document.querySelectorAll<HTMLElement>('.action-bar button:not([disabled])')).filter(shown);
+  // the focus instead of standing outside it, so there is always something to move between. The
+  // main menu asks for them as well as its own (`data-nav-bar`).
+  if (list.length && !document.querySelector('[data-nav-bar]')) return list;
+  return [...list, ...Array.from(document.querySelectorAll<HTMLElement>('.action-bar button:not([disabled])')).filter(shown)];
 }
 
 const center = (r: DOMRect) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
