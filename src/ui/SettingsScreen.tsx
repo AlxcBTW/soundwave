@@ -240,6 +240,7 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack }: Props) 
     <div className="page settings">
       <header className="page-head settings-head">
         <h1 className="page-title">Settings</h1>
+        <p className="head-count tab-name" aria-hidden>{TABS.find(([id]) => id === tab)![1]}</p>
         <div className="tabs">
           <Hint kbd="KeyQ" pad="b4" {...hints} />
           <div className="tab-row slide" role="tablist" aria-label="Settings sections" ref={tabRow} data-nav-group="tabs">
@@ -261,7 +262,7 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack }: Props) 
             <section key={sec.title} className="set-section">
               <h2 className="set-heading">{sec.title}</h2>
               {sec.rows.map((row, i) => (
-                <RowView key={row.id} row={row} active={active?.id === row.id} first={sec === sections[0] && i === 0} onActive={() => setActiveId(row.id)} />
+                <RowView key={row.id} row={row} active={active?.id === row.id} first={sec === sections[0] && i === 0} touch={hints.mode === 'touch'} onActive={() => setActiveId(row.id)} />
               ))}
             </section>
           ))}
@@ -546,7 +547,7 @@ function useSideways(ref: React.RefObject<HTMLElement | null>, step: (d: -1 | 1)
   }, [ref]);
 }
 
-function RowView({ row, active, first, onActive }: { row: Row; active: boolean; first: boolean; onActive(): void }) {
+function RowView({ row, active, first, touch, onActive }: { row: Row; active: boolean; first: boolean; touch: boolean; onActive(): void }) {
   const ref = useRef<HTMLDivElement>(null);
   const bar = useRef<HTMLSpanElement>(null);
   const index = row.kind === 'choice' ? Math.max(0, row.options.findIndex((o) => o.value === row.value)) : 0;
@@ -561,10 +562,20 @@ function RowView({ row, active, first, onActive }: { row: Row; active: boolean; 
       row.set(row.options[next].value);
     } else if (row.kind === 'slider') {
       const next = Math.min(row.max, Math.max(row.min, Math.round((row.value + d * row.step) / row.step) * row.step));
-      if (next !== row.value) row.set(Number(next.toFixed(4)));
+      if (next === row.value) return;
+      playSfx('move');
+      row.set(Number(next.toFixed(4)));
     }
   };
   useSideways(ref, (d) => step(d));
+
+  // A touch screen reader cannot send a slider its arrow keys, so on touch the row is a group whose
+  // step buttons are the controls; everywhere else the row itself is the slider.
+  const valueProps = (min: number, max: number, now: number, text: string) =>
+    touch
+      ? ({ role: 'group', 'aria-label': `${row.label}: ${text}` } as const)
+      : ({ role: 'slider', 'aria-label': row.label, 'aria-valuemin': min, 'aria-valuemax': max, 'aria-valuenow': now, 'aria-valuetext': text } as const);
+  const stepProps = (d: -1 | 1) => (touch ? { 'aria-label': `${d < 0 ? 'Lower' : 'Raise'} ${row.label}` } : { 'aria-hidden': true });
 
   const common = {
     ref,
@@ -579,10 +590,10 @@ function RowView({ row, active, first, onActive }: { row: Row; active: boolean; 
   if (row.kind === 'choice') {
     const opt = row.options[index];
     return (
-      <div {...common} role="slider" tabIndex={0} data-sfx="none" aria-label={row.label} aria-valuemin={0} aria-valuemax={row.options.length - 1} aria-valuenow={index} aria-valuetext={opt?.label} aria-disabled={row.disabled} onClick={() => step(1, true)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), step(1, true))}>
+      <div {...common} {...valueProps(0, row.options.length - 1, index, opt?.label ?? "")} tabIndex={0} data-sfx="none" aria-disabled={row.disabled} onClick={() => step(1, true)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), step(1, true))}>
         <span className="set-label">{row.label}</span>
         <span className="set-control">
-          <button type="button" className="step" tabIndex={-1} aria-hidden data-sfx="none" disabled={row.disabled || index === 0} onClick={(e) => (e.stopPropagation(), step(-1))}>
+          <button type="button" className="step" tabIndex={-1} data-sfx="none" {...stepProps(-1)} disabled={row.disabled || index === 0} onClick={(e) => (e.stopPropagation(), step(-1))}>
             <ChevronLeft strokeWidth={3} />
           </button>
           <span className="set-value">
@@ -593,7 +604,7 @@ function RowView({ row, active, first, onActive }: { row: Row; active: boolean; 
               ))}
             </span>
           </span>
-          <button type="button" className="step" tabIndex={-1} aria-hidden data-sfx="none" disabled={row.disabled || index === row.options.length - 1} onClick={(e) => (e.stopPropagation(), step(1))}>
+          <button type="button" className="step" tabIndex={-1} data-sfx="none" {...stepProps(1)} disabled={row.disabled || index === row.options.length - 1} onClick={(e) => (e.stopPropagation(), step(1))}>
             <ChevronRight strokeWidth={3} />
           </button>
         </span>
@@ -612,10 +623,10 @@ function RowView({ row, active, first, onActive }: { row: Row; active: boolean; 
       if (v !== row.value) row.set(Math.min(row.max, Math.max(row.min, v)));
     };
     return (
-      <div {...common} role="slider" tabIndex={0} data-sfx="none" aria-label={row.label} aria-valuemin={row.min} aria-valuemax={row.max} aria-valuenow={row.value} aria-valuetext={row.format(row.value)} aria-disabled={row.disabled} onKeyDown={(e) => (e.key === 'Home' ? row.set(row.min) : e.key === 'End' ? row.set(row.max) : undefined)}>
+      <div {...common} {...valueProps(row.min, row.max, row.value, row.format(row.value))} tabIndex={0} data-sfx="none" aria-disabled={row.disabled} onKeyDown={(e) => (e.key === 'Home' ? row.set(row.min) : e.key === 'End' ? row.set(row.max) : undefined)}>
         <span className="set-label">{row.label}</span>
         <span className="set-control">
-          <button type="button" className="step" tabIndex={-1} aria-hidden data-sfx="none" disabled={row.disabled || row.value <= row.min} onClick={() => step(-1)}>
+          <button type="button" className="step" tabIndex={-1} data-sfx="none" {...stepProps(-1)} disabled={row.disabled || row.value <= row.min} onClick={() => step(-1)}>
             <ChevronLeft strokeWidth={3} />
           </button>
           <span
@@ -632,7 +643,7 @@ function RowView({ row, active, first, onActive }: { row: Row; active: boolean; 
             <span className="set-bar-fill" />
             <span className="set-bar-value">{row.format(row.value)}</span>
           </span>
-          <button type="button" className="step" tabIndex={-1} aria-hidden data-sfx="none" disabled={row.disabled || row.value >= row.max} onClick={() => step(1)}>
+          <button type="button" className="step" tabIndex={-1} data-sfx="none" {...stepProps(1)} disabled={row.disabled || row.value >= row.max} onClick={() => step(1)}>
             <ChevronRight strokeWidth={3} />
           </button>
         </span>

@@ -77,7 +77,9 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
       setPhase(p);
       if (n !== undefined) setCount(n);
     };
-    ctrl.onFinish = (r) => setTimeout(() => finishRef.current(r), 900);
+    // The last chord rings out before the result; leaving in that moment cancels it.
+    let finishTimer = 0;
+    ctrl.onFinish = (r) => (finishTimer = window.setTimeout(() => finishRef.current(r), 900));
     ctrlRef.current = ctrl;
     void ctrl.start();
     // A song that loses the window (a call, another app) pauses instead of running on unseen.
@@ -85,6 +87,7 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
     document.addEventListener('visibilitychange', hidden);
     return () => {
       document.removeEventListener('visibilitychange', hidden);
+      clearTimeout(finishTimer);
       ctrl.dispose();
       ctrlRef.current = null;
     };
@@ -96,9 +99,21 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
   }, [mode]);
 
   const paused = phase === 'paused';
-  // The pause menu takes focus as it opens, so the keyboard and a controller land on Resume.
+  // The pause menu takes focus as it opens, so the keyboard and a controller land on Resume, and
+  // Tab stays inside it.
   useEffect(() => {
-    if (paused) focusStart();
+    if (!paused) return;
+    focusStart();
+    const box = pauseRef.current!;
+    const trap = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const all = Array.from(box.querySelectorAll<HTMLElement>('button:not([disabled])'));
+      const i = all.indexOf(document.activeElement as HTMLElement);
+      e.preventDefault();
+      all[e.shiftKey ? (i <= 0 ? all.length - 1 : i - 1) : i === all.length - 1 ? 0 : i + 1]?.focus();
+    };
+    window.addEventListener('keydown', trap, true);
+    return () => window.removeEventListener('keydown', trap, true);
   }, [paused]);
   // No bar during a song: this keeps the menu actions of the screen underneath switched off.
   useActions([]);
@@ -121,9 +136,9 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
             <span className="hud-song">{title}</span>
             <span className="hud-artist">{artist}</span>
           </div>
-          <div className="hud-progress" role="progressbar" aria-label="Song progress"><div data-hud="progress" /></div>
+          <div className="hud-progress" aria-hidden><div data-hud="progress" /></div>
         </div>
-        <button type="button" className="hud-pause" data-sfx="none" aria-label="Pause" onClick={() => ctrlRef.current?.pause()}>
+        <button type="button" className="hud-pause" data-sfx="none" tabIndex={-1} aria-label="Pause" onClick={() => ctrlRef.current?.pause()}>
           <Pause strokeWidth={ICON_STROKE} aria-hidden />
         </button>
 

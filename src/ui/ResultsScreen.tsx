@@ -102,7 +102,7 @@ export function ResultsScreen({ song, subtitle, results: r, best, position, tota
             </div>
           </div>
           <Stars n={r.stars} className="results-stars" />
-          <div className="results-score num" aria-label={`Score ${r.score.toLocaleString()}`}>
+          <div className="results-score num" role="img" aria-label={`Score ${r.score.toLocaleString()}`}>
             {score.toLocaleString()}
           </div>
           <div className="results-tags">
@@ -161,7 +161,7 @@ export function SummaryScreen({ set, subtitle, onAgain, onDone }: SummaryProps) 
   }, [stars, played.length]);
 
   useActions([
-    { id: 'again', label: 'Play the set again', icon: Repeat, kbd: 'KeyR', pad: 'b3', run: onAgain },
+    { id: 'again', label: 'Play the set again', icon: Repeat, kbd: 'KeyR', pad: 'b3', sfx: 'launch', run: onAgain },
     { id: 'done', label: 'Done', icon: Home, kbd: 'Enter', primary: true, run: onDone },
   ]);
 
@@ -173,7 +173,7 @@ export function SummaryScreen({ set, subtitle, onAgain, onDone }: SummaryProps) 
           <p className="results-sub">{subtitle}</p>
         </header>
         <div className="summary-total">
-          <div className="results-score num" aria-label={`Total score ${totalScore.toLocaleString()}`}>{score.toLocaleString()}</div>
+          <div className="results-score num" role="img" aria-label={`Total score ${totalScore.toLocaleString()}`}>{score.toLocaleString()}</div>
           <p className="summary-stars">
             <span className="num">{stars}</span> of {set.length * 5} stars
           </p>

@@ -16,9 +16,9 @@ import { loadSettings, saveSettings, type Settings } from '../game/settings';
 import { getInputMode, installInputMode, setInputMode, usesFocus } from '../input/inputMode';
 import { focusStart, installMenuNav } from '../input/menuNav';
 import { pads, resolveStyle } from '../input/pads';
-import { setMenuRumble } from '../input/rumble';
+import { menuPulse, setMenuRumble } from '../input/rumble';
 import { deleteSong, getSong, listAllScores, listSongs, putSong, submitScore, type BestScore, type SongMeta } from '../storage/db';
-import { ActionBar } from './actions';
+import { ActionBar, useActions } from './actions';
 import { FocusRing } from './FocusRing';
 import { HomeScreen } from './HomeScreen';
 import { DIFFICULTY_LABEL, PART_LABEL } from './icons';
@@ -64,6 +64,12 @@ type View =
   | { name: 'play'; run: Run; buffer: AudioBuffer; key: number }
   | { name: 'results'; run: Run }
   | { name: 'summary'; run: Run };
+
+/** While it is mounted (the launch wipe), no screen's actions answer keys or buttons. */
+function Busy() {
+  useActions([]);
+  return null;
+}
 
 const DEPTH: Record<View['name'], number> = { home: 0, library: 1, settings: 1, lobby: 2, debug: 2, play: 3, results: 4, summary: 5 };
 
@@ -261,7 +267,11 @@ export function App() {
   // A stage-light wipe covers the moment a song loads: it closes over the menu, the play screen
   // mounts behind it, and it opens again.
   const [launch, setLaunch] = useState<'in' | 'out' | null>(null);
-  const playAt = async (run: Run, index: number) => {
+  const launchRef = useRef(launch);
+  launchRef.current = launch;
+  const playAt = async (run: Run, index: number, started = false) => {
+    // One launch at a time: a second press while the wipe is up does nothing.
+    if (launchRef.current && !started) return;
     setLaunch('in');
     const minWipe = new Promise((r) => setTimeout(r, 620));
     try {
@@ -278,6 +288,10 @@ export function App() {
   };
 
   const start = async (lobby: LobbyView) => {
+    if (launchRef.current) return;
+    // The held button makes no sound of its own: the set starting is the sound.
+    playSfx('launch');
+    menuPulse('launch');
     setLaunch('in');
     try {
       const entries: { song: SongMeta; chart: Chart }[] = [];
@@ -291,7 +305,7 @@ export function App() {
         setLaunch(null);
         return toast('No notes were found for this part. Try another part.');
       }
-      await playAt({ songs: entries.map((e) => e.song), charts: entries.map((e) => e.chart), index: 0, results: [], pick, lobby }, 0);
+      await playAt({ songs: entries.map((e) => e.song), charts: entries.map((e) => e.chart), index: 0, results: [], pick, lobby }, 0, true);
     } catch (e) {
       setLaunch(null);
       toast((e as Error).message);
@@ -354,8 +368,13 @@ export function App() {
     if (view.name === 'play') return;
     const raf = requestAnimationFrame(() => {
       if (document.querySelector('[data-modal]')) return;
-      if (usesFocus(getInputMode())) focusStart();
-      else (document.activeElement as HTMLElement | null)?.blur?.();
+      if (usesFocus(getInputMode())) return focusStart();
+      // Mouse and touch players get no ring, but a screen reader still hears where it is now.
+      const heading = document.querySelector<HTMLElement>('.scene h1');
+      if (!heading) return (document.activeElement as HTMLElement | null)?.blur?.();
+      heading.tabIndex = -1;
+      heading.dataset.ring = 'none';
+      heading.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(raf);
   }, [sceneKey, view.name]);
@@ -497,7 +516,8 @@ export function App() {
         </div>
       )}
       {launch && (
-        <div className={`launch-wipe ${launch}`} aria-hidden>
+        <div className={`launch-wipe ${launch}`} aria-hidden data-nav-off>
+          <Busy />
           <span />
           <span />
           <span />

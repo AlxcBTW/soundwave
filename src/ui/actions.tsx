@@ -133,7 +133,7 @@ export function ActionBar({ settings }: { settings: Settings }) {
   // The bar only re-renders when an action's look changes, so a press always looks the action up afresh.
   const button = (a: Action) => (
     <button key={a.id} type="button" className={`act ${a.primary ? 'primary' : ''}`} data-action={a.id} data-sfx={a.sfx} disabled={a.disabled} onClick={() => top().find((x) => x.id === a.id)?.run()}>
-      <Hint kbd={a.kbd} pad={a.kbd === 'Escape' ? backInput(style) : a.pad} mode={mode} style={style} />
+      <Hint kbd={a.kbd} pad={a.kbd === 'Escape' ? backInput(style) : a.kbd === 'Enter' ? confirmInput(style) : a.pad} mode={mode} style={style} />
       <a.icon className="act-icon" strokeWidth={ICON_STROKE} aria-hidden />
       <span className="act-label">{a.label}</span>
     </button>
@@ -142,7 +142,7 @@ export function ActionBar({ settings }: { settings: Settings }) {
     <footer className="action-bar" data-nav-skip aria-label="Actions">
       <div className="act-group">
         {back.map(button)}
-        {mode === 'pad' && (
+        {mode === 'pad' && !actions.some((a) => a.kbd === 'Enter') && (
           <span className="act-passive">
             <PadGlyph input={confirmInput(style)} style={style} className="hint-glyph" /> Select
           </span>

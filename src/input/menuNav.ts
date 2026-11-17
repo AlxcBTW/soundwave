@@ -77,7 +77,7 @@ function focusEl(el: HTMLElement, announce = true) {
   // A window without focus (a controller used right after switching apps) moves focus silently:
   // say so, for the screens that follow the focused control.
   if (!document.hasFocus()) el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-  el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: document.documentElement.dataset.motion === 'reduced' ? 'auto' : 'smooth' });
   if (announce) window.dispatchEvent(new Event(MOVE_EVENT));
 }
 
@@ -135,8 +135,16 @@ export function navMove(dir: Dir, fromPad = false) {
 
 function confirm() {
   if (!navLive()) return;
-  const active = current(focusables()) ?? (navScope().contains(document.activeElement) && document.activeElement !== document.body ? (document.activeElement as HTMLElement) : null);
-  if (!active) return focusStart();
+  // A control kept out of directional navigation still counts when it holds focus (reached with Tab).
+  const stray = document.activeElement as HTMLElement | null;
+  const active = current(focusables()) ?? (stray && stray !== document.body && navScope().contains(stray) && stray.matches(FOCUSABLE) ? stray : null);
+  if (!active) {
+    const start = startEl();
+    if (start) return focusEl(start, false);
+    // A screen with nothing to focus (results): confirm is its forward action, the Enter key's.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+    return;
+  }
   if (isTextField(active)) return;
   active.click();
 }
@@ -176,8 +184,10 @@ export function installMenuNav(style: () => GlyphStyle): () => void {
       again(380);
       return true;
     }
-    if (!e.down) return true;
     const s = style();
+    // Every other button is left to whoever listens underneath (the action bar's own shortcuts).
+    if (e.input !== confirmInput(s) && e.input !== backInput(s) && e.input !== 'b4' && e.input !== 'b5') return false;
+    if (!e.down) return true;
     if (e.input === confirmInput(s)) confirm();
     else if (e.input === backInput(s)) back();
     else if (e.input === 'b4' || e.input === 'b5') tab(e.input === 'b4' ? -1 : 1);

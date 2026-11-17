@@ -31,6 +31,7 @@ export function HoldButton({ label, hint, disabled, glyphStyle, onComplete }: Pr
     let level = 0;
     let holding = false;
     let fired = false;
+    let reset = 0;
     /** A press was seen, so the click that follows it is not a bare activation. */
     let pressed = 0;
 
@@ -43,6 +44,14 @@ export function HoldButton({ label, hint, disabled, glyphStyle, onComplete }: Pr
           holding = false;
           btn.classList.add('fired');
           done.current();
+          // Still here a moment later means nothing started (no notes, a file that would not load):
+          // the button empties and can be held again.
+          reset = window.setTimeout(() => {
+            fired = false;
+            level = 0;
+            btn.classList.remove('fired', 'holding');
+            paint();
+          }, 2600);
         }
       } else if (!fired) {
         level = Math.max(0, level - 0.06);
@@ -110,6 +119,7 @@ export function HoldButton({ label, hint, disabled, glyphStyle, onComplete }: Pr
     btn.addEventListener('click', click);
     return () => {
       cancelAnimationFrame(raf);
+      clearTimeout(reset);
       releasePad();
       btn.removeEventListener('pointerdown', pointerdown);
       btn.removeEventListener('pointerup', end);

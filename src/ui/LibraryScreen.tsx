@@ -219,7 +219,7 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
                 </span>
                 <span className="song-text">
                   <span className="song-title">Add your music</span>
-                  <span className="song-artist">Drop files anywhere or browse. MP3, WAV, FLAC, OGG, M4A.</span>
+                  <span className="song-artist">{hints.mode === 'touch' ? 'Pick files from this device.' : 'Drop files anywhere or browse.'} MP3, WAV, FLAC, OGG, M4A.</span>
                 </span>
               </button>
             </li>

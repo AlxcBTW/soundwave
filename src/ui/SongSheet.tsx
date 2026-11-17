@@ -1,4 +1,4 @@
-import { Bug, ListMinus, ListPlus, Play, RotateCcw, Square, Trash2 } from 'lucide-react';
+import { Bug, ListMinus, ListPlus, Play, RotateCcw, Square, Star, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { StemName } from '../analysis/types';
 import { getEngine } from '../audio/engine';
@@ -185,7 +185,10 @@ export function SongSheet({ song, builtin, status, scores, slot, setFull, volume
                           <td key={d} className={b ? (b.fullCombo ? 'fc' : '') : 'none'}>
                             {b ? (
                               <>
-                                <span className="best-stars">{b.stars}★</span>
+                                <span className="best-stars" aria-label={`${b.stars} of 5 stars`}>
+                                  {b.stars}
+                                  <Star strokeWidth={ICON_STROKE} aria-hidden />
+                                </span>
                                 <span className="best-score">{b.score.toLocaleString()}</span>
                               </>
                             ) : (

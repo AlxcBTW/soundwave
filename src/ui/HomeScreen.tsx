@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import type { AnalysisStatus } from '../analysis/manager';
 import { formatTime, suggestSets, type SuggestedSet } from '../game/setlist';
 import type { SongMeta } from '../storage/db';
+import { useInputMode } from '../input/inputMode';
 import { useActions } from './actions';
 import { Mosaic } from './Cover';
 import { ICON_STROKE } from './icons';
@@ -34,6 +35,8 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
   const sets: SuggestedSet[] = useMemo(() => suggestSets(ready, played, seed), [ready, played, seed]);
   const busy = songs.filter((s) => status[s.id]?.state === 'analyzing' || status[s.id]?.state === 'queued');
   const progress = busy.length ? busy.reduce((t, s) => t + (status[s.id]?.progress ?? 0), 0) / busy.length : 0;
+
+  const touch = useInputMode() === 'touch';
 
   useActions([
     { id: 'add', label: importing ? `Importing ${importing}…` : 'Add songs', icon: Upload, kbd: 'KeyA', pad: 'b3', run: onAdd },
@@ -91,7 +94,7 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
               </span>
               <span className="tile-text">
                 <span className="tile-title">Add your music</span>
-                <span className="tile-cap">Drop files anywhere or browse. MP3, WAV, FLAC, OGG and M4A. Each song takes about a minute to turn into charts.</span>
+                <span className="tile-cap">{touch ? 'Pick files from this device.' : 'Drop files anywhere or browse.'} MP3, WAV, FLAC, OGG and M4A. Each song takes about a minute to turn into charts.</span>
               </span>
             </button>
           )}
