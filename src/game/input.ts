@@ -93,3 +93,52 @@ export class GamepadInput {
     this.release();
   }
 }
+
+/**
+ * Touch: every finger that lands on the layer plays the lane under it (`laneAt` maps a screen x,
+ * relative to the layer, to a lane, or -1) and lets it go when it lifts. Several fingers at once
+ * are chords; a mouse is ignored.
+ */
+export class TouchInput {
+  private readonly fingers = new Map<number, number>();
+
+  constructor(
+    private readonly el: HTMLElement,
+    private readonly laneAt: (x: number) => number,
+    private readonly h: InputHandlers,
+    private readonly onLane: (lane: number, down: boolean) => void,
+  ) {
+    el.addEventListener('pointerdown', this.down);
+    el.addEventListener('pointerup', this.up);
+    el.addEventListener('pointercancel', this.up);
+  }
+
+  private readonly down = (e: PointerEvent) => {
+    if (e.pointerType === 'mouse') return;
+    e.preventDefault();
+    const lane = this.laneAt(e.clientX - this.el.getBoundingClientRect().left);
+    if (lane < 0) return;
+    const held = [...this.fingers.values()].includes(lane);
+    this.fingers.set(e.pointerId, lane);
+    if (held) return;
+    this.h.press(lane, e.timeStamp);
+    this.onLane(lane, true);
+  };
+
+  private readonly up = (e: PointerEvent) => {
+    const lane = this.fingers.get(e.pointerId);
+    if (lane === undefined) return;
+    this.fingers.delete(e.pointerId);
+    if ([...this.fingers.values()].includes(lane)) return;
+    this.h.release(lane, e.timeStamp);
+    this.onLane(lane, false);
+  };
+
+  dispose() {
+    this.el.removeEventListener('pointerdown', this.down);
+    this.el.removeEventListener('pointerup', this.up);
+    this.el.removeEventListener('pointercancel', this.up);
+    for (const lane of new Set(this.fingers.values())) this.onLane(lane, false);
+    this.fingers.clear();
+  }
+}

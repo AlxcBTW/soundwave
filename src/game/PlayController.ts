@@ -8,20 +8,26 @@ import { resolveGraphics } from './graphics';
 import { GameSession, type Results } from './GameSession';
 import { Rumbler } from '../input/rumble';
 import { barsLeft, findBreaks, type Break } from './breaks';
-import { GamepadInput, KeyboardInput, type InputHandlers } from './input';
+import { GamepadInput, KeyboardInput, TouchInput, type InputHandlers } from './input';
+import { MAX_MULTIPLIER, multiplierFor, STREAK_PER_MULTIPLIER } from './scoring';
 import type { Settings } from './settings';
 
 export interface HudRefs {
   score: HTMLElement;
   multiplier: HTMLElement;
   streak: HTMLElement;
-  overdriveFill: HTMLElement;
   stars: HTMLElement;
   progress: HTMLElement;
   feedback: HTMLElement;
   root: HTMLElement;
   /** One label per lane, positioned under its strike pad. */
   keys: HTMLElement[];
+  /** One touch pad per lane, positioned like the labels and lit while its lane is held. */
+  touchPads: HTMLElement[];
+  /** The layer that takes touches for the lanes. */
+  touchLayer: HTMLElement;
+  /** The overdrive meter, which is also the button that starts overdrive. */
+  overdriveButton: HTMLElement;
   /** Countdown shown during long breaks: the root, its number and its ring. */
   breakTimer: HTMLElement;
   breakNumber: HTMLElement;
@@ -45,12 +51,16 @@ export class PlayController {
   private readonly barLevels: number[];
   private readonly input: KeyboardInput;
   private readonly padInput: GamepadInput;
+  private readonly touchInput: TouchInput;
+  private readonly observer: ResizeObserver;
+  /** Screen x of each strike pad, for mapping a touch to its lane. */
+  private padXs: number[] = [];
   private readonly rumble: Rumbler;
   private raf = 0;
   private phase: PlayPhase = 'countdown';
   private lastBeat = -1;
   private beatPulse = 0;
-  private hudCache = { score: -1, mult: -1, streak: -1, od: -1, stars: -1, odActive: false, breakSec: -1 };
+  private hudCache = { score: -1, mult: -1, streak: -1, od: -1, stars: -1, starP: -1, odActive: false, breakSec: -1 };
   private readonly breaks: Break[];
   /** A beat fell in the frame being drawn, and how much bass there is right now (0..1). */
   private beatNow = false;
@@ -151,6 +161,17 @@ export class PlayController {
     // Controllers drive the menus while paused, so only take their input during play.
     this.padInput = new GamepadInput(padBindings, settings.padOverdrive, handlers, () => this.phase === 'playing' || this.phase === 'countdown');
 
+    // Touch: a finger anywhere in a lane's column plays that lane; each pad lights while held.
+    const vibrate = settings.touchHaptics && typeof navigator.vibrate === 'function';
+    this.touchInput = new TouchInput(hud.touchLayer, (x) => this.laneAt(x), handlers, (lane, down) => {
+      hud.touchPads[lane]?.classList.toggle('down', down);
+      if (down && vibrate && this.phase === 'playing') navigator.vibrate(8);
+    });
+    hud.overdriveButton.addEventListener('pointerdown', this.overdrivePress);
+
+    // The canvas changes size with the window and when the touch pads take the bottom of the screen.
+    this.observer = new ResizeObserver(() => this.resize());
+    this.observer.observe(highwayCanvas);
     window.addEventListener('resize', this.resize);
     this.placeKeys();
   }
@@ -162,11 +183,45 @@ export class PlayController {
     this.placeKeys();
   };
 
-  private placeKeys() {
-    this.highway.padScreenPositions().forEach((p, i) => {
-      const el = this.hud.keys[i];
-      if (el) el.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, 0)`;
+  private readonly overdrivePress = (e: Event) => {
+    e.preventDefault();
+    if (this.phase === 'playing') this.session.activateOverdrive();
+  };
+
+  /** The lane whose strike pad is nearest to a screen x (relative to the highway canvas). */
+  private laneAt(x: number): number {
+    let best = -1;
+    let dist = Infinity;
+    this.padXs.forEach((px, i) => {
+      const d = Math.abs(px - x);
+      if (d < dist) {
+        dist = d;
+        best = i;
+      }
     });
+    return best;
+  }
+
+  /** Puts the lane labels and touch pads under their strike pads and tells the HUD where the highway is. */
+  private placeKeys() {
+    const pos = this.highway.padScreenPositions();
+    if (!pos.length) return;
+    this.padXs = pos.map((p) => p.x);
+    pos.forEach((p, i) => {
+      const at = `translate(${p.x}px, ${p.y}px) translate(-50%, 0)`;
+      const key = this.hud.keys[i];
+      if (key) key.style.transform = at;
+      const pad = this.hud.touchPads[i];
+      if (pad) pad.style.transform = at;
+    });
+    const first = pos[0];
+    const last = pos[pos.length - 1];
+    const laneW = pos.length > 1 ? (last.x - first.x) / (pos.length - 1) : 90;
+    const root = this.hud.root.style;
+    root.setProperty('--hw-x', `${((first.x + last.x) / 2).toFixed(1)}px`);
+    root.setProperty('--hw-y', `${first.y.toFixed(1)}px`);
+    root.setProperty('--lane-w', `${laneW.toFixed(1)}px`);
+    root.setProperty('--hw-w', `${(laneW * pos.length).toFixed(1)}px`);
   }
 
   async start() {
@@ -277,18 +332,25 @@ export class PlayController {
       this.hud.multiplier.textContent = `×${mult}`;
       this.hud.multiplier.dataset.level = String(Math.min(mult, 8));
     }
-    if (s.streak !== c.streak) this.hud.streak.textContent = s.streak > 0 ? `${s.streak}` : '';
+    if (s.streak !== c.streak) {
+      this.hud.streak.textContent = s.streak > 0 ? `${s.streak}` : '';
+      // The dial's ring: how far the streak is toward the next multiplier step (full at the top one).
+      const top = multiplierFor(s.streak) >= MAX_MULTIPLIER;
+      this.hud.root.style.setProperty('--streak-p', top ? '1' : ((s.streak % STREAK_PER_MULTIPLIER) / STREAK_PER_MULTIPLIER).toFixed(2));
+    }
     const od = Math.round(s.overdrive * 100);
     if (od !== c.od) {
-      this.hud.overdriveFill.style.height = `${od}%`;
+      this.hud.root.style.setProperty('--od', (od / 100).toFixed(2));
       this.hud.root.classList.toggle('od-ready', od >= 25 && !s.overdriveActive);
     }
     if (s.overdriveActive !== c.odActive) this.hud.root.classList.toggle('overdrive', s.overdriveActive);
     const stars = s.progressStars;
     if (stars !== c.stars) this.hud.stars.dataset.count = String(stars);
+    const starP = Math.round(s.nextStarProgress * 50) / 50;
+    if (starP !== c.starP) this.hud.stars.style.setProperty('--star-p', String(starP));
     this.hud.progress.style.width = `${Math.max(0, Math.min(1, t / this.chart.duration)) * 100}%`;
     this.updateBreak(t);
-    Object.assign(c, { score, mult, streak: s.streak, od, stars, odActive: s.overdriveActive });
+    Object.assign(c, { score, mult, streak: s.streak, od, stars, starP, odActive: s.overdriveActive });
   }
 
   /**
@@ -347,6 +409,9 @@ export class PlayController {
     cancelAnimationFrame(this.raf);
     clearTimeout(this.feedbackTimer);
     window.removeEventListener('resize', this.resize);
+    this.observer.disconnect();
+    this.hud.overdriveButton.removeEventListener('pointerdown', this.overdrivePress);
+    this.touchInput.dispose();
     this.input.dispose();
     this.padInput.dispose();
     this.rumble.dispose();

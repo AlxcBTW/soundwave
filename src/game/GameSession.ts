@@ -1,6 +1,6 @@
 import type { Chart } from '../chart/types';
 import { gradeFor, WINDOWS, type Grade } from './judge';
-import { multiplierFor, NOTE_POINTS, starsFor, SUSTAIN_POINTS_PER_BEAT } from './scoring';
+import { multiplierFor, NOTE_POINTS, starProgress, starsFor, SUSTAIN_POINTS_PER_BEAT } from './scoring';
 
 export type GameEvent =
   | { type: 'hit'; lane: number; grade: Grade; noteIndex: number }
@@ -271,6 +271,11 @@ export class GameSession {
     }
     this.overdrive = Math.min(1, this.overdrive + PHRASE_REWARD);
     this.emit({ type: 'phrase-complete', phrase: p });
+  }
+
+  /** How far the score is toward the next star, 0..1 (1 once all five are earned). */
+  get nextStarProgress() {
+    return starProgress(this.score, this.baseScore);
   }
 
   get progressStars() {

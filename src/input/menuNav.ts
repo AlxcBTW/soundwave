@@ -1,27 +1,42 @@
 /**
- * Menu navigation with a controller: the D-pad or left stick moves focus to the nearest control
- * in that direction, confirm clicks it, back acts like Esc, the shoulder buttons switch tabs.
- * Runs underneath everything else, so gameplay and binding prompts take precedence.
+ * Menu navigation by direction, shared by the keyboard's arrow keys and a controller's D-pad or
+ * left stick: focus moves to the nearest control that way, confirm clicks it, back acts like Esc,
+ * and the shoulder buttons (Q and E on a keyboard) switch tabs.
+ *
+ * A control can take a direction for itself: every move is first offered to the focused element as
+ * a cancelable `nav-move` event (a settings row uses left and right to change its value).
+ * Containers marked `data-nav-group` remember their last focused control, so crossing from a list
+ * to a side panel and back returns to the same row. `data-nav-skip` keeps a control out of
+ * directional navigation (it stays reachable with Tab).
  */
+import { isTextField, setInputMode } from './inputMode';
 import { backInput, confirmInput, pads, type GlyphStyle } from './pads';
 
-type Dir = 'up' | 'down' | 'left' | 'right';
+export type Dir = 'up' | 'down' | 'left' | 'right';
 
 const DIRS: Record<string, Dir> = { b12: 'up', b13: 'down', b14: 'left', b15: 'right', 'a1-': 'up', 'a1+': 'down', 'a0-': 'left', 'a0+': 'right' };
+const ARROWS: Record<string, Dir> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 const FOCUSABLE = 'button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-/** Event the settings screen listens to for tab switching (detail: -1 or 1). */
-export const TAB_EVENT = 'pad-tab';
-/** Sent when controller navigation moves focus (for move sounds and pulses). */
-export const MOVE_EVENT = 'pad-move';
+/** Sent to switch tabs (detail: -1 or 1). */
+export const TAB_EVENT = 'nav-tab';
+/** Sent after directional navigation moved focus (for move sounds and pulses). */
+export const MOVE_EVENT = 'nav-moved';
+/** Offered to the focused control before focus moves (detail: { dir }); cancel it to keep focus. */
+export const NAV_EVENT = 'nav-move';
 
-function scope(): ParentNode {
-  const overlays = document.querySelectorAll('.overlay');
-  return overlays.length ? overlays[overlays.length - 1] : document;
+/** The topmost open dialog, or the whole document. */
+export function navScope(): ParentNode {
+  const modals = document.querySelectorAll('[data-modal]');
+  return modals.length ? modals[modals.length - 1] : document;
 }
 
-function candidates(): HTMLElement[] {
-  return Array.from(scope().querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => {
+/** Menus take directions unless a song is running (the pause menu takes them again). */
+const navLive = () => !document.querySelector('[data-nav-off]');
+
+export function focusables(scope: ParentNode = navScope()): HTMLElement[] {
+  return Array.from(scope.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => {
+    if (el.closest('[data-nav-skip]')) return false;
     const r = el.getBoundingClientRect();
     return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
   });
@@ -54,56 +69,71 @@ export function nearest(from: DOMRect, dir: Dir, rects: DOMRect[]): number {
   return best;
 }
 
-let ringed: HTMLElement | null = null;
+const groupOf = (el: Element | null) => el?.closest('[data-nav-group]') ?? null;
+const remembered = new WeakMap<Element, HTMLElement>();
 
-/** Focuses a control and marks it, so the ring shows even when the window itself isn't focused. */
-function focus(el: HTMLElement) {
-  document.documentElement.classList.add('pad-nav');
-  ringed?.classList.remove('pad-focus');
-  ringed = el;
-  el.classList.add('pad-focus');
-  el.addEventListener('blur', () => el.classList.remove('pad-focus'), { once: true });
-  window.dispatchEvent(new Event(MOVE_EVENT));
+function focusEl(el: HTMLElement, announce = true) {
   el.focus({ preventScroll: true });
-  el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  if (announce) window.dispatchEvent(new Event(MOVE_EVENT));
 }
 
-function start(): HTMLElement | undefined {
-  const list = candidates();
-  return list.find((el) => el.classList.contains('primary')) ?? list[0];
+function startEl(list = focusables()): HTMLElement | undefined {
+  return list.find((el) => el.hasAttribute('data-autofocus')) ?? list.find((el) => el.classList.contains('primary')) ?? list[0];
 }
 
-function move(dir: Dir) {
+/** Puts focus on the screen's starting control (the one marked `data-autofocus`, else the first). */
+export function focusStart() {
+  const el = startEl();
+  if (el) focusEl(el, false);
+}
+
+/** Whether focus sits on a control of the current scope. */
+function current(list: HTMLElement[]): HTMLElement | null {
   const active = document.activeElement as HTMLElement | null;
-  const list = candidates();
-  if (!active || active === document.body || !list.includes(active)) {
-    const s = start();
-    if (s) focus(s);
+  return active && active !== document.body && list.includes(active) ? active : null;
+}
+
+export function navMove(dir: Dir, fromPad = false) {
+  if (!navLive()) return;
+  const all = focusables();
+  const active = current(all);
+  if (!active) {
+    // A control kept out of directional navigation may still hold focus (reached with Tab).
+    const stray = document.activeElement as HTMLElement | null;
+    const near = stray && stray !== document.body && navScope().contains(stray) ? stray.getBoundingClientRect() : null;
+    const i = near ? nearest(near, dir, all.map((el) => el.getBoundingClientRect())) : -1;
+    const el = i >= 0 ? all[i] : startEl(all);
+    if (el) focusEl(el);
     return;
   }
-  // Sliders take left/right as value changes.
-  if (active instanceof HTMLInputElement && active.type === 'range' && (dir === 'left' || dir === 'right')) {
+  if (!active.dispatchEvent(new CustomEvent(NAV_EVENT, { detail: { dir }, bubbles: true, cancelable: true }))) return;
+  const horizontal = dir === 'left' || dir === 'right';
+  // A controller has no arrow keys for a native slider: step it here.
+  if (fromPad && horizontal && active instanceof HTMLInputElement && active.type === 'range') {
     const step = Number(active.step) || 1;
     const v = Math.min(Number(active.max), Math.max(Number(active.min), Number(active.value) + (dir === 'right' ? step : -step)));
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(active, String(v));
     active.dispatchEvent(new Event('input', { bubbles: true }));
-    document.documentElement.classList.add('pad-nav');
     return;
   }
-  const others = list.filter((el) => el !== active);
+  const others = all.filter((el) => el !== active);
   const i = nearest(active.getBoundingClientRect(), dir, others.map((el) => el.getBoundingClientRect()));
-  if (i >= 0) focus(others[i]);
+  if (i < 0) return;
+  let target = others[i];
+  const group = groupOf(target);
+  if (group && group !== groupOf(active)) {
+    const last = remembered.get(group);
+    if (last && last.isConnected && others.includes(last)) target = last;
+  }
+  focusEl(target);
 }
 
 function confirm() {
-  const active = document.activeElement as HTMLElement | null;
-  if (!active || active === document.body || !candidates().includes(active)) {
-    const s = start();
-    if (s) focus(s);
-    return;
-  }
-  if (active instanceof HTMLInputElement && (active.type === 'range' || active.type === 'text')) return;
-  document.documentElement.classList.add('pad-nav');
+  if (!navLive()) return;
+  const active = current(focusables()) ?? (navScope().contains(document.activeElement) && document.activeElement !== document.body ? (document.activeElement as HTMLElement) : null);
+  if (!active) return focusStart();
+  if (isTextField(active)) return;
   active.click();
 }
 
@@ -111,7 +141,9 @@ function back() {
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
 }
 
-/** Installs controller menu navigation; returns an uninstall function. */
+const tab = (d: -1 | 1) => window.dispatchEvent(new CustomEvent(TAB_EVENT, { detail: d }));
+
+/** Installs menu navigation for the keyboard and controllers; returns an uninstall function. */
 export function installMenuNav(style: () => GlyphStyle): () => void {
   let repeat = 0;
   let held: string | null = null;
@@ -120,6 +152,7 @@ export function installMenuNav(style: () => GlyphStyle): () => void {
     held = null;
   };
   const release = pads.capture((e) => {
+    if (e.down) setInputMode('pad');
     const dir = DIRS[e.input];
     if (dir) {
       if (!e.down) {
@@ -128,11 +161,11 @@ export function installMenuNav(style: () => GlyphStyle): () => void {
       }
       stopRepeat();
       held = e.input;
-      move(dir);
+      navMove(dir, true);
       const again = (delay: number) => {
         repeat = window.setTimeout(() => {
           if (held !== e.input) return;
-          move(dir);
+          navMove(dir, true);
           again(110);
         }, delay);
       };
@@ -143,14 +176,36 @@ export function installMenuNav(style: () => GlyphStyle): () => void {
     const s = style();
     if (e.input === confirmInput(s)) confirm();
     else if (e.input === backInput(s)) back();
-    else if (e.input === 'b4' || e.input === 'b5') window.dispatchEvent(new CustomEvent(TAB_EVENT, { detail: e.input === 'b4' ? -1 : 1 }));
+    else if (e.input === 'b4' || e.input === 'b5') tab(e.input === 'b4' ? -1 : 1);
     return true;
   });
-  const mouse = () => document.documentElement.classList.remove('pad-nav');
-  window.addEventListener('pointermove', mouse);
+
+  const key = (e: KeyboardEvent) => {
+    if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || !navLive()) return;
+    const target = e.target as HTMLElement | null;
+    const dir = ARROWS[e.key];
+    if (dir) {
+      const horizontal = dir === 'left' || dir === 'right';
+      // Text keeps its caret keys, a slider its own steps.
+      if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return;
+      if (horizontal && (isTextField(target) || (target instanceof HTMLInputElement && target.type === 'range'))) return;
+      e.preventDefault();
+      navMove(dir);
+    } else if ((e.code === 'KeyQ' || e.code === 'KeyE') && !e.repeat && !isTextField(target)) {
+      tab(e.code === 'KeyQ' ? -1 : 1);
+    }
+  };
+  const focusin = (e: FocusEvent) => {
+    const el = e.target as HTMLElement | null;
+    const group = groupOf(el);
+    if (el && group) remembered.set(group, el);
+  };
+  window.addEventListener('keydown', key);
+  window.addEventListener('focusin', focusin);
   return () => {
     stopRepeat();
     release();
-    window.removeEventListener('pointermove', mouse);
+    window.removeEventListener('keydown', key);
+    window.removeEventListener('focusin', focusin);
   };
 }

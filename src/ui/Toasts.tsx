@@ -1,6 +1,8 @@
+import { CircleAlert } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { playSfx } from '../audio/sfx';
 import { menuPulse } from '../input/rumble';
+import { ICON_STROKE } from './icons';
 
 interface Toast {
   id: number;
@@ -26,9 +28,12 @@ export function useToasts() {
 
 export function Toasts({ items, onDismiss }: { items: Toast[]; onDismiss(id: number): void }) {
   return (
-    <div className="toasts" role="status">
+    <div className="toasts" role="status" data-nav-skip>
       {items.map((t) => (
-        <button key={t.id} className="toast" onClick={() => onDismiss(t.id)}>{t.text}</button>
+        <button key={t.id} type="button" className="toast" data-sfx="none" aria-label={`${t.text} Dismiss.`} onClick={() => onDismiss(t.id)}>
+          <CircleAlert strokeWidth={ICON_STROKE} aria-hidden />
+          <span>{t.text}</span>
+        </button>
       ))}
     </div>
   );

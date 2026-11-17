@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { getEngine } from '../audio/engine';
 import { holdMenuMusic } from '../audio/menuMusic';
+import { useInputMode } from '../input/inputMode';
 import { pads, PAUSE_INPUT } from '../input/pads';
+import { useActions } from './actions';
 
 const BPM = 100;
 const CLICKS = 20;
@@ -30,6 +32,7 @@ export function Calibration({ onDone }: { onDone(offsetMs: number | null): void 
   const tapsRef = useRef<number[]>([]);
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
+  const tapRef = useRef<(timeStamp: number) => void>(() => {});
 
   useEffect(() => {
     const engine = getEngine();
@@ -63,6 +66,7 @@ export function Calibration({ onDone }: { onDone(offsetMs: number | null): void 
       tapsRef.current.push(err);
       setTaps([...tapsRef.current]);
     };
+    tapRef.current = tap;
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'Escape') {
         e.preventDefault();
@@ -92,16 +96,24 @@ export function Calibration({ onDone }: { onDone(offsetMs: number | null): void 
 
   const sorted = [...taps].sort((a, b) => a - b);
   const median = sorted.length ? Math.round(sorted[Math.floor(sorted.length / 2)] * 1000) : null;
+  const mode = useInputMode();
+  const how = mode === 'touch' ? 'Tap the pad exactly on each click.' : mode === 'pad' ? 'Press any button exactly on each click.' : 'Press any key exactly on each click, or click the pad.';
+  // No bar actions while the clicks run: every key and button is a tap.
+  useActions([]);
   return (
-    <div className="overlay">
-      <div className="pause-card calib-card" role="dialog" aria-label="Calibration">
-        <h2 className="pause-title">Calibrate</h2>
-        <p className="pause-song">{beat < 0 ? `Get ready… ${-beat}` : 'Press any key or controller button exactly on each click.'}</p>
-        <div className={`calib-dot ${beat >= 0 && beat % 2 === 0 ? 'on' : ''}`} />
-        <p className="calib-count">
-          {taps.length} taps{median !== null ? ` · median ${median} ms` : ''}
+    <div className="overlay card" data-modal>
+      <div className="dialog calib-card" role="dialog" aria-modal="true" aria-label="Calibration">
+        <h2 className="display">Calibrate</h2>
+        <p className="calib-how" role="status">{beat < 0 ? `Get ready… ${-beat}` : how}</p>
+        <button type="button" className={`calib-pad ${beat >= 0 && beat % 2 === 0 ? 'on' : ''}`} data-sfx="none" data-ring="none" tabIndex={-1} aria-label="Tap here on each click" onPointerDown={(e) => tapRef.current(e.timeStamp)}>
+          <span className="calib-dot" />
+        </button>
+        <p className="calib-count num">
+          {taps.length} of {CLICKS} taps{median !== null ? ` · ${median} ms` : ''}
         </p>
-        <button className="btn" data-sfx="back" onClick={() => onDone(null)}>Cancel (Esc)</button>
+        <button type="button" className="btn wide" data-sfx="back" onPointerDown={(e) => e.stopPropagation()} onClick={() => onDone(null)}>
+          Cancel
+        </button>
       </div>
     </div>
   );

@@ -10,6 +10,8 @@ const MISSED_TINT = 0.28;
 const WHITE = new THREE.Color(0xffffff);
 
 const LANE_W = 1;
+/** How far up the screen the highway is shifted, as a share of its height. */
+const LIFT = 0.075;
 const LENGTH = 24;
 const MAX_GEMS = 512;
 const MAX_TAILS = 128;
@@ -415,6 +417,9 @@ export class Highway {
     const narrow = Math.max(1, 1.5 / this.camera.aspect);
     this.camera.position.set(0, 3.6 * back * narrow, 6 * back * narrow);
     this.camera.lookAt(0, 0, -7.5);
+    // The whole picture sits a little higher, which leaves room under the strike line for the lane
+    // labels and the multiplier dial.
+    this.camera.setViewOffset(w, h, 0, Math.round(h * LIFT), w, h);
     this.camera.updateProjectionMatrix();
   }
 

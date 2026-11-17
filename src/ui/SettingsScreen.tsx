@@ -1,14 +1,15 @@
-import { ArrowLeft } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Gamepad2, Hand, Keyboard, Monitor, RotateCcw, ScanSearch, Target, Volume2, type LucideIcon } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { playSfx } from '../audio/sfx';
 import { inDesktopApp } from '../game/displayMode';
-import { DEFAULT_SETTINGS, keyLabel, type DisplayMode, type RumbleLevel, type Settings } from '../game/settings';
-import { applyPreset, autoTier, resolveGraphics, type CameraMode, type GraphicsPreset, type GraphicsSettings, type Level } from '../game/graphics';
+import { applyPreset, autoTier, resolveGraphics, type GraphicsPreset, type GraphicsSettings, type Level } from '../game/graphics';
+import { DEFAULT_SETTINGS, keyLabel, type DisplayMode, type MotionPref, type RumbleLevel, type Settings } from '../game/settings';
 import { PadGlyph, STYLE_LABEL } from '../input/glyphs';
-import { TAB_EVENT } from '../input/menuNav';
+import { NAV_EVENT, TAB_EVENT, type Dir } from '../input/menuNav';
 import { PAUSE_INPUT, pads, styleFor, SYSTEM_INPUT, type GlyphStyle } from '../input/pads';
 import { dualSenseHaptics, menuPulse, Rumbler } from '../input/rumble';
 import { usePads } from '../input/usePads';
-import { playSfx } from '../audio/sfx';
+import { Hint, useActions, useHints } from './actions';
 import { Calibration } from './Calibration';
 import { ICON_STROKE } from './icons';
 import { useSlide } from './useSlide';
@@ -20,13 +21,15 @@ interface Props {
   onBack(): void;
 }
 
-type Tab = 'general' | 'graphics' | 'keyboard' | 'controller' | 'analysis';
-const TABS: [Tab, string][] = [
-  ['general', 'General'],
-  ['graphics', 'Graphics'],
-  ['keyboard', 'Keyboard'],
-  ['controller', 'Controller'],
-  ['analysis', 'Analysis'],
+type Tab = 'video' | 'audio' | 'game' | 'keyboard' | 'controller' | 'touch' | 'analysis';
+const TABS: [Tab, string, LucideIcon][] = [
+  ['video', 'Video', Monitor],
+  ['audio', 'Audio', Volume2],
+  ['game', 'Gameplay', Target],
+  ['keyboard', 'Keyboard', Keyboard],
+  ['controller', 'Controller', Gamepad2],
+  ['touch', 'Touch', Hand],
+  ['analysis', 'Analysis', ScanSearch],
 ];
 const TAB_KEY = 'festival.settings-tab';
 
@@ -35,19 +38,48 @@ type PadGroup = 'pad4' | 'pad5' | 'padOverdrive';
 type Binding = { kind: 'key'; group: KeyGroup; index: number } | { kind: 'pad'; group: PadGroup; index: number };
 
 const RESERVED = new Set(['Escape', 'Enter', 'Tab']);
-const GLYPH_CHOICES: ('auto' | GlyphStyle)[] = ['auto', 'xbox', 'ps4', 'ps5', 'switch'];
 
-const KEYBOARD_FIELDS = ['keys4', 'keys5', 'overdriveKey'] as const;
-const CONTROLLER_FIELDS = ['pad4', 'pad5', 'padOverdrive', 'glyphs', 'rumble', 'rumbleHits', 'rumbleMisses', 'rumbleSustains', 'rumbleOverdrive'] as const;
-const RUMBLE_LEVELS: [RumbleLevel, string][] = [
-  ['off', 'Off'],
-  ['weak', 'Weak'],
-  ['strong', 'Strong'],
-];
-const GENERAL_FIELDS = ['noteSpeed', 'volume', 'musicVolume', 'sfxVolume', 'offsetMs'] as const;
-const ANALYSIS_FIELDS = ['mlEnabled', 'mlUrl'] as const;
-const GRAPHICS_FIELDS = ['graphics', 'displayMode'] as const;
-const FIELDS: Record<Tab, readonly (keyof Settings)[]> = { general: GENERAL_FIELDS, graphics: GRAPHICS_FIELDS, keyboard: KEYBOARD_FIELDS, controller: CONTROLLER_FIELDS, analysis: ANALYSIS_FIELDS };
+/** The settings each tab's Restore defaults puts back. */
+const FIELDS: Record<Tab, readonly (keyof Settings)[]> = {
+  video: ['graphics', 'displayMode', 'uiScale', 'motion'],
+  audio: ['volume', 'musicVolume', 'sfxVolume'],
+  game: ['noteSpeed', 'offsetMs'],
+  keyboard: ['keys4', 'keys5', 'overdriveKey'],
+  controller: ['pad4', 'pad5', 'padOverdrive', 'glyphs', 'rumble', 'rumbleHits', 'rumbleMisses', 'rumbleSustains', 'rumbleOverdrive'],
+  touch: ['touchHaptics', 'touchOverdriveSide'],
+  analysis: ['mlEnabled', 'mlUrl'],
+};
+
+interface Option {
+  value: string;
+  label: string;
+  help?: string;
+}
+interface Cap {
+  id: string;
+  name: string;
+  content: ReactNode;
+  lane?: number;
+  listening?: boolean;
+  bind?(): void;
+}
+interface Base {
+  id: string;
+  label: string;
+  help: string;
+  disabled?: boolean;
+}
+type Row =
+  | (Base & { kind: 'choice'; value: string; options: Option[]; set(v: string): void })
+  | (Base & { kind: 'slider'; value: number; min: number; max: number; step: number; format(v: number): string; set(v: number): void })
+  | (Base & { kind: 'action'; button: string; run(): void })
+  | (Base & { kind: 'keys'; caps: Cap[] })
+  | (Base & { kind: 'text'; value: string; set(v: string): void; note?: ReactNode })
+  | (Base & { kind: 'info'; body: ReactNode });
+interface Section {
+  title: string;
+  rows: Row[];
+}
 
 function loadTab(): Tab {
   try {
@@ -56,7 +88,7 @@ function loadTab(): Tab {
   } catch {
     /* storage unavailable */
   }
-  return 'general';
+  return 'video';
 }
 
 /** Swaps when the input is already used in the same layout, so every lane keeps one input. */
@@ -68,54 +100,65 @@ function assign(list: string[], index: number, input: string): string[] {
   return out;
 }
 
+const ON_OFF: Option[] = [
+  { value: 'off', label: 'Off' },
+  { value: 'on', label: 'On' },
+];
+const LEVELS: Option[] = [
+  { value: 'off', label: 'Off' },
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+];
+const PRESET_LABEL: Record<Exclude<GraphicsPreset, 'auto' | 'custom'>, string> = { low: 'Low', medium: 'Medium', high: 'High', ultra: 'Ultra' };
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+
 export function SettingsScreen({ settings, mlStatus, onChange, onBack }: Props) {
   const [tab, setTabState] = useState<Tab>(loadTab);
   const [binding, setBinding] = useState<Binding | null>(null);
   const [calibrating, setCalibrating] = useState(false);
-  const set = (patch: Partial<Settings>) => onChange({ ...settings, ...patch });
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [turn, setTurn] = useState<'fwd' | 'back'>('fwd');
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
+  const set = (patch: Partial<Settings>) => onChange({ ...settingsRef.current, ...patch });
+  const hints = useHints(settings);
+  const snap = usePads();
 
   const setTab = (t: Tab) => {
+    setTurn(TABS.findIndex(([id]) => id === t) >= TABS.findIndex(([id]) => id === tabRef.current) ? 'fwd' : 'back');
     setTabState(t);
     setBinding(null);
+    setActiveId(null);
     try {
       localStorage.setItem(TAB_KEY, t);
     } catch {
       /* ignore */
     }
   };
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
 
-  // Controller shoulder buttons switch tabs.
+  // Shoulder buttons (Q and E) switch tabs.
   useEffect(() => {
-    const step = (d: number) => setTabState((cur) => {
-      const i = (TABS.findIndex(([id]) => id === cur) + d + TABS.length) % TABS.length;
-      try {
-        localStorage.setItem(TAB_KEY, TABS[i][0]);
-      } catch {
-        /* ignore */
-      }
-      return TABS[i][0];
-    });
-    const onPad = (e: Event) => {
+    const onTab = (e: Event) => {
+      if (document.querySelector('.calib-card')) return;
       const d = (e as CustomEvent<number>).detail;
+      const i = (TABS.findIndex(([id]) => id === tabRef.current) + d + TABS.length) % TABS.length;
       playSfx('tab');
       menuPulse(d < 0 ? 'tab-left' : 'tab-right');
-      step(d);
+      setTab(TABS[i][0]);
     };
-    window.addEventListener(TAB_EVENT, onPad);
-    return () => window.removeEventListener(TAB_EVENT, onPad);
+    window.addEventListener(TAB_EVENT, onTab);
+    return () => window.removeEventListener(TAB_EVENT, onTab);
   }, []);
 
-  // Keyboard: Esc goes back, or cancels a binding prompt; a key press completes a key binding.
+  // A key press completes a key binding; Esc cancels the prompt. Nothing else hears the key.
   useEffect(() => {
+    if (!binding) return;
     const onKey = (e: KeyboardEvent) => {
-      if (calibrating) return;
-      if (!binding) {
-        if (e.code === 'Escape') onBack();
-        return;
-      }
       e.preventDefault();
+      e.stopImmediatePropagation();
       if (e.code === 'Escape') return setBinding(null);
       if (binding.kind !== 'key' || RESERVED.has(e.code)) return;
       const s = settingsRef.current;
@@ -123,9 +166,9 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack }: Props) 
       else onChange({ ...s, [binding.group]: assign(s[binding.group], binding.index, e.code) });
       setBinding(null);
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [binding, calibrating, onBack, onChange]);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [binding, onChange]);
 
   // Controller binding prompt: the next input pressed after everything was let go.
   useEffect(() => {
@@ -149,32 +192,72 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack }: Props) 
     });
   }, [binding, onChange]);
 
+  // A PS5 controller gets 3D haptics when the desktop app can reach it (USB); say which it is.
+  const ps5 = snap.pads.some((p) => p.family === 'ps5');
+  const [haptics, setHaptics] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!ps5 || tab !== 'controller') return setHaptics(null);
+    let live = true;
+    const check = () => void dualSenseHaptics().then((ok) => live && setHaptics(ok));
+    check();
+    const timer = setInterval(check, 4000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [ps5, tab]);
+
   const resetTab = () => {
     const patch: Partial<Settings> = {};
     for (const f of FIELDS[tab]) (patch as Record<string, unknown>)[f] = structuredClone(DEFAULT_SETTINGS[f]);
     set(patch);
   };
 
+  useActions([
+    { id: 'back', label: 'Back', icon: ArrowLeft, kbd: 'Escape', sfx: 'back', run: onBack },
+    { id: 'reset', label: `Restore ${TABS.find(([id]) => id === tab)![1].toLowerCase()} defaults`, icon: RotateCcw, kbd: 'KeyR', pad: 'b3', run: resetTab },
+  ]);
+
+  const sections = buildSections(tab, { settings, set, binding, setBinding, snap, haptics, mlStatus, calibrate: () => setCalibrating(true) });
+  const rows = sections.flatMap((s) => s.rows);
+  const active = rows.find((r) => r.id === activeId) ?? rows[0];
+  const tabRow = useSlide<HTMLDivElement>(tab);
+
   return (
-    <div className="detail">
-      <header className="topbar">
-        <button className="btn ghost" data-sfx="back" onClick={onBack}>
-          <ArrowLeft strokeWidth={ICON_STROKE} aria-hidden />
-          Back
-        </button>
-      </header>
-      <div className="settings">
+    <div className="page settings">
+      <header className="page-head settings-head">
         <h1 className="page-title">Settings</h1>
-        <TabBar tab={tab} onTab={setTab} />
-        {tab === 'general' && <GeneralTab settings={settings} set={set} onCalibrate={() => setCalibrating(true)} />}
-        {tab === 'graphics' && <GraphicsTab settings={settings} set={set} />}
-        {tab === 'keyboard' && <KeyboardTab settings={settings} binding={binding} onBind={setBinding} />}
-        {tab === 'controller' && <ControllerTab settings={settings} set={set} binding={binding} onBind={setBinding} />}
-        {tab === 'analysis' && <AnalysisTab settings={settings} set={set} mlStatus={mlStatus} />}
-        <div className="row left settings-footer">
-          <button className="btn ghost small" onClick={resetTab}>Reset {TABS.find(([id]) => id === tab)![1].toLowerCase()} settings</button>
+        <div className="tabs">
+          <Hint kbd="KeyQ" pad="b4" {...hints} />
+          <div className="tab-row slide" role="tablist" aria-label="Settings sections" ref={tabRow} data-nav-group="tabs">
+            <span className="sel" aria-hidden />
+            {TABS.map(([id, label, Icon]) => (
+              <button key={id} type="button" role="tab" id={`tab-${id}`} aria-selected={tab === id} aria-controls="settings-panel" aria-label={label} title={label} data-on={tab === id} className={`tab ${tab === id ? 'on' : ''}`} onClick={() => setTab(id)}>
+                <Icon strokeWidth={ICON_STROKE} aria-hidden />
+                <span className="tab-label">{label}</span>
+              </button>
+            ))}
+          </div>
+          <Hint kbd="KeyE" pad="b5" {...hints} />
         </div>
+      </header>
+
+      <div className="settings-body">
+        <div className={`set-list ${turn}`} key={tab} id="settings-panel" role="tabpanel" aria-labelledby={`tab-${tab}`} data-nav-group="settings">
+          {sections.map((sec) => (
+            <section key={sec.title} className="set-section">
+              <h2 className="set-heading">{sec.title}</h2>
+              {sec.rows.map((row, i) => (
+                <RowView key={row.id} row={row} active={active?.id === row.id} first={sec === sections[0] && i === 0} onActive={() => setActiveId(row.id)} />
+              ))}
+            </section>
+          ))}
+        </div>
+        <aside className="set-detail" aria-live="polite">
+          {active && <Detail row={active} key={active.id} />}
+        </aside>
       </div>
+
       {calibrating && (
         <Calibration
           onDone={(ms) => {
@@ -187,312 +270,445 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack }: Props) 
   );
 }
 
-function TabBar({ tab, onTab }: { tab: Tab; onTab(t: Tab): void }) {
-  const snap = usePads();
-  const style = styleFor(snap.family);
-  const showPad = snap.pads.length > 0;
-  const row = useSlide<HTMLDivElement>(tab);
-  return (
-    <div className="tabs">
-      {showPad && <PadGlyph input="b4" style={style} className="tab-hint" />}
-      <div className="tab-row slide" role="tablist" aria-label="Settings sections" ref={row}>
-        <span className="sel" aria-hidden />
-        {TABS.map(([id, label]) => (
-          <button key={id} role="tab" aria-selected={tab === id} data-on={tab === id} className={`tab ${tab === id ? 'on' : ''}`} onClick={() => onTab(id)}>
-            {label}
-          </button>
-        ))}
-      </div>
-      {showPad && <PadGlyph input="b5" style={style} className="tab-hint" />}
-    </div>
-  );
+/* ------------------------------------------------------------------------------------------- */
+/* What each tab holds                                                                          */
+
+interface Ctx {
+  settings: Settings;
+  set(patch: Partial<Settings>): void;
+  binding: Binding | null;
+  setBinding(b: Binding): void;
+  snap: ReturnType<typeof usePads>;
+  haptics: boolean | null;
+  mlStatus: Props['mlStatus'];
+  calibrate(): void;
 }
 
-type SetFn = (p: Partial<Settings>) => void;
+function buildSections(tab: Tab, c: Ctx): Section[] {
+  const { settings: s, set } = c;
+  const toggle = (id: string, label: string, help: string, value: boolean, change: (v: boolean) => void, disabled = false): Row => ({
+    kind: 'choice', id, label, help, disabled, value: value ? 'on' : 'off', options: ON_OFF, set: (v) => change(v === 'on'),
+  });
 
-function GeneralTab({ settings, set, onCalibrate }: { settings: Settings; set: SetFn; onCalibrate(): void }) {
-  return (
-    <>
-      <div className="setting">
-        <label htmlFor="speed">Note speed</label>
-        <input id="speed" type="range" min={5} max={16} step={0.5} value={settings.noteSpeed} onChange={(e) => set({ noteSpeed: +e.target.value })} />
-        <span className="value">{settings.noteSpeed.toFixed(1)}</span>
-      </div>
-      <div className="setting">
-        <label htmlFor="volume">Song volume</label>
-        <input id="volume" type="range" min={0} max={1} step={0.05} value={settings.volume} onChange={(e) => set({ volume: +e.target.value })} />
-        <span className="value">{Math.round(settings.volume * 100)}%</span>
-      </div>
-      <div className="setting">
-        <label htmlFor="music">Menu music</label>
-        <input id="music" type="range" min={0} max={1} step={0.05} value={settings.musicVolume} onChange={(e) => set({ musicVolume: +e.target.value })} />
-        <span className="value">{Math.round(settings.musicVolume * 100)}%</span>
-      </div>
-      <div className="setting">
-        <label htmlFor="sfx">Effects volume</label>
-        <input id="sfx" type="range" min={0} max={1} step={0.05} value={settings.sfxVolume} onChange={(e) => set({ sfxVolume: +e.target.value })} />
-        <span className="value">{Math.round(settings.sfxVolume * 100)}%</span>
-      </div>
-      <div className="setting">
-        <label htmlFor="offset">Audio offset</label>
-        <input id="offset" type="range" min={-200} max={300} step={1} value={settings.offsetMs} onChange={(e) => set({ offsetMs: +e.target.value })} />
-        <span className="value">{settings.offsetMs} ms</span>
-      </div>
-      <div className="setting-actions">
-        <button className="btn small" onClick={onCalibrate}>Calibrate by tapping</button>
-        <span className="hint">If notes feel late, raise the offset. If they feel early, lower it.</span>
-      </div>
-    </>
-  );
+  if (tab === 'video') {
+    const g = s.graphics;
+    // Auto shows what it picked; touching any option turns that into a custom setup.
+    const shown = resolveGraphics(g);
+    const setG = (patch: Partial<GraphicsSettings>) => set({ graphics: { ...shown, ...patch, preset: 'custom', camera: patch.camera ?? g.camera } });
+    const off = !shown.stage3d;
+    const level = (id: 'crowd' | 'beams' | 'lights' | 'effects', label: string, help: string): Row => ({
+      kind: 'choice', id, label, help, disabled: off, value: shown[id], options: LEVELS, set: (v) => setG({ [id]: v as Level }),
+    });
+    const presets: Option[] = [
+      { value: 'auto', label: `Auto (${PRESET_LABEL[autoTier()]})`, help: 'Picked for this device’s graphics hardware.' },
+      ...(['low', 'medium', 'high', 'ultra'] as const).map((p) => ({ value: p, label: PRESET_LABEL[p] })),
+      ...(g.preset === 'custom' ? [{ value: 'custom', label: 'Custom', help: 'Your own mix of the options below.' }] : []),
+    ];
+    const display: Section[] = inDesktopApp()
+      ? [{
+          title: 'Display',
+          rows: [{
+            kind: 'choice', id: 'displayMode', label: 'Window mode', help: 'How the game fills the screen.', value: s.displayMode,
+            options: [
+              { value: 'fullscreen', label: 'Fullscreen', help: 'The game takes over the whole screen.' },
+              { value: 'borderless', label: 'Windowed fullscreen', help: 'A borderless window that fills the screen. Switching to other apps stays instant.' },
+              { value: 'windowed', label: 'Window', help: 'A normal window that you can move and resize.' },
+            ],
+            set: (v) => set({ displayMode: v as DisplayMode }),
+          }],
+        }]
+      : [];
+    return [
+      ...display,
+      {
+        title: 'Interface',
+        rows: [
+          { kind: 'slider', id: 'uiScale', label: 'Interface size', help: 'Makes every menu larger or smaller. The interface already grows with the window; this adjusts it for your eyes and your distance from the screen.', value: s.uiScale, min: 0.85, max: 1.3, step: 0.05, format: pct, set: (v) => set({ uiScale: v }) },
+          {
+            kind: 'choice', id: 'motion', label: 'Menu motion', help: 'How much the menus move.', value: s.motion,
+            options: [
+              { value: 'system', label: 'System', help: 'Follows the reduced motion setting of your device.' },
+              { value: 'full', label: 'Full', help: 'Screens slide, the focus ring travels, results count up.' },
+              { value: 'reduced', label: 'Reduced', help: 'Changes appear in place without sliding or bouncing.' },
+            ],
+            set: (v) => set({ motion: v as MotionPref }),
+          },
+        ],
+      },
+      {
+        title: 'Stage',
+        rows: [
+          { kind: 'choice', id: 'preset', label: 'Quality', help: 'The highway always runs at full quality. These settings only change the stage behind it.', value: g.preset, options: presets, set: (v) => set({ graphics: applyPreset(g, v as GraphicsPreset) }) },
+          toggle('stage3d', '3D stage', 'The stage, band and crowd behind the highway. Off shows a light 2D backdrop instead.', shown.stage3d, (v) => setG({ stage3d: v })),
+          { kind: 'slider', id: 'resolution', label: 'Stage resolution', help: 'Render size of the stage relative to the screen. Lower is faster and softer.', disabled: off, value: shown.resolution, min: 0.5, max: 1, step: 0.05, format: pct, set: (v) => setG({ resolution: v }) },
+          toggle('dynamicResolution', 'Adaptive resolution', 'Lowers the stage resolution for a moment when frames run long.', shown.dynamicResolution, (v) => setG({ dynamicResolution: v }), off),
+          {
+            kind: 'choice', id: 'fpsCap', label: 'Stage frame rate', help: 'Caps how often the stage redraws. The highway is never capped.', disabled: off, value: String(shown.fpsCap),
+            options: [{ value: '0', label: 'Display' }, { value: '30', label: '30' }, { value: '60', label: '60' }, { value: '120', label: '120' }],
+            set: (v) => setG({ fpsCap: Number(v) as GraphicsSettings['fpsCap'] }),
+          },
+          toggle('antialias', 'Smooth edges', 'Removes jagged edges on the stage.', shown.antialias, (v) => setG({ antialias: v }), off),
+          toggle('glow', 'Glow', 'A bloom around bright lights.', shown.glow, (v) => setG({ glow: v }), off),
+          level('crowd', 'Crowd', 'How many people fill the field.'),
+          level('beams', 'Beams', 'Moving light beams in the haze.'),
+          level('lights', 'Lights and bulbs', 'Washes, bulbs and glowing details.'),
+          level('effects', 'Fireworks and smoke', 'Fireworks and smoke jets on big moments.'),
+          {
+            kind: 'choice', id: 'camera', label: 'Camera', help: 'How the camera moves around the stage.', disabled: off, value: g.camera,
+            options: [
+              { value: 'auto', label: 'Director', help: 'Cuts between shots with the music.' },
+              { value: 'calm', label: 'Calm', help: 'Slow wide shots, few cuts.' },
+              { value: 'fixed', label: 'Fixed', help: 'One view from the crowd.' },
+            ],
+            set: (v) => set({ graphics: { ...g, camera: v as GraphicsSettings['camera'] } }),
+          },
+        ],
+      },
+    ];
+  }
+
+  if (tab === 'audio') {
+    const volume = (id: 'volume' | 'musicVolume' | 'sfxVolume', label: string, help: string): Row => ({
+      kind: 'slider', id, label, help, value: s[id], min: 0, max: 1, step: 0.05, format: pct, set: (v) => set({ [id]: v }),
+    });
+    return [{
+      title: 'Volume',
+      rows: [
+        volume('volume', 'Songs', 'The songs you play and their previews.'),
+        volume('musicVolume', 'Menu music', 'The theme behind the menus.'),
+        volume('sfxVolume', 'Interface sounds', 'Moves, presses and the results fanfare.'),
+      ],
+    }];
+  }
+
+  if (tab === 'game') {
+    return [
+      { title: 'Highway', rows: [{ kind: 'slider', id: 'noteSpeed', label: 'Note speed', help: 'How fast notes travel down the highway. Faster spreads dense passages apart; slower gives more time to read.', value: s.noteSpeed, min: 5, max: 16, step: 0.5, format: (v) => v.toFixed(1), set: (v) => set({ noteSpeed: v }) }] },
+      {
+        title: 'Timing',
+        rows: [
+          { kind: 'slider', id: 'offsetMs', label: 'Audio offset', help: 'If notes feel late, raise the offset. If they feel early, lower it. Wireless speakers and TVs usually need a higher value.', value: s.offsetMs, min: -200, max: 300, step: 5, format: (v) => `${Math.round(v)} ms`, set: (v) => set({ offsetMs: Math.round(v) }) },
+          { kind: 'action', id: 'calibrate', label: 'Calibrate by tapping', help: 'Tap along to twenty clicks. The offset is set from how early or late you tapped.', button: 'Start', run: c.calibrate },
+        ],
+      },
+    ];
+  }
+
+  if (tab === 'keyboard') {
+    const cap = (group: KeyGroup, index: number, code: string, lane?: number): Cap => ({
+      id: `${group}${index}`, name: lane !== undefined ? `Lane ${lane + 1}: ${keyLabel(code)}` : `Overdrive: ${keyLabel(code)}`, lane,
+      listening: c.binding?.kind === 'key' && c.binding.group === group && c.binding.index === index,
+      content: keyLabel(code), bind: () => c.setBinding({ kind: 'key', group, index }),
+    });
+    const help = c.binding?.kind === 'key' ? 'Press the key to use. Esc cancels.' : 'Select a key, then press the key to use instead. A key already in the row swaps places.';
+    return [{
+      title: 'Lane keys',
+      rows: [
+        { kind: 'keys', id: 'keys4', label: 'Easy, Medium, Hard', help: `Four lanes. ${help}`, caps: s.keys4.map((k, i) => cap('keys4', i, k, i)) },
+        { kind: 'keys', id: 'keys5', label: 'Expert', help: `Five lanes. ${help}`, caps: s.keys5.map((k, i) => cap('keys5', i, k, i)) },
+        { kind: 'keys', id: 'overdriveKey', label: 'Overdrive', help: `Starts overdrive when the meter is at least a quarter full. ${help} Esc always pauses.`, caps: [cap('overdriveKey', 0, s.overdriveKey)] },
+      ],
+    }];
+  }
+
+  if (tab === 'controller') {
+    const detected = styleFor(c.snap.family);
+    const style: GlyphStyle = s.glyphs === 'auto' ? detected : s.glyphs;
+    const cap = (group: PadGroup, index: number, input: string, lane?: number): Cap => ({
+      id: `${group}${index}`, name: lane !== undefined ? `Lane ${lane + 1}` : 'Overdrive', lane,
+      listening: c.binding?.kind === 'pad' && c.binding.group === group && c.binding.index === index,
+      content: <PadGlyph input={input} style={style} />, bind: () => c.setBinding({ kind: 'pad', group, index }),
+    });
+    const help = c.binding?.kind === 'pad' ? 'Press a button, trigger or stick direction. The pause button or Esc cancels.' : 'Select a button, then press the one to use instead. Buttons, triggers and stick directions can all be bound.';
+    const none = !c.snap.pads.length;
+    const ps5 = c.snap.pads.some((p) => p.family === 'ps5');
+    return [
+      {
+        title: 'Controllers',
+        rows: [
+          {
+            kind: 'info', id: 'connected', label: 'Connected', help: 'Every controller the game can see. Press any button on a controller to wake it.',
+            body: none ? (
+              <span className="dim">None found. Connect one and press any button on it.</span>
+            ) : (
+              <ul className="pad-list">
+                {c.snap.pads.map((p) => (
+                  <li key={p.index}>
+                    <span className="pad-name">{p.name}</span>
+                    <span className="pill">{p.family === 'generic' ? 'Other controller' : STYLE_LABEL[styleFor(p.family)]}</span>
+                    {!p.standard && <span className="dim">Unusual layout: bind its buttons below.</span>}
+                  </li>
+                ))}
+              </ul>
+            ),
+          },
+          {
+            kind: 'choice', id: 'glyphs', label: 'Button symbols', help: 'Which controller’s symbols the game shows.', value: s.glyphs,
+            options: [{ value: 'auto', label: `Auto (${STYLE_LABEL[detected]})`, help: 'Matches the controller you used last.' }, ...(['xbox', 'ps4', 'ps5', 'switch'] as const).map((v) => ({ value: v, label: STYLE_LABEL[v] }))],
+            set: (v) => set({ glyphs: v as Settings['glyphs'] }),
+          },
+        ],
+      },
+      {
+        title: 'Lane buttons',
+        rows: [
+          { kind: 'keys', id: 'pad4', label: 'Easy, Medium, Hard', help: `Four lanes. ${help}`, caps: s.pad4.map((b, i) => cap('pad4', i, b, i)) },
+          { kind: 'keys', id: 'pad5', label: 'Expert', help: `Five lanes. ${help}`, caps: s.pad5.map((b, i) => cap('pad5', i, b, i)) },
+          { kind: 'keys', id: 'padOverdrive', label: 'Overdrive and pause', help: `${help} Pause is always the same button.`, caps: [cap('padOverdrive', 0, s.padOverdrive), { id: 'pause', name: 'Pause (fixed)', content: <PadGlyph input={PAUSE_INPUT} style={style} /> }] },
+        ],
+      },
+      {
+        title: 'Rumble',
+        rows: [
+          {
+            kind: 'choice', id: 'rumble', label: 'Strength', help: 'How hard the controller shakes, in menus and in songs.', value: s.rumble,
+            options: [{ value: 'off', label: 'Off' }, { value: 'weak', label: 'Weak' }, { value: 'strong', label: 'Strong' }],
+            set: (v) => set({ rumble: v as RumbleLevel }),
+          },
+          toggle('rumbleHits', 'Hits', 'A pulse on every note you hit.', s.rumbleHits, (v) => set({ rumbleHits: v }), s.rumble === 'off'),
+          toggle('rumbleMisses', 'Misses', 'A dull thud on a missed note.', s.rumbleMisses, (v) => set({ rumbleMisses: v }), s.rumble === 'off'),
+          toggle('rumbleSustains', 'Held notes', 'A hum while a long note is held.', s.rumbleSustains, (v) => set({ rumbleSustains: v }), s.rumble === 'off'),
+          toggle('rumbleOverdrive', 'Overdrive', 'A pulse on every beat while overdrive lasts.', s.rumbleOverdrive, (v) => set({ rumbleOverdrive: v }), s.rumble === 'off'),
+          {
+            kind: 'action', id: 'testRumble', label: 'Test rumble', help: 'Plays one pulse per lane, left to right.', button: 'Test', disabled: none || s.rumble === 'off',
+            run: () => {
+              const r = new Rumbler(s, 5, s.pad5);
+              void r.test().then(() => setTimeout(() => r.dispose(), 5 * 160 + 600));
+            },
+          },
+          ...(ps5
+            ? [{
+                kind: 'info' as const, id: 'haptics', label: 'PS5 haptics', help: 'With 3D haptics, hits play on the left or right motor following the lane, with a different feel for hits, misses, held notes and overdrive.',
+                body: c.haptics === null ? 'Checking the controller…' : c.haptics ? '3D haptics on.' : inDesktopApp() ? 'Connect the controller with a USB cable for 3D haptics. Over Bluetooth it uses standard rumble.' : '3D haptics work in the desktop app with a USB cable. Here it uses standard rumble.',
+              }]
+            : []),
+        ],
+      },
+    ];
+  }
+
+  if (tab === 'touch') {
+    return [{
+      title: 'Touch play',
+      rows: [
+        { kind: 'info', id: 'touchHow', label: 'How it works', help: 'On a touchscreen each lane gets a pad along the bottom of the screen. Several fingers at once play chords, and a finger that stays down holds a long note.', body: 'Tap the pad under a lane to play it. Hold for long notes.' },
+        toggle('touchHaptics', 'Tap vibration', 'A short vibration on every pad press, on devices that can vibrate.', s.touchHaptics, (v) => set({ touchHaptics: v })),
+        {
+          kind: 'choice', id: 'touchOverdriveSide', label: 'Overdrive button', help: 'Which side of the screen the overdrive button sits on during a song.', value: s.touchOverdriveSide,
+          options: [{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }],
+          set: (v) => set({ touchOverdriveSide: v as Settings['touchOverdriveSide'] }),
+        },
+      ],
+    }];
+  }
+
+  const state = c.mlStatus === 'online' ? 'Connected' : c.mlStatus === 'offline' ? 'Not reachable' : c.mlStatus === 'checking' ? 'Checking…' : 'Off';
+  return [{
+    title: 'Analysis service',
+    rows: [
+      toggle('mlEnabled', 'Use the analysis service', 'With the service running on this computer, new analyses separate each song into stems first, which gives more accurate charts. Without it, analysis runs inside the game.', s.mlEnabled, (v) => set({ mlEnabled: v })),
+      { kind: 'text', id: 'mlUrl', label: 'Service address', help: 'Where the analysis service listens. The default is right for a service started on this computer.', disabled: !s.mlEnabled, value: s.mlUrl, set: (v) => set({ mlUrl: v.trim() }), note: <span className={`pill ${c.mlStatus === 'online' ? 'ready' : c.mlStatus === 'offline' ? 'error' : ''}`}>{state}</span> },
+    ],
+  }];
 }
 
-const PRESET_LABEL: Record<Exclude<GraphicsPreset, 'auto' | 'custom'>, string> = { low: 'Low', medium: 'Medium', high: 'High', ultra: 'Ultra' };
-const LEVEL_CHOICES: [Level, string][] = [
-  ['off', 'Off'],
-  ['low', 'Low'],
-  ['medium', 'Medium'],
-  ['high', 'High'],
-];
-const CAMERA_CHOICES: [CameraMode, string, string][] = [
-  ['auto', 'Director', 'Cuts between shots with the music.'],
-  ['calm', 'Calm', 'Slow wide shots, few cuts.'],
-  ['fixed', 'Fixed', 'One view from the crowd.'],
-];
+/* ------------------------------------------------------------------------------------------- */
+/* Rows                                                                                         */
 
-const DISPLAY_CHOICES: [DisplayMode, string, string][] = [
-  ['fullscreen', 'Fullscreen', 'The game takes over the whole screen.'],
-  ['borderless', 'Windowed fullscreen', 'A borderless window that fills the screen. Switching to other apps stays instant.'],
-  ['windowed', 'Window', 'A normal window that you can move and resize.'],
-];
-
-function GraphicsTab({ settings, set }: { settings: Settings; set: SetFn }) {
-  const g = settings.graphics;
-  // Auto shows what it picked; touching any option turns that into a custom setup.
-  const shown = resolveGraphics(g);
-  const setG = (patch: Partial<GraphicsSettings>) => set({ graphics: { ...shown, ...patch, preset: 'custom', camera: patch.camera ?? g.camera } });
-  const seg = <K extends keyof GraphicsSettings>(key: K, choices: [GraphicsSettings[K], string][], disabled = false) => (
-    <div className="seg small wrap">
-      {choices.map(([v, label]) => (
-        <button key={String(v)} className={`seg-btn ${shown[key] === v ? 'on' : ''}`} disabled={disabled} onClick={() => setG({ [key]: v } as Partial<GraphicsSettings>)}>
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-  const off = !shown.stage3d;
-  return (
-    <>
-      {inDesktopApp() && (
-        <>
-          <div className="section-label">Display mode</div>
-          <div className="seg small wrap">
-            {DISPLAY_CHOICES.map(([v, label]) => (
-              <button key={v} className={`seg-btn ${settings.displayMode === v ? 'on' : ''}`} onClick={() => set({ displayMode: v })}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <p className="hint">{DISPLAY_CHOICES.find(([v]) => v === settings.displayMode)?.[2]}</p>
-        </>
-      )}
-      <div className="section-label">Quality</div>
-      <div className="seg small wrap">
-        {(['auto', 'low', 'medium', 'high', 'ultra'] as const).map((p) => (
-          <button key={p} className={`seg-btn ${g.preset === p ? 'on' : ''}`} onClick={() => set({ graphics: applyPreset(g, p) })}>
-            {p === 'auto' ? `Auto (${PRESET_LABEL[autoTier()]})` : PRESET_LABEL[p]}
-          </button>
-        ))}
-        {g.preset === 'custom' && <button className="seg-btn on">Custom</button>}
-      </div>
-      <p className="hint">The highway always runs at full quality. These settings only change the stage behind it.</p>
-
-      <div className="check-row">
-        <Check id="g-stage" label="3D stage" checked={shown.stage3d} onChange={(v) => setG({ stage3d: v })} />
-        <Check id="g-glow" label="Glow" checked={shown.glow} onChange={(v) => setG({ glow: v })} />
-        <Check id="g-aa" label="Smooth edges" checked={shown.antialias} onChange={(v) => setG({ antialias: v })} />
-        <Check id="g-dyn" label="Adaptive resolution" checked={shown.dynamicResolution} onChange={(v) => setG({ dynamicResolution: v })} />
-      </div>
-      <div className="setting">
-        <label htmlFor="g-res">Stage resolution</label>
-        <input id="g-res" type="range" min={0.5} max={1} step={0.05} disabled={off} value={shown.resolution} onChange={(e) => setG({ resolution: +e.target.value })} />
-        <span className="value">{Math.round(shown.resolution * 100)}%</span>
-      </div>
-      <div className="section-label">Stage frame rate</div>
-      {seg('fpsCap', [[0, 'Display'], [30, '30'], [60, '60'], [120, '120']], off)}
-      <div className="section-label">Crowd</div>
-      {seg('crowd', LEVEL_CHOICES, off)}
-      <div className="section-label">Beams</div>
-      {seg('beams', LEVEL_CHOICES, off)}
-      <div className="section-label">Lights and bulbs</div>
-      {seg('lights', LEVEL_CHOICES, off)}
-      <div className="section-label">Fireworks and smoke</div>
-      {seg('effects', LEVEL_CHOICES, off)}
-      <div className="section-label">Camera</div>
-      <div className="seg small wrap">
-        {CAMERA_CHOICES.map(([v, label]) => (
-          <button key={v} className={`seg-btn ${g.camera === v ? 'on' : ''}`} disabled={off} onClick={() => set({ graphics: { ...g, camera: v } })}>
-            {label}
-          </button>
-        ))}
-      </div>
-      <p className="hint">{CAMERA_CHOICES.find(([v]) => v === g.camera)?.[2]}</p>
-    </>
-  );
-}
-
-function KeyboardTab({ settings, binding, onBind }: { settings: Settings; binding: Binding | null; onBind(b: Binding): void }) {
-  const keyButton = (group: KeyGroup, index: number, code: string, lane?: number) => {
-    const active = binding?.kind === 'key' && binding.group === group && binding.index === index;
-    return (
-      <button key={`${group}${index}`} className={`keycap ${lane !== undefined ? `lane-${lane}` : ''} ${active ? 'listening' : ''}`} onClick={() => onBind({ kind: 'key', group, index })}>
-        {active ? '…' : keyLabel(code)}
-      </button>
-    );
-  };
-  return (
-    <>
-      <div className="section-label">Easy, Medium, Hard (4 lanes)</div>
-      <div className="row left">{settings.keys4.map((k, i) => keyButton('keys4', i, k, i))}</div>
-      <div className="section-label">Expert (5 lanes)</div>
-      <div className="row left">{settings.keys5.map((k, i) => keyButton('keys5', i, k, i))}</div>
-      <div className="section-label">Overdrive</div>
-      <div className="row left">{keyButton('overdriveKey', 0, settings.overdriveKey)}</div>
-      <p className="hint">{binding?.kind === 'key' ? 'Press a key to bind it. Esc cancels.' : 'Select a key to change it. Esc pauses during a song.'}</p>
-    </>
-  );
-}
-
-function Check({ id, label, checked, onChange }: { id: string; label: string; checked: boolean; onChange(v: boolean): void }) {
-  return (
-    <label className="check" htmlFor={id}>
-      <input id={id} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} /> {label}
-    </label>
-  );
-}
-
-function ControllerTab({ settings, set, binding, onBind }: { settings: Settings; set: SetFn; binding: Binding | null; onBind(b: Binding): void }) {
-  const snap = usePads();
-  const detected = styleFor(snap.family);
-  const style = settings.glyphs === 'auto' ? detected : settings.glyphs;
-  // A PS5 controller gets 3D haptics when the desktop app can reach it (USB); say which it is.
-  const ps5 = snap.pads.some((p) => p.family === 'ps5');
-  const [haptics, setHaptics] = useState<boolean | null>(null);
+/** Lets a row answer left and right itself (see menuNav), for the keyboard and controllers alike. */
+function useSideways(ref: React.RefObject<HTMLElement | null>, step: (d: -1 | 1) => void) {
+  const stepRef = useRef(step);
+  stepRef.current = step;
   useEffect(() => {
-    if (!ps5) return setHaptics(null);
-    let live = true;
-    const check = () => void dualSenseHaptics().then((ok) => live && setHaptics(ok));
-    check();
-    const timer = setInterval(check, 4000);
-    return () => {
-      live = false;
-      clearInterval(timer);
+    const el = ref.current;
+    if (!el) return;
+    const onNav = (e: Event) => {
+      const dir = (e as CustomEvent<{ dir: Dir }>).detail.dir;
+      if (dir !== 'left' && dir !== 'right') return;
+      e.preventDefault();
+      stepRef.current(dir === 'left' ? -1 : 1);
     };
-  }, [ps5]);
+    el.addEventListener(NAV_EVENT, onNav);
+    return () => el.removeEventListener(NAV_EVENT, onNav);
+  }, [ref]);
+}
 
-  const padButton = (group: PadGroup, index: number, input: string, lane?: number) => {
-    const active = binding?.kind === 'pad' && binding.group === group && binding.index === index;
+function RowView({ row, active, first, onActive }: { row: Row; active: boolean; first: boolean; onActive(): void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const bar = useRef<HTMLSpanElement>(null);
+  const index = row.kind === 'choice' ? Math.max(0, row.options.findIndex((o) => o.value === row.value)) : 0;
+
+  const step = (d: -1 | 1, wrap = false) => {
+    if (row.disabled) return;
+    if (row.kind === 'choice') {
+      const n = row.options.length;
+      const next = wrap ? (index + d + n) % n : Math.min(n - 1, Math.max(0, index + d));
+      if (next === index) return;
+      playSfx(d > 0 ? 'toggle-on' : 'toggle-off');
+      row.set(row.options[next].value);
+    } else if (row.kind === 'slider') {
+      const next = Math.min(row.max, Math.max(row.min, Math.round((row.value + d * row.step) / row.step) * row.step));
+      if (next !== row.value) row.set(Number(next.toFixed(4)));
+    }
+  };
+  useSideways(ref, (d) => step(d));
+
+  const common = {
+    ref,
+    className: `set-row ${row.kind} ${active ? 'active' : ''} ${row.disabled ? 'disabled' : ''}`,
+    onFocus: onActive,
+    onPointerEnter: (e: React.PointerEvent) => e.pointerType === 'mouse' && onActive(),
+    onPointerDown: onActive,
+    'data-autofocus': first ? '' : undefined,
+  };
+  const help = <p className="set-help">{row.help}</p>;
+
+  if (row.kind === 'choice') {
+    const opt = row.options[index];
     return (
-      <button key={`${group}${index}`} className={`keycap pad ${lane !== undefined ? `lane-${lane}` : ''} ${active ? 'listening' : ''}`} onClick={() => onBind({ kind: 'pad', group, index })}>
-        {active ? '…' : <PadGlyph input={input} style={style} />}
-      </button>
+      <div {...common} role="slider" tabIndex={0} data-sfx="none" aria-label={row.label} aria-valuemin={0} aria-valuemax={row.options.length - 1} aria-valuenow={index} aria-valuetext={opt?.label} aria-disabled={row.disabled} onClick={() => step(1, true)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), step(1, true))}>
+        <span className="set-label">{row.label}</span>
+        <span className="set-control">
+          <button type="button" className="step" tabIndex={-1} aria-hidden data-sfx="none" disabled={row.disabled || index === 0} onClick={(e) => (e.stopPropagation(), step(-1))}>
+            <ChevronLeft strokeWidth={3} />
+          </button>
+          <span className="set-value">
+            <span className="set-value-text" key={row.value}>{opt?.label}</span>
+            <span className="ticks" aria-hidden>
+              {row.options.map((o, i) => (
+                <span key={o.value} className={i === index ? 'on' : ''} />
+              ))}
+            </span>
+          </span>
+          <button type="button" className="step" tabIndex={-1} aria-hidden data-sfx="none" disabled={row.disabled || index === row.options.length - 1} onClick={(e) => (e.stopPropagation(), step(1))}>
+            <ChevronRight strokeWidth={3} />
+          </button>
+        </span>
+        {help}
+      </div>
     );
-  };
+  }
 
-  const testRumble = (lanes: number) => {
-    const r = new Rumbler(settings, lanes, settings.pad5);
-    void r.test().then(() => setTimeout(() => r.dispose(), lanes * 160 + 600));
-  };
+  if (row.kind === 'slider') {
+    const p = (row.value - row.min) / (row.max - row.min);
+    const drag = (e: React.PointerEvent) => {
+      if (row.disabled || !(e.buttons & 1 || e.pointerType !== 'mouse')) return;
+      const r = bar.current!.getBoundingClientRect();
+      const raw = row.min + Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * (row.max - row.min);
+      const v = Number((Math.round(raw / row.step) * row.step).toFixed(4));
+      if (v !== row.value) row.set(Math.min(row.max, Math.max(row.min, v)));
+    };
+    return (
+      <div {...common} role="slider" tabIndex={0} data-sfx="none" aria-label={row.label} aria-valuemin={row.min} aria-valuemax={row.max} aria-valuenow={row.value} aria-valuetext={row.format(row.value)} aria-disabled={row.disabled} onKeyDown={(e) => (e.key === 'Home' ? row.set(row.min) : e.key === 'End' ? row.set(row.max) : undefined)}>
+        <span className="set-label">{row.label}</span>
+        <span className="set-control">
+          <button type="button" className="step" tabIndex={-1} aria-hidden data-sfx="none" disabled={row.disabled || row.value <= row.min} onClick={() => step(-1)}>
+            <ChevronLeft strokeWidth={3} />
+          </button>
+          <span
+            className="set-bar"
+            ref={bar}
+            style={{ ['--p' as string]: p }}
+            onPointerDown={(e) => {
+              if (row.disabled) return;
+              e.currentTarget.setPointerCapture(e.pointerId);
+              drag(e);
+            }}
+            onPointerMove={(e) => e.currentTarget.hasPointerCapture(e.pointerId) && drag(e)}
+          >
+            <span className="set-bar-fill" />
+            <span className="set-bar-value">{row.format(row.value)}</span>
+          </span>
+          <button type="button" className="step" tabIndex={-1} aria-hidden data-sfx="none" disabled={row.disabled || row.value >= row.max} onClick={() => step(1)}>
+            <ChevronRight strokeWidth={3} />
+          </button>
+        </span>
+        {help}
+      </div>
+    );
+  }
+
+  if (row.kind === 'action') {
+    return (
+      <div {...common}>
+        <span className="set-label">{row.label}</span>
+        <span className="set-control">
+          <button type="button" className="btn small" disabled={row.disabled} onClick={row.run}>{row.button}</button>
+        </span>
+        {help}
+      </div>
+    );
+  }
+
+  if (row.kind === 'keys') {
+    return (
+      <div {...common} role="group" aria-label={row.label}>
+        <span className="set-label">{row.label}</span>
+        <span className="set-control caps">
+          {row.caps.map((cap) =>
+            cap.bind ? (
+              <button key={cap.id} type="button" className={`keycap ${cap.lane !== undefined ? `lane-${cap.lane}` : ''} ${cap.listening ? 'listening' : ''}`} aria-label={cap.listening ? 'Waiting for a press' : `${cap.name}. Press to change.`} onClick={cap.bind}>
+                {cap.listening ? '…' : cap.content}
+              </button>
+            ) : (
+              <span key={cap.id} className="keycap fixed" title={cap.name}>{cap.content}</span>
+            ),
+          )}
+        </span>
+        {help}
+      </div>
+    );
+  }
+
+  if (row.kind === 'text') {
+    return (
+      <div {...common}>
+        <label className="set-label" htmlFor={`set-${row.id}`}>{row.label}</label>
+        <span className="set-control">
+          <input id={`set-${row.id}`} className="text" value={row.value} disabled={row.disabled} spellCheck={false} inputMode="url" autoCapitalize="off" onChange={(e) => row.set(e.target.value)} />
+          {row.note}
+        </span>
+        {help}
+      </div>
+    );
+  }
 
   return (
-    <>
-      <div className="section-label">Connected</div>
-      {snap.pads.length ? (
-        <ul className="pad-list">
-          {snap.pads.map((p) => (
-            <li key={p.index}>
-              <span className="pad-name">{p.name}</span>
-              <span className="pill">{p.family === 'generic' ? 'Other controller' : STYLE_LABEL[styleFor(p.family)]}</span>
-              {!p.standard && <span className="hint">Unusual button layout: bind its buttons below.</span>}
+    <div {...common}>
+      <span className="set-label">{row.label}</span>
+      <span className="set-control info">{row.body}</span>
+      {help}
+    </div>
+  );
+}
+
+/** The side pane on wide screens: what the highlighted setting does, and its choices to pick directly. */
+function Detail({ row }: { row: Row }) {
+  return (
+    <div className="detail-card">
+      <h2 className="panel-title">{row.label}</h2>
+      <p className="detail-help">{row.help}</p>
+      {row.kind === 'choice' && (
+        <ul className="option-list">
+          {row.options.map((o) => (
+            <li key={o.value}>
+              <button type="button" className={`option ${o.value === row.value ? 'on' : ''}`} tabIndex={-1} data-nav-skip disabled={row.disabled} aria-pressed={o.value === row.value} onClick={() => row.set(o.value)}>
+                <span className="option-label">{o.label}</span>
+                {o.help && <span className="option-help">{o.help}</span>}
+              </button>
             </li>
           ))}
         </ul>
-      ) : (
-        <p className="hint">No controller found. Connect one and press any button on it.</p>
       )}
-
-      <div className="section-label">Button glyphs</div>
-      <div className="seg small wrap">
-        {GLYPH_CHOICES.map((g) => (
-          <button key={g} className={`seg-btn ${settings.glyphs === g ? 'on' : ''}`} onClick={() => set({ glyphs: g })}>
-            {g === 'auto' ? `Auto (${STYLE_LABEL[detected]})` : STYLE_LABEL[g]}
-          </button>
-        ))}
-      </div>
-      <div className="glyph-preview">
-        {['b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7', 'b12', 'b8', 'b9'].map((b) => <PadGlyph key={b} input={b} style={style} />)}
-      </div>
-
-      <div className="section-label">Easy, Medium, Hard (4 lanes)</div>
-      <div className="row left">{settings.pad4.map((b, i) => padButton('pad4', i, b, i))}</div>
-      <div className="section-label">Expert (5 lanes)</div>
-      <div className="row left">{settings.pad5.map((b, i) => padButton('pad5', i, b, i))}</div>
-      <div className="section-label">Overdrive · Pause</div>
-      <div className="row left">
-        {padButton('padOverdrive', 0, settings.padOverdrive)}
-        <span className="keycap pad fixed" title="Pause is always this button">
-          <PadGlyph input={PAUSE_INPUT} style={style} />
-        </span>
-      </div>
-      <p className="hint">
-        {binding?.kind === 'pad'
-          ? 'Press a button, trigger or stick direction to bind it. The pause button or Esc cancels.'
-          : 'Select a button to change it. Buttons, triggers and stick directions can all be bound.'}
-      </p>
-
-      <div className="section-label">Rumble</div>
-      <div className="seg small">
-        {RUMBLE_LEVELS.map(([level, label]) => (
-          <button key={level} className={`seg-btn ${settings.rumble === level ? 'on' : ''}`} onClick={() => set({ rumble: level })}>
-            {label}
-          </button>
-        ))}
-      </div>
-      <div className="check-row">
-        <Check id="rumble-hits" label="Hits" checked={settings.rumbleHits} onChange={(v) => set({ rumbleHits: v })} />
-        <Check id="rumble-misses" label="Misses" checked={settings.rumbleMisses} onChange={(v) => set({ rumbleMisses: v })} />
-        <Check id="rumble-sustains" label="Held notes" checked={settings.rumbleSustains} onChange={(v) => set({ rumbleSustains: v })} />
-        <Check id="rumble-od" label="Overdrive" checked={settings.rumbleOverdrive} onChange={(v) => set({ rumbleOverdrive: v })} />
-      </div>
-      {ps5 && (
-        <p className="hint">
-          {haptics === null
-            ? 'Checking the PS5 controller…'
-            : haptics
-              ? 'PS5 controller: 3D haptics on. Hits play on the left or right motor, following the lane, with a different feel for hits, misses, held notes and overdrive.'
-              : '__TAURI_INTERNALS__' in window
-                ? 'PS5 controller: connect it with a USB cable for 3D haptics. Over Bluetooth it uses standard rumble.'
-                : 'PS5 controller: 3D haptics work in the desktop app with a USB cable. Here it uses standard rumble.'}
+      {row.kind === 'slider' && (
+        <p className="detail-range">
+          <span className="num">{row.format(row.value)}</span>
+          <span className="dim">
+            {row.format(row.min)} to {row.format(row.max)}
+          </span>
         </p>
       )}
-      <div className="row left">
-        <button className="btn small" disabled={!snap.pads.length || settings.rumble === 'off'} onClick={() => testRumble(5)}>Test rumble</button>
-      </div>
-    </>
-  );
-}
-
-function AnalysisTab({ settings, set, mlStatus }: { settings: Settings; set: SetFn; mlStatus: Props['mlStatus'] }) {
-  return (
-    <>
-      <div className="section-label">Analysis service (optional)</div>
-      <div className="setting">
-        <label htmlFor="ml">
-          <input id="ml" type="checkbox" checked={settings.mlEnabled} onChange={(e) => set({ mlEnabled: e.target.checked })} /> Use local ML analyzer
-        </label>
-        <input className="text" value={settings.mlUrl} onChange={(e) => set({ mlUrl: e.target.value.trim() })} spellCheck={false} />
-        <span className={`pill ${mlStatus === 'online' ? 'ready' : mlStatus === 'offline' ? 'error' : ''}`}>{mlStatus}</span>
-      </div>
-      <p className="hint">With the service running, new analyses use stem separation for more accurate charts. Without it, analysis runs in the app.</p>
-    </>
+      {row.disabled && <p className="detail-note">{row.kind === 'action' ? 'Not available right now.' : 'Turned off by another setting on this page.'}</p>}
+    </div>
   );
 }

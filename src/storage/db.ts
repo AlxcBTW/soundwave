@@ -136,6 +136,11 @@ export async function getScores(songId: string): Promise<BestScore[]> {
   return (await db()).getAllFromIndex('scores', 'songId', songId);
 }
 
+/** Every best score, across all songs. */
+export async function listAllScores(): Promise<BestScore[]> {
+  return (await db()).getAll('scores');
+}
+
 /** Stores the score if it beats the previous best. Returns the previous best score, if any. */
 export async function submitScore(s: Omit<BestScore, 'key' | 'date'>): Promise<number | undefined> {
   const d = await db();

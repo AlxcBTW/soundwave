@@ -17,3 +17,13 @@ export function starsFor(score: number, baseScore: number): number {
   for (const th of STAR_THRESHOLDS) if (r >= th) stars++;
   return stars;
 }
+
+/** How far a score is from its current star toward the next one, 0..1 (1 once all five are earned). */
+export function starProgress(score: number, baseScore: number): number {
+  if (baseScore <= 0) return 0;
+  const r = score / baseScore;
+  const n = starsFor(score, baseScore);
+  if (n >= STAR_THRESHOLDS.length) return 1;
+  const from = n === 0 ? 0 : STAR_THRESHOLDS[n - 1];
+  return Math.max(0, Math.min(1, (r - from) / (STAR_THRESHOLDS[n] - from)));
+}

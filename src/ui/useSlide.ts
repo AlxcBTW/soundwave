@@ -20,9 +20,14 @@ export function useSlide<T extends HTMLElement>(selected: unknown) {
       el.style.setProperty('--sel-o', '1');
     };
     update();
+    // The first placement appears in place; later ones travel.
+    const raf = requestAnimationFrame(() => el.classList.add('ready'));
     const ro = new ResizeObserver(update);
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
   }, [selected]);
   return ref;
 }

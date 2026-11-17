@@ -31,7 +31,17 @@ export interface Settings {
   graphics: GraphicsSettings;
   /** How the desktop app's window fills the screen. */
   displayMode: DisplayMode;
+  /** Interface size relative to the automatic one (which already grows with the window), 0.85..1.3. */
+  uiScale: number;
+  /** Menu motion: follow the system preference, or always calm / always full. */
+  motion: MotionPref;
+  /** A short vibration on every touch-pad press, where the device supports it. */
+  touchHaptics: boolean;
+  /** Which side of the screen the touch overdrive button sits on. */
+  touchOverdriveSide: 'left' | 'right';
 }
+
+export type MotionPref = 'system' | 'reduced' | 'full';
 
 export type RumbleLevel = 'off' | 'weak' | 'strong';
 /** Fullscreen, a borderless window covering the monitor, or a normal window. */
@@ -63,6 +73,10 @@ export const DEFAULT_SETTINGS: Settings = {
   rumbleOverdrive: true,
   graphics: DEFAULT_GRAPHICS,
   displayMode: 'borderless',
+  uiScale: 1,
+  motion: 'system',
+  touchHaptics: true,
+  touchOverdriveSide: 'right',
 };
 
 /** Controller defaults of an earlier version, replaced by the current ones when stored unchanged. */
@@ -82,6 +96,10 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
   for (const old of ['rumbleStrength', 'dualSenseHaptics']) delete (s as Record<string, unknown>)[old];
   s.graphics = normalizeGraphics(s.graphics);
   if (!DISPLAY_MODES.includes(s.displayMode)) s.displayMode = DEFAULT_SETTINGS.displayMode;
+  s.uiScale = Math.min(1.3, Math.max(0.85, Number(s.uiScale) || 1));
+  if (!['system', 'reduced', 'full'].includes(s.motion)) s.motion = 'system';
+  s.touchHaptics = Boolean(s.touchHaptics);
+  if (s.touchOverdriveSide !== 'left') s.touchOverdriveSide = 'right';
   for (const k of ['keys4', 'keys5', 'pad4', 'pad5'] as const) {
     if (!Array.isArray(s[k]) || s[k].length !== DEFAULT_SETTINGS[k].length) s[k] = [...DEFAULT_SETTINGS[k]];
   }

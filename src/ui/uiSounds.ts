@@ -11,11 +11,16 @@ function feedback(kind: Sfx) {
   if (pulse) menuPulse(pulse);
 }
 
-const CONTROL = 'button, [role="tab"], input[type="checkbox"], input[type="range"], .song-card';
+const CONTROL = 'button, [role="tab"], [role="slider"], input[type="checkbox"], input[type="range"]';
 
 /** During a song, only the pause menu's controls make menu sounds. */
 function inGame(el: Element) {
   return !!document.querySelector('.play') && !el.closest('.overlay');
+}
+
+/** Buttons inside a row (a step arrow, say) leave the sound to their own handler. */
+function quiet(el: HTMLElement) {
+  return el.dataset.sfx === 'none';
 }
 
 /**
@@ -53,18 +58,13 @@ export function installUiSounds(): () => void {
       if (el.type === 'checkbox') feedback(el.checked ? 'toggle-on' : 'toggle-off');
       return;
     }
-    const kind = (el.dataset.sfx ?? (el.getAttribute('role') === 'tab' ? 'tab' : 'select')) as Sfx | 'none';
-    if (kind !== 'none') feedback(kind);
+    if (quiet(el)) return;
+    feedback((el.dataset.sfx ?? (el.getAttribute('role') === 'tab' ? 'tab' : 'select')) as Sfx);
   };
-  const keydown = (e: KeyboardEvent) => {
-    if (e.code === 'Escape' && !document.querySelector('.play')) feedback('back');
-  };
-
   window.addEventListener('pointerdown', pointerdown, true);
   window.addEventListener('focusin', focusin, true);
   window.addEventListener('pointerover', pointerover, true);
   window.addEventListener('click', click, true);
-  window.addEventListener('keydown', keydown, true);
   window.addEventListener(MOVE_EVENT, navMove);
   return () => {
     window.removeEventListener(MOVE_EVENT, navMove);
@@ -72,6 +72,5 @@ export function installUiSounds(): () => void {
     window.removeEventListener('focusin', focusin, true);
     window.removeEventListener('pointerover', pointerover, true);
     window.removeEventListener('click', click, true);
-    window.removeEventListener('keydown', keydown, true);
   };
 }
