@@ -491,16 +491,17 @@ for side in (1, -1):
     grid = []
     for (t, p, tan, n_, b) in fr:
         face = n_ if n_.y < 0 else -n_
-        # the screen ends below the ribbon that rides the wall, so the two never share a surface
-        grid.append([wall.verts.new(p + face * 0.35 + Z * (0.9 + (top(t) - 1.8) * r / rows)) for r in range(rows + 1)])
+        # the screen runs up to the middle of the ribbon that rides the wall and lies behind its
+        # belly, so the ribbon rises out of the picture with nothing bare between the two
+        grid.append([wall.verts.new(p + face * 0.2 + Z * (0.9 + top(t) * r / rows)) for r in range(rows + 1)])
     for i in range(len(grid) - 1):
         for r in range(rows):
             f = wall.faces.new((grid[i][r], grid[i + 1][r], grid[i + 1][r + 1], grid[i][r + 1]))
             for loop, (ii, rr) in zip(f.loops, ((i, r), (i + 1, r), (i + 1, r + 1), (i, r + 1))):
                 loop[uvl].uv = (fr[ii][0] if side > 0 else 1 - fr[ii][0], rr / rows)
     new_obj('ScreenWing' + tag, wall, 'Screen')
-    # the wall body behind the screen
-    loft('', [p + Z * (0.45 + top(t) / 2) for (t, p, tan, n_, b) in fr], lambda t: 0.36, lambda t: top(t) - 0.2, None, depth_axis=Z, sides=8, power=6, bm=black)
+    # the wall body behind the screen, a little lower than it so none of it shows over the top
+    loft('', [p + Z * (0.55 + top(t) / 2) for (t, p, tan, n_, b) in fr], lambda t: 0.36, lambda t: top(t), None, depth_axis=Z, sides=8, power=6, bm=black)
     # ribbon: from the ground far out, along the wall top, over the shell's shoulder to a peak
     crest_line = [p + Z * (top(t) + 0.9) for (t, p, tan, n_, b) in fr][::-1]
     # It leaves the wall before the shell and climbs outside and in front of the outer ridge and its
@@ -514,7 +515,9 @@ for side in (1, -1):
     tube(led, [p + Vector((0, -0.5, 0)) for p in path[10:-2]], 0.05)
     for k in (60, 84, 104, 120):
         FIXTURES.append({'group': 'Ribbon', 'pos': path[k] + Vector((0, -0.7, 0)), 'dir': Vector((0.3 * side * (1 if k < 100 else -0.4), -0.7, 0.55)).normalized()})
-    tube(led, [p + (n_ if n_.y < 0 else -n_) * 0.4 + Z * 0.85 for (t, p, tan, n_, b) in fr], 0.05)
+    tube(led, [p + (n_ if n_.y < 0 else -n_) * 0.25 + Z * 0.85 for (t, p, tan, n_, b) in fr], 0.05)
+    # and a line of light along the screen's top edge, which shows where the ribbon has left the wall
+    tube(led, [p + (n_ if n_.y < 0 else -n_) * 0.2 + Z * (0.9 + top(t)) for (t, p, tan, n_, b) in fr], 0.045)
 
 # ---------------------------------------------------------------- towers with line arrays, outside the shell and clear of the ribbon
 for side in (1, -1):
