@@ -13,7 +13,7 @@ import { demoChart } from '../game/demo';
 import { applyDisplayMode } from '../game/displayMode';
 import { loadPick, loadSetlist, pruneSetlist, savePick, saveSetlist, SET_MAX, toggleSong, type Pick } from '../game/setlist';
 import { loadSettings, saveSettings, type Settings } from '../game/settings';
-import { getInputMode, installInputMode, usesFocus } from '../input/inputMode';
+import { getInputMode, installInputMode, setInputMode, usesFocus } from '../input/inputMode';
 import { focusStart, installMenuNav } from '../input/menuNav';
 import { pads, resolveStyle } from '../input/pads';
 import { setMenuRumble } from '../input/rumble';
@@ -104,7 +104,7 @@ export function App() {
     const stopNav = installMenuNav(() => resolveStyle(settingsRef.current.glyphs, pads.snapshot().family));
     const stopSounds = installUiSounds();
     void loadSfx();
-    if (import.meta.env.DEV) Object.assign(window, { __audio: { sfx: sfxStatus, music: menuMusicStatus } });
+    if (import.meta.env.DEV) Object.assign(window, { __audio: { sfx: sfxStatus, music: menuMusicStatus }, __input: setInputMode });
     return () => {
       stopMode();
       stopNav();

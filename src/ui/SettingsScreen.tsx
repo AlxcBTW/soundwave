@@ -5,7 +5,8 @@ import { inDesktopApp } from '../game/displayMode';
 import { applyPreset, autoTier, resolveGraphics, type GraphicsPreset, type GraphicsSettings, type Level } from '../game/graphics';
 import { DEFAULT_SETTINGS, keyLabel, type DisplayMode, type MotionPref, type RumbleLevel, type Settings } from '../game/settings';
 import { PadGlyph, STYLE_LABEL } from '../input/glyphs';
-import { NAV_EVENT, TAB_EVENT, type Dir } from '../input/menuNav';
+import { getInputMode, usesFocus } from '../input/inputMode';
+import { focusStart, NAV_EVENT, TAB_EVENT, type Dir } from '../input/menuNav';
 import { PAUSE_INPUT, pads, styleFor, SYSTEM_INPUT, type GlyphStyle } from '../input/pads';
 import { dualSenseHaptics, menuPulse, Rumbler } from '../input/rumble';
 import { usePads } from '../input/usePads';
@@ -147,11 +148,23 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack }: Props) 
       const i = (TABS.findIndex(([id]) => id === tabRef.current) + d + TABS.length) % TABS.length;
       playSfx('tab');
       menuPulse(d < 0 ? 'tab-left' : 'tab-right');
+      follow.current = true;
       setTab(TABS[i][0]);
     };
     window.addEventListener(TAB_EVENT, onTab);
     return () => window.removeEventListener(TAB_EVENT, onTab);
   }, []);
+
+  // Switched from the shoulder buttons, focus follows onto the new tab's first setting.
+  const follow = useRef(false);
+  useEffect(() => {
+    // On a narrow screen the tab row scrolls: keep the chosen tab in view.
+    document.getElementById(`tab-${tab}`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (!follow.current) return;
+    follow.current = false;
+    const list = document.querySelector('.set-list');
+    if (list && usesFocus(getInputMode())) focusStart(list);
+  }, [tab]);
 
   // A key press completes a key binding; Esc cancels the prompt. Nothing else hears the key.
   useEffect(() => {
@@ -215,7 +228,7 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack }: Props) 
 
   useActions([
     { id: 'back', label: 'Back', icon: ArrowLeft, kbd: 'Escape', sfx: 'back', run: onBack },
-    { id: 'reset', label: `Restore ${TABS.find(([id]) => id === tab)![1].toLowerCase()} defaults`, icon: RotateCcw, kbd: 'KeyR', pad: 'b3', run: resetTab },
+    { id: 'reset', label: 'Restore defaults', icon: RotateCcw, kbd: 'KeyR', pad: 'b3', run: resetTab },
   ]);
 
   const sections = buildSections(tab, { settings, set, binding, setBinding, snap, haptics, mlStatus, calibrate: () => setCalibrating(true) });
@@ -674,7 +687,7 @@ function RowView({ row, active, first, onActive }: { row: Row; active: boolean; 
   }
 
   return (
-    <div {...common}>
+    <div {...common} tabIndex={0} role="group" aria-label={row.label}>
       <span className="set-label">{row.label}</span>
       <span className="set-control info">{row.body}</span>
       {help}

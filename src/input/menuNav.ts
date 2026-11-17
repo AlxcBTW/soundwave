@@ -78,16 +78,17 @@ function focusEl(el: HTMLElement, announce = true) {
   if (announce) window.dispatchEvent(new Event(MOVE_EVENT));
 }
 
-function startEl(list = focusables()): HTMLElement | undefined {
-  return list.find((el) => el.hasAttribute('data-autofocus')) ?? list.find((el) => el.classList.contains('primary')) ?? list[0];
+/** A scope's starting control: the one marked `data-autofocus` (or the first control inside it), else its primary one, else its first. */
+function startEl(list = focusables(), scope: ParentNode = navScope()): HTMLElement | undefined {
+  const marked = scope.querySelector('[data-autofocus]');
+  return (marked && list.find((el) => el === marked || marked.contains(el))) ?? list.find((el) => el.classList.contains('primary')) ?? list[0];
 }
 
-/** Puts focus on the screen's starting control (the one marked `data-autofocus`, else the first). */
-export function focusStart() {
-  const el = startEl();
+/** Puts focus on the starting control of the screen, or of a part of it. */
+export function focusStart(scope?: ParentNode) {
+  const el = scope ? startEl(focusables(scope), scope) : startEl();
   if (el) focusEl(el, false);
 }
-
 /** Whether focus sits on a control of the current scope. */
 function current(list: HTMLElement[]): HTMLElement | null {
   const active = document.activeElement as HTMLElement | null;

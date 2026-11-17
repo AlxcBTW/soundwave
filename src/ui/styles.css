@@ -349,7 +349,7 @@ ul, ol { list-style: none; }
 .overlay.card.leaving .dialog { animation: fade-out 0.16s forwards; }
 @keyframes card-in { from { transform: translateY(1rem) scale(0.96); opacity: 0; } }
 
-.sheet { display: flex; flex-direction: column; gap: 1.3rem; padding: 1.3rem clamp(1rem, 2vw, 1.6rem) 1.6rem; }
+.sheet-body { display: flex; flex-direction: column; gap: 1.3rem; padding: 1.3rem clamp(1rem, 2vw, 1.6rem) 1.6rem; }
 .sheet-head { display: grid; grid-template-columns: clamp(5.5rem, 26%, 9rem) minmax(0, 1fr); gap: 1.1rem; align-items: start; padding-right: 2.4rem; }
 .sheet-head .cover { width: 100%; }
 .sheet-title { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
@@ -467,7 +467,7 @@ ul, ol { list-style: none; }
 .step { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 50%; color: var(--ink); opacity: 0; transition: opacity 0.16s, background 0.16s, transform 0.2s var(--ease); }
 .step svg { width: 1.2rem; height: 1.2rem; }
 .set-row.active .step, :root[data-input='touch'] .step { opacity: 1; }
-.step:disabled { opacity: 0.25 !important; }
+.set-row.active .step:disabled, :root[data-input='touch'] .step:disabled { opacity: 0.25; }
 .step:active:not(:disabled) { transform: scale(0.85); }
 :root[data-input='mouse'] .step:hover:not(:disabled) { background: rgb(255 255 255 / 0.14); }
 .set-value { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; min-width: 0; }
@@ -559,9 +559,11 @@ ul, ol { list-style: none; }
 /* ------------------------------------------------------------------------------------------- */
 /* Play (sizes in px: they sit over the highway's own geometry)                                 */
 
-.play { position: absolute; inset: 0; background: #05030f; touch-action: none; --touch-h: clamp(92px, 20vh, 190px); }
+.play { position: absolute; inset: 0; background: #05030f; touch-action: none; --touch-h: clamp(84px, 19vh, 180px); }
 .play .layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-:root[data-input='touch'] .play .highway { height: calc(100% - var(--touch-h)); }
+/* The track fades out a little past the strike line, so notes that got by do not run under the dial. */
+.play .highway { --strike: 0.775; -webkit-mask-image: linear-gradient(to bottom, #000 calc(var(--hw-y, 100%) + 26px), transparent calc(var(--hw-y, 100%) + 96px)); mask-image: linear-gradient(to bottom, #000 calc(var(--hw-y, 100%) + 26px), transparent calc(var(--hw-y, 100%) + 96px)); }
+:root[data-input='touch'] .play .highway { height: calc(100% - var(--touch-h)); --strike: 0.94; }
 .hud { position: absolute; inset: 0; pointer-events: none; font-weight: 850; --panel-hud: rgb(16 9 50 / 0.76); }
 .touch-layer { position: absolute; inset: 0; }
 :root[data-input='touch'] .touch-layer { pointer-events: auto; touch-action: none; }
@@ -631,7 +633,7 @@ ul, ol { list-style: none; }
 .hud-feedback[data-kind='od'] { color: var(--od); }
 @keyframes pop { 0% { opacity: 1; transform: translate(-100%, -50%) scale(1.15); } 100% { opacity: 0; transform: translate(-100%, -90%) scale(1); } }
 /* Where the highway fills the width there is no room beside it: the word sits above the strike line. */
-:root[data-input='touch'] .hud-feedback { left: 50%; top: 40%; transform-origin: 50% 50%; animation-name: none; }
+:root[data-input='touch'] .hud-feedback { left: 50%; top: 25%; transform-origin: 50% 50%; animation-name: none; }
 :root[data-input='touch'] .hud-feedback.pop { animation: pop-mid 0.45s ease-out forwards; }
 @keyframes pop-mid { 0% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -80%) scale(1); } }
 
@@ -707,9 +709,9 @@ ul, ol { list-style: none; }
 :root[data-input='touch'] .hud-top { top: 0; left: 0; width: 100%; transform: none; }
 :root[data-input='touch'] .hud-title { display: none; }
 :root[data-input='touch'] .hud-progress { margin: 0; border-radius: 0; height: calc(4px + var(--safe-t)); }
-:root[data-input='touch'] .hud-od { left: auto; right: calc(12px + var(--safe-r)); top: calc(var(--hw-y, 80%) - 150px); width: 84px; height: 84px; align-items: center; justify-content: center; border-radius: 50%; background: var(--panel-hud); gap: 4px; }
-:root[data-input='touch'] .play[data-od-side='left'] .hud-od { right: auto; left: calc(12px + var(--safe-l)); }
-:root[data-input='touch'] .hud-od-bar { width: 52px; }
+:root[data-input='touch'] .hud-od { left: auto; right: calc(8px + var(--safe-r)); top: calc(var(--hw-y, 80%) - 150px); width: 68px; height: 68px; align-items: center; justify-content: center; border-radius: 50%; background: var(--panel-hud); gap: 4px; }
+:root[data-input='touch'] .play[data-od-side='left'] .hud-od { right: auto; left: calc(8px + var(--safe-l)); }
+:root[data-input='touch'] .hud-od-bar { width: 42px; height: 6px; }
 :root[data-input='touch'] .hud-od-word { display: none; }
 :root[data-input='touch'] .hud-od-label svg { width: 26px; height: 26px; }
 :root[data-input='touch'] .hud.od-ready .hud-od { background: color-mix(in srgb, var(--od) 30%, var(--panel-hud)); color: #fff; }
@@ -804,8 +806,9 @@ ul, ol { list-style: none; }
   /* The action bar keeps its primary action in words and shrinks the rest to their icons. */
   .action-bar { gap: 0.4rem; }
   .act-group { gap: 0.4rem; }
-  .act:not(.primary) .act-label { display: none; }
-  .act:not(.primary) { padding-inline: 0.85rem; }
+  .action-bar:has(.primary) .act:not(.primary) .act-label { display: none; }
+  .action-bar:has(.primary) .act:not(.primary) { padding-inline: 0.85rem; }
+  .act { padding-inline: 0.9rem; min-width: 0; }
   :root:not([data-input='touch']) .act:has(.keycap-hint, .hint-glyph) .act-icon { display: block; }
   .act:not(.primary) .keycap-hint, .act:not(.primary) .hint-glyph { display: none; }
   .act.primary { flex: 1; }
@@ -827,8 +830,13 @@ ul, ol { list-style: none; }
   .tab { padding: 0 0.7rem; }
   .settings-head .keycap-hint, .settings-head .hint-glyph { display: none; }
 
-  .set-card { grid-template-columns: 1.2rem 3.2rem minmax(0, 1fr); gap: 0.7rem; padding: 0.55rem 0.8rem 0.55rem 0.6rem; }
-  .set-best { grid-column: 3; flex-direction: row; align-items: center; gap: 0.6rem; }
+  .set-card { grid-template-columns: 1.1rem 2.9rem minmax(0, 1fr) auto; gap: 0.65rem; padding: 0.5rem 0.8rem 0.5rem 0.55rem; }
+  .set-cards .set-best .num { display: none; }
+  .set-best .stars { font-size: 0.9rem; }
+  .set-best .dim { font-size: 0.9rem; }
+  .summary-list .set-best { gap: 0.4rem; }
+  .summary-list .tag { display: none; }
+  .ready-panel .hold-btn { position: sticky; bottom: 0.3rem; z-index: 2; box-shadow: 0 -10px 24px -6px var(--panel-solid); }
   .results-stats dd { font-size: 1.3rem; }
   .toasts { width: auto; left: calc(var(--gutter) + var(--safe-l)); }
 }

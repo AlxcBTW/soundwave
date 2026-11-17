@@ -217,7 +217,8 @@ export class PlayController {
     const first = pos[0];
     const last = pos[pos.length - 1];
     const laneW = pos.length > 1 ? (last.x - first.x) / (pos.length - 1) : 90;
-    const root = this.hud.root.style;
+    // On the play screen itself, so the highway canvas can read them as well as the HUD.
+    const root = (this.hud.root.parentElement ?? this.hud.root).style;
     root.setProperty('--hw-x', `${((first.x + last.x) / 2).toFixed(1)}px`);
     root.setProperty('--hw-y', `${first.y.toFixed(1)}px`);
     root.setProperty('--lane-w', `${laneW.toFixed(1)}px`);

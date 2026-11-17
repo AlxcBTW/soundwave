@@ -10,8 +10,11 @@ const MISSED_TINT = 0.28;
 const WHITE = new THREE.Color(0xffffff);
 
 const LANE_W = 1;
-/** How far up the screen the highway is shifted, as a share of its height. */
-const LIFT = 0.075;
+/** Where the strike line sits down the canvas when the layout does not say (see resize). */
+const STRIKE_AT = 0.775;
+/** Share of the canvas width the strike line spans on a wide screen and on a tall one. */
+const WIDE_SHARE = 0.43;
+const TALL_SHARE = 0.94;
 const LENGTH = 24;
 const MAX_GEMS = 512;
 const MAX_TAILS = 128;
@@ -412,17 +415,26 @@ export class Highway {
     const h = this.canvas.clientHeight || window.innerHeight;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
-    // Fit the highway width; 5 lanes pull the camera back a little.
+    // How much of the width the strike line takes: under half on a wide screen, nearly all of it
+    // on a tall one, where the lanes also have to be wide enough for fingers.
+    const a = this.camera.aspect;
+    const share = WIDE_SHARE + (TALL_SHARE - WIDE_SHARE) * Math.min(1, Math.max(0, (1.5 - a) / (1.5 - 0.65)));
+    // The camera's distance: 5 lanes pull it back a little, a narrow screen brings it in.
     const back = this.lanes === 5 ? 1.12 : 1;
-    const narrow = Math.max(1, 1.5 / this.camera.aspect);
-    this.camera.position.set(0, 3.6 * back * narrow, 6 * back * narrow);
+    const fit = Math.max(1, 1.5 / a) * (WIDE_SHARE / share);
+    this.camera.position.set(0, 3.6 * back * fit, 6 * back * fit);
     this.camera.lookAt(0, 0, -7.5);
-    // The whole picture sits a little higher, which leaves room under the strike line for the lane
-    // labels and the multiplier dial.
-    this.camera.setViewOffset(w, h, 0, Math.round(h * LIFT), w, h);
+    // The picture is then slid up or down so the strike line sits where the layout wants it (a
+    // share of the canvas height, from the canvas's own --strike), with the lane labels, the
+    // multiplier dial or the touch pads below.
+    this.camera.clearViewOffset();
+    this.camera.updateProjectionMatrix();
+    this.camera.updateMatrixWorld();
+    const strike = Number.parseFloat(getComputedStyle(this.canvas).getPropertyValue('--strike')) || STRIKE_AT;
+    const now = ((1 - new THREE.Vector3(0, 0, 0.42).project(this.camera).y) / 2) * h;
+    this.camera.setViewOffset(w, h, 0, Math.round(now - strike * h), w, h);
     this.camera.updateProjectionMatrix();
   }
-
   /** Screen positions (CSS px, relative to the canvas) just in front of each strike pad. */
   padScreenPositions(): { x: number; y: number }[] {
     const w = this.canvas.clientWidth;

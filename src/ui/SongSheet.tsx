@@ -101,7 +101,7 @@ export function SongSheet({ song, builtin, status, scores, slot, setFull, volume
   return (
     <Dialog title={`${song.title} details`} onClose={onClose}>
       {(close) => (
-        <div className="sheet">
+        <div className="sheet-body">
           <div className="sheet-head">
             <Cover blob={song.cover} title={song.title} />
             <div className="sheet-title">
