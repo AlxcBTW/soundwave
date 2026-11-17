@@ -57,7 +57,7 @@ export interface Character {
   clips: Clip[];
 }
 
-/** What tools/stage/aurora/build_figures.py and build_people.py write next to each set's GLB. */
+/** What tools/stage/aurora/build_cast.py and build_people.py write next to each set's GLB. */
 export interface FigureData {
   version: number;
   /** The loops are made to the beat: everyone plays them in time instead of at their own point. */
@@ -119,7 +119,7 @@ export function loadVenue(): Promise<VenueAssets> {
     return { scene: gltf.scene, data, anim: new Uint16Array(anim) };
   };
   // Characters built on this machine from downloaded files (build_people.py, kept out of the
-  // repository) take the place of the project's own figures when they are there.
+  // repository) take the place of the project's own cast when they are there.
   const people = (name: string): Promise<FigureSet> => loadSet(`local/${name}`).catch(() => loadSet(name));
   const scenery = get('scenery.json')
     .then((r) => r.json() as Promise<SceneryData>)

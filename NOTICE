@@ -2,12 +2,19 @@ Festival
 Copyright 2026 DavidNiessen
 
 Licensed under the Apache License, Version 2.0 (see LICENSE). The licence covers the
-source code and the project's own art and audio: the stage model, the figures and their
-animation loops in public/stage/aurora, the menu theme and interface sounds in
-public/audio, the app icon, and the build scripts in tools/.
+source code and the project's own art and audio: the stage model, the scenery, the
+instruments and the animation loops written for the band and the crowd in
+public/stage/aurora, the menu theme and interface sounds in public/audio, the app icon,
+and the build scripts in tools/.
 
 Third-party software and fonts are used under their own licences; the README lists them.
-No third-party characters, animations, music or charts are part of this repository.
+No third-party music or charts are part of this repository.
+
+The band and the crowd in public/stage/aurora are built by tools/stage/aurora/build_cast.py
+from characters by Quaternius (quaternius.com): "Ultimate Modular Men" and "Ultimate
+Modular Women", with the crowd's dance loop taken from his "Universal Animation Library".
+All three are dedicated to the public domain under CC0 1.0; they are credited here out of
+thanks, not obligation. The packs themselves are not redistributed.
 
 The audio in public/audio was composed for this project and rendered by tools/audio from
 instrument samples of the Versilian Studios Chamber Orchestra 2 Community Edition (CC0)

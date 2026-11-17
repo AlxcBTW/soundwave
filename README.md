@@ -94,25 +94,32 @@ Unit tests cover:
 
 ## The 3D stage
 
-The stage is built in Blender and drawn by the game's own renderer (`src/render/aurora`). Two scripts regenerate everything the repository ships in `public/stage/aurora`:
+The stage is built in Blender and drawn by the game's own renderer (`src/render/aurora`). Three scripts regenerate everything the repository ships in `public/stage/aurora`:
 
 ```
 blender -b --factory-startup -P tools/stage/aurora/build_venue.py -- --out public/stage/aurora
-blender -b --factory-startup -P tools/stage/aurora/build_figures.py -- --out public/stage/aurora
+blender -b --factory-startup -P tools/stage/aurora/build_scenery.py -- --out public/stage/aurora
+blender -b --factory-startup -P tools/stage/aurora/build_cast.py -- --out public/stage/aurora
 ```
 
-`build_venue.py` makes the stage geometry, its baked contact shading and the positions the game needs (cameras, fixtures, band marks, pyro); add `--save some.blend` to open the result in Blender. `build_figures.py` makes the project's own band and crowd: jointed figures with animation loops that are posed in the script and timed to the beat.
+`build_venue.py` makes the stage geometry, its baked contact shading and the positions the game needs (cameras, fixtures, band marks, pyro); add `--save some.blend` to open the result in Blender. `build_scenery.py` makes the land, the lake and the festival grounds around it.
+
+`build_cast.py` makes the band and the crowd. The people are public-domain (CC0) characters by [Quaternius](https://quaternius.com/), brought onto one small skeleton, reduced for the crowd and baked together with their animation loops. One crowd loop, the dance, comes from Quaternius's animation library; the other crowd loops and the band's playing are written as motion in the script, timed to the beat, and the instruments are built there to fit each player. The script reads the packs from `local-audio/open-characters/`, which is not part of the repository; to rebuild the cast, download these three from quaternius.com and unpack each into a folder of its own there:
+
+- Ultimate Modular Men, as `modular-men`
+- Ultimate Modular Women, as `modular-women`
+- Universal Animation Library (the free standard version), as `ual1`
 
 During development, `/#stage?preset=high&shot=hero&level=0.9` shows the stage alone with a simulated song.
 
 ### Optional: downloaded characters
 
-The game can use rigged characters with motion-captured animation in place of its own figures. They are not part of this repository, because their licence allows shipping them inside a game but not passing them on. To use them on your machine:
+The game can use other rigged characters with motion-captured animation in place of its own cast. They are not part of this repository, because their licence allows shipping them inside a game but not passing them on. To use them on your machine:
 
 1. Download the files named at the top of `tools/stage/aurora/build_people.py` from [Mixamo](https://www.mixamo.com/) as FBX into `local-audio/mixamo/`: the band members with their animation and skin, the crowd characters in T-pose, the crowd animations without skin.
 2. Run `blender -b --factory-startup -P tools/stage/aurora/build_people.py`.
 
-The script reduces the crowd characters to a few hundred triangles, bakes their textures into vertex colours, retargets the crowd animations onto each of them and writes the result to `public/stage/aurora/local/`, which git ignores. When that folder exists the game loads it instead of the default figures, in development and in builds made from that checkout. Check the characters' current terms before you distribute such a build.
+The script reduces the crowd characters to a few hundred triangles, bakes their textures into vertex colours, retargets the crowd animations onto each of them and writes the result to `public/stage/aurora/local/`, which git ignores. When that folder exists the game loads it instead of the default cast, in development and in builds made from that checkout. Check the characters' current terms before you distribute such a build.
 
 Both scripts write the same format: plain meshes whose vertices carry up to four joints and weights, and a small texture of joint matrices per animation frame, which the game uses to animate thousands of instances in a vertex shader.
 
@@ -134,7 +141,7 @@ The first run measures the pitch of every sample (file names disagree about octa
 
 ## Licence
 
-Copyright 2026 DavidNiessen. The source code and the project's own art and audio (stage model, figures, animation loops, app icon, menu theme, interface sounds) are licensed under the [Apache License 2.0](LICENSE); see [NOTICE](NOTICE).
+Copyright 2026 DavidNiessen. The source code and the project's own art and audio (stage model, scenery, instruments, animation loops, app icon, menu theme, interface sounds) are licensed under the [Apache License 2.0](LICENSE); see [NOTICE](NOTICE).
 
 Third-party parts keep their own licences:
 
@@ -144,6 +151,7 @@ Third-party parts keep their own licences:
 | idb, lucide-react | ISC |
 | Basic Pitch (code and model), Tauri | Apache-2.0 (Tauri also MIT) |
 | Archivo typeface | SIL Open Font License 1.1 |
+| Band and crowd characters, and the crowd's dance loop: Ultimate Modular Men, Ultimate Modular Women and Universal Animation Library by Quaternius | CC0 1.0 (public domain) |
 | Optional analysis service: FastAPI, librosa, Demucs and others | their own licences; see `ml-service/requirements*.txt` |
 
 The optional analysis service downloads Demucs's pretrained models when it first runs; they are not part of this repository and have their own terms. Songs you import stay on your machine.

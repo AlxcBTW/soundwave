@@ -7,7 +7,7 @@ for the game.
 
 Neither the source files nor the baked result are part of the repository: the characters' licence
 allows shipping them inside a game, not passing them on. The output folder is ignored by git; when
-it exists the game uses it instead of the project's own figures (see build_figures.py). Two sets are
+it exists the game uses it instead of the project's own cast (see build_cast.py). Two sets are
 written, each as <set>.glb, <set>.bin and <set>.json:
 
 - band: the four musicians at full detail with their textures, each with the loop it was fetched

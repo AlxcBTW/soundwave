@@ -349,7 +349,9 @@ export function makeCrowd(data: VenueData, characters: string[], share: number, 
         calm: CALM[Math.floor(rand() * CALM.length)],
         hype: HYPE[Math.floor(rand() * HYPE.length)],
         threshold: 0.3 + rand() * 0.5,
-        phase: sync ? rand() * 0.1 : rand(),
+        // Loops made to the beat stay on it: half the people are half a loop on from the rest (every
+        // loop is an even number of beats long), each a touch early or late.
+        phase: sync ? (people.length % 2 ? 0.5 : 0) + rand() * 0.05 : rand(),
         // A third keep their own clothes; the rest get a bright or a dark top of their own.
         recolor: style < 0.3 ? 0 : 1,
         top: style < 0.62 ? DARK[Math.floor(rand() * DARK.length)] : BRIGHT[Math.floor(rand() * BRIGHT.length)],
