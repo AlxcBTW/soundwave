@@ -19,7 +19,7 @@
     "type": "git",
     "url": "git+https://github.com/DavidNiessen/festival.git"
   },
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "type": "module",
   "bugs": {
     "url": "https://github.com/DavidNiessen/festival/issues"
