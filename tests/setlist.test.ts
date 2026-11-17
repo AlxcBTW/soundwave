@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { starProgress, STAR_THRESHOLDS } from '../src/game/scoring';
+import { GOLD_THRESHOLD, starProgress, STAR_THRESHOLDS } from '../src/game/scoring';
 import { formatTime, pruneSetlist, SET_MAX, suggestSets, toggleSong } from '../src/game/setlist';
 import { modeForKey, modeForPointer } from '../src/input/inputMode';
 
@@ -68,8 +68,10 @@ describe('progress toward the next star', () => {
     expect(starProgress(mid, base)).toBeCloseTo(0.5);
   });
 
-  it('is full once every star is earned, and empty without a chart', () => {
-    expect(starProgress(STAR_THRESHOLDS[4] * base, base)).toBe(1);
+  it('heads for gold after the fifth star, is full once the stars are gold, and empty without a chart', () => {
+    expect(starProgress(STAR_THRESHOLDS[4] * base, base)).toBe(0);
+    expect(starProgress(((STAR_THRESHOLDS[4] + GOLD_THRESHOLD) / 2) * base, base)).toBeCloseTo(0.5);
+    expect(starProgress(GOLD_THRESHOLD * base, base)).toBe(1);
     expect(starProgress(500, 0)).toBe(0);
   });
 });

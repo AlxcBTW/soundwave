@@ -1,13 +1,14 @@
 import type { Chart } from '../chart/types';
 import { gradeFor, WINDOWS, type Grade } from './judge';
-import { multiplierFor, NOTE_POINTS, starProgress, starsFor, SUSTAIN_POINTS_PER_BEAT } from './scoring';
+import { multiplierFor, NOTE_POINTS, OVERDRIVE_FACTOR, starProgress, starsFor, SUSTAIN_POINTS_PER_BEAT } from './scoring';
 
 export type GameEvent =
-  | { type: 'hit'; lane: number; grade: Grade; noteIndex: number }
+  /** `delta`: how far off the press was, in seconds (negative = early, positive = late). */
+  | { type: 'hit'; lane: number; grade: Grade; noteIndex: number; delta: number }
   | { type: 'miss'; lane: number; noteIndex: number }
   | { type: 'ghost'; lane: number }
   | { type: 'sustain-end'; lane: number; complete: boolean }
-  | { type: 'release'; lane: number; grade: Grade; noteIndex: number }
+  | { type: 'release'; lane: number; grade: Grade; noteIndex: number; delta: number }
   | { type: 'release-miss'; lane: number; noteIndex: number; early: boolean }
   | { type: 'phrase-complete'; phrase: number }
   | { type: 'phrase-failed'; phrase: number }
@@ -66,7 +67,8 @@ export class GameSession {
   private lastTime = 0;
   private readonly phraseFailed = new Set<number>();
   private readonly phraseLast = new Map<number, number>();
-  private readonly baseScore: number;
+  /** The score of a flawless run without overdrive: what the stars are measured against. */
+  private readonly par: number;
   private listeners: ((e: GameEvent) => void)[] = [];
 
   constructor(chart: Chart) {
@@ -75,12 +77,14 @@ export class GameSession {
     this.holding = new Int32Array(chart.lanes).fill(-1);
     this.laneDown = new Uint8Array(chart.lanes);
     this.releaseState = new Uint8Array(chart.notes.length);
-    let base = 0;
+    let par = 0;
     chart.notes.forEach((n, i) => {
-      base += NOTE_POINTS.perfect + (n.dur / chart.secondsPerBeat) * SUSTAIN_POINTS_PER_BEAT + (n.release ? NOTE_POINTS.perfect : 0);
+      // Every note perfect and the streak unbroken: note i is scored at the multiplier of a streak of i + 1.
+      const points = NOTE_POINTS.perfect + (n.dur / chart.secondsPerBeat) * SUSTAIN_POINTS_PER_BEAT + (n.release ? NOTE_POINTS.perfect : 0);
+      par += points * multiplierFor(i + 1);
       if (n.phrase >= 0) this.phraseLast.set(n.phrase, i);
     });
-    this.baseScore = base;
+    this.par = par;
   }
 
   on(fn: (e: GameEvent) => void) {
@@ -93,7 +97,7 @@ export class GameSession {
   }
 
   get multiplier() {
-    return multiplierFor(this.streak) * (this.overdriveActive ? 2 : 1);
+    return multiplierFor(this.streak) * (this.overdriveActive ? OVERDRIVE_FACTOR : 1);
   }
 
   press(lane: number, t: number) {
@@ -123,7 +127,7 @@ export class GameSession {
     this.bestStreak = Math.max(this.bestStreak, this.streak);
     this.score += NOTE_POINTS[grade] * this.multiplier;
     if (n.dur > 0) this.holding[lane] = best;
-    this.emit({ type: 'hit', lane, grade, noteIndex: best });
+    this.emit({ type: 'hit', lane, grade, noteIndex: best, delta: t - n.t });
     this.checkPhrase(best);
   }
 
@@ -138,7 +142,7 @@ export class GameSession {
     if (n.release) {
       // Let go within the timing windows of the end: a graded release; earlier is a miss.
       const grade = gradeFor(t - end);
-      if (grade) this.releaseHit(idx, lane, grade);
+      if (grade) this.releaseHit(idx, lane, grade, t - end);
       else this.releaseMiss(idx, lane, true);
       this.emit({ type: 'sustain-end', lane, complete: grade !== null });
       return;
@@ -146,11 +150,11 @@ export class GameSession {
     this.emit({ type: 'sustain-end', lane, complete: t >= end - SUSTAIN_RELEASE_GRACE });
   }
 
-  private releaseHit(i: number, lane: number, grade: Grade) {
+  private releaseHit(i: number, lane: number, grade: Grade, delta = 0) {
     this.releaseState[i] = 1;
     this.releasesHit++;
     this.score += NOTE_POINTS[grade] * this.multiplier;
-    this.emit({ type: 'release', lane, grade, noteIndex: i });
+    this.emit({ type: 'release', lane, grade, noteIndex: i, delta });
   }
 
   private releaseMiss(i: number, lane: number, early: boolean) {
@@ -273,13 +277,13 @@ export class GameSession {
     this.emit({ type: 'phrase-complete', phrase: p });
   }
 
-  /** How far the score is toward the next star, 0..1 (1 once all five are earned). */
+  /** How far the score is toward the next star, or toward gold after the fifth, 0..1 (1 once they are gold). */
   get nextStarProgress() {
-    return starProgress(this.score, this.baseScore);
+    return starProgress(this.score, this.par);
   }
 
   get progressStars() {
-    return starsFor(this.score, this.baseScore);
+    return starsFor(this.score, this.par);
   }
 
   results(): Results {
@@ -287,7 +291,7 @@ export class GameSession {
     const hits = this.counts.perfect + this.counts.great + this.counts.good;
     return {
       score: Math.round(this.score),
-      stars: starsFor(this.score, this.baseScore),
+      stars: starsFor(this.score, this.par),
       accuracy: total ? hits / total : 0,
       counts: { ...this.counts },
       bestStreak: this.bestStreak,

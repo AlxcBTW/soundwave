@@ -25,14 +25,21 @@ describe('judge', () => {
 });
 
 describe('scoring', () => {
-  it('ramps multiplier every 10 notes up to x4', () => {
+  it('ramps multiplier every 10 notes up to x6', () => {
     expect(multiplierFor(0)).toBe(1);
     expect(multiplierFor(10)).toBe(2);
-    expect(multiplierFor(99)).toBe(4);
+    expect(multiplierFor(49)).toBe(5);
+    expect(multiplierFor(50)).toBe(6);
+    expect(multiplierFor(999)).toBe(6);
   });
-  it('awards stars by base score ratio', () => {
+  it('awards stars by the share of par, and gold stars at par', () => {
     expect(starsFor(0, 100)).toBe(0);
-    expect(starsFor(300, 100)).toBe(5);
+    expect(starsFor(9, 100)).toBe(0);
+    expect(starsFor(10, 100)).toBe(1);
+    expect(starsFor(78, 100)).toBe(5);
+    expect(starsFor(99, 100)).toBe(5);
+    expect(starsFor(100, 100)).toBe(6);
+    expect(starsFor(300, 100)).toBe(6);
   });
 });
 
