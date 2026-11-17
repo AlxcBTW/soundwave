@@ -13,7 +13,7 @@ import { menuPulse } from '../input/rumble';
 import { useGlyphStyle } from '../input/usePads';
 import { useActions } from './actions';
 import { Dialog } from './Dialog';
-import { ICON_STROKE, PART_LABEL } from './icons';
+import { ICON_STROKE, PART_ICON, PART_LABEL } from './icons';
 
 interface Props {
   title: string;
@@ -155,6 +155,7 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
   // No bar during a song: this keeps the menu actions of the screen underneath switched off.
   useActions([]);
 
+  const PartIcon = PART_ICON[chart.part];
   const set = total > 1;
   const question = {
     restart: { title: 'Restart the song?', hint: 'This run and its score are thrown away, and the song starts from the top.', yes: 'Restart song' },
@@ -204,6 +205,7 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
             ))}
           </div>
           <div className="hud-scorepanel">
+            <PartIcon className="hud-part-icon" strokeWidth={ICON_STROKE} aria-hidden />
             <span className="hud-part">{PART_LABEL[chart.part]} score</span>
             <span className="hud-score" data-hud="score">0</span>
           </div>
