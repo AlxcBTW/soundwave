@@ -4,14 +4,14 @@ Builds the scenery around the Moonrise stage: the land, the lake and the festiva
     blender -b --factory-startup -P tools/stage/aurora/build_scenery.py -- --out public/stage/aurora
 
 The stage stands on a lake shore. This file makes the ground (a gentle amphitheatre in front, a
-bank falling into the water behind and beyond the wings), the lake, lights on the far shore, and,
+bank falling into the water behind and beyond the wings), the lake, and,
 behind the audience, the grounds: a big wheel, a row of stalls under strings of lamps, an entrance
 arch, flags, floodlight towers, a campsite of small lights and trees framing it all. Like the
 stage, everything is generated, original, and carries only shape and material roles; the look is
 made in the game's shaders. The far hills, the moon and the aurora are drawn in the sky itself.
 
 Output: scenery.glb and scenery.json (the land's shape for standing people on it, the wheel's
-axle, the far lights the water mirrors, where the moon hangs).
+axle, any far lights the water should mirror, where the moon hangs).
 
 Axes: Z up, metres; the stage is around y = 10, the audience toward -y.
 """
@@ -142,20 +142,9 @@ quad = [water.verts.new(p) for p in ((-2600, -60, level), (2600, -60, level), (2
 water.faces.new(quad)
 new_obj('Water', water, 'Water', smooth=False)
 
-# Lights across the water: a far shore the lake mirrors. The brightest are sent to the game as
-# lights in their own right, so the water can streak them toward the viewer.
+# The far shore is dark: nothing over there but hills against the sky. (The game can still be
+# handed lights for the water to mirror; there are none.)
 SHORE = []
-for i in range(150):
-    a = math.radians(random.uniform(-80, 80))
-    d = random.uniform(430, 760)
-    p = Vector((math.sin(a) * d, 30 + math.cos(a) * d, random.uniform(0.6, 9)))
-    kind = random.choice(('LampWarm', 'LampWarm', 'LampWarm', 'LampCool', 'LampPink'))
-    dot(lamps[kind], p, random.uniform(0.9, 1.8))
-BEACONS = [(-330, 470, 14, '#ffb066'), (-180, 560, 9, '#9ad0ff'), (-60, 610, 18, '#ffb066'), (90, 540, 11, '#ff6ab4'), (210, 500, 16, '#ffb066'),
-           (340, 450, 10, '#9ad0ff'), (-470, 380, 12, '#ffb066'), (460, 360, 13, '#ffd9a0')]
-for x, y, z, colour in BEACONS:
-    dot(lamps['LampWarm' if colour.startswith('#ff') else 'LampCool'], (x, y, z), 2.6)
-    SHORE.append({'pos': (x, y, z), 'color': colour})
 
 # =================================================================== THE GROUNDS BEHIND THE AUDIENCE
 # ---------------------------------------------------------------- the big wheel
