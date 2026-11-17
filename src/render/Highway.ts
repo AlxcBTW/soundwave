@@ -672,21 +672,22 @@ export class Highway {
         this.moteNext = (this.moteNext + 1) % MAX_MOTES;
         const k = i * 3;
         const side = Math.random() < 0.5 ? -1 : 1;
-        const big = Math.random() < 0.26;
-        this.mPos[k] = side * (this.width / 2 - 0.08 + Math.random() * (big ? 1.9 : 1.2));
-        this.mPos[k + 1] = Math.random() * 0.8;
+        const big = Math.random() < 0.15;
+        // They keep close to the rail they come from.
+        this.mPos[k] = side * (this.width / 2 - 0.06 + Math.random() * (big ? 0.55 : 0.4));
+        this.mPos[k + 1] = Math.random() * 0.3;
         // More of them toward the player, where the rails are widest on screen.
         this.mPos[k + 2] = FRONT - Math.pow(Math.random(), 1.5) * LENGTH * 0.8;
-        this.mVel[k] = side * Math.random() * 0.3;
-        this.mVel[k + 1] = 0.15 + Math.random() * 0.6;
-        this.mVel[k + 2] = (Math.random() - 0.5) * 0.5;
+        this.mVel[k] = side * Math.random() * 0.12;
+        this.mVel[k + 1] = 0.12 + Math.random() * 0.4;
+        this.mVel[k + 2] = (Math.random() - 0.5) * 0.4;
         // Lit toward white at the core of the small ones; the large ones keep more of the colour.
         const white = big ? 0.15 : 0.35 + Math.random() * 0.4;
         this.mCol[k] = color.r + (1 - color.r) * white;
         this.mCol[k + 1] = color.g + (1 - color.g) * white;
         this.mCol[k + 2] = color.b + (1 - color.b) * white;
-        this.mSize[i] = big ? 0.34 + Math.random() * 0.6 : 0.07 + Math.random() * 0.15;
-        this.mPeak[i] = big ? 0.22 + Math.random() * 0.26 : 0.8 + Math.random() * 0.2;
+        this.mSize[i] = big ? 0.15 + Math.random() * 0.14 : 0.045 + Math.random() * 0.07;
+        this.mPeak[i] = big ? 0.6 + Math.random() * 0.25 : 1;
         this.mSpan[i] = 1.1 + Math.random() * 1.6;
         this.mLife[i] = this.mSpan[i];
       }

@@ -351,6 +351,8 @@ ul, ol { list-style: none; }
 @keyframes sheet-side { from { transform: translateX(3rem); opacity: 0; } }
 @keyframes sheet-side-out { to { transform: translateX(3rem); opacity: 0; } }
 .overlay.card { place-items: center; padding: 1rem; }
+/* A card's own buttons say how to leave it; a corner button would sit on its title. */
+.overlay.card .dialog-close { display: none; }
 .overlay.card .dialog { width: min(24rem, 100%); max-height: 100%; border-radius: var(--r-l); animation: card-in 0.3s var(--ease); }
 .overlay.card.leaving .dialog { animation: fade-out 0.16s forwards; }
 @keyframes card-in { from { transform: translateY(1rem) scale(0.96); opacity: 0; } }

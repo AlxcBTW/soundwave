@@ -3,6 +3,7 @@
  * window. A browser tab has no window to manage, so there this does nothing and the setting is
  * hidden.
  */
+import { invoke } from '@tauri-apps/api/core';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { currentMonitor, getCurrentWindow } from '@tauri-apps/api/window';
 import type { DisplayMode } from './settings';
@@ -26,17 +27,21 @@ export function windowedSize(monitorWidth: number, monitorHeight: number): { wid
 /** Whether the game runs somewhere it can close itself: the desktop app, or a window installed from the browser. */
 export const canExit = () => inDesktopApp() || (typeof matchMedia !== 'undefined' && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches);
 
-/** Closes the game. */
+/**
+ * Closes the game. In the desktop app the app itself quits (its own exit_app command); should an
+ * older build not know that command, the window is closed or, failing that, destroyed. The page's
+ * own window.close() is only for a window installed from the browser: inside the desktop app it
+ * would blank the page and leave the app running unseen.
+ */
 export async function exitApp() {
-  if (inDesktopApp()) {
-    try {
-      await getCurrentWindow().close();
-      return;
-    } catch (err) {
-      console.warn('Could not close the window', err);
-    }
+  if (!inDesktopApp()) return window.close();
+  try {
+    await invoke('exit_app');
+  } catch (err) {
+    console.warn('Could not quit through the app, closing the window instead', err);
+    const win = getCurrentWindow();
+    await win.close().catch(() => win.destroy()).catch((e) => console.warn('Could not close the window', e));
   }
-  window.close();
 }
 
 let queue: Promise<void> = Promise.resolve();
