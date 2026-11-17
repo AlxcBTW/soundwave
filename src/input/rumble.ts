@@ -19,13 +19,20 @@ interface Effect {
   kind: Kind;
   /** Lane binding, so a trigger-bound lane can rumble in that trigger. */
   input?: PadInput;
+  /** How much the grip away from the lane still gets, 0..1 (the default keeps the lane's side clear). */
+  floor?: number;
 }
 
-/** Hit feedback by timing: a perfect hit is the full-strength, slightly longer pulse. */
-export const HIT_FEEL: Record<Grade, { amp: number; ms: number }> = {
-  perfect: { amp: 1, ms: 70 },
-  great: { amp: 0.65, ms: 50 },
-  good: { amp: 0.45, ms: 45 },
+/**
+ * Hit feedback by timing. A perfect hit is a punch: full strength, long enough for the motors to
+ * get up to speed (a 70ms pulse barely starts them), in both grips whatever the lane, with a low
+ * thump under the click on a DualSense (ody). Great and good stay short taps on the lane's side,
+ * so the difference is felt, not just measured.
+ */
+export const HIT_FEEL: Record<Grade, { amp: number; ms: number; floor?: number; body?: number }> = {
+  perfect: { amp: 1, ms: 130, floor: 0.85, body: 0.9 },
+  great: { amp: 0.6, ms: 50 },
+  good: { amp: 0.4, ms: 45 },
 };
 
 /** Output scale per level; strong is full output. */
@@ -47,8 +54,9 @@ function rumblePad(index: number, e: Effect, k: number) {
   const act = actuator(index);
   if (!act?.playEffect) return;
   const amp = Math.min(1, e.amp * k);
-  const strong = amp * Math.max(0.35, Math.min(1, 1 - e.pan));
-  const weak = amp * Math.max(0.35, Math.min(1, 1 + e.pan));
+  const floor = e.floor ?? 0.35;
+  const strong = amp * Math.max(floor, Math.min(1, 1 - e.pan));
+  const weak = amp * Math.max(floor, Math.min(1, 1 + e.pan));
   const trigger = e.input === 'b6' ? 'left' : e.input === 'b7' ? 'right' : undefined;
   if (trigger && act.effects?.includes('trigger-rumble')) {
     void act
@@ -122,8 +130,11 @@ export class Rumbler {
 
   hit(lane: number, grade: Grade = 'perfect') {
     if (!this.s.rumbleHits) return;
-    const { amp, ms } = HIT_FEEL[grade];
-    this.fire({ pan: this.panFor(lane), amp, ms, kind: 'click', input: this.bindings[lane] });
+    const { amp, ms, floor, body } = HIT_FEEL[grade];
+    const pan = this.panFor(lane);
+    this.fire({ pan, amp, ms, kind: 'click', input: this.bindings[lane], floor });
+    // The DualSense's actuators can carry a second, lower voice: the weight under a perfect hit.
+    if (body && this.native && this.k > 0) nativePlay({ pan: pan * 0.5, amp: body, ms, kind: 'thud' }, this.k);
   }
 
   miss(lane: number) {
