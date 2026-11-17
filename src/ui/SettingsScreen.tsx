@@ -13,6 +13,7 @@ import { dualSenseHaptics, menuPulse, Rumbler } from '../input/rumble';
 import { usePads } from '../input/usePads';
 import { Hint, useActions, useHints } from './actions';
 import { Calibration } from './Calibration';
+import { Dialog } from './Dialog';
 import { ICON_STROKE } from './icons';
 import { useSlide } from './useSlide';
 
@@ -121,6 +122,8 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack, inSong = 
   const [tab, setTabState] = useState<Tab>(loadTab);
   const [binding, setBinding] = useState<Binding | null>(null);
   const [calibrating, setCalibrating] = useState(false);
+  /** Asking whether to put the open tab's settings back to their defaults. */
+  const [askReset, setAskReset] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [turn, setTurn] = useState<'fwd' | 'back'>('fwd');
   const settingsRef = useRef(settings);
@@ -251,19 +254,20 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack, inSong = 
 
   useActions([
     { id: 'back', label: 'Back', icon: ArrowLeft, kbd: 'Escape', sfx: 'back', run: onBack },
-    { id: 'reset', label: 'Restore defaults', icon: RotateCcw, kbd: 'KeyR', pad: 'b3', run: resetTab },
+    { id: 'reset', label: 'Restore defaults', icon: RotateCcw, kbd: 'KeyR', pad: 'b3', run: () => setAskReset(true) },
   ]);
 
   const sections = buildSections(tab, { settings, set, binding, setBinding, snap, haptics, mlStatus, calibrate: () => setCalibrating(true), inSong, outputs, outputsRefused, askOutputs: () => void askOutputs() });
   const rows = sections.flatMap((s) => s.rows);
   const active = rows.find((r) => r.id === activeId) ?? rows[0];
   const tabRow = useSlide<HTMLDivElement>(tab);
+  const tabName = TABS.find(([id]) => id === tab)![1];
 
   return (
     <div className="page settings">
       <header className="page-head settings-head">
         <h1 className="page-title">Settings</h1>
-        <p className="head-count tab-name" aria-hidden>{TABS.find(([id]) => id === tab)![1]}</p>
+        <p className="head-count tab-name" aria-hidden>{tabName}</p>
         <div className="tabs">
           <Hint kbd="KeyQ" pad="b4" {...hints} />
           <div className="tab-row slide" role="tablist" aria-label="Settings sections" ref={tabRow} data-nav-group="tabs">
@@ -295,6 +299,29 @@ export function SettingsScreen({ settings, mlStatus, onChange, onBack, inSong = 
         </aside>
       </div>
 
+      {askReset && (
+        <Dialog title="Restore defaults" variant="card" closeLabel="Keep my settings" onClose={() => setAskReset(false)}>
+          {(close) => (
+            <div className="pause-card">
+              <h2 className="display">Restore the {tabName} defaults?</h2>
+              <p className="hint">Every setting on this tab goes back to how the game came. The other tabs stay as they are.</p>
+              <button type="button" className="btn wide" data-autofocus data-sfx="back" onClick={close}>
+                Keep my settings
+              </button>
+              <button
+                type="button"
+                className="btn primary wide"
+                onClick={() => {
+                  resetTab();
+                  setAskReset(false);
+                }}
+              >
+                Restore defaults
+              </button>
+            </div>
+          )}
+        </Dialog>
+      )}
       {calibrating && (
         <Calibration
           onDone={(ms) => {
