@@ -275,8 +275,8 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
           <div className="fb-tag" data-hud="feedback">
             <span data-hud="fb-word" />
             <svg className="fb-pip" viewBox="0 0 30 18" aria-hidden>
-              <rect className="slot" x="1.5" y="1.5" width="27" height="15" rx="7.5" />
-              <rect className="note" x="6" y="6.5" width="18" height="5" rx="2.5" />
+              <rect className="fb-pip-slot" x="1.5" y="1.5" width="27" height="15" rx="7.5" />
+              <rect className="fb-pip-bar" x="6" y="6.5" width="18" height="5" rx="2.5" />
             </svg>
           </div>
         </div>
