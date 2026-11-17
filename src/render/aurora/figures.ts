@@ -37,6 +37,7 @@ const VERTEX = /* glsl */ `
 uniform sampler2D uAnim;
 uniform float uBeat;
 uniform float uEnergy;
+uniform float uTime;
 attribute vec2 uv1;
 attribute vec2 uv2;
 attribute vec3 aClipA;
@@ -76,7 +77,18 @@ void main() {
     }
   }
   pose /= max(1e-4, pose[3][3]);
-  vec4 w = modelMatrix * instanceMatrix * (pose * vec4(position, 1.0));
+  vec4 local = pose * vec4(position, 1.0);
+  // On top of the loop, everyone in the audience shifts their weight and bobs with the beat, each
+  // in a time of their own, however quiet the music is: feet stay planted, the rest leans. People
+  // in a livelier loop need less of it.
+  float own = fract(sin(dot(instanceMatrix[3].xz, vec2(12.9898, 78.233))) * 43758.5453);
+  float loose = (1.0 - min(1.0, aVar.w)) * (uEnergy > aVar.y ? 0.55 : 1.0);
+  float tall = smoothstep(0.0, 0.9, local.y) * loose;
+  float side = sin(uBeat * 3.14159265 + own * 6.2831853) + 0.35 * sin(uTime * (0.5 + own) + own * 40.0);
+  local.x += local.y * 0.05 * side * tall;
+  local.z += local.y * 0.025 * sin(uBeat * 1.5707963 + own * 17.0) * tall;
+  local.y -= tall * 0.04 * (0.5 - 0.5 * cos((uBeat + own * 0.12) * 6.2831853));
+  vec4 w = modelMatrix * instanceMatrix * local;
   vWPos = w.xyz;
   vWNorm = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * (mat3(pose) * normal));
   vUv = uv;

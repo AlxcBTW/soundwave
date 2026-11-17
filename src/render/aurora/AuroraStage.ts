@@ -120,6 +120,8 @@ export class AuroraStage {
   private pulseTail = 0;
   private barTail = 0;
   private beatClock = 0;
+  /** How far the clock is from the beat last heard, still to be made up. */
+  private beatDrift = 0;
   private pendingBeat: StageFrame['beat'] = 'none';
   private shown = false;
   private disposed = false;
@@ -269,7 +271,6 @@ export class AuroraStage {
       const t = now / 1000;
       if (this.lastBeatAt && t - this.lastBeatAt < 1.5) this.beatPeriod += (t - this.lastBeatAt - this.beatPeriod) * 0.3;
       this.lastBeatAt = t;
-      this.beats++;
     }
     // Beats and bars must reach the show even on frames the cap skips.
     this.pendingBeat = f.beat === 'downbeat' || this.pendingBeat === 'downbeat' ? 'downbeat' : f.beat === 'beat' || this.pendingBeat === 'beat' ? 'beat' : 'none';
@@ -277,18 +278,17 @@ export class AuroraStage {
     const dt = Math.min(0.1, (now - (this.lastRender || now)) / 1000) || 1 / 60;
     this.lastRender = now;
     this.adaptResolution(dt);
-    const sinceBeat = now / 1000 - this.lastBeatAt;
-    const period = Math.max(0.2, this.beatPeriod);
-    if (this.lastBeatAt && sinceBeat < period * 2) {
-      // In time with the music: the beat count plus the way through the current beat.
-      this.beatClock = Math.max(this.beatClock, this.beats + Math.min(1, sinceBeat / period));
-    } else {
-      // No beats arriving (menus, silence): keep time at the last tempo so nothing stands still.
-      this.beatClock += dt / period;
-      this.beats = Math.floor(this.beatClock);
-    }
     const beat = this.pendingBeat;
     this.pendingBeat = 'none';
+    // The clock everything moves to runs by itself at the music's tempo and is drawn toward each
+    // beat as it is heard, so it keeps going through silence, menus and passages where the beats
+    // come unevenly or not at all, and never jumps or stands still.
+    const step = dt / Math.max(0.2, this.beatPeriod);
+    if (beat !== 'none') this.beatDrift = Math.round(this.beatClock) - this.beatClock;
+    const advance = Math.max(step * 0.4, step + this.beatDrift * Math.min(1, dt * 8));
+    this.beatDrift -= advance - step;
+    this.beatClock += advance;
+    this.beats = Math.floor(this.beatClock);
     const bands = this.meter.update(dt);
     for (const e of this.show.update({ dt, beat, intensity: f.intensity, bands, overdrive: f.overdrive })) {
       if (e.type === 'fireworks') this.fireworks(e.which);

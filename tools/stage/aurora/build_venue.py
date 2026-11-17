@@ -91,7 +91,7 @@ material('Ground', (0.02, 0.02, 0.05), kind='ground')
 material('Led', (0.4, 0.8, 1.0), kind='led')
 material('Lens', (1.0, 0.8, 0.9), kind='lens')
 material('Screen', (0.2, 0.5, 1.0), kind='screen')
-# The podiums: a moon on top, a wall of light around; each knows whose it is.
+# The podiums: a pool of water on top, a wall of light around; each knows whose it is.
 for _i, _part in enumerate(PLAYERS):
     material('Podium' + _part.title(), (0.2, 0.3, 0.8), kind='podium', who=_i, rx=PODIUMS[_part][2], ry=PODIUMS[_part][3], floor=ISLAND_H)
 
@@ -563,7 +563,7 @@ def mic_stand(pos, lean, black=None):
 
 def podium(part):
     """
-    One player's podium: a round lift whose top is a moon and whose wall is a band of light, with
+    One player's podium: a round lift whose top is a pool of water and whose wall is a band of light, with
     the player's own things on it (monitor, pedals, a microphone). The game raises and lowers it
     with the music, so it is exported by itself, in parts named Podium_<player>_*; the wall runs
     down into the island as far as the lift can rise. A low lit step rings it on the island.

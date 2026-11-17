@@ -81,8 +81,10 @@ void main() {
   vec3 moonCol = mix(uKey, vec3(1.0), 0.55) * uScreenLevel;
   float up = n.y * 0.5 + 0.5;
   vec3 light = mix(uWash * 0.42, vec3(0.085, 0.145, 0.4), up) + moonCol * min(0.5, moonLit) * 0.8;
-  vec3 col = base * light * ao;
-  col += base * uGlow * mix(0.55, 1.0, ao) * (0.5 + 0.22 * uBarPulse + 0.1 * uLow);
+  // Under the shell the forms are held back, so the band stands out against them.
+  float inside = 1.0 - 0.4 * smoothstep(-2.0, -17.0, vWPos.z) * smoothstep(34.0, 22.0, abs(vWPos.x));
+  vec3 col = base * light * ao * inside;
+  col += base * uGlow * mix(0.55, 1.0, ao) * (0.5 + 0.22 * uBarPulse + 0.1 * uLow) * inside;
 
   float fres = pow(max(0.0, 1.0 - ndv), 3.0);
   col += uRim * fres * (0.22 + 0.26 * uEnergy) * ao;
@@ -124,7 +126,7 @@ void main() {
       float t = (uMoon.z - vWPos.z) / r.z;
       vec3 hit = vWPos + r * t;
       vec2 q = (hit.xy - uMoon.xy) / (2.0 * uMoon.w) + 0.5;
-      col += moonContent(q) * onScreen(hit.xy) * fres * 0.8;
+      col += moonContent(q) * onScreen(hit.xy) * fres * 0.62;
     }
     col += skyGradient(r) * fres;
     col += uWash * 0.05;
@@ -137,9 +139,10 @@ void main() {
 }`;
 
 /**
- * A player's podium. Its top is a moon that passes through its phases every sixteen beats, each
- * player's a quarter of the way on from the last; a ripple leaves the player's feet on every beat.
- * Its wall is a ring of level meters: bass toward the audience, treble at the back.
+ * A player's podium. Its top is a pool of water: the surface rolls and ripples, rings run out from
+ * the player's feet on every beat (higher with the bass), a net of light plays under it, and it
+ * mirrors the sky and the main screen. Its wall is a ring of level meters: bass toward the
+ * audience, treble at the back.
  */
 const PODIUM_FRAGMENT = /* glsl */ `
 ${COMMON}
@@ -156,27 +159,37 @@ void main() {
   if (vUv.y < -0.5) {
     vec2 q = (vWPos.xz - c.xz) / uRadii;
     float r = length(q);
-    // The phase: the lit part grows from one limb to full, then shrinks away to the other.
-    float turn = fract(uBeat / 16.0 + uWho * 0.25);
-    float k = cos(6.2831853 * turn);
-    float w = sqrt(max(0.0, 1.0 - q.y * q.y));
-    float d = turn < 0.5 ? q.x - k * w : -k * w - q.x;
-    float lit = smoothstep(-0.05, 0.05, d) * smoothstep(1.0, 0.94, r);
-    // Seas and craters.
-    float sea = smoothstep(0.35, 0.7, fbm(q * 2.4 + uWho * 7.3));
-    vec2 g = q * 3.0 + uWho * 3.0;
-    vec2 cell = floor(g);
-    vec2 f = fract(g) - 0.5 - (vec2(hash21(cell), hash21(cell + 5.3)) - 0.5) * 0.5;
-    float cr = length(f) / (0.12 + 0.2 * hash21(cell + 9.7));
-    float crater = smoothstep(1.25, 1.0, cr) * (smoothstep(0.75, 1.0, cr) * 0.5 - 0.22);
-    float surface = clamp(0.62 - 0.4 * sea + crater, 0.1, 1.0);
-    vec3 moonlight = mix(vec3(0.82, 0.9, 1.0), uAccent, 0.35);
-    col += moonlight * surface * lit * (0.3 + 0.3 * feature + 0.28 * uPulse + 0.3 * uLow);
-    col += (uWash * 0.07 + vec3(0.0, 0.004, 0.02)) * surface * (1.0 - lit);
+    vec2 p = vWPos.xz;
+    float t = uTime;
+    // The surface: a slow swell, small ripples over it, and the rings the beat sends out.
+    vec2 swellA = vec2(vnoise(p * 1.1 + vec2(t * 0.32, t * 0.18)), vnoise(p * 1.1 + vec2(-t * 0.22, t * 0.28) + 31.7)) - 0.5;
+    vec2 ripple = vec2(vnoise(p * 4.2 + t * 0.85), vnoise(p * 4.2 - t * 0.75 + 11.1)) - 0.5;
     float beat = fract(uBeat);
-    col += uKey * smoothstep(0.07, 0.0, abs(r - beat * 1.05)) * (1.0 - beat) * 0.5;
+    float lead = r - beat * 1.15;
+    float ring = exp(-lead * lead * 70.0) * (1.0 - beat);
+    vec2 slope = swellA * 0.55 + ripple * 0.3 + (q / max(r, 1e-3)) * ring * sin(lead * 44.0) * (0.45 + 0.9 * uLow);
+    vec3 wn = normalize(vec3(slope.x, 1.0, slope.y));
+    vec3 refl = reflect(-v, wn);
+    refl.y = abs(refl.y);
+    float shine = 0.04 + 0.96 * pow(clamp(1.0 - dot(wn, v), 0.0, 1.0), 5.0);
+    float level = 0.3 + 0.3 * feature + 0.3 * uLow + 0.25 * uPulse;
+    // Deep water, lit from below by a drifting net of light.
+    col = mix(vec3(0.003, 0.012, 0.035), uWash * 0.1, 0.45);
+    vec2 cp = p * 2.1 + slope * 1.6;
+    float netA = pow(1.0 - abs(vnoise(cp + vec2(t * 0.28, -t * 0.2)) * 2.0 - 1.0), 7.0);
+    float netB = pow(1.0 - abs(vnoise(cp * 1.7 + vec2(-t * 0.24, t * 0.3) + 5.3) * 2.0 - 1.0), 7.0);
+    col += mix(uAccent, uKey, 0.5 + 0.5 * sin(r * 5.0 - t * 0.6)) * (netA * 0.55 + netB * 0.35) * level * smoothstep(1.0, 0.8, r);
+    // The crest of each ring catches the light.
+    col += mix(uAccent, vec3(1.0), 0.35) * ring * (0.5 + 0.5 * sin(lead * 44.0)) * (0.35 + 0.5 * uLow);
+    // What it mirrors: the main screen, the sky, and the ring of lamps overhead as glints.
+    if (refl.z < -1e-3) {
+      vec3 hit = vWPos + refl * ((uMoon.z - vWPos.z) / refl.z);
+      col += moonContent((hit.xy - uMoon.xy) / (2.0 * uMoon.w) + 0.5) * onScreen(hit.xy) * shine * 0.7;
+    }
+    col += skyGradient(refl) * shine;
+    col += mix(uAccent, vec3(1.0), 0.5) * pow(max(0.0, dot(refl, normalize(vec3(0.0, 18.2, -5.0) - vWPos))), 160.0) * (0.5 + 0.5 * uPulse);
+    // Its rim.
     col += uAccent * smoothstep(0.9, 0.99, r) * (0.28 + 0.55 * uPulse);
-    col += skyGradient(reflect(-v, n)) * fres;
   } else {
     // The wall, as much of it as stands above the island: columns of lamps that fill with the sound.
     float rowH = 0.08;
@@ -440,7 +453,7 @@ uniform float uCells;
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
 void main() {
   #ifdef MOON
-    vec3 col = moonContent(vUv) * 0.8;
+    vec3 col = moonContent(vUv) * 0.62;
     vec2 cells = vUv * uCells;
   #else
     vec3 col = wingContent(vUv) * 1.0;
