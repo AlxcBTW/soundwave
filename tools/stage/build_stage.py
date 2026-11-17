@@ -4,11 +4,11 @@ Builds the festival main stage procedurally in Blender and renders it.
     blender -b --factory-startup -P tools/stage/build_stage.py -- \
         --view hero --out local-audio/stage/hero.png --samples 256 --res 2560x1440 [--save stage.blend]
 
-The stage: a giant cartoon wave (sound wave and ocean wave at once) curls over the band like a
-barrel, smaller waves break toward it from the wings, the deck spreads into the crowd in ripple
-steps, and sweeping ribbons carry the lights. The look is painted: gradients, glitter, glowing
-rims. Everything is generated, so the scene stays reviewable as code and can be re-tuned or
-re-exported for the game.
+The stage: a sun court. A fantasy palace of round arches glowing from within, onion domes and
+round towers, gilt ornament and strings of bulbs, stepping out from a great arched gate (holding the
+screen) under a gilded sun. A wheel turns on one wing, an armillary sphere on the other; firework
+fans burst over the skyline and CO2 rolls over the crowd. Everything is generated, so the scene
+stays reviewable as code and can be re-tuned or re-exported for the game.
 
 Axes: Z up, metres. The stage front edge is y = 0; the stage extends into +y, the crowd into -y.
 """
@@ -409,7 +409,7 @@ def columns(c, r, cols, rows):
     return c % 3 == 1 and (r * 7 + c * 13) % 11 > 2
 
 
-# =================================================================== PAINTED LOOK
+# =================================================================== NODE HELPERS
 def mix_rgba(nt, a, b, fac, blend='MIX'):
     """A colour Mix node wired by socket type (the node has float/vector/colour twins)."""
     n = nt.nodes.new('ShaderNodeMix')
@@ -454,306 +454,8 @@ def ramp_node(nt, stops, src):
     return r.outputs[0]
 
 
-def mat_painted(name, stops, source='u', zmax=40.0, glitter=0.0, illum=0.22, rough=0.42, coat=0.5, streaks=0.0):
-    """Hand-painted look: a colour gradient (along the wave profile or up the object), softly
-    self-lit so it reads like paint even in shadow, with a clear coat and glitter sparkles."""
-    m = bpy.data.materials.new(name)
-    m.use_nodes = True
-    nt = m.node_tree
-    p = nt.nodes['Principled BSDF']
-    p.inputs['Roughness'].default_value = rough
-    p.inputs['Coat Weight'].default_value = coat
-    p.inputs['Coat Roughness'].default_value = 0.12
-    tc = nt.nodes.new('ShaderNodeTexCoord')
-    sep = nt.nodes.new('ShaderNodeSeparateXYZ')
-    if source == 'u':
-        nt.links.new(tc.outputs['UV'], sep.inputs[0])
-        fac = sep.outputs['X']
-    else:
-        nt.links.new(tc.outputs['Object'], sep.inputs[0])
-        fac = mnode(nt, 'DIVIDE', sep.outputs['Z'], zmax)
-    # brushy breakup so the gradient doesn't look airbrushed
-    nz = nt.nodes.new('ShaderNodeTexNoise')
-    nz.inputs['Scale'].default_value = 0.12
-    nz.inputs['Detail'].default_value = 4
-    nt.links.new(tc.outputs['Object'], nz.inputs['Vector'])
-    fac = mnode(nt, 'ADD', fac, mnode(nt, 'SUBTRACT', mnode(nt, 'MULTIPLY', nz.outputs['Fac'], 0.14), 0.07))
-    col = ramp_node(nt, stops, fac)
-    if streaks and source == 'u':
-        # cartoon water: lighter streaks running up the face, following the flow
-        sv = nt.nodes.new('ShaderNodeCombineXYZ')
-        nt.links.new(mnode(nt, 'MULTIPLY', sep.outputs['X'], 3.0), sv.inputs['X'])
-        nt.links.new(mnode(nt, 'MULTIPLY', sep.outputs['Y'], 70.0), sv.inputs['Y'])
-        sn = nt.nodes.new('ShaderNodeTexNoise')
-        sn.inputs['Scale'].default_value = 1.0
-        sn.inputs['Detail'].default_value = 2
-        nt.links.new(sv.outputs[0], sn.inputs['Vector'])
-        sm = nt.nodes.new('ShaderNodeMapRange')
-        sm.inputs['From Min'].default_value = 0.56
-        sm.inputs['From Max'].default_value = 0.66
-        nt.links.new(sn.outputs['Fac'], sm.inputs['Value'])
-        col = mix_rgba(nt, col, (*srgb((0.62, 0.7, 1.0)), 1), mnode(nt, 'MULTIPLY', sm.outputs[0], streaks))
-    nt.links.new(col, p.inputs['Base Color'])
-    emit_col, strength = col, None
-    if glitter:
-        vor = nt.nodes.new('ShaderNodeTexVoronoi')
-        vor.inputs['Scale'].default_value = glitter
-        nt.links.new(tc.outputs['Object'], vor.inputs['Vector'])
-        spark = mnode(nt, 'MULTIPLY', mnode(nt, 'MAXIMUM', mnode(nt, 'SUBTRACT', 1.0, mnode(nt, 'DIVIDE', vor.outputs['Distance'], 0.07)), 0.0),
-                      mnode(nt, 'GREATER_THAN', vor.outputs['Color'], 0.62))
-        emit_col = mix_rgba(nt, col, (1, 1, 1, 1), spark)
-        strength = mnode(nt, 'ADD', mnode(nt, 'MULTIPLY', spark, 16.0), illum)
-    nt.links.new(emit_col, p.inputs['Emission Color'])
-    if strength is None:
-        p.inputs['Emission Strength'].default_value = illum
-    else:
-        nt.links.new(strength, p.inputs['Emission Strength'])
-    return m
 
-
-def mat_soundlines(name, lines=30.0):
-    """The curl's underside: glowing sound-wave lines running along the curl, hue drifting across."""
-    m = bpy.data.materials.new(name)
-    m.use_nodes = True
-    nt = m.node_tree
-    p = nt.nodes['Principled BSDF']
-    p.inputs['Base Color'].default_value = (*srgb((0.02, 0.03, 0.16)), 1)
-    p.inputs['Roughness'].default_value = 0.4
-    tc = nt.nodes.new('ShaderNodeTexCoord')
-    sep = nt.nodes.new('ShaderNodeSeparateXYZ')
-    nt.links.new(tc.outputs['UV'], sep.inputs[0])
-    wob = mnode(nt, 'MULTIPLY', mnode(nt, 'SINE', mnode(nt, 'MULTIPLY', sep.outputs['Y'], 25.0)), 0.012)
-    line = mnode(nt, 'POWER', mnode(nt, 'ABSOLUTE', mnode(nt, 'SINE', mnode(nt, 'MULTIPLY', mnode(nt, 'ADD', sep.outputs['X'], wob), lines))), 18.0)
-    hue = ramp_node(nt, [(0.0, MAGENTA), (0.3, VIOLET), (0.5, CYAN), (0.7, VIOLET), (1.0, MAGENTA)], sep.outputs['Y'])
-    nt.links.new(hue, p.inputs['Emission Color'])
-    nt.links.new(mnode(nt, 'ADD', mnode(nt, 'MULTIPLY', line, 9.0), 0.25), p.inputs['Emission Strength'])
-    return m
-
-
-# profile positions: 0.375 crest top, 0.5 lip edge, 0.625 lip front, 0.75+ underside of the curl
-M['wave_out'] = mat_painted('WavePaint', [(0.0, (0.015, 0.025, 0.18)), (0.25, (0.04, 0.1, 0.5)), (0.34, (0.2, 0.22, 0.95)),
-                                            (0.4, (0.6, 0.45, 1.0)), (0.45, (0.9, 0.86, 1.0)), (0.5, (0.35, 0.4, 1.0)),
-                                            (0.6, (0.1, 0.3, 0.98)), (0.74, (0.04, 0.5, 0.95)), (1.0, (0.2, 0.85, 1.0))],
-                            glitter=2.6, illum=0.32, streaks=0.55, rough=0.55, coat=0.15)
-M['wave_in'] = mat_soundlines('WaveLines')
-M['rim'] = mat_emit('WaveRim', LILAC, 5)
-M['foam'] = mat_painted('Foam', [(0.0, (0.7, 0.72, 1.0)), (1.0, (0.97, 0.95, 1.0))], source='z', zmax=50, glitter=6.0, illum=0.45, rough=0.3)
-M['step'] = mat_painted('StepPaint', [(0.0, (0.06, 0.1, 0.45)), (1.0, (0.55, 0.6, 1.0))], source='z', zmax=3.0, glitter=4.0, illum=0.3)
-M['ribbon'] = mat_painted('RibbonPaint', [(0.0, (0.08, 0.12, 0.5)), (0.6, (0.45, 0.5, 1.0)), (1.0, (0.85, 0.85, 1.0))], source='z', zmax=50, glitter=3.0, illum=0.3, coat=0.8)
-
-
-# =================================================================== STAGE: THE SOUNDWAVE CREST
-def catmull(points, n):
-    """Smooth curve through `points` (2D or 3D), `n` samples per span."""
-    pts = [Vector(q) for q in points]
-    ext = [pts[0] * 2 - pts[1]] + pts + [pts[-1] * 2 - pts[-2]]
-    out = []
-    for i in range(len(pts) - 1):
-        p0, p1, p2, p3 = ext[i], ext[i + 1], ext[i + 2], ext[i + 3]
-        for k in range(n):
-            t = k / n
-            out.append(0.5 * ((2 * p1) + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t * t * t))
-    out.append(pts[-1].copy())
-    return out
-
-
-# a breaking wave's cross-section (y toward the back, z up): rises at the back, crests, throws its
-# lip forward and curls back in underneath, a barrel the band plays inside
-CREST = [(26, 0), (22, 14), (14, 30), (2, 42), (-10, 40.5), (-16, 31), (-13.5, 21.5), (-6, 18.5), (-2.5, 22.5)]
-# toward its ends a wave peels off into a low swell running into the ground
-SWELL = [(26, 0), (21, 4), (13, 8.5), (4, 10.5), (-5, 9.5), (-12, 6.5), (-16, 3.5), (-18.5, 1.2), (-20, -0.4)]
-CREST_PROFILE = catmull(CREST, 9)
-SWELL_PROFILE = catmull(SWELL, 9)
-CREST_BASE = Vector(CREST[0])
-
-
-def curl(u):
-    """How much of the barrel curl stands at this point across the wave (0..1 edge to edge)."""
-    return (1 - abs(2 * u - 1) ** 2.2) ** 1.2
-
-
-def profile_at(u, flat=False):
-    """The cross-section at u. A flat (a thin cut-out) keeps the full curl across its width."""
-    c = 1.0 if flat else curl(u)
-    fade = min(1.0, (1 - abs(2 * u - 1)) / (0.3 if flat else 0.08)) ** 0.5
-    return [CREST_BASE + (sw.lerp(cr, c) - CREST_BASE) * max(0.04, fade) for sw, cr in zip(SWELL_PROFILE, CREST_PROFILE)]
-
-
-def crest_local(u, f, half_w, scale, lift=0.0, flat=False):
-    """Local position on a wave: u across its width, f along its profile (0 back foot, 1 inner tip)."""
-    prof = profile_at(u, flat)
-    j = f * (len(prof) - 1)
-    q = prof[int(j)].lerp(prof[min(len(prof) - 1, int(j) + 1)], j - int(j)) * scale
-    return Vector(((u - 0.5) * 2 * half_w, q.x, q.y + lift))
-
-
-def envelope(u):
-    return max(0.05, curl(u))
-
-
-WAVES = {}
-
-
-def wave(name, loc, yaw, half_w, scale, nx=60, thick=1.4, flat=False):
-    bm = bmesh.new()
-    uvl = bm.loops.layers.uv.new('UVMap')
-    grid = []
-    npf = len(CREST_PROFILE)
-    for i in range(nx + 1):
-        u = i / nx
-        x = (u - 0.5) * 2 * half_w
-        row = []
-        for q in profile_at(u, flat):
-            w = q * scale
-            row.append(bm.verts.new((x, w.x, w.y)))
-        grid.append(row)
-    for i in range(nx):
-        for j in range(npf - 1):
-            ids = [(i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)]
-            f = bm.faces.new([grid[a][b] for a, b in ids])
-            f.smooth = True
-            for loop, (a, b) in zip(f.loops, ids):
-                loop[uvl].uv = (b / (npf - 1), a / nx)
-    o = bm_obj(name, bm, [M['wave_in'], M['wave_out'], M['rim']])
-    o.location = loc
-    o.rotation_euler = (0, 0, yaw)
-    sol = o.modifiers.new('thickness', 'SOLIDIFY')
-    sol.thickness = thick * max(scale, 0.55)
-    sol.offset = 0.0
-    sol.use_rim = True
-    sol.material_offset = 1
-    sol.material_offset_rim = 2
-    sub = o.modifiers.new('smooth', 'SUBSURF')
-    sub.levels = 1
-    sub.render_levels = 2
-    WAVES[name] = (o, half_w, scale, flat)
-    return o
-
-
-def on_wave(name, u, f, lift=0.0):
-    o, half_w, scale, flat = WAVES[name]
-    bpy.context.view_layer.update()
-    return o.matrix_world @ crest_local(u, f, half_w, scale, lift, flat)
-
-
-def wave_dir(name, v):
-    o = WAVES[name][0]
-    return o.matrix_world.to_3x3() @ Vector(v)
-
-
-def foam(name, n):
-    """A bubbly foam roll along the lip, a few bubbles on it, and spray thrown off the front."""
-    o, half_w, scale, flat = WAVES[name]
-    cu = bpy.data.curves.new(name + '_foamroll', 'CURVE')
-    cu.dimensions = '3D'
-    cu.bevel_depth = 1.0
-    cu.bevel_resolution = 6
-    cu.use_fill_caps = True
-    sp = cu.splines.new('POLY')
-    steps = 90
-    sp.points.add(steps)
-    for k in range(steps + 1):
-        u = 0.02 + 0.96 * k / steps
-        c = 1.0 if flat else curl(u)
-        pt = on_wave(name, u, 0.47, lift=0.6 * scale)
-        sp.points[k].co = (pt.x, pt.y, pt.z, 1)
-        sp.points[k].radius = (0.25 + 1.25 * c * (0.75 + 0.25 * math.sin(u * 47) * math.sin(u * 13))) * scale
-    sp.use_smooth = True
-    cu.materials.append(M['foam'])
-    link(bpy.data.objects.new(name + '_foamroll', cu))
-    bm, bd = bmesh.new(), bmesh.new()
-    for _ in range(n):
-        u = random.uniform(0.05, 0.95)
-        c = 1.0 if flat else curl(u)
-        if c < 0.3:
-            continue
-        pt = on_wave(name, u, random.uniform(0.42, 0.53), lift=random.uniform(0.4, 1.4) * scale)
-        bmesh.ops.create_icosphere(bm, subdivisions=2, radius=random.uniform(0.4, 1.3) * scale * c, matrix=Matrix.Translation(pt))
-    for _ in range(int(n * 0.5)):
-        u = random.uniform(0.15, 0.85)
-        c = 1.0 if flat else curl(u)
-        pt = on_wave(name, u, random.uniform(0.48, 0.56))
-        pt += wave_dir(name, (random.uniform(-1.5, 1.5), -random.uniform(1.0, 5.0), random.uniform(0, 4))) * scale * c
-        bmesh.ops.create_icosphere(bd, subdivisions=2, radius=random.uniform(0.12, 0.4) * scale * c, matrix=Matrix.Translation(pt))
-    bm_obj(name + '_foam', bm, M['foam'], smooth=True)
-    bm_obj(name + '_spray', bd, M['foam'], smooth=True)
-
-
-wave('Crest', (0, 0, 0), 0.0, 33, 1.0, nx=72)
-foam('Crest', 120)
-# wing waves: layered cut-outs showing the crowd their curl, stepping down outward like
-# theatre flats, all breaking toward the centre
-WING_WAVES = []
-for side in (-1, 1):
-    for k, (x, y, sc, hw, yaw) in enumerate(((45, 15, 0.78, 2.6, 84), (59, 8, 0.6, 2.3, 80), (72, 1, 0.44, 2.0, 76), (83, -6, 0.3, 1.7, 72))):
-        n = 'Wing%+d_%d' % (side, k)
-        wave(n, (side * x, y, 0), math.radians(-side * yaw), hw, sc, nx=14, thick=1.6, flat=True)
-        foam(n, 30)
-        WING_WAVES.append(n)
-
-# ---------------------------------------------------------------- ripple-step deck
-DECK_H = 2.6
-DECK_C = 8.0  # the deck's ellipses are centred here (y)
-FRONT_Y = DECK_C - 16.0
-CAT_LEN = 24.0
-
-
-def ellipse_step(name, rx, ry, h, led, top_mat=None):
-    bm = bmesh.new()
-    bmesh.ops.create_cone(bm, cap_ends=True, segments=144, radius1=1, radius2=1, depth=h, matrix=Matrix.Translation((0, 0, h / 2)))
-    for v in bm.verts:
-        v.co.x *= rx
-        v.co.y *= ry
-    rim = [e for e in bm.edges if all(abs(v.co.z - h) < 1e-4 for v in e.verts)]
-    bmesh.ops.bevel(bm, geom=rim + list({v for e in rim for v in e.verts}), offset=min(0.35, h * 0.3), segments=3, affect='EDGES', profile=0.5)
-    bm.normal_update()
-    for f in bm.faces:
-        f.material_index = 0 if f.normal.z > 0.6 else 1
-        f.smooth = f.normal.z <= 0.6
-    o = bm_obj(name, bm, [top_mat or M['deck'], M['step']])
-    o.location = (0, DECK_C, 0)
-    lb = bmesh.new()
-    bmesh.ops.create_cone(lb, cap_ends=False, segments=144, radius1=1, radius2=1, depth=0.14, matrix=Matrix.Translation((0, 0, h * 0.55)))
-    for v in lb.verts:
-        v.co.x *= rx + 0.03
-        v.co.y *= ry + 0.03
-    led_o = bm_obj(name + '_led', lb, led)
-    led_o.location = (0, DECK_C, 0)
-    return o
-
-
-ellipse_step('Deck', 40, 16, DECK_H, M['edge_c'])
-for k, (rx, ry, h, led) in enumerate(((45, 20, 1.75, M['edge_m']), (50.5, 24, 1.05, M['edge_v']), (56, 28, 0.45, M['edge_c']))):
-    ellipse_step('Ripple%d' % k, rx, ry, h, led)
-
-# thrust catwalk into the crowd and a round B-stage
-box_obj('Catwalk', (5.0, CAT_LEN, DECK_H - 0.4), (0, FRONT_Y - CAT_LEN / 2 + 0.5, (DECK_H - 0.4) / 2), M['deck'], bevel=0.05)
-for sx in (-1, 1):
-    box_obj('CatwalkLED', (0.12, CAT_LEN, 0.1), (sx * 2.56, FRONT_Y - CAT_LEN / 2 + 0.5, DECK_H - 0.45), M['edge_c'])
-B_Y = FRONT_Y - CAT_LEN - 5
-bm = bmesh.new()
-bmesh.ops.create_cone(bm, cap_ends=True, segments=64, radius1=6.0, radius2=6.0, depth=DECK_H - 0.4, matrix=Matrix.Translation((0, B_Y, (DECK_H - 0.4) / 2)))
-bm_obj('BStage', bm, M['deck'])
-bm = bmesh.new()
-bmesh.ops.create_cone(bm, cap_ends=False, segments=64, radius1=6.05, radius2=6.05, depth=0.12, matrix=Matrix.Translation((0, B_Y, DECK_H - 0.45)))
-bm_obj('BStageLED', bm, M['edge_c'])
-
-# risers: drums centre, two raised side platforms with LED fascias and stairs
-box_obj('DrumRiser', (12, 7, 1.4), (0, 13, DECK_H + 0.7), M['deck'], bevel=0.05)
-box_obj('DrumRiserLED', (12, 0.1, 0.1), (0, 9.45, DECK_H + 1.35), M['edge_g'])
-pixel_face('DrumRiserPx', 11.5, 1.2, sweep, GOLD, None, 9.44, z0=DECK_H + 0.05, pitch=0.5, cell=0.2)
-for sx in (-1, 1):
-    x = sx * 19
-    box_obj('Platform', (11, 7, 3.0), (x, 15, DECK_H + 1.5), M['deck'], bevel=0.05)
-    box_obj('PlatformLED', (11, 0.1, 0.12), (x, 11.45, DECK_H + 2.95), M['edge_c' if sx > 0 else 'edge_m'])
-    pixel_face('PlatformPx', 10.5, 2.6, columns, CYAN if sx > 0 else MAGENTA, None, 11.44, z0=DECK_H + 0.1, pitch=0.55, cell=0.24)
-    bm = bmesh.new()
-    for i in range(10):
-        bm_box(bm, (2.4, 0.35, 0.3), Vector((x - sx * 6.7, 11.5 + 0.35 * i, DECK_H + 0.15 + i * 0.3)))
-    bm_obj('Stairs', bm, M['trim'])
-
-# ---------------------------------------------------------------- the disc screen behind the band
-def mat_sunburst(name, strength=3.0, rays=20, rings=9.0, aspect=1.0, cz=0.5):
+def mat_sunburst(name, strength=3.0, rays=20, rings=9.0, aspect=1.0, cz=0.5, palette=None):
     """Wall content: rays and rings radiating from the centre, brightest in the middle."""
     m = bpy.data.materials.new(name)
     m.use_nodes = True
@@ -791,12 +493,12 @@ def mat_sunburst(name, strength=3.0, rays=20, rings=9.0, aspect=1.0, cz=0.5):
     val = math_node('ADD', math_node('MULTIPLY', math_node('ADD', math_node('MULTIPLY', ray, 0.7), math_node('MULTIPLY', ring, 0.55)), fade), core)
     ramp = N.new('ShaderNodeValToRGB')
     el = ramp.color_ramp.elements
-    el[0].position, el[0].color = 0.0, (*srgb((0.03, 0.0, 0.1)), 1)
-    el[1].position, el[1].color = 1.0, (*srgb((1.0, 0.9, 1.0)), 1)
-    e = el.new(0.35)
-    e.color = (*srgb((0.75, 0.08, 0.5)), 1)
-    e = el.new(0.65)
-    e.color = (*srgb((0.25, 0.75, 1.0)), 1)
+    stops = palette or [(0.0, (0.0, 0.01, 0.05)), (0.35, (0.05, 0.25, 0.9)), (0.65, (0.4, 0.8, 1.0)), (1.0, (0.95, 0.98, 1.0))]
+    el[0].position, el[0].color = stops[0][0], (*srgb(stops[0][1]), 1)
+    el[1].position, el[1].color = stops[-1][0], (*srgb(stops[-1][1]), 1)
+    for pos, c in stops[1:-1]:
+        e = el.new(pos)
+        e.color = (*srgb(c), 1)
     Lk.new(val, ramp.inputs[0])
     px = N.new('ShaderNodeTexBrick')
     px.inputs['Scale'].default_value = 140
@@ -820,53 +522,424 @@ def mat_sunburst(name, strength=3.0, rays=20, rings=9.0, aspect=1.0, cz=0.5):
 
 
 
-DISC = Vector((0, 17.5, 13.5))
+
+# =================================================================== STAGE: THE SUN COURT
+WARM_W = (1.0, 0.62, 0.28)
+AMBER = (1.0, 0.42, 0.1)
+TEAL = (0.1, 0.75, 0.9)
+ICE = (0.3, 0.65, 1.0)
+DEEP = (0.05, 0.18, 1.0)
+M['sand'] = mat_panels('Sandstone', (0.6, 0.48, 0.36), rough=0.6, metal=0.0, scale=(0.35, 0.25), bump=0.3)
+M['sand2'] = mat_panels('SandstoneDark', (0.36, 0.27, 0.21), rough=0.65, metal=0.0, scale=(0.5, 0.35), bump=0.3)
+M['gilt'] = mat_pbr('Gilt', (0.95, 0.66, 0.3), rough=0.28, metal=1.0)
+M['patina'] = mat_pbr('Patina', (0.16, 0.5, 0.52), rough=0.38, metal=0.5)
+M['rosetile'] = mat_pbr('RoseTile', (0.62, 0.2, 0.3), rough=0.42, metal=0.25)
+M['bluetile'] = mat_pbr('BlueTile', (0.08, 0.16, 0.5), rough=0.35, metal=0.4)
+M['bulbs'] = mat_emit('Bulbs', (1.0, 0.72, 0.38), 16)
+M['bayglow'] = mat_emit('BayWarm', (1.0, 0.5, 0.18), 3.2)
+M['baycool'] = mat_emit('BayCool', (0.25, 0.55, 1.0), 2.6)
+WIN = {'warm': mat_emit('WinWarm', (1.0, 0.6, 0.26), 5), 'gold': mat_emit('WinGold', (1.0, 0.82, 0.5), 9),
+       'blue': mat_emit('WinBlue', ICE, 3.5), 'dark': mat_pbr('WinDark', (0.03, 0.02, 0.015), rough=0.3)}
+DOMES = [M['patina'], M['gilt'], M['rosetile'], M['bluetile']]
+TOWER_TOPS = []
+
+
+def catmull(points, n):
+    pts = [Vector(q) for q in points]
+    ext = [pts[0] * 2 - pts[1]] + pts + [pts[-1] * 2 - pts[-2]]
+    out = []
+    for i in range(len(pts) - 1):
+        p0, p1, p2, p3 = ext[i], ext[i + 1], ext[i + 2], ext[i + 3]
+        for k in range(n):
+            t = k / n
+            out.append(0.5 * ((2 * p1) + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t * t * t))
+    out.append(pts[-1].copy())
+    return out
+
+
+def arch_poly(w, h, x0=0.0, z0=0.0, segs=12):
+    """A round-headed arch outline (x, z): straight jambs, semicircular head."""
+    r = w / 2
+    spring = z0 + max(h - r, 0.01)
+    return [(x0 - r, z0), (x0 + r, z0)] + [(x0 + r * math.cos(math.pi * k / segs), spring + r * math.sin(math.pi * k / segs)) for k in range(segs + 1)]
+
+
+def add_prism(bm, poly, depth, matrix):
+    """Extrudes a 2D polygon (x, z) along +y by `depth`, transformed into bm."""
+    vf = [bm.verts.new(matrix @ Vector((x, 0, z))) for x, z in poly]
+    vb = [bm.verts.new(matrix @ Vector((x, depth, z))) for x, z in poly]
+    bm.faces.new(list(reversed(vf)))
+    bm.faces.new(vb)
+    for i in range(len(poly)):
+        j = (i + 1) % len(poly)
+        bm.faces.new([vf[i], vf[j], vb[j], vb[i]])
+
+
+def lathe(bm, profile, segs=32, matrix=None):
+    """Revolves an (r, z) profile around Z."""
+    matrix = matrix or Matrix.Identity(4)
+    rings = []
+    for r, z in profile:
+        if r < 1e-4:
+            rings.append([bm.verts.new(matrix @ Vector((0, 0, z)))])
+        else:
+            rings.append([bm.verts.new(matrix @ Vector((r * math.cos(2 * math.pi * k / segs), r * math.sin(2 * math.pi * k / segs), z))) for k in range(segs)])
+    for a, b in zip(rings, rings[1:]):
+        for k in range(segs):
+            k2 = (k + 1) % segs
+            if len(a) == 1 and len(b) > 1:
+                bm.faces.new([a[0], b[k], b[k2]])
+            elif len(b) == 1 and len(a) > 1:
+                bm.faces.new([a[k], a[k2], b[0]])
+            elif len(a) > 1:
+                bm.faces.new([a[k], a[k2], b[k2], b[k]])
+
+
+def roof_profile(kind, R):
+    if kind == 'onion':
+        return [(R, 0), (R * 1.12, R * 0.25), (R * 1.22, R * 0.6), (R * 1.08, R * 1.0), (R * 0.7, R * 1.35), (R * 0.3, R * 1.7),
+                (R * 0.12, R * 2.0), (R * 0.07, R * 2.35), (0, R * 2.7)]
+    if kind == 'dome':
+        return [(R * math.cos(a), R * 1.05 * math.sin(a)) for a in [k / 10 * math.pi / 2 for k in range(10)]] + [(0, R * 1.05)]
+    return [(R * 1.05, 0), (R * 0.6, R * 1.2), (R * 0.2, R * 2.4), (0, R * 3.2)]  # spire
+
+
+def bulbs_line(bm, a, b, step=0.7, r=0.11, sag=0.0):
+    """A string of bulbs from a to b, hanging `sag` metres in the middle."""
+    a, b = Vector(a), Vector(b)
+    n = max(1, int((b - a).length / step))
+    for k in range(n + 1):
+        t = k / n
+        q = a.lerp(b, t) - Vector((0, 0, sag * 4 * t * (1 - t)))
+        bmesh.ops.create_icosphere(bm, subdivisions=1, radius=r, matrix=Matrix.Translation(q))
+
+
+def window_set(wins, rnd, matrix, w, z0, z1, floor_h, pitch=2.3, bias=0.55):
+    """Arched windows on a face whose outward normal is local -y (matrix places the face)."""
+    cols = max(1, int(w / pitch))
+    for k in range(int((z1 - z0) / floor_h)):
+        zb = z0 + k * floor_h + floor_h * 0.2
+        for c in range(cols):
+            cx = (c - (cols - 1) / 2) * (w / cols)
+            r = rnd.random()
+            key = 'warm' if r < bias else 'gold' if r < bias + 0.15 else 'blue' if r < bias + 0.25 else 'dark'
+            add_prism(wins[key], arch_poly(w / cols * 0.5, floor_h * 0.62, cx, zb, 8), 0.14, matrix @ Matrix.Translation((0, -0.1, 0)))
+
+
+def tower(name, x, y, w, h, shape='round', roof='onion', seed=0):
+    rnd = random.Random(seed)
+    R = w / 2
+    stone, trim, roofm, bl = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
+    wins = {k: bmesh.new() for k in WIN}
+    fh = rnd.uniform(3.6, 4.8)
+    if shape == 'round':
+        bmesh.ops.create_cone(stone, cap_ends=True, segments=40, radius1=R, radius2=R * 0.94, depth=h, matrix=Matrix.Translation((x, y, h / 2)))
+        z = fh
+        while z < h - 0.8:
+            bmesh.ops.create_cone(trim, cap_ends=True, segments=40, radius1=R * 1.04 + 0.25, radius2=R * 1.04 + 0.25, depth=0.3, matrix=Matrix.Translation((x, y, z)))
+            z += fh * rnd.choice((1, 1, 2))
+        n = max(3, int(math.pi * R / 2.1))
+        for k in range(int((h - 2) / fh)):
+            for j in range(n):
+                phi = math.radians(-170 + 160 * (j + 0.5) / n)
+                rr = R * (1 - 0.06 * (k * fh / h))
+                m = Matrix.Translation((x + rr * math.cos(phi), y + rr * math.sin(phi), 0)) @ Matrix.Rotation(phi + math.pi / 2, 4, 'Z')
+                rv = rnd.random()
+                key = 'warm' if rv < 0.5 else 'gold' if rv < 0.62 else 'blue' if rv < 0.72 else 'dark'
+                add_prism(wins[key], arch_poly(min(1.1, 2 * math.pi * rr / (2.2 * n) * 1.6), fh * 0.6, 0, k * fh + fh * 0.25 + 1.0, 8), 0.14, m @ Matrix.Translation((0, -0.12, 0)))
+        # a balcony ring with bulbs
+        bz = h * rnd.uniform(0.45, 0.7)
+        bmesh.ops.create_cone(trim, cap_ends=True, segments=40, radius1=R + 1.1, radius2=R + 0.9, depth=0.45, matrix=Matrix.Translation((x, y, bz)))
+        for j in range(40):
+            a = 2 * math.pi * j / 40
+            bmesh.ops.create_icosphere(bl, subdivisions=1, radius=0.12, matrix=Matrix.Translation((x + (R + 1.05) * math.cos(a), y + (R + 1.05) * math.sin(a), bz + 0.55)))
+        rr_top = R * 0.94
+    else:
+        bm_box(stone, (w, w, h), Vector((x, y, h / 2)), bevel=0.15, segs=2)
+        z = fh
+        while z < h - 0.8:
+            bm_box(trim, (w + 0.5, w + 0.5, 0.3), Vector((x, y, z)))
+            z += fh * rnd.choice((1, 1, 2))
+        for sx in (-1, 1):
+            bm_box(trim, (0.6, 0.6, h), Vector((x + sx * R, y - R, h / 2)))
+        window_set(wins, rnd, Matrix.Translation((x, y - R, 0)), w - 1.2, 1.2, h - 1.5, fh)
+        for sx in (-1, 1):
+            window_set(wins, rnd, Matrix.Translation((x + sx * R, y, 0)) @ Matrix.Rotation(sx * math.pi / 2, 4, 'Z'), w - 1.2, 1.2, h - 1.5, fh, bias=0.4)
+        rr_top = R * 1.02
+        bm_box(trim, (w + 1.0, w + 1.0, 0.6), Vector((x, y, h)))
+    # drum and roof
+    bmesh.ops.create_cone(trim, cap_ends=True, segments=40, radius1=rr_top + 0.4, radius2=rr_top + 0.4, depth=0.6, matrix=Matrix.Translation((x, y, h + 0.3)))
+    prof = roof_profile(roof, rr_top)
+    lathe(roofm, [(r_, z_ + h + 0.6) for r_, z_ in prof], segs=40, matrix=Matrix.Translation((x, y, 0)))
+    tip = h + 0.6 + prof[-1][1]
+    bm_cyl(trim, (x, y, tip - 0.2), (x, y, tip + 2.2), 0.08, segs=6)
+    bmesh.ops.create_icosphere(trim, subdivisions=2, radius=0.35, matrix=Matrix.Translation((x, y, tip + 0.6)))
+    # bulbs tracing the roof's ribs
+    for j in range(8):
+        a = 2 * math.pi * j / 8 - math.pi / 2
+        pts = [(x + r_ * 1.02 * math.cos(a), y + r_ * 1.02 * math.sin(a), z_ + h + 0.6) for r_, z_ in prof]
+        for q0, q1 in zip(pts, pts[1:]):
+            bulbs_line(bl, q0, q1, step=0.8, r=0.1)
+    o = bm_obj(name + '_stone', stone, M['sand'])
+    bm_obj(name + '_trim', trim, M['gilt'])
+    bm_obj(name + '_roof', roofm, rnd.choice(DOMES), smooth=True)
+    bm_obj(name + '_bulbs', bl, M['bulbs'])
+    for key, b in wins.items():
+        if len(b.faces):
+            bm_obj(name + '_win_' + key, b, WIN[key])
+        else:
+            b.free()
+    TOWER_TOPS.append(Vector((x, y, tip + 2.2)))
+    return o
+
+
+def gallery(name, xa, xb, y, h, bays, tiers=2, d=3.4, seed=0, cool=False):
+    """Tiers of round arches glowing from within, gilt archivolts, bulbs along every cornice."""
+    rnd = random.Random(seed)
+    x0, x1 = min(xa, xb), max(xa, xb)
+    w, cx = x1 - x0, (x0 + x1) / 2
+    stone, trim, glow, bl = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
+    z0 = 0.0
+    for t in range(tiers):
+        th = h if t == 0 else h * 0.72
+        nb = bays if t == 0 else bays * 2
+        bw = w / nb
+        pier = bw * 0.24
+        r = (bw - pier) / 2
+        spring = z0 + th * 0.78 - r
+        top = z0 + th * 0.78
+        for i in range(nb + 1):
+            bm_box(stone, (pier, d, top - z0), Vector((x0 + i * bw, y, (z0 + top) / 2)))
+        bm_box(stone, (w + pier, d, th * 0.22), Vector((cx, y, top + th * 0.11)))
+        for i in range(nb):
+            bx = x0 + (i + 0.5) * bw
+            for sgn in (-1, 1):
+                arc = [(bx + sgn * r * math.cos(a), spring + r * math.sin(a)) for a in [k / 8 * math.pi / 2 for k in range(9)]]
+                poly = arc + [(bx, top + 0.01), (bx + sgn * r, top + 0.01)]
+                add_prism(stone, poly[::sgn], d * 0.5, Matrix.Translation((0, y - d / 2, 0)))
+            outer = [(bx + (r + 0.35) * math.cos(a), spring + (r + 0.35) * math.sin(a)) for a in [k / 12 * math.pi for k in range(13)]]
+            inner = [(bx + r * math.cos(a), spring + r * math.sin(a)) for a in [k / 12 * math.pi for k in range(13)]][::-1]
+            add_prism(trim, outer + inner, 0.3, Matrix.Translation((0, y - d / 2 - 0.25, 0)))
+            # bulbs around each arch
+            for a in [k / 10 * math.pi for k in range(11)]:
+                bmesh.ops.create_icosphere(bl, subdivisions=1, radius=0.09, matrix=Matrix.Translation((bx + (r + 0.6) * math.cos(a), y - d / 2 - 0.35, spring + (r + 0.6) * math.sin(a))))
+        bm_box(trim, (w + pier + 0.7, d + 0.7, 0.35), Vector((cx, y, top + th * 0.22)))
+        bulbs_line(bl, (x0, y - d / 2 - 0.45, top + th * 0.22 + 0.35), (x1, y - d / 2 - 0.45, top + th * 0.22 + 0.35), step=0.6)
+        bm_box(glow, (w, 0.2, top - z0), Vector((cx, y + d / 2 - 0.25, (z0 + top) / 2)))
+        z0 = top + th * 0.22
+    # balustrade on the roof
+    for i in range(int(w / 0.8)):
+        bm_cyl(trim, (x0 + i * 0.8, y - d / 2 + 0.2, z0), (x0 + i * 0.8, y - d / 2 + 0.2, z0 + 1.0), 0.09, segs=6)
+    bm_box(trim, (w, 0.3, 0.2), Vector((cx, y - d / 2 + 0.2, z0 + 1.05)))
+    bm_obj(name, stone, M['sand'])
+    bm_obj(name + '_trim', trim, M['gilt'])
+    bm_obj(name + '_glow', glow, M['baycool'] if cool else M['bayglow'])
+    bm_obj(name + '_bulbs', bl, M['bulbs'])
+    return z0
+
+
+# ---------------------------------------------------------------- the deck
+DECK_H = 2.4
+FRONT_Y = -4.0
+CAT_LEN = 22.0
+box_obj('Deck', (50, 18, DECK_H), (0, 5, DECK_H / 2), M['deck'], bevel=0.06)
+box_obj('DeckFascia', (50.2, 0.2, DECK_H - 0.3), (0, FRONT_Y - 0.1, DECK_H / 2 - 0.1), M['grille'])
+box_obj('DeckEdgeLED', (50, 0.18, 0.12), (0, FRONT_Y - 0.25, DECK_H - 0.08), M['bulbs'])
+box_obj('DeckFootLED', (50, 0.12, 0.08), (0, FRONT_Y - 0.25, 0.3), M['bulbs'])
+box_obj('Catwalk', (5.0, CAT_LEN, DECK_H - 0.4), (0, FRONT_Y - CAT_LEN / 2, (DECK_H - 0.4) / 2), M['deck'], bevel=0.05)
+for sx in (-1, 1):
+    box_obj('CatwalkLED', (0.12, CAT_LEN, 0.1), (sx * 2.56, FRONT_Y - CAT_LEN / 2, DECK_H - 0.45), M['bulbs'])
+B_Y = FRONT_Y - CAT_LEN - 5
 bm = bmesh.new()
-bmesh.ops.create_cone(bm, cap_ends=True, segments=96, radius1=8.6, radius2=8.6, depth=0.3,
-                      matrix=Matrix.Translation(DISC) @ Matrix.Rotation(math.radians(90), 4, 'X'))
-bm_obj('DiscScreen', bm, mat_sunburst('DiscContent', strength=3.2, rays=24, rings=7.0))
-bpy.ops.mesh.primitive_torus_add(major_radius=9.3, minor_radius=0.75, major_segments=96, minor_segments=20, location=DISC, rotation=(math.radians(90), 0, 0))
-ring = bpy.context.active_object
-ring.data.materials.append(M['ribbon'])
-for f in ring.data.polygons:
-    f.use_smooth = True
-ring.users_collection[0].objects.unlink(ring)
-link(ring)
-bpy.ops.mesh.primitive_torus_add(major_radius=10.15, minor_radius=0.14, major_segments=96, minor_segments=8, location=DISC - Vector((0, 0.3, 0)), rotation=(math.radians(90), 0, 0))
-glow = bpy.context.active_object
-glow.data.materials.append(M['edge_m'])
-glow.users_collection[0].objects.unlink(glow)
-link(glow)
+bmesh.ops.create_cone(bm, cap_ends=True, segments=64, radius1=6.0, radius2=6.0, depth=DECK_H - 0.4, matrix=Matrix.Translation((0, B_Y, (DECK_H - 0.4) / 2)))
+bm_obj('BStage', bm, M['deck'])
+bm = bmesh.new()
+bmesh.ops.create_cone(bm, cap_ends=False, segments=64, radius1=6.05, radius2=6.05, depth=0.12, matrix=Matrix.Translation((0, B_Y, DECK_H - 0.45)))
+bm_obj('BStageLED', bm, M['bulbs'])
+box_obj('DrumRiser', (12, 5, 1.4), (0, 12, DECK_H + 0.7), M['deck'], bevel=0.05)
+box_obj('DrumRiserLED', (12, 0.1, 0.1), (0, 9.45, DECK_H + 1.35), M['bulbs'])
+pixel_face('DrumRiserPx', 11.5, 1.2, sweep, GOLD, None, 9.44, z0=DECK_H + 0.05, pitch=0.5, cell=0.2)
+for sx in (-1, 1):
+    x = sx * 17
+    box_obj('Platform', (9, 5, 3.0), (x, 11, DECK_H + 1.5), M['deck'], bevel=0.05)
+    box_obj('PlatformLED', (9, 0.1, 0.12), (x, 8.45, DECK_H + 2.95), M['bulbs'])
+    pixel_face('PlatformPx', 8.5, 2.6, columns, GOLD, None, 8.44, z0=DECK_H + 0.1, pitch=0.55, cell=0.24)
+    bm = bmesh.new()
+    for i in range(10):
+        bm_box(bm, (2.4, 0.35, 0.3), Vector((x - sx * 5.7, 8.5 + 0.35 * i, DECK_H + 0.15 + i * 0.3)))
+    bm_obj('Stairs', bm, M['trim'])
 
 
-# ---------------------------------------------------------------- sweeping ribbons
-RIBBON_LIGHTS = []
+# ---------------------------------------------------------------- the sun gate
+GATE_Y = 16.0
+GW, GI, GH = 32.0, 22.0, 36.0        # outer width, opening width, opening height
+stone, trim, bl = bmesh.new(), bmesh.new(), bmesh.new()
+r = GI / 2
+spring = GH - r
+for sx in (-1, 1):
+    bm_box(stone, ((GW - GI) / 2, 4, GH + 4), Vector((sx * (GI / 2 + (GW - GI) / 4), GATE_Y, (GH + 4) / 2)))
+bm_box(stone, (GW, 4, 6), Vector((0, GATE_Y, GH + 3)))
+for sgn in (-1, 1):
+    arc = [(sgn * r * math.cos(a), spring + r * math.sin(a)) for a in [k / 16 * math.pi / 2 for k in range(17)]]
+    add_prism(stone, (arc + [(0, GH + 0.01), (sgn * r, GH + 0.01)])[::sgn], 4, Matrix.Translation((0, GATE_Y - 2, 0)))
+for k, rr in enumerate((r + 0.5, r + 1.6)):
+    outer = [((rr + 0.45) * math.cos(a), spring + (rr + 0.45) * math.sin(a)) for a in [j / 24 * math.pi for j in range(25)]]
+    inner = [(rr * math.cos(a), spring + rr * math.sin(a)) for a in [j / 24 * math.pi for j in range(25)]][::-1]
+    add_prism(trim, outer + inner, 0.5, Matrix.Translation((0, GATE_Y - 2.4 - 0.2 * k, 0)))
+for a in [j / 40 * math.pi for j in range(41)]:
+    for rr in (r + 1.15, r + 2.45):
+        bmesh.ops.create_icosphere(bl, subdivisions=1, radius=0.14, matrix=Matrix.Translation((rr * math.cos(a), GATE_Y - 2.7, spring + rr * math.sin(a))))
+for sx in (-1, 1):
+    bulbs_line(bl, (sx * r * 1.0, GATE_Y - 2.4, 0.5), (sx * r * 1.0, GATE_Y - 2.4, spring), step=0.7, r=0.13)
+bm_box(trim, (GW + 1.2, 5, 0.6), Vector((0, GATE_Y, GH + 6.2)))
+bulbs_line(bl, (-GW / 2, GATE_Y - 2.8, GH + 6.6), (GW / 2, GATE_Y - 2.8, GH + 6.6), step=0.6, r=0.13)
+GATE_R, GATE_SPRING = r, spring
+bm_obj('Gate', stone, M['sand'])
+bm_obj('GateTrim', trim, M['gilt'])
+bm_obj('GateBulbs', bl, M['bulbs'])
+# the screen fills the arch
+sc = bmesh.new()
+add_prism(sc, arch_poly(GI - 0.6, GH - 0.6, 0, DECK_H + 0.2, 24), 0.1, Matrix.Translation((0, GATE_Y + 1.2, 0)))
+bm_obj('GateScreen', sc, mat_sunburst('GateContent', strength=2.4, rays=28, rings=8.0, aspect=(GI - 0.6) / (GH - 0.6 - DECK_H), cz=0.45,
+                                       palette=[(0.0, (0.0, 0.02, 0.08)), (0.35, (0.0, 0.3, 0.8)), (0.62, (0.2, 0.85, 1.0)), (0.85, (1.0, 0.75, 0.35)), (1.0, (1.0, 0.95, 0.85))]))
+# the sun medallion above the gate
+SUN = Vector((0, GATE_Y - 2.6, GH + 15.0))
+sm, sr, sg = bmesh.new(), bmesh.new(), bmesh.new()
+bmesh.ops.create_cone(sm, cap_ends=True, segments=64, radius1=6.5, radius2=6.5, depth=1.2, matrix=Matrix.Translation(SUN) @ Matrix.Rotation(math.radians(90), 4, 'X'))
+for k in range(24):
+    a = 2 * math.pi * k / 24
+    ln = 6.5 if k % 2 else 4.2
+    m = Matrix.Translation(SUN) @ Matrix.Rotation(-a, 4, 'Y')
+    add_prism(sr, [(-0.9, 6.0), (0.9, 6.0), (0, 6.0 + ln)], 0.8, m @ Matrix.Translation((0, -0.4, 0)))
+bmesh.ops.create_cone(sg, cap_ends=True, segments=64, radius1=4.6, radius2=4.6, depth=0.3, matrix=Matrix.Translation(SUN - Vector((0, 0.7, 0))) @ Matrix.Rotation(math.radians(90), 4, 'X'))
+bm_obj('SunDisc', sm, M['gilt'])
+bm_obj('SunRays', sr, M['gilt'])
+bm_obj('SunFace', sg, mat_sunburst('SunContent', strength=5.0, rays=18, rings=4.0,
+                                   palette=[(0.0, (0.6, 0.18, 0.02)), (0.5, (1.0, 0.55, 0.12)), (1.0, (1.0, 0.92, 0.7))]))
+bl = bmesh.new()
+for k in range(48):
+    a = 2 * math.pi * k / 48
+    bmesh.ops.create_icosphere(bl, subdivisions=1, radius=0.16, matrix=Matrix.Translation(SUN + Vector((math.cos(a) * 7.0, -0.7, math.sin(a) * 7.0))))
+bm_obj('SunBulbs', bl, M['bulbs'])
+bm = bmesh.new()
+bm_box(bm, (3, 2, SUN.z - GH - 7), Vector((0, GATE_Y - 1.2, (SUN.z + GH + 7) / 2 - 3)))
+bm_obj('SunMast', bm, M['sand2'])
 
-
-def ribbon(name, ctrl, r, n=14):
-    pts = catmull(ctrl, n)
-    for nm, rad, mat, off in ((name, r, M['ribbon'], 0.0), (name + '_led', r * 0.22, M['edge_l'], r * 0.92)):
-        cu = bpy.data.curves.new(nm, 'CURVE')
-        cu.dimensions = '3D'
-        cu.bevel_depth = rad
-        cu.bevel_resolution = 6
-        cu.use_fill_caps = True
-        sp = cu.splines.new('POLY')
-        sp.points.add(len(pts) - 1)
-        for k, q in enumerate(pts):
-            sp.points[k].co = (q.x, q.y, q.z + off, 1)
-        sp.use_smooth = True
-        cu.materials.append(mat)
-        link(bpy.data.objects.new(nm, cu))
-    return pts
-
+# ---------------------------------------------------------------- towers, domes and galleries
+tower('GateTowerL', -20.5, GATE_Y + 1, 9, 40, 'round', 'onion', seed=3)
+tower('GateTowerR', 20.5, GATE_Y + 1, 9, 40, 'round', 'onion', seed=4)
+# the great dome behind
+gd, gt, gb = bmesh.new(), bmesh.new(), bmesh.new()
+bmesh.ops.create_cone(gd, cap_ends=True, segments=64, radius1=13, radius2=12.5, depth=26, matrix=Matrix.Translation((0, 38, 13)))
+bm_box(gt, (28, 28, 0.6), Vector((0, 38, 26.2)))
+prof = [(12.5 * math.cos(a), 26.5 + 13.5 * math.sin(a)) for a in [k / 16 * math.pi / 2 for k in range(16)]] + [(0, 40)]
+dm = bmesh.new()
+lathe(dm, prof, segs=64, matrix=Matrix.Translation((0, 38, 0)))
+for j in range(16):
+    a = 2 * math.pi * j / 16
+    for q0, q1 in zip(prof, prof[1:]):
+        bulbs_line(gb, (q0[0] * 1.01 * math.cos(a), 38 + q0[0] * 1.01 * math.sin(a), q0[1]), (q1[0] * 1.01 * math.cos(a), 38 + q1[0] * 1.01 * math.sin(a), q1[1]), step=0.9, r=0.13)
+bmesh.ops.create_cone(gt, cap_ends=True, segments=24, radius1=1.8, radius2=1.4, depth=4, matrix=Matrix.Translation((0, 38, 42)))
+lathe(gt, [(r_, z_ + 44) for r_, z_ in roof_profile('onion', 1.6)], segs=24, matrix=Matrix.Translation((0, 38, 0)))
+bm_obj('GreatDrum', gd, M['sand2'])
+bm_obj('GreatDome', dm, M['bluetile'], smooth=True)
+bm_obj('GreatTrim', gt, M['gilt'])
+bm_obj('GreatBulbs', gb, M['bulbs'])
+TOWER_TOPS.append(Vector((0, 38, 49)))
 
 for side in (-1, 1):
-    hi = ribbon('RibbonHigh%+d' % side, [(side * 18, 22, 42), (side * 36, 25, 39), (side * 54, 23, 32), (side * 69, 16, 23),
-                                         (side * 82, 7, 12), (side * 92, -2, -1)], 1.4)
-    lo = ribbon('RibbonLow%+d' % side, [(side * 30, 27, 26), (side * 48, 30, 19), (side * 66, 25, 11), (side * 80, 17, 4),
-                                        (side * 88, 12, -1)], 1.0)
-    RIBBON_LIGHTS += [(q, 'hi', side) for q in hi[6:-6:6]] + [(q, 'lo', side) for q in lo[6:-6:8]]
+    sd = 10 if side < 0 else 40
+    rnd = random.Random(sd)
+    gallery('Gallery%+d_0' % side, side * 25.5, side * 43, 12, 11, 4, tiers=2, seed=sd + 1)
+    tower('Tower%+d_0' % side, side * 46, 9, 7, 30, 'round', 'onion', seed=sd + 2)
+    gallery('Gallery%+d_1' % side, side * 49.5, side * 63, 6, 9, 3, tiers=2, seed=sd + 3, cool=True)
+    tower('Tower%+d_1' % side, side * 66, 3, 6, 23, 'square', 'dome', seed=sd + 4)
+    gallery('Gallery%+d_2' % side, side * 69.5, side * 80, 0, 7, 3, tiers=1, seed=sd + 5)
+    tower('Tower%+d_2' % side, side * 82.5, -3, 4, 15, 'round', 'spire', seed=sd + 6)
+    # the back row rising behind
+    for k, (x, w, h, shape, roof) in enumerate([(31, 8, 44, 'round', 'onion'), (41, 7, 36, 'square', 'dome'), (51, 7, 40, 'round', 'onion'),
+                                                (60, 6, 31, 'square', 'spire'), (69, 6, 26, 'round', 'dome'), (77, 5, 20, 'round', 'onion')]):
+        tower('Back%+d_%d' % (side, k), side * (x + rnd.uniform(-1, 1)), 28 + rnd.uniform(-2, 3), w, h + rnd.uniform(-3, 3), shape, roof, seed=sd + 10 + k)
+
+# a fairground wheel on one wing, a gilt armillary sphere on the other
+WHEEL = Vector((92, 18, 19))
+wr, wt, wb = bmesh.new(), bmesh.new(), bmesh.new()
+for rr in (15.0, 14.2):
+    for k in range(96):
+        a0, a1 = 2 * math.pi * k / 96, 2 * math.pi * (k + 1) / 96
+        bm_cyl(wr, WHEEL + Vector((rr * math.cos(a0), 0, rr * math.sin(a0))), WHEEL + Vector((rr * math.cos(a1), 0, rr * math.sin(a1))), 0.18, segs=6)
+for k in range(24):
+    a = 2 * math.pi * k / 24
+    tip = WHEEL + Vector((15 * math.cos(a), 0, 15 * math.sin(a)))
+    bm_cyl(wr, WHEEL, tip, 0.08, segs=4)
+    bulbs_line(wb, WHEEL + Vector((1.5 * math.cos(a), -0.3, 1.5 * math.sin(a))), tip + Vector((0, -0.3, 0)), step=0.8, r=0.12)
+    bm_box(wt, (1.6, 1.4, 1.4), tip - Vector((0, 0, 1.4)), bevel=0.2, segs=2)
+for k in range(140):
+    a = 2 * math.pi * k / 140
+    bmesh.ops.create_icosphere(wb, subdivisions=1, radius=0.16, matrix=Matrix.Translation(WHEEL + Vector((15.4 * math.cos(a), -0.3, 15.4 * math.sin(a)))))
+for sx in (-1, 1):
+    bm_cyl(wr, (WHEEL.x + sx * 8, WHEEL.y, 0), WHEEL, 0.35, segs=8)
+bm_cyl(wr, WHEEL + Vector((0, -0.8, 0)), WHEEL + Vector((0, 0.8, 0)), 1.0, segs=16)
+bm_obj('Wheel', wr, M['gilt'])
+bm_obj('WheelCars', wt, M['rosetile'])
+bm_obj('WheelBulbs', wb, M['bulbs'])
+ARM = Vector((-90, 16, 22))
+ar, ab = bmesh.new(), bmesh.new()
+for k, (rot, rad) in enumerate(((Euler((0, 0, 0)), 10), (Euler((math.radians(90), 0, 0)), 9.6), (Euler((math.radians(90), 0, math.radians(60))), 9.2),
+                                (Euler((math.radians(90), 0, math.radians(-60))), 8.8), (Euler((math.radians(23), 0, 0)), 10.4))):
+    m = rot.to_matrix()
+    for j in range(72):
+        a0, a1 = 2 * math.pi * j / 72, 2 * math.pi * (j + 1) / 72
+        bm_cyl(ar, ARM + m @ Vector((rad * math.cos(a0), rad * math.sin(a0), 0)), ARM + m @ Vector((rad * math.cos(a1), rad * math.sin(a1), 0)), 0.32, segs=6)
+        if k == 4 and j % 2 == 0:
+            bmesh.ops.create_icosphere(ab, subdivisions=1, radius=0.2, matrix=Matrix.Translation(ARM + m @ Vector(((rad + 0.5) * math.cos(a0), (rad + 0.5) * math.sin(a0), 0))))
+bmesh.ops.create_icosphere(ab, subdivisions=3, radius=2.6, matrix=Matrix.Translation(ARM))
+bm_cyl(ar, (ARM.x, ARM.y, 0), ARM - Vector((0, 0, 10)), 1.2, segs=16)
+bm_obj('Armillary', ar, M['gilt'])
+bm_obj('ArmillaryLights', ab, M['bulbs'])
+
+# fairy lights strung between neighbouring tower tops
+fl = bmesh.new()
+tops = sorted(TOWER_TOPS, key=lambda q: q.x)
+for a, b in zip(tops, tops[1:]):
+    if (b - a).length < 22:
+        bulbs_line(fl, a - Vector((0, 0, 2.5)), b - Vector((0, 0, 2.5)), step=0.9, r=0.12, sag=2.5)
+bm_obj('FairyLights', fl, M['bulbs'])
+
+
+# ---------------------------------------------------------------- fireworks: frozen fans of sparks over the skyline
+SPARK = mat_emit('Spark', (1.0, 0.93, 0.82), 25)
+SPARK_GOLD = mat_emit('SparkGold', (1.0, 0.7, 0.35), 22)
+FIREWORKS = []
+
+
+def firework_fan(name, origin, n=16, spread=55, length=(22, 34), lean=0.0, gold=False, seed=0):
+    """Comet trails fanning out of one launch point, curving under gravity, glitter along them."""
+    rnd = random.Random(seed)
+    trails, glitter = bmesh.new(), bmesh.new()
+    o = Vector(origin)
+    for k in range(n):
+        ang = math.radians(-spread + 2 * spread * k / max(1, n - 1) + rnd.uniform(-4, 4) + lean)
+        dirv = Vector((math.sin(ang), -0.25 + rnd.uniform(-0.1, 0.1), math.cos(ang))).normalized()
+        L = rnd.uniform(*length)
+        pts = [o + dirv * L * t - Vector((0, 0, 9 * t * t * (L / 30))) for t in [j / 10 for j in range(11)]]
+        for j, (a, b) in enumerate(zip(pts, pts[1:])):
+            bm_cyl(trails, a, b, 0.05 + 0.1 * (j / 10) ** 2, segs=5, r2=0.05 + 0.1 * ((j + 1) / 10) ** 2)
+        for _ in range(14):
+            t = rnd.uniform(0.35, 1.05)
+            q = o + dirv * L * t - Vector((0, 0, 9 * t * t * (L / 30))) + Vector((rnd.uniform(-1, 1), rnd.uniform(-1, 1), rnd.uniform(-1.5, 0.5))) * t
+            bmesh.ops.create_icosphere(glitter, subdivisions=1, radius=rnd.uniform(0.06, 0.16), matrix=Matrix.Translation(q))
+    bm_obj(name, trails, SPARK_GOLD if gold else SPARK, 'FX')
+    bm_obj(name + '_glitter', glitter, SPARK, 'FX')
+    FIREWORKS.append(o + Vector((0, 0, sum(length) / 4)))
+
+
+firework_fan('FireworkSun', SUN + Vector((0, -1, 7)), n=22, spread=70, length=(28, 42), seed=1)
+for side in (-1, 1):
+    firework_fan('FireworkGate%+d' % side, (side * 20.5, GATE_Y - 2, 58), n=16, spread=45, length=(22, 32), lean=side * 12, seed=2 + side)
+    firework_fan('FireworkBack%+d' % side, (side * 51, 28, 58), n=16, spread=45, length=(22, 34), lean=side * 18, gold=True, seed=5 + side)
+    firework_fan('FireworkWing%+d' % side, (side * 69, 26, 40), n=13, spread=40, length=(18, 28), lean=side * 25, seed=8 + side)
+    firework_fan('FireworkEnd%+d' % side, (side * 84, 0, 26), n=11, spread=38, length=(16, 24), lean=side * 30, gold=True, seed=11 + side)
 
 
 # =================================================================== DETAIL
@@ -923,19 +996,16 @@ def line_array(name, x, y, top, boxes=14, turn=1.0):
 SPEAKER_HANGS = []
 for side in (-1, 1):
     # the main hangs fly on truss towers just outside the crest
-    for (x, y, h, arm) in ((side * 36.5, -15.0, 27.0, 2.5),):
+    for (x, y, h, arm) in ((side * 28.0, -6.5, 26.0, 2.5),):
         top = truss_tower('Truss%+d_%d' % (side, int(abs(x))), x, y, h, arm)
         line_array('Array%+d_%d' % (side, int(abs(x))), x + side * 1.0, y - 0.2, h - 1.2, boxes=16 if abs(x) < 20 else 12)
         line_array('ArrayOut%+d_%d' % (side, int(abs(x))), x - side * 1.4, y - 0.2, h - 1.2, boxes=10, turn=0.6)
         SPEAKER_HANGS.append(top)
 
-# crowd barrier around the outer ripple and the catwalk
+# crowd barrier along the front and around the catwalk
 bm = bmesh.new()
-OUT_RX, OUT_RY = 58.0, 30.0
-arc_l = [(-OUT_RX * math.cos(a), DECK_C - OUT_RY * math.sin(a)) for a in [k / 40 * math.pi / 2 for k in range(41)]]
-arc_l = [q for q in arc_l if q[0] < -3.5]
-path = arc_l + [(-3.5, FRONT_Y - CAT_LEN + 2), (-8, B_Y), (-3.5, B_Y - 6.5), (3.5, B_Y - 6.5), (8, B_Y), (3.5, FRONT_Y - CAT_LEN + 2)] + \
-    [(-x, y) for x, y in reversed(arc_l)]
+path = [(-70, -8.0), (-3.5, -8.0), (-3.5, FRONT_Y - CAT_LEN + 1), (-8, B_Y), (-3.5, B_Y - 6.5),
+        (3.5, B_Y - 6.5), (8, B_Y), (3.5, FRONT_Y - CAT_LEN + 1), (3.5, -8.0), (70, -8.0)]
 for (x0, y0), (x1, y1) in zip(path, path[1:]):
     bm_cyl(bm, (x0, y0, 1.15), (x1, y1, 1.15), 0.05, segs=6)
     seg = Vector((x1 - x0, y1 - y0, 0))
@@ -946,7 +1016,7 @@ bm_obj('Barrier', bm, M['truss'], 'Detail')
 
 # CO2 cannons along the front and the catwalk, flame units on wing tops
 bm = bmesh.new()
-cannons = [(39 * math.cos(a), DECK_C - 15.4 * math.sin(a), DECK_H) for a in [math.radians(d) for d in range(196, 345, 12)] if abs(39 * math.cos(a)) > 4] + \
+cannons = [(x, FRONT_Y + 0.4, DECK_H) for x in range(-22, 23, 4) if abs(x) > 3] + \
     [(sx * 2.0, FRONT_Y - y, DECK_H - 0.4) for sx in (-1, 1) for y in (8, 16)]
 for (x, y, z) in cannons:
     bm_box(bm, (0.5, 0.5, 0.35), Vector((x, y, z + 0.17)))
@@ -987,7 +1057,7 @@ pr.inputs['To Max'].default_value = 0.9
 pn.links.new(noise.outputs['Fac'], pr.inputs['Value'])
 pn.links.new(pr.outputs[0], pv.inputs['Density'])
 pn.links.new(pv.outputs[0], po.inputs['Volume'])
-for i, (x, y, z) in enumerate([cannons[k] for k in (0, 1, 2, -6, -5)]):
+for i, (x, y, z) in enumerate(cannons[:10]):
     plume('CO2_%d' % i, x, y - 0.6, z + 0.3, random.uniform(8, 11), random.uniform(1.6, 2.2))
 
 FLAME = bpy.data.materials.new('Flame')
@@ -1078,16 +1148,16 @@ for x in (-8, -3.5, 0, 3.5, 8):
     c = Vector((x, 1.2, DECK_H + 0.3))
     bm_box(bm_b, (1.1, 0.7, 0.45), c, rot=r, bevel=0.03)
     bm_box(bm_g, (0.95, 0.02, 0.35), c + r.to_matrix() @ Vector((0, -0.36, 0)), rot=r)
-bm_box(bm_b, (3.2, 1.2, 1.1), Vector((-4, 10, DECK_H + 0.55)), bevel=0.04)
+bm_box(bm_b, (3.2, 1.2, 1.1), Vector((-4, 6.5, DECK_H + 0.55)), bevel=0.04)
 bm_obj('Backline', bm_b, M['black'], 'Detail')
 bm_obj('BacklineGrilles', bm_g, M['grille'], 'Detail')
-box_obj('DeskLED', (3.2, 0.05, 0.08), (-4, 9.38, DECK_H + 1.0), M['edge_c'], where='Detail')
-pixel_face('DeskPx', 3.0, 0.8, columns, MAGENTA, None, 9.37, z0=DECK_H + 0.1, pitch=0.2, cell=0.09)
+box_obj('DeskLED', (3.2, 0.05, 0.08), (-4, 5.88, DECK_H + 1.0), M['edge_c'], where='Detail')
+pixel_face('DeskPx', 3.0, 0.8, columns, MAGENTA, None, 5.87, z0=DECK_H + 0.1, pitch=0.2, cell=0.09)
 
 figure(-7.0, 4.5, DECK_H, 'lead', 0.25)
 figure(0.0, 3.0, DECK_H, 'vox')
 figure(7.0, 4.5, DECK_H, 'bass', -0.25)
-figure(0.0, 14.2, DECK_H + 1.4, 'drums')
+figure(0.0, 13.2, DECK_H + 1.4, 'drums')
 
 
 # =================================================================== ENVIRONMENT
@@ -1223,7 +1293,7 @@ cp = cn.nodes['Principled BSDF']
 cp.inputs['Roughness'].default_value = 0.75
 oi = cn.nodes.new('ShaderNodeObjectInfo')
 cr = cn.nodes.new('ShaderNodeValToRGB')
-cols = [(0.05, 0.05, 0.06), (0.2, 0.2, 0.22), (0.35, 0.08, 0.1), (0.08, 0.12, 0.3), (0.5, 0.5, 0.5), (0.12, 0.2, 0.12), (0.45, 0.3, 0.12)]
+cols = [(0.04, 0.04, 0.05), (0.15, 0.15, 0.17), (0.3, 0.07, 0.08), (0.06, 0.1, 0.25), (0.4, 0.4, 0.4), (0.1, 0.16, 0.1), (0.35, 0.24, 0.1)]
 cr.color_ramp.interpolation = 'CONSTANT'
 cr.color_ramp.elements[0].color = (*srgb(cols[0]), 1)
 cr.color_ramp.elements[1].position = 1.0 / len(cols)
@@ -1234,7 +1304,7 @@ for k, c in enumerate(cols[2:], start=2):
 cn.links.new(oi.outputs['Random'], cr.inputs[0])
 cn.links.new(cr.outputs[0], cp.inputs['Base Color'])
 skin_m = mat_pbr('CrowdSkin', (0.45, 0.32, 0.25), rough=0.6)
-phone_m = mat_emit('Phone', (0.95, 0.95, 1.0), 12)
+phone_m = mat_emit('Phone', (0.9, 0.92, 1.0), 6)
 
 
 def person(pose):
@@ -1289,8 +1359,10 @@ while len(crowd_pts) < args.crowd and tries < args.crowd * 5:
     x = random.uniform(-half, half)
     if abs(x) < 9.5 and y > B_Y - 7.5:
         continue  # catwalk and B-stage
-    if (x / (OUT_RX + 1)) ** 2 + ((y - DECK_C) / (OUT_RY + 1)) ** 2 < 1:
-        continue  # ripple steps
+    if y > -9.0:
+        continue  # in front of the barrier only
+    if math.hypot(x - 5, y + 64) < 2.2:
+        continue  # room for the crowd camera
     if abs(x) < 8 and -86 < y < -74:
         continue  # FOH
     # thinner at the back and edges
@@ -1304,7 +1376,7 @@ flag_cols = [MAGENTA, CYAN, GOLD, (0.9, 0.9, 0.95), (0.2, 0.35, 1.0), (1.0, 0.35
 bm_pole = bmesh.new()
 for i in range(26):
     x, y = random.uniform(-60, 60), random.uniform(-100, -14)
-    if abs(x) < 9 or (x / (OUT_RX + 3)) ** 2 + ((y - DECK_C) / (OUT_RY + 3)) ** 2 < 1:
+    if abs(x) < 9 or y > -14:
         continue
     hgt = random.uniform(3.6, 5.2)
     bm_cyl(bm_pole, (x, y, 0), (x, y, hgt), 0.025, segs=4)
@@ -1329,63 +1401,49 @@ bm_obj('FlagPoles', bm_pole, M['truss'], 'Crowd')
 
 
 # =================================================================== LIGHTING
-# heads tucked under the lip of the crest: fans over the crowd and pools on the band
-for k in range(15):
-    u = 0.16 + 0.68 * k / 14
-    pos = on_wave('Crest', u, 0.9, lift=-1.6)
-    x = pos.x
-    if k % 2:
-        spot('Lip%d' % k, tuple(pos), (x * 3.2, -75, 0), MAGENTA if k % 4 == 1 else LILAC, 260000 * BEAM, 2.4)
-    else:
-        spot('Lip%d' % k, tuple(pos), (x * 0.35, 4, DECK_H), CYAN if k % 4 else LILAC, 300000, 3.5)
-# heads along the crest throwing a fan into the sky
-for k in range(11):
-    u = 0.14 + 0.72 * k / 10
-    pos = on_wave('Crest', u, 0.36, lift=1.6)
-    spot('CrestBeam%d' % k, tuple(pos), (pos.x * 4.5, pos.y - 18, 150), VIOLET if k % 2 else CYAN, 300000 * BEAM, 2.3)
-# one sky beam off each wing crest
-for k, n in enumerate(WING_WAVES):
-    pos = on_wave(n, 0.5, 0.36, lift=1.0)
-    spot(n + '_beam', tuple(pos), (pos.x * 1.25, pos.y - 30, 150), MAGENTA if k % 2 else CYAN, 500000 * BEAM, 2.4)
-# heads riding the ribbons
-for k, (q, kind, side) in enumerate(RIBBON_LIGHTS):
-    pos = q + Vector((0, 0, -1.6 if kind == 'hi' else 1.4))
-    if kind == 'hi':
-        tgt = (q.x * 0.6, -70, 0)
-    else:
-        tgt = (q.x + side * 25, q.y - 40, 70)
-    spot('Ribbon%d' % k, tuple(pos), tgt, GOLD if k % 3 == 0 else MAGENTA, 200000 * BEAM, 2.2)
-
+# warm gold architecture against a blue night, white beams and fireworks
+# warm washes that paint the palace (surfaces only)
+for k, (x, tx) in enumerate(((-40, -75), (-26, -50), (-12, -24), (0, 0), (12, 24), (26, 50), (40, 75))):
+    spot('Wash%d' % k, (x * 0.5, -80, 18), (tx, 20, 22), AMBER if k % 2 else WARM_W, 260000, 16, blend=0.7, radius=0.5, fixture=False, haze=False)
+for k, x in enumerate((-60, -30, 30, 60)):
+    spot('WashCool%d' % k, (x * 0.6, -70, 30), (x * 1.2, 34, 45), ICE, 150000, 12, blend=0.7, radius=0.5, fixture=False, haze=False)
+# heads around the gate arch: white fans over the crowd and up into the smoke
+for k in range(17):
+    a = math.pi * k / 16
+    q = Vector(((GATE_R + 3.2) * math.cos(a), GATE_Y - 3.0, GATE_SPRING + (GATE_R + 3.2) * math.sin(a)))
+    tgt = (q.x * 4, -75, 0) if k % 2 else (q.x * 4.5, -40, 80)
+    spot('GateHead%d' % k, tuple(q), tgt, WHITE if k % 3 else WARM_W, 220000 * BEAM, 2.0)
+# beams off the tower tops
+for k, top in enumerate(TOWER_TOPS):
+    if k % 3:
+        continue
+    spot('Sky%d' % k, tuple(top + Vector((0, -0.3, 0.6))), (top.x * 1.3 + (k % 5 - 2) * 8, top.y - 35, 160), WHITE if k % 2 else ICE, 300000 * BEAM, 1.8, fixture=False)
+# cool backlight so the skyline stands off the night
+for x in range(-88, 89, 11):
+    spot('Back', (x, 48, 1.0), (x * 1.1, 26, 70), DEEP, 110000 * BEAM, 10, blend=0.6, radius=0.6, fixture=False)
+# the fireworks light the smoke around them
+for k, q in enumerate(FIREWORKS):
+    point('FireworkGlow%d' % k, tuple(q), (1.0, 0.85, 0.65), 25000, radius=6).visible_volume_scatter = True
+# blinders and stage-front warmth bursting through the CO2
+for x in (-20, -11, 11, 20):
+    b = area('Blinder', (x, FRONT_Y - 0.6, DECK_H + 0.7), (x * 1.6, -45, 3), (1.0, 0.8, 0.55), 30000, 1.0)
+    b.visible_volume_scatter = True
+    bm = bmesh.new()
+    bm_box(bm, (1.5, 0.3, 1.0), Vector((x, FRONT_Y - 0.3, DECK_H + 0.7)))
+    bm_obj('BlinderBody', bm, M['black'], 'Lights')
 # truss tower tops
 for top in SPEAKER_HANGS:
     for k, dx in enumerate((-1.8, -0.6, 0.6, 1.8)):
         p = top + Vector((dx, -0.6, 0.9))
-        spot('TrussHead', tuple(p), (p.x * 2.0 + dx * 12, -60, 0 if k % 2 else 40), GOLD if k % 2 else LILAC, 300000 * BEAM, 2.6)
-
-# light curtains: backlights behind the wings, punching blue up through the haze
-for side in (-1, 1):
-    for (x, y) in ((44, 26), (60, 18), (74, 10), (30, 30)):
-        spot('Curtain', (side * x, y, 0.8), (side * (x + 8), y - 26, 80), BLUE, 500000 * BEAM, 7, blend=0.5, radius=0.6, fixture=False)
-
-# washes that paint the waves (they light surfaces only, not the haze)
-for k, (x, tx) in enumerate(((-34, -60), (-18, -30), (-6, -8), (6, 8), (18, 30), (34, 60))):
-    spot('Wash%d' % k, (x * 0.4, -80, 16), (tx, 10, 22), BLUE if k % 2 else VIOLET, 220000, 18, blend=0.7, radius=0.5, fixture=False, haze=False)
-for top in DELAYS:
-    for k in range(3):
-        p = top + Vector(((k - 1) * 1.0, 0.6, 0.9))
-        spot('DelayWash', tuple(p), (p.x * 0.4 + (k - 1) * 18, -40, 0), MAGENTA if k == 1 else VIOLET, 120000, 22, blend=0.7, haze=False)
+        spot('TrussHead', tuple(p), (p.x * 2.0 + dx * 12, -60, 0 if k % 2 else 40), WHITE if k % 2 else WARM_W, 220000 * BEAM, 2.4)
+# the crowd catches the stage's warm spill
 for k, x in enumerate(range(-40, 41, 10)):
-    spot('CrowdWash', (x, FRONT_Y + 3 if abs(x) < 20 else 0, DECK_H + 0.3), (x * 1.3, -45, 1), LILAC, 60000, 32, blend=0.8, radius=0.4, fixture=False, haze=False)
-# the barrel glows from within
-point('BarrelGlow', (0, 2, 20), VIOLET, 60000, radius=4)
-point('DiscGlow', (0, 12, 13), MAGENTA, 30000, radius=3)
-# band key lights
-area('BandKey', (0, -16, 12), (0, 5, 3), (0.9, 0.85, 1.0), 70000, 10)
+    spot('CrowdWash', (x, FRONT_Y - 1, DECK_H + 0.3), (x * 1.3, -45, 1), WARM_W, 50000, 32, blend=0.8, radius=0.4, fixture=False, haze=False)
+area('BandKey', (0, -16, 12), (0, 5, 3), (1.0, 0.9, 0.8), 50000, 10)
 for sx in (-1, 1):
-    area('BandRim', (sx * 9, 12, 12), (sx * 3, 3, 3), MAGENTA if sx < 0 else CYAN, 30000, 4)
-# a cool moon behind the stage for rims on the trees and clouds
+    area('BandRim', (sx * 9, 12, 12), (sx * 3, 3, 3), ICE, 30000, 4)
 sun = bpy.data.lights.new('Moon', 'SUN')
-sun.energy = 0.35
+sun.energy = 0.08
 sun.color = (0.6, 0.7, 1.0)
 so = bpy.data.objects.new('Moon', sun)
 so.rotation_euler = (math.radians(65), 0, math.radians(160))
@@ -1406,16 +1464,25 @@ hnoise.inputs['Detail'].default_value = 3
 htc = hn.nodes.new('ShaderNodeTexCoord')
 hn.links.new(htc.outputs['Object'], hnoise.inputs['Vector'])
 hr = hn.nodes.new('ShaderNodeMapRange')
-hr.inputs['To Min'].default_value = 0.0006
-hr.inputs['To Max'].default_value = 0.0022
+hr.inputs['To Min'].default_value = 0.0002
+hr.inputs['To Max'].default_value = 0.0009
 hn.links.new(hnoise.outputs['Fac'], hr.inputs['Value'])
 hn.links.new(hr.outputs[0], hv.inputs['Density'])
 hn.links.new(hv.outputs[0], ho.inputs['Volume'])
 bm = bmesh.new()
 bm_box(bm, (240, 190, 120), Vector((0, -55, 59.9)))
 bm_obj('HazeDomain', bm, haze, 'FX')
+stage_haze = haze.copy()
+stage_haze.name = 'StageHaze'
+for n in stage_haze.node_tree.nodes:
+    if n.bl_idname == 'ShaderNodeMapRange':
+        n.inputs['To Min'].default_value = 0.0006
+        n.inputs['To Max'].default_value = 0.0028
+bm = bmesh.new()
+bm_box(bm, (190, 75, 45), Vector((0, 8, 22.4)))
+bm_obj('StageHaze', bm, stage_haze, 'FX')
 
-# ---------------------------------------------------------------- sky: painted dusk, clouds, stars
+# ---------------------------------------------------------------- sky: deep night, faint clouds, stars
 world = bpy.data.worlds.new('Dusk')
 scene.world = world
 world.use_nodes = True
@@ -1425,7 +1492,7 @@ coord = wn.nodes.new('ShaderNodeTexCoord')
 sep = wn.nodes.new('ShaderNodeSeparateXYZ')
 wn.links.new(coord.outputs['Generated'], sep.inputs[0])
 dz = sep.outputs['Z']
-sky = ramp_node(wn, [(0.0, (0.16, 0.22, 0.72)), (0.12, (0.07, 0.12, 0.5)), (0.4, (0.02, 0.05, 0.25)), (1.0, (0.01, 0.02, 0.1))], dz)
+sky = ramp_node(wn, [(0.0, (0.03, 0.05, 0.14)), (0.12, (0.012, 0.02, 0.07)), (0.4, (0.004, 0.007, 0.025)), (1.0, (0.002, 0.003, 0.012))], dz)
 # clouds: noise projected onto a dome, soft-edged, lit a little brighter on top
 den = mnode(wn, 'ADD', dz, 0.18)
 proj = wn.nodes.new('ShaderNodeCombineXYZ')
@@ -1442,7 +1509,7 @@ mr.inputs['From Max'].default_value = 0.66
 wn.links.new(cl.outputs['Fac'], mr.inputs['Value'])
 above = mnode(wn, 'MINIMUM', mnode(wn, 'MULTIPLY', mnode(wn, 'SUBTRACT', dz, 0.04), 6.0), 1.0)
 cmask = mnode(wn, 'MULTIPLY', mnode(wn, 'MAXIMUM', mr.outputs[0], 0.0), mnode(wn, 'MAXIMUM', above, 0.0))
-cloud_col = ramp_node(wn, [(0.0, (0.04, 0.07, 0.3)), (1.0, (0.12, 0.17, 0.55))], cl.outputs['Fac'])
+cloud_col = ramp_node(wn, [(0.0, (0.004, 0.007, 0.03)), (1.0, (0.015, 0.025, 0.07))], cl.outputs['Fac'])
 col = mix_rgba(wn, sky, cloud_col, mnode(wn, 'MULTIPLY', cmask, 0.92))
 # stars where the sky is clear
 st = wn.nodes.new('ShaderNodeTexVoronoi')
@@ -1450,19 +1517,21 @@ st.inputs['Scale'].default_value = 420
 wn.links.new(coord.outputs['Generated'], st.inputs['Vector'])
 star = mnode(wn, 'MULTIPLY', mnode(wn, 'MULTIPLY', mnode(wn, 'LESS_THAN', st.outputs['Distance'], 0.05), mnode(wn, 'GREATER_THAN', st.outputs['Color'], 0.55)),
              mnode(wn, 'MULTIPLY', mnode(wn, 'SUBTRACT', 1.0, cmask), mnode(wn, 'MAXIMUM', above, 0.0)))
-col = mix_rgba(wn, col, (1.0, 1.0, 1.0, 1), mnode(wn, 'MULTIPLY', star, 0.9))
+col = mix_rgba(wn, col, (0.6, 0.65, 0.8, 1), mnode(wn, 'MULTIPLY', star, 0.5))
 wn.links.new(col, bg.inputs['Color'])
-bg.inputs['Strength'].default_value = 1.5
+bg.inputs['Strength'].default_value = 1.0
 
 
 # =================================================================== CAMERAS
 VIEWS = {
     # elevated three-quarter view from the side of the field
-    'hero': ((-104, -128, 40), (8, 2, 20), 26),
+    'hero': ((96, -122, 44), (-4, 14, 24), 26),
     # straight on from the middle of the crowd: the in-game backdrop framing
-    'front': ((-2, -58, 4.2), (0, 6, 22), 17),
+    'front': ((-2, -58, 4.2), (0, 12, 26), 18),
+    # standing in the crowd, heads in silhouette against the stage
+    'crowd': ((5, -64, 2.5), (0, 14, 18), 24),
     # low and close from the B-stage
-    'close': ((-7, -48, 3.8), (2, 6, 19), 17),
+    'close': ((-6, -42, 3.4), (0, 12, 20), 18),
     # wide aerial
     'aerial': ((60, -190, 95), (0, 0, 10), 32),
 }
@@ -1509,10 +1578,10 @@ scene.render.resolution_x, scene.render.resolution_y = w, h
 scene.render.resolution_percentage = 100
 scene.view_settings.view_transform = 'AgX'
 try:
-    scene.view_settings.look = 'AgX - Punchy'
+    scene.view_settings.look = 'AgX - Medium High Contrast'
 except Exception:
     pass
-scene.view_settings.exposure = 0.0
+scene.view_settings.exposure = -0.5
 scene.render.image_settings.file_format = 'PNG'
 scene.render.filepath = args.out
 
