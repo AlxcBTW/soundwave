@@ -608,8 +608,14 @@ ul, ol { list-style: none; }
 .hud-part { font-size: clamp(11px, 0.8vw, 18px); color: var(--ink-2); white-space: nowrap; }
 .hud-score { font-size: clamp(26px, 2.3vw, 54px); font-variant-numeric: tabular-nums; }
 
-/* The dial under the strike line: the multiplier, ringed by the streak toward its next step. */
-.hud-dial { position: absolute; left: var(--hw-x, 50%); top: calc(var(--hw-y, 80%) + clamp(46px, 4.1vw, 76px)); transform: translateX(-50%); width: clamp(62px, 5.4vw, 104px); aspect-ratio: 1; display: grid; place-items: center; align-content: center; border-radius: 50%; background: var(--panel-hud); container-type: size; --dial: rgb(255 255 255 / 0.5); }
+/* Under the lanes: the overdrive meter across their width, then the multiplier dial in the middle
+   with the overdrive button beside it. They are one grid, so they line up whatever their sizes. */
+.hud-cluster { position: absolute; left: calc(var(--hw-x, 50%) - var(--hw-w, 400px) * 0.5); top: calc(var(--hw-y, 80%) + clamp(31px, 2.9vw, 54px)); width: var(--hw-w, 400px); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-areas: 'bar bar bar' '. dial od'; align-items: center; gap: clamp(8px, 0.7vw, 14px) clamp(10px, 1vw, 18px); }
+.hud-od-bar { grid-area: bar; display: block; height: 6px; border-radius: 3px; background: rgb(255 255 255 / 0.18); overflow: hidden; }
+.hud-od-bar span { display: block; height: 100%; transform-origin: left; transform: scaleX(var(--od-level, 0)); background: var(--od); transition: transform 0.2s; }
+
+/* The dial: the multiplier, ringed by the streak toward its next step. */
+.hud-dial { grid-area: dial; position: relative; width: clamp(62px, 5.4vw, 104px); aspect-ratio: 1; display: grid; place-items: center; align-content: center; border-radius: 50%; background: var(--panel-hud); container-type: size; --dial: rgb(255 255 255 / 0.5); }
 .hud-dial:has([data-level='2']) { --dial: var(--lane-3); }
 .hud-dial:has([data-level='3']) { --dial: var(--lane-0); }
 .hud-dial:has([data-level='4']) { --dial: var(--lane-4); }
@@ -621,21 +627,15 @@ ul, ol { list-style: none; }
 .hud-mult { font-size: 36cqw; color: var(--ink); }
 .hud-streak { font-size: 16cqw; color: var(--ink-2); min-height: 1em; }
 
-/* Overdrive: a meter under the lanes, as wide as they are, that is also the button that starts it. */
-.hud-od { position: absolute; left: calc(var(--hw-x, 50%) - var(--hw-w, 400px) * 0.5); top: calc(var(--hw-y, 80%) + clamp(31px, 2.9vw, 54px)); display: flex; flex-direction: column; gap: 6px; width: var(--hw-w, 400px); padding: 0; color: var(--ink-3); text-align: left; pointer-events: auto; }
-.hud-od-bar { display: block; height: 6px; border-radius: 3px; background: rgb(255 255 255 / 0.18); overflow: hidden; }
-.hud-od-label { position: absolute; left: calc(50% + clamp(44px, 3.8vw, 72px)); top: clamp(26px, 2.5vw, 46px); white-space: nowrap; }
-.hud-od-bar span { display: block; height: 100%; width: 100%; transform-origin: left; transform: scaleX(var(--od, 0)); background: var(--od); transition: transform 0.2s; }
-.hud-od-label { display: flex; align-items: center; gap: 6px; font-size: clamp(12px, 0.85vw, 20px); }
-.hud-od-label svg { width: 1.1em; height: 1.1em; }
+/* Overdrive: its name and key beside the dial; pressing it starts overdrive. */
+.hud-od { grid-area: od; justify-self: start; position: relative; display: flex; align-items: center; gap: 6px; padding: 0; color: var(--ink-3); font-size: clamp(12px, 0.85vw, 20px); white-space: nowrap; pointer-events: auto; }
+.hud-od svg { width: 1.1em; height: 1.1em; flex: none; }
 .hud-od-key kbd { display: inline-grid; place-items: center; min-width: 1.7em; height: 1.5em; padding: 0 0.4em; border-radius: 4px; background: rgb(0 0 0 / 0.6); font: 800 0.85em/1 var(--font); color: var(--ink); }
 .hud-od-key .glyph { font-size: 0.95em; }
-.hud.od-ready .hud-od { color: var(--od); }
+.hud.od-ready .hud-od, .hud.overdrive .hud-od { color: var(--od); }
 .hud.od-ready .hud-od-bar { box-shadow: 0 0 14px var(--od); animation: odpulse 0.6s infinite alternate; }
-.hud.overdrive .hud-od { color: var(--od); }
 .hud.overdrive .hud-od-bar { box-shadow: 0 0 18px var(--od); }
 @keyframes odpulse { to { box-shadow: 0 0 26px var(--od); } }
-
 .hud-feedback { position: absolute; left: calc(var(--hw-x, 50%) - var(--hw-w, 400px) * 0.5 - clamp(16px, 2.2vw, 44px)); top: calc(var(--hw-y, 80%) - clamp(34px, 3vw, 60px)); transform: translate(-100%, -50%) scale(0.8); transform-origin: 100% 50%; font-size: clamp(26px, 2.2vw, 58px); opacity: 0; white-space: nowrap; text-shadow: 0 2px 10px rgb(0 0 0 / 0.6); }
 .hud-feedback.pop { animation: pop 0.45s ease-out forwards; }
 .hud-feedback[data-kind='perfect'] { color: #fff7a8; }
@@ -711,22 +711,26 @@ ul, ol { list-style: none; }
 @keyframes count { from { transform: scale(1.4); opacity: 1; } to { transform: scale(0.9); opacity: 0; } }
 .play .overlay { padding-bottom: 1rem; z-index: 30; }
 
-/* Touch: the foot of the screen belongs to the lanes, so the chrome moves up and to the sides. */
-/* Pause, dial and overdrive share one centre line down the edge. */
-:root[data-input='touch'] .hud-pause { width: 48px; height: 48px; right: calc(20px + var(--safe-r)); }
-:root[data-input='touch'] .hud-dial { left: auto; right: calc(12px + var(--safe-r)); top: calc(70px + var(--safe-t)); transform: none; width: 64px; }
+/* Touch: the foot of the screen belongs to the lanes, so the chrome moves up and to the sides.
+   Pause, the dial and overdrive stand in one column down the edge, all on the same centre line:
+   the dial and the overdrive button are one flex column, and pause is centred on its width. */
+:root[data-input='touch'] .hud { --edge: 64px; --edge-r: calc(12px + var(--safe-r)); }
+:root[data-input='touch'] .hud-pause { width: 48px; height: 48px; right: calc(var(--edge-r) + (var(--edge) - 48px) / 2); }
+:root[data-input='touch'] .hud-cluster { left: auto; right: var(--edge-r); top: max(30%, calc(70px + var(--safe-t))); width: var(--edge); display: flex; flex-direction: column; align-items: center; gap: 12px; }
+:root[data-input='touch'] .hud-od-bar { display: none; }
+:root[data-input='touch'] .hud-dial { width: var(--edge); }
+:root[data-input='touch'] .hud-od { width: var(--edge); height: var(--edge); justify-content: center; border-radius: 50%; background: var(--panel-hud); color: var(--ink-2); }
+/* There the meter is the button's own ring, like the streak's ring on the dial. */
+:root[data-input='touch'] .hud-od::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(var(--od) calc(var(--od-level, 0) * 1turn), rgb(255 255 255 / 0.18) 0); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5.5px)); }
+:root[data-input='touch'] .hud-od-word { display: none; }
+:root[data-input='touch'] .hud-od svg { width: 26px; height: 26px; }
+:root[data-input='touch'] .hud.od-ready .hud-od { background: color-mix(in srgb, var(--od) 30%, var(--panel-hud)); color: #fff; box-shadow: 0 0 14px var(--od); animation: odpulse 0.6s infinite alternate; }
+/* With the button on the left, it leaves the column for the other edge, level with the dial. */
+:root[data-input='touch'] .play[data-od-side='left'] .hud-od { position: absolute; top: 0; right: calc(100vw - var(--edge-r) - var(--safe-l) - 12px - var(--edge)); }
 :root[data-input='touch'] .hud-scorebox { left: calc(12px + var(--safe-l)); bottom: auto; top: calc(10px + var(--safe-t)); flex-direction: column-reverse; }
 :root[data-input='touch'] .hud-top { top: 0; left: 0; width: 100%; transform: none; }
 :root[data-input='touch'] .hud-title { display: none; }
 :root[data-input='touch'] .hud-progress { margin: 0; border-radius: 0; height: calc(4px + var(--safe-t)); }
-:root[data-input='touch'] .hud-od { left: auto; right: calc(12px + var(--safe-r)); top: 42%; width: 64px; height: 64px; align-items: center; justify-content: center; border-radius: 50%; background: var(--panel-hud); gap: 4px; }
-:root[data-input='touch'] .play[data-od-side='left'] .hud-od { right: auto; left: calc(12px + var(--safe-l)); }
-:root[data-input='touch'] .hud-od-bar { width: 42px; height: 6px; }
-:root[data-input='touch'] .hud-od-word { display: none; }
-:root[data-input='touch'] .hud-od-label { position: static; }
-:root[data-input='touch'] .hud-od-label svg { width: 26px; height: 26px; }
-:root[data-input='touch'] .hud.od-ready .hud-od { background: color-mix(in srgb, var(--od) 30%, var(--panel-hud)); color: #fff; }
-
 /* ------------------------------------------------------------------------------------------- */
 /* Chart debugger (developer tool)                                                              */
 

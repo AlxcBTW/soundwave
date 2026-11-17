@@ -324,7 +324,8 @@ export class PlayController {
     }
     const od = Math.round(s.overdrive * 100);
     if (od !== c.od) {
-      this.hud.root.style.setProperty('--od', (od / 100).toFixed(2));
+      // (--od itself is the overdrive colour.)
+      this.hud.root.style.setProperty('--od-level', (od / 100).toFixed(2));
       this.hud.root.classList.toggle('od-ready', od >= 25 && !s.overdriveActive);
     }
     if (s.overdriveActive !== c.odActive) this.hud.root.classList.toggle('overdrive', s.overdriveActive);

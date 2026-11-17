@@ -156,24 +156,22 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
           </div>
         </div>
 
-        <div className="hud-dial">
-          <svg viewBox="0 0 100 100" className="hud-dial-ring" aria-hidden>
-            <circle cx="50" cy="50" r="44" className="track" pathLength={1} />
-            <circle cx="50" cy="50" r="44" className="fill" pathLength={1} />
-          </svg>
-          <span className="hud-mult" data-hud="mult" data-level="1">×1</span>
-          <span className="hud-streak" data-hud="streak" />
-        </div>
-
-        <button type="button" className="hud-od" data-hud="od" data-sfx="none" tabIndex={-1} aria-label="Start overdrive">
+        <div className="hud-cluster">
           <span className="hud-od-bar" aria-hidden><span /></span>
-          <span className="hud-od-label">
+          <div className="hud-dial">
+            <svg viewBox="0 0 100 100" className="hud-dial-ring" aria-hidden>
+              <circle cx="50" cy="50" r="44" className="track" pathLength={1} />
+              <circle cx="50" cy="50" r="44" className="fill" pathLength={1} />
+            </svg>
+            <span className="hud-mult" data-hud="mult" data-level="1">×1</span>
+            <span className="hud-streak" data-hud="streak" />
+          </div>
+          <button type="button" className="hud-od" data-hud="od" data-sfx="none" tabIndex={-1} aria-label="Start overdrive">
             <Zap strokeWidth={ICON_STROKE} aria-hidden />
             <span className="hud-od-word">Overdrive</span>
             {mode !== 'touch' && <span className="hud-od-key">{usingPad ? <PadGlyph input={settings.padOverdrive} style={style} /> : <kbd>{keyLabel(settings.overdriveKey)}</kbd>}</span>}
-          </span>
-        </button>
-
+          </button>
+        </div>
         <div className="hud-feedback" data-hud="feedback" />
         <div className="hud-break" data-hud="break" aria-live="off">
           <svg viewBox="0 0 120 120" className="hud-break-ring">
