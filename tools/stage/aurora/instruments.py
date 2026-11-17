@@ -461,6 +461,16 @@ BODY = [(-0.195, 0.0), (-0.188, 0.085), (-0.155, 0.148), (-0.095, 0.166), (-0.03
         (-0.03, -0.142), (-0.095, -0.166), (-0.155, -0.148), (-0.188, -0.085)]
 
 
+def body_outline(bass):
+    """The corners of the body's outline, (up the neck, toward the player's head)."""
+    stretch = 1.1 if bass else 1.0
+    return [(x * stretch + (0.03 * (x > 0.14) if bass else 0.0), y * (1.04 if bass else 1.0)) for x, y in BODY]
+
+
+# How thick the body is, and how far the fingerboard stands above its front.
+BODY_DEPTH = 0.044
+BOARD = 0.011
+
 # Where the strap is buttoned to the upper horn, in the instrument's frame.
 STRAP_GUITAR = (0.243, 0.132, -0.022)
 STRAP_BASS = (0.298, 0.137, -0.022)
@@ -475,9 +485,9 @@ def string_instrument(p, bass, color):
     strings = 4 if bass else 6
     bridge = -0.085 if bass else -0.07
     nut = bridge + scale
-    thick = 0.044
+    thick = BODY_DEPTH
     stretch = 1.1 if bass else 1.0
-    outline = rounded([(x * stretch + (0.03 * (x > 0.14) if bass else 0.0), y * (1.04 if bass else 1.0)) for x, y in BODY], 4)
+    outline = rounded(body_outline(bass), 4)
     ident = Matrix.Identity(4)
     # the body: lacquered front, darker toward the rim
     p.slab('paint', outline, ident, -thick, 0.0, color, 0.007, shade(color, 0.45))
@@ -504,7 +514,7 @@ def string_instrument(p, bass, color):
     start = 0.1 * stretch
     w0, w1 = (0.064, 0.042) if bass else (0.056, 0.043)
     width = lambda x: w0 + (w1 - w0) * (x - start) / (nut - start)
-    top = 0.011
+    top = BOARD
     stations = [start, start + 0.06, (start + nut) / 2, nut]
     rings = []
     for x in stations:

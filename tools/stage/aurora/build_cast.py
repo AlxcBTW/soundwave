@@ -221,7 +221,8 @@ def solve(rig, c):
     """
     A pose from a few wishes: where the hips are and how they are turned, how the spine and the head
     lean, where each hand and foot should be (a point, or a point riding a joint as (joint, point at
-    rest)), which way elbows and knees point, what a hand aims at, how far the fingers curl.
+    rest)), which way elbows and knees point, what a hand aims at and where its palm faces, how far
+    the fingers curl.
     """
     R = rig.rest
     D, P = {}, {}
@@ -262,8 +263,22 @@ def solve(rig, c):
         aim = c.get('aim_' + s)
         if aim:
             axis, to = aim
-            want = to[1] if isinstance(to, tuple) and to[0] == 'dir' else point(to) - wrist
+            if isinstance(to, tuple) and to[0] == 'dir':
+                # a direction, turning with a joint when one is named
+                want = D[to[2]] @ to[1] if len(to) > 2 else to[1]
+            else:
+                want = point(to) - wrist
             D[hand] = (D[la] @ axis).rotation_difference(want) @ D[la]
+            palm = c.get('palm_' + s)
+            if palm is not None:
+                # turn the hand about the way it points until its palm faces where it should
+                f = want.normalized()
+                face = D[palm[1]] @ palm[0] if isinstance(palm, tuple) else palm
+                now = D[hand] @ -Z
+                now, face = now - f * now.dot(f), face - f * face.dot(f)
+                if now.length > 1e-5 and face.length > 1e-5:
+                    turn = now.angle(face) * (-1.0 if f.dot(now.cross(face)) < 0 else 1.0)
+                    D[hand] = Quaternion(f, turn) @ D[hand]
         place(fing)
         D[fing] = D[hand] @ Quaternion(Y, sx * c.get('curl_' + s, 0.4))
         # the fingers bend once more past the first knuckle, so a hand can close round what it holds
@@ -344,18 +359,86 @@ def excited(b, rig):
             'foot_l': R['foot_l'] + feet, 'foot_r': R['foot_r'] + feet}
 
 
+def inside(point, outline):
+    x, y = point
+    hit = False
+    for (x0, y0), (x1, y1) in zip(outline, outline[1:] + outline[:1]):
+        if (y0 > y) != (y1 > y) and x < x0 + (x1 - x0) * (y - y0) / (y1 - y0):
+            hit = not hit
+    return hit
+
+
 def strings(bass):
-    def play(b, rig):
+    """
+    Playing a guitar or bass. The left hand comes up under the neck, palm to its back, fingers
+    round onto the fingerboard; the right lies over the strings, fingers pointing down across
+    them, and its arm comes over the top edge of the body.
+    """
+    def wishes(b, rig, pole):
         s, R, g = rig.s, rig.rest, rig.gear
-        fret = g['body'] + g['along'] * (g['nut'] - 0.16 + 0.07 * math.sin(TAU * b / 4)) + g['front'] * 0.035 * s
-        stroke = 0.022 * math.sin(TAU * b * 2) if bass else 0.06 * math.sin(TAU * b)
-        pick = g['body'] - g['along'] * 0.03 * s + g['front'] * 0.07 * s + g['across'] * stroke * s
+        along, front, up = g['along'], g['front'], -g['across']
+        at = lambda a, u, f: g['face'] + along * a + up * u + front * f
+        board = instruments.BOARD
+        # fretting hand: the wrist behind and below the neck, the knuckles out in front of its lower
+        # edge, so the fingers come up past the fingerboard and down onto it
+        reach = (front * 0.9 + up * 0.42 - along * 0.15).normalized()
+        slide = g['nut'] - (0.2 if bass else 0.17) + 0.07 * math.sin(TAU * b / 4)
+        # (how far below depends on how long this player's fingers are to the second knuckle)
+        first = (R['tips_l'] - R['fingers_l']).length
+        fret = at(slide, -first, board + 0.03 - 0.1 * first) - reach * (R['fingers_l'] - R['hand_l']).length
+        # strumming hand: the wrist above the strings on the upper side, the knuckles over them
+        stroke = 0.02 * math.sin(TAU * b * 2) if bass else 0.05 * math.sin(TAU * b)
+        down = (-up * 0.95 - along * 0.22 - front * 0.1).normalized()
+        pick = at(-0.02, 0.085 - stroke, board + 0.06)
         sway = math.sin(TAU * b / 4)
         return {'hips': Vector((0.03 * s * sway, 0, -0.035 * s * on(b))), 'hips_rot': lean(yaw=4 * sway),
                 'spine': lean(-3 + 4 * on(b)), 'head': lean(4 + (9 if bass else 6) * on(b), yaw=8 * sway),
-                'hand_l': ('chest', fret), 'hand_r': ('chest', pick), 'elbow_l': Vector((0.5, 0.4, -1)), 'elbow_r': Vector((-1, 0.8, 0.1)),
-                'aim_l': (-Z, ('dir', Vector((-0.2, -0.3, 1)))), 'curl_l': 1.3, 'curl_r': 0.8,
+                'hand_l': ('chest', fret), 'hand_r': ('chest', pick), 'elbow_l': Vector((0.5, 0.4, -1)), 'elbow_r': pole,
+                'aim_l': (X, ('dir', reach, 'chest')), 'palm_l': (up * 0.9 - front * 0.42, 'chest'), 'curl_l': 1.03,
+                'aim_r': (-X, ('dir', down, 'chest')), 'palm_r': (-front, 'chest'), 'curl_r': 0.38,
                 'foot_l': R['foot_l'] + X * 0.07 * s, 'foot_r': R['foot_r'] - X * 0.07 * s}
+
+    def margin(rig, P):
+        """How far the right arm stays clear of the instrument's body: below zero it cuts through it."""
+        g = rig.gear
+        along, front, up = g['along'], g['front'], -g['across']
+        centre = sum((Vector(q) for q in g['outline']), Vector((0, 0))) / len(g['outline'])
+        wide = [tuple(centre + (Vector(q) - centre) * 1.12) for q in g['outline']]
+        worst = 1.0
+        for a, b, r0, r1 in ((P['uarm_r'], P['larm_r'], 0.05, 0.045), (P['larm_r'], P['hand_r'], 0.045, 0.03)):
+            for i in range(13):
+                t = i / 12
+                q = a.lerp(b, t) - g['face']
+                if inside((q.dot(along), q.dot(up)), wide):
+                    r = r0 + (r1 - r0) * t
+                    f = q.dot(front)
+                    # in front of the body, or behind it
+                    worst = min(worst, max(f - r, -instruments.BODY_DEPTH - r - f))
+        return worst
+
+    def play(b, rig):
+        g = rig.gear
+        if 'pole' not in g:
+            # Which way the right elbow points: of all the ways it can, the one that keeps the arm clear
+            # of the body through the whole loop, and of those the most at ease (out, back and down).
+            P, _ = solve(rig, wishes(0.0, rig, Vector((-1, 0.8, 0.1))))
+            axis = (P['hand_r'] - P['uarm_r']).normalized()
+            e1 = axis.orthogonal().normalized()
+            e2 = axis.cross(e1)
+            best = None
+            for k in range(36):
+                pole = e1 * math.cos(TAU * k / 36) + e2 * math.sin(TAU * k / 36)
+                clear, ease = 1.0, 0.0
+                for step in range(8):
+                    P, _ = solve(rig, wishes(step / 2, rig, pole))
+                    clear = min(clear, margin(rig, P))
+                    ease += (P['larm_r'] - P['uarm_r']).normalized().dot(Vector((-0.5, 0.5, -0.7)).normalized()) / 8
+                score = min(clear, 0.012) * 100 + ease
+                if best is None or score > best[0]:
+                    best = (score, pole, clear)
+            g['pole'] = best[1]
+            print('strumming arm clears the body by %.3f m' % best[2])
+        return wishes(b, rig, g['pole'])
     return play
 
 
@@ -658,7 +741,8 @@ def string_instrument(rig, key, bass, wearer):
     base = Matrix.Translation(body + front * 0.02 * s) @ Matrix((along, -across, front)).transposed().to_4x4()
     parts = instruments.Parts(base)
     nut = instruments.string_instrument(parts, bass, (0.02, 0.42, 0.7) if bass else (0.72, 0.03, 0.2))
-    rig.gear = {'body': body, 'along': along, 'front': front, 'across': across, 'nut': nut}
+    rig.gear = {'body': body, 'along': along, 'front': front, 'across': across, 'nut': nut,
+                'face': body + front * 0.02 * s, 'outline': instruments.body_outline(bass)}
     # the strap: from the upper horn over the left shoulder and round the back to the end of the body
     horn, tail = base @ Vector(instruments.STRAP_BASS if bass else instruments.STRAP_GUITAR), base @ Vector(((-0.21 if bass else -0.195) - 0.012, 0, -0.022))
     over = (R['neck'] + R['uarm_l']) / 2 + Z * 0.12 * s
