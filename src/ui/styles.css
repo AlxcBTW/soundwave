@@ -759,9 +759,8 @@ input.text { width: min(100%, 16rem); min-height: 2.5rem; padding: 0.4rem 0.7rem
 .hud-dial-ring :is(.od-track, .od-fill) { fill: none; stroke-width: 7.5; }
 .hud-dial-ring .od-track { stroke: rgb(255 255 255 / 0.2); stroke-dasharray: 0.235 0.02; }
 .hud-dial-ring .od-fill { stroke: var(--od); stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--od-level, 0)); transition: stroke-dashoffset 0.2s; }
-.hud.od-ready .od-fill { filter: drop-shadow(0 0 5px var(--od)); animation: odpulse 1.2s ease-in-out infinite alternate; }
+.hud.od-ready .od-fill { filter: drop-shadow(0 0 4px var(--od)); }
 .hud.overdrive .od-fill { filter: drop-shadow(0 0 7px var(--od)); }
-@keyframes odpulse { from { opacity: 0.7; } }
 .hud-mult { position: relative; font-size: 25cqw; color: var(--ink); }
 .hud-cluster .hud-od { position: absolute; left: calc(var(--dial-size) * 0.5 + clamp(8px, 0.8vw, 16px)); top: 0; transform: translateY(-50%); }
 
@@ -814,19 +813,17 @@ input.text { width: min(100%, 16rem); min-height: 2.5rem; padding: 0.4rem 0.7rem
 .hud-od-key kbd { display: inline-grid; place-items: center; min-width: 1.7em; height: 1.5em; padding: 0 0.4em; border-radius: 4px; background: rgb(0 0 0 / 0.6); font: 800 0.85em/1 var(--font); color: var(--ink); }
 .hud-od-key .glyph { font-size: 0.95em; }
 .hud.overdrive .hud-od { color: var(--od); }
-/* Charged: the prompt turns into a lit plate half as large again that beats, with its key on it,
-   so it is seen out of the corner of the eye while the notes keep coming. */
-/* It also reads as an instruction then: Press, the key, Overdrive. */
+/* Charged: the prompt lights up in Overdrive Ice and reads as an instruction (Press, the key,
+   Overdrive), on a small dark plate with a thin ice rim. It stays the size it was and holds still,
+   so it is noticed at the edge of the eye without pulling it off the notes. */
 .hud-od-press { display: none; order: 1; }
 .hud-od-key { order: 3; }
 .hud.od-ready .hud-od-press { display: inline; }
 .hud.od-ready .hud-od-key { order: 2; }
 .hud.od-ready .hud-od-word:not(.hud-od-press) { order: 3; }
-.hud.od-ready .hud-od { padding: 0.45em 1em 0.45em 0.8em; gap: 0.4em; background: var(--od); color: #06203a; font-size: clamp(20px, 1.6vw, 36px); box-shadow: 0 0 22px var(--od); animation: od-call 2.4s ease-in-out infinite; }
-.hud.od-ready .hud-od-key kbd { background: #06203a; color: #fff; }
-.hud.od-ready .hud-od-key .glyph { font-size: 0.85em; }
-/* The call-out holds still: only its glow breathes, slowly, so it never pulls the eye off the notes. */
-@keyframes od-call { 50% { box-shadow: 0 0 30px var(--od), 0 0 0 3px rgb(191 230 255 / 0.22); } }
+.hud.od-ready .hud-od { padding: 0.3em 0.75em 0.3em 0.6em; gap: 0.35em; background: rgb(8 28 62 / 0.78); color: var(--od); font-size: clamp(13px, 0.95vw, 22px); box-shadow: inset 0 0 0 1.5px rgb(127 210 255 / 0.55), 0 0 10px rgb(127 210 255 / 0.25); animation: fade-in 0.3s var(--ease); }
+.hud.od-ready .hud-od-key kbd { background: rgb(127 210 255 / 0.18); color: #fff; }
+.hud.od-ready .hud-od-key .glyph { font-size: 0.9em; }
 
 /* Break countdown: bars left in a ring that drains until the next note is due. */
 .hud-break { position: absolute; left: 50%; top: 34%; width: clamp(120px, 13vw, 190px); aspect-ratio: 1; transform: translate(-50%, -50%) scale(0.85); opacity: 0; transition: opacity 0.35s, transform 0.35s; display: grid; place-items: center; container-type: size; }
