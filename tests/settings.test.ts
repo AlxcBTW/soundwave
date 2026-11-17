@@ -19,6 +19,27 @@ describe('display mode setting', () => {
   });
 });
 
+describe('volume defaults', () => {
+  it('moves volumes still at the first defaults to the current ones', () => {
+    const s = normalizeSettings({ volume: 0.5, musicVolume: 0.6, sfxVolume: 0.7 });
+    expect(s).toMatchObject({ volume: 0.5, musicVolume: 0.3, sfxVolume: 0.9, volumeDefaults: 2 });
+  });
+
+  it('keeps volumes the player changed', () => {
+    expect(normalizeSettings({ musicVolume: 0.6, sfxVolume: 0.5 })).toMatchObject({ musicVolume: 0.6, sfxVolume: 0.5 });
+    expect(normalizeSettings({ musicVolume: 0.45, sfxVolume: 0.7 })).toMatchObject({ musicVolume: 0.45, sfxVolume: 0.7 });
+  });
+
+  it('moves them only once: 60% and 70% chosen afterwards stay', () => {
+    const migrated = normalizeSettings({ musicVolume: 0.6, sfxVolume: 0.7 });
+    expect(normalizeSettings({ ...migrated, musicVolume: 0.6, sfxVolume: 0.7 })).toMatchObject({ musicVolume: 0.6, sfxVolume: 0.7 });
+  });
+
+  it('starts new players at the current defaults', () => {
+    expect(normalizeSettings({})).toMatchObject({ musicVolume: 0.3, sfxVolume: 0.9, volumeDefaults: 2 });
+  });
+});
+
 describe('windowedSize', () => {
   it.each([
     [1920, 1080, 1382, 864],

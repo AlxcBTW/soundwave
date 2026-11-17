@@ -43,6 +43,8 @@ export interface Settings {
   touchHaptics: boolean;
   /** Which side of the screen the touch overdrive button sits on. */
   touchOverdriveSide: 'left' | 'right';
+  /** Which volume defaults the stored volumes have been brought up to (not shown; see normalizeSettings). */
+  volumeDefaults: number;
 }
 
 export type MotionPref = 'system' | 'reduced' | 'full';
@@ -51,6 +53,12 @@ export type RumbleLevel = 'off' | 'weak' | 'strong';
 /** Fullscreen, a borderless window covering the monitor, or a normal window. */
 export type DisplayMode = 'fullscreen' | 'borderless' | 'windowed';
 export const DISPLAY_MODES: readonly DisplayMode[] = ['fullscreen', 'borderless', 'windowed'];
+
+/**
+ * The volume defaults in use. 1: menu music 60%, interface sounds 70%. 2: 30% and 90%. Settings are
+ * stored whole, so a raised number lets stored volumes that were never changed follow, once.
+ */
+const VOLUME_DEFAULTS = 2;
 
 export const DEFAULT_SETTINGS: Settings = {
   noteSpeed: 9,
@@ -82,6 +90,7 @@ export const DEFAULT_SETTINGS: Settings = {
   motion: 'system',
   touchHaptics: true,
   touchOverdriveSide: 'right',
+  volumeDefaults: VOLUME_DEFAULTS,
 };
 
 /** Controller defaults of an earlier version, replaced by the current ones when stored unchanged. */
@@ -100,6 +109,12 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
   else if (r !== 'off' && r !== 'weak' && r !== 'strong') s.rumble = DEFAULT_SETTINGS.rumble;
   // The analysis service's switch and address went when the analysis moved into the game.
   for (const old of ['rumbleStrength', 'dualSenseHaptics', 'mlEnabled', 'mlUrl']) delete (s as Record<string, unknown>)[old];
+  // Volumes still at the first defaults move to the current ones, once; a choice made after that stays.
+  if (!(Number(raw.volumeDefaults) >= 2) && s.musicVolume === 0.6 && s.sfxVolume === 0.7) {
+    s.musicVolume = DEFAULT_SETTINGS.musicVolume;
+    s.sfxVolume = DEFAULT_SETTINGS.sfxVolume;
+  }
+  s.volumeDefaults = VOLUME_DEFAULTS;
   s.graphics = normalizeGraphics(s.graphics);
   if (!DISPLAY_MODES.includes(s.displayMode)) s.displayMode = DEFAULT_SETTINGS.displayMode;
   s.uiScale = Math.min(1.3, Math.max(0.85, Number(s.uiScale) || 1));
