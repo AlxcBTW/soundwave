@@ -40,25 +40,41 @@ export interface Clip {
   beats: number;
 }
 
-/** What tools/stage/aurora/build_figures.py writes next to figures.glb. */
+export interface Character {
+  /** Mesh name in the set's GLB, and the lighter mesh for people far from every camera. */
+  mesh: string;
+  far?: string;
+  joints: number;
+  height: number;
+  clips: Clip[];
+}
+
+/** What tools/stage/aurora/build_figures.py and build_people.py write next to each set's GLB. */
 export interface FigureData {
   version: number;
+  /** The loops are made to the beat: everyone plays them in time instead of at their own point. */
+  sync?: boolean;
+  /** Widest skeleton in the set: the animation texture is three texels per joint wide. */
   joints: number;
   frames: number;
-  clips: Clip[];
-  /** Crowd meshes for people near a camera, and lighter ones for everybody else. */
-  crowd: string[];
-  crowdFar: string[];
-  band: Record<string, string>;
+  characters: Record<string, Character>;
+  /** Band set: who plays which part, and with which loop. */
+  band?: Record<string, { character: string; clip: string }>;
+}
+
+/** One set of people: the band or the crowd. */
+export interface FigureSet {
+  scene: THREE.Group;
+  data: FigureData;
+  /** Per frame and joint a 3x4 matrix, row-major, half floats. */
+  anim: Uint16Array;
 }
 
 export interface VenueAssets {
   scene: THREE.Group;
   data: VenueData;
-  figures: THREE.Group;
-  figureData: FigureData;
-  /** Per frame and joint a 3x4 matrix, row-major. */
-  anim: Float32Array;
+  band: FigureSet;
+  crowd: FigureSet;
 }
 
 let cache: Promise<VenueAssets> | null = null;
@@ -74,16 +90,21 @@ export function loadVenue(): Promise<VenueAssets> {
     if (!r.ok) throw new Error(`${name}: ${r.status}`);
     return r;
   };
-  cache = Promise.all([
-    loader.loadAsync(`${base}venue.glb`),
-    get('venue.json').then((r) => r.json() as Promise<VenueData>),
-    loader.loadAsync(`${base}figures.glb`),
-    get('figures.json').then((r) => r.json() as Promise<FigureData>),
-    get('figures.bin').then((r) => r.arrayBuffer()),
-  ]).then(([venue, data, figures, figureData, anim]) => {
-    draco.dispose();
-    return { scene: venue.scene, data, figures: figures.scene, figureData, anim: new Float32Array(anim) };
-  });
+  const loadSet = async (path: string): Promise<FigureSet> => {
+    // The description first: a missing set fails here, before anything large is fetched.
+    const data = (await get(`${path}.json`).then((r) => r.json())) as FigureData;
+    const [gltf, anim] = await Promise.all([loader.loadAsync(`${base}${path}.glb`), get(`${path}.bin`).then((r) => r.arrayBuffer())]);
+    return { scene: gltf.scene, data, anim: new Uint16Array(anim) };
+  };
+  // Characters built on this machine from downloaded files (build_people.py, kept out of the
+  // repository) take the place of the project's own figures when they are there.
+  const people = (name: string): Promise<FigureSet> => loadSet(`local/${name}`).catch(() => loadSet(name));
+  cache = Promise.all([loader.loadAsync(`${base}venue.glb`), get('venue.json').then((r) => r.json() as Promise<VenueData>), people('band'), people('crowd')]).then(
+    ([venue, data, band, crowd]) => {
+      draco.dispose();
+      return { scene: venue.scene, data, band, crowd };
+    },
+  );
   cache.catch(() => {
     cache = null;
   });

@@ -1,31 +1,32 @@
 import * as THREE from 'three';
 import { COMMON, OUTPUT, shared } from './shared';
-import type { Clip, FigureData, VenueData } from './assets';
+import type { Clip, FigureSet, VenueData } from './assets';
 import type { Vec3 } from '../stage/Director';
 
 /**
- * The people: crowd and band are the same jointed figures, animated in the vertex shader from one
- * small texture of baked joint matrices (a row per frame). Every instance picks a calm loop and a
- * livelier one and switches between them as the music gets busier, so thousands of people move
- * with the beat for the cost of a few texture reads per vertex.
+ * The people. A figure set (the band or the crowd) is a handful of characters whose meshes carry
+ * up to four joints and weights per vertex, plus one small texture of baked joint matrices (a row
+ * per frame of every animation loop). The vertex shader skins each instance from that texture, so
+ * thousands of people play their own loop, at their own point in it, for a few texture reads per
+ * vertex. Every instance has a calmer loop and a livelier one and switches as the music gets busier.
  */
 export interface Person {
   pos: Vec3;
   yaw: number;
   scale: number;
-  /** Mesh variant name. */
-  mesh: string;
+  character: string;
+  /** Use the character's lighter mesh (people far from every camera). */
+  far?: boolean;
   calm: string;
   hype: string;
   /** Energy above which the livelier loop plays, 0..1. */
   threshold: number;
-  /** Fraction of a loop this person runs late. */
-  late: number;
-  top: THREE.ColorRepresentation;
-  bottom: THREE.ColorRepresentation;
-  /** 0 light .. 1 dark. */
-  skin: number;
-  hair: number;
+  /** Where in its loop this person starts, 0..1. */
+  phase: number;
+  /** Recolour for the top and the bottom garment, and how much of it to apply (0 keeps the original). */
+  top?: THREE.ColorRepresentation;
+  bottom?: THREE.ColorRepresentation;
+  recolor?: number;
   /** Lit by the front spots (the band). */
   spot?: boolean;
 }
@@ -34,62 +35,87 @@ const VERTEX = /* glsl */ `
 uniform sampler2D uAnim;
 uniform float uBeat;
 uniform float uEnergy;
+attribute vec2 uv1;
+attribute vec2 uv2;
 attribute vec3 aClipA;
 attribute vec3 aClipB;
 attribute vec4 aVar;
 attribute vec3 aTop;
 attribute vec3 aBottom;
-attribute vec3 aLook;
-varying vec3 vWPos; varying vec3 vWNorm; varying float vRegion;
-varying vec3 vTop; varying vec3 vBottom; varying vec3 vLook;
+varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying vec4 vCol;
+varying vec3 vTop; varying vec3 vBottom; varying vec2 vLook;
 
-mat4 jointAt(int joint, float row) {
-  int y = int(row);
-  vec4 r0 = texelFetch(uAnim, ivec2(joint * 3, y), 0);
-  vec4 r1 = texelFetch(uAnim, ivec2(joint * 3 + 1, y), 0);
-  vec4 r2 = texelFetch(uAnim, ivec2(joint * 3 + 2, y), 0);
+mat4 jointAt(int joint, int row) {
+  vec4 r0 = texelFetch(uAnim, ivec2(joint * 3, row), 0);
+  vec4 r1 = texelFetch(uAnim, ivec2(joint * 3 + 1, row), 0);
+  vec4 r2 = texelFetch(uAnim, ivec2(joint * 3 + 2, row), 0);
   return mat4(r0.x, r1.x, r2.x, 0.0, r0.y, r1.y, r2.y, 0.0, r0.z, r1.z, r2.z, 0.0, r0.w, r1.w, r2.w, 1.0);
 }
 
 void main() {
-  // glTF stores v flipped: undo it to get the joint the build wrote.
-  int joint = int(floor((1.0 - uv.y) * 16.0));
-  vRegion = floor(uv.x * 8.0);
   vec3 clip = uEnergy > aVar.y ? aClipB : aClipA;
   float f = fract(uBeat / clip.z + aVar.x) * clip.y;
   float f0 = floor(f);
-  float f1 = mod(f0 + 1.0, clip.y);
-  mat4 a = jointAt(joint, clip.x + f0);
-  mat4 b = jointAt(joint, clip.x + f1);
+  int row0 = int(clip.x + f0);
+  int row1 = int(clip.x + mod(f0 + 1.0, clip.y));
   float k = f - f0;
-  mat4 pose = a * (1.0 - k) + b * k;
+  // Each of uv1.xy, uv2.xy is one influence: joint + weight / 2.
+  vec4 packed = vec4(uv1, uv2);
+  mat4 pose = mat4(0.0);
+  for (int i = 0; i < INFLUENCES; i++) {
+    float w = fract(packed[i]) * 2.0;
+    if (w > 0.0) {
+      int joint = int(floor(packed[i]));
+      #ifdef FAR
+        pose += jointAt(joint, row0) * w;
+      #else
+        pose += (jointAt(joint, row0) * (1.0 - k) + jointAt(joint, row1) * k) * w;
+      #endif
+    }
+  }
+  pose /= max(1e-4, pose[3][3]);
   vec4 w = modelMatrix * instanceMatrix * (pose * vec4(position, 1.0));
   vWPos = w.xyz;
   vWNorm = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * (mat3(pose) * normal));
-  vTop = aTop; vBottom = aBottom; vLook = aLook;
+  vUv = uv;
+  #if defined(USE_COLOR_ALPHA)
+    vCol = color;
+  #elif defined(USE_COLOR)
+    vCol = vec4(color, 0.0);
+  #else
+    vCol = vec4(1.0, 1.0, 1.0, 0.0);
+  #endif
+  vTop = aTop; vBottom = aBottom; vLook = aVar.zw;
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
 const FRAGMENT = /* glsl */ `
 ${COMMON}
-varying vec3 vWPos; varying vec3 vWNorm; varying float vRegion;
-varying vec3 vTop; varying vec3 vBottom; varying vec3 vLook;
+uniform sampler2D uMap;
+uniform vec3 uBase;
+uniform float uGloss;
+uniform float uGlow;
+varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying vec4 vCol;
+varying vec3 vTop; varying vec3 vBottom; varying vec2 vLook;
 void main() {
-  int region = int(vRegion + 0.5);
-  vec3 base;
-  float glow = 0.0;
-  float gloss = 0.0;
-  if (region == 0) base = mix(vec3(0.9, 0.62, 0.48), vec3(0.2, 0.11, 0.07), vLook.x);
-  else if (region == 1) base = vTop;
-  else if (region == 2) base = vBottom;
-  else if (region == 3) base = vLook.y > 0.6 ? vec3(0.32) : vec3(0.03);
-  else if (region == 4) base = vLook.y < 0.3 ? vec3(0.015, 0.012, 0.012) : vLook.y < 0.55 ? vec3(0.12, 0.06, 0.03) : vLook.y < 0.8 ? vec3(0.6, 0.42, 0.18) : mix(vTop, vec3(1.0), 0.3);
-  else if (region == 5) { base = mix(vTop, uKey, 0.5) * 0.55; gloss = 1.0; }
-  else if (region == 6) base = vec3(0.012);
-  else { base = uAccent; glow = 1.6 + 1.2 * uPulse; }
+  vec3 base = uBase * vCol.rgb;
+  #ifdef TEXTURED
+    vec4 tex = texture2D(uMap, vUv);
+    #ifdef CUTOUT
+      if (tex.a < 0.5) discard;
+    #endif
+    base *= tex.rgb;
+  #endif
+  // Recolour the garments the build marked (alpha 1 = top, 0.7 = bottom), keeping their shading.
+  float top = step(0.85, vCol.a);
+  float bottom = step(0.5, vCol.a) * (1.0 - top);
+  float lum = dot(base, vec3(0.3, 0.6, 0.1));
+  base = mix(base, vTop * (0.25 + 1.7 * lum), top * vLook.x);
+  base = mix(base, vBottom * (0.25 + 1.7 * lum), bottom * vLook.x);
 
   vec3 n = normalize(vWNorm);
   vec3 v = normalize(cameraPosition - vWPos);
+  if (dot(n, v) < 0.0) n = -n;
   vec3 toGlow = uGlowPos - vWPos;
   float gd = length(toGlow);
   toGlow /= gd;
@@ -97,16 +123,16 @@ void main() {
   float wrap = max(0.0, dot(n, toGlow) * 0.6 + 0.4);
   vec3 stageCol = mix(uKey, vec3(1.0), 0.35) * uScreenLevel;
   // People standing shoulder to shoulder shade each other below the shoulders.
-  float packed = mix(smoothstep(0.2, 1.7, vWPos.y) * 0.85 + 0.15, 1.0, vLook.z);
+  float packed = mix(smoothstep(0.2, 1.7, vWPos.y) * 0.85 + 0.15, 1.0, vLook.y);
   vec3 light = (vec3(0.02, 0.035, 0.11) * (0.6 + 0.4 * n.y) + stageCol * wrap * stage * 0.95 + uWash * 0.16 * stage) * packed;
   // The band stands in the front spots.
   vec3 spotDir = normalize(vec3(0.25, 0.75, 0.6));
-  light += vLook.z * vec3(1.0, 0.9, 0.84) * (max(0.0, dot(n, spotDir)) * 1.5 + 0.2);
+  light += vLook.y * vec3(1.0, 0.92, 0.86) * (max(0.0, dot(n, spotDir)) * 0.85 + 0.22);
   vec3 col = base * light;
   float fres = pow(1.0 - max(0.0, dot(n, v)), 2.5);
-  col += mix(uKey, uAccent, 0.5) * fres * (stage * 0.55 + vLook.z * 0.5) * max(0.0, dot(n, toGlow) + 0.35);
-  col += gloss * skyGradient(reflect(-v, n)) * (0.2 + fres) + gloss * vLook.z * pow(max(0.0, dot(reflect(-v, n), spotDir)), 30.0);
-  col += base * glow;
+  col += mix(uKey, uAccent, 0.5) * fres * (stage * 0.55 + vLook.y * 0.45) * max(0.0, dot(n, toGlow) + 0.35);
+  col += uGloss * (skyGradient(reflect(-v, n)) * (0.2 + fres) + vLook.y * pow(max(0.0, dot(reflect(-v, n), spotDir)), 30.0));
+  col += base * uGlow * (0.25 + 0.5 * uPulse);
   gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
   ${OUTPUT}
 }`;
@@ -114,76 +140,115 @@ void main() {
 export class Figures {
   readonly group = new THREE.Group();
   private readonly texture: THREE.DataTexture;
-  private readonly material: THREE.ShaderMaterial;
-  private readonly clips: Map<string, Clip>;
+  private readonly materials = new Map<string, THREE.ShaderMaterial>();
   private readonly owned: { dispose(): void }[] = [];
   count = 0;
   triangles = 0;
 
-  constructor(private readonly source: THREE.Object3D, data: FigureData, anim: Float32Array) {
-    this.texture = new THREE.DataTexture(anim, data.joints * 3, data.frames, THREE.RGBAFormat, THREE.FloatType);
+  constructor(private readonly set: FigureSet) {
+    this.texture = new THREE.DataTexture(set.anim, set.data.joints * 3, set.data.frames, THREE.RGBAFormat, THREE.HalfFloatType);
     this.texture.minFilter = this.texture.magFilter = THREE.NearestFilter;
     this.texture.generateMipmaps = false;
     this.texture.needsUpdate = true;
-    this.clips = new Map(data.clips.map((c) => [c.name, c]));
-    this.material = new THREE.ShaderMaterial({
-      uniforms: { ...shared, uAnim: { value: this.texture } },
-      vertexShader: VERTEX,
-      fragmentShader: FRAGMENT,
-    });
   }
 
-  /** Adds people; one instanced draw per mesh variant. */
+  get characters(): string[] {
+    return Object.keys(this.set.data.characters);
+  }
+
+  /** Adds people; one instanced draw per character mesh part. */
   add(people: Person[]) {
-    const byMesh = new Map<string, Person[]>();
-    for (const p of people) byMesh.set(p.mesh, [...(byMesh.get(p.mesh) ?? []), p]);
+    const groups = new Map<string, Person[]>();
+    for (const p of people) {
+      const key = `${p.character}|${p.far ? 'far' : 'near'}`;
+      groups.set(key, [...(groups.get(key) ?? []), p]);
+    }
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const pos = new THREE.Vector3();
     const scl = new THREE.Vector3();
     const c = new THREE.Color();
-    for (const [name, list] of byMesh) {
-      const src = this.source.getObjectByName(name) as THREE.Mesh | undefined;
-      if (!src?.isMesh) continue;
-      const geo = src.geometry.clone();
+    for (const [key, list] of groups) {
+      const far = key.endsWith('|far');
+      const info = this.set.data.characters[list[0].character];
+      const source = info && this.set.scene.getObjectByName((far && info.far) || info.mesh);
+      if (!info || !source) continue;
+      const clips = new Map(info.clips.map((cl) => [cl.name, cl]));
       const n = list.length;
       const clipA = new Float32Array(n * 3);
       const clipB = new Float32Array(n * 3);
       const vary = new Float32Array(n * 4);
       const top = new Float32Array(n * 3);
       const bottom = new Float32Array(n * 3);
-      const look = new Float32Array(n * 3);
-      const mesh = new THREE.InstancedMesh(geo, this.material, n);
+      const matrices: THREE.Matrix4[] = [];
       list.forEach((p, i) => {
-        const a = this.clips.get(p.calm) ?? this.clips.values().next().value!;
-        const b = this.clips.get(p.hype) ?? a;
+        const a: Clip = clips.get(p.calm) ?? info.clips[0];
+        const b: Clip = clips.get(p.hype) ?? a;
         clipA.set([a.start, a.frames, a.beats], i * 3);
         clipB.set([b.start, b.frames, b.beats], i * 3);
-        vary.set([p.late, p.threshold, 0, 0], i * 4);
-        top.set(c.set(p.top).toArray(), i * 3);
-        bottom.set(c.set(p.bottom).toArray(), i * 3);
-        look.set([p.skin, p.hair, p.spot ? 1 : 0], i * 3);
-        mesh.setMatrixAt(i, m.compose(pos.set(...p.pos), q.setFromAxisAngle(UP, p.yaw), scl.setScalar(p.scale)));
+        vary.set([p.phase, p.threshold, p.recolor ?? 0, p.spot ? 1 : 0], i * 4);
+        top.set(c.set(p.top ?? '#ffffff').toArray(), i * 3);
+        bottom.set(c.set(p.bottom ?? '#ffffff').toArray(), i * 3);
+        matrices.push(m.compose(pos.set(...p.pos), q.setFromAxisAngle(UP, p.yaw), scl.setScalar(p.scale)).clone());
       });
-      const inst = (arr: Float32Array, size: number) => new THREE.InstancedBufferAttribute(arr, size);
-      geo.setAttribute('aClipA', inst(clipA, 3));
-      geo.setAttribute('aClipB', inst(clipB, 3));
-      geo.setAttribute('aVar', inst(vary, 4));
-      geo.setAttribute('aTop', inst(top, 3));
-      geo.setAttribute('aBottom', inst(bottom, 3));
-      geo.setAttribute('aLook', inst(look, 3));
-      mesh.instanceMatrix.needsUpdate = true;
-      mesh.frustumCulled = false;
-      this.group.add(mesh);
-      this.owned.push(geo, mesh);
+      source.traverse((o) => {
+        const part = o as THREE.Mesh;
+        if (!part.isMesh) return;
+        const geo = part.geometry.clone();
+        const inst = (arr: Float32Array, size: number) => new THREE.InstancedBufferAttribute(arr, size);
+        geo.setAttribute('aClipA', inst(clipA, 3));
+        geo.setAttribute('aClipB', inst(clipB, 3));
+        geo.setAttribute('aVar', inst(vary, 4));
+        geo.setAttribute('aTop', inst(top, 3));
+        geo.setAttribute('aBottom', inst(bottom, 3));
+        const mesh = new THREE.InstancedMesh(geo, this.materialFor(part, far), n);
+        matrices.forEach((mat, i) => mesh.setMatrixAt(i, mat));
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.frustumCulled = false;
+        this.group.add(mesh);
+        this.owned.push(geo, mesh);
+        this.triangles += n * ((geo.index ? geo.index.count : geo.attributes.position.count) / 3);
+      });
       this.count += n;
-      this.triangles += n * ((geo.index ? geo.index.count : geo.attributes.position.count) / 3);
     }
+  }
+
+  /** The figure shader set up for one mesh part: its texture or colour, cut-out and gloss. */
+  private materialFor(part: THREE.Mesh, far: boolean): THREE.ShaderMaterial {
+    const src = part.material as THREE.MeshStandardMaterial;
+    const hasColor = !!part.geometry.getAttribute('color');
+    const key = `${src.uuid}|${far}|${hasColor}`;
+    let mat = this.materials.get(key);
+    if (mat) return mat;
+    const textured = !!src.map;
+    const cutout = textured && (src.transparent || src.alphaTest > 0);
+    const defines: Record<string, string | number> = { INFLUENCES: far ? 2 : 4 };
+    if (far) defines.FAR = '';
+    if (textured) defines.TEXTURED = '';
+    if (cutout) defines.CUTOUT = '';
+    mat = new THREE.ShaderMaterial({
+      name: src.name,
+      uniforms: {
+        ...shared,
+        uAnim: { value: this.texture },
+        uMap: { value: src.map ?? null },
+        uBase: { value: textured ? new THREE.Color(1, 1, 1) : src.color.clone() },
+        uGloss: { value: /^Prop(Body|Metal|Glow)/.test(src.name) ? 1 : 0 },
+        uGlow: { value: /^PropGlow/.test(src.name) ? 1 : 0 },
+      },
+      defines,
+      vertexShader: VERTEX,
+      fragmentShader: FRAGMENT,
+      vertexColors: hasColor,
+      side: cutout ? THREE.DoubleSide : THREE.FrontSide,
+    });
+    this.materials.set(key, mat);
+    return mat;
   }
 
   dispose() {
     for (const o of this.owned) o.dispose();
-    this.material.dispose();
+    for (const m of this.materials.values()) m.dispose();
     this.texture.dispose();
   }
 }
@@ -202,21 +267,25 @@ function rng(seed: number) {
   };
 }
 
-const BRIGHT = ['#ff3d9a', '#33d8ff', '#b6ff3d', '#ffffff', '#9a5cff', '#ff8a2a', '#ffd23d', '#2a6bff'];
-const DARK = ['#0b0b12', '#15151f', '#1c1c2a', '#101828'];
-const BOTTOMS = ['#0a0c18', '#111a33', '#0d0d10', '#1d2440', '#2a2a30'];
+const BRIGHT = ['#ff3d9a', '#33d8ff', '#b6ff3d', '#ffffff', '#9a5cff', '#ff8a2a', '#ffd23d', '#2a6bff', '#ff4d4d'];
+const DARK = ['#101018', '#1c1c28', '#2a2a36', '#14203a'];
+const BOTTOMS = ['#10142a', '#1a2a55', '#15151a', '#2a3460', '#3a3a44', '#4a3a2a'];
+const CALM = ['dance', 'dance', 'clap', 'headbang'];
+const HYPE = ['cheer', 'cheer', 'fistpump', 'excited', 'excited', 'headbang'];
 /** People closer than this to a low camera are drawn with the detailed mesh, metres. */
-const NEAR_CAMERA = 15;
+const NEAR_CAMERA = 12;
 
 /**
  * The crowd: a jittered grid in front of the barrier, fanning out from the stage, thinning toward
  * the back and sides. `share` (0..1) thins it further for lighter graphics settings. People within
  * a few metres of a low camera get the detailed mesh and a little room is kept around the lens;
- * everybody else is the light mesh.
+ * everybody else is the light mesh. With `sync` the loops are made to the beat and everyone plays
+ * them nearly in time; otherwise each person starts at a point of their own.
  */
-export function makeCrowd(data: VenueData, meshes: { near: string[]; far: string[] }, share: number, cameras: Vec3[] = []): Person[] {
+export function makeCrowd(data: VenueData, characters: string[], share: number, cameras: Vec3[] = [], sync = false): Person[] {
   const rand = rng(31);
   const people: Person[] = [];
+  if (!characters.length) return people;
   const { center, a, b, power, barrier } = data.deck;
   const step = 0.92;
   for (let z = center[2]; z < 128; z += step) {
@@ -237,22 +306,21 @@ export function makeCrowd(data: VenueData, meshes: { near: string[]; far: string
       let nearest = Infinity;
       for (const c of cameras) nearest = Math.min(nearest, Math.hypot(px - c[0], pz - c[2]));
       if (nearest < 2.2) continue;
-      const list = nearest < NEAR_CAMERA ? meshes.near : meshes.far;
-      const lively = rand();
-      const dark = rand() < 0.68;
+      const style = rand();
       people.push({
         pos: [px, 0, pz],
         yaw: Math.atan2(center[0] - px, center[2] - 6 - pz) + (rand() - 0.5) * 0.5,
-        scale: 0.92 + rand() * 0.16,
-        mesh: list[Math.floor(rand() * list.length)],
-        calm: lively < 0.62 ? 'bounce' : lively < 0.82 ? 'pump' : 'clap',
-        hype: ['jump', 'jump', 'hands_up', 'hands_up', 'pump', 'clap'][Math.floor(rand() * 6)],
+        scale: 0.94 + rand() * 0.12,
+        character: characters[Math.floor(rand() * characters.length)],
+        far: nearest >= NEAR_CAMERA,
+        calm: CALM[Math.floor(rand() * CALM.length)],
+        hype: HYPE[Math.floor(rand() * HYPE.length)],
         threshold: 0.3 + rand() * 0.5,
-        late: rand() * 0.1,
-        top: dark ? DARK[Math.floor(rand() * DARK.length)] : BRIGHT[Math.floor(rand() * BRIGHT.length)],
+        phase: sync ? rand() * 0.1 : rand(),
+        // A third keep their own clothes; the rest get a bright or a dark top of their own.
+        recolor: style < 0.3 ? 0 : 1,
+        top: style < 0.62 ? DARK[Math.floor(rand() * DARK.length)] : BRIGHT[Math.floor(rand() * BRIGHT.length)],
         bottom: BOTTOMS[Math.floor(rand() * BOTTOMS.length)],
-        skin: rand(),
-        hair: rand(),
       });
     }
   }
@@ -260,17 +328,11 @@ export function makeCrowd(data: VenueData, meshes: { near: string[]; far: string
 }
 
 /** The band on its marks, facing the crowd. */
-export function makeBand(data: VenueData, band: Record<string, string>): Person[] {
-  const looks: Record<string, Partial<Person>> = {
-    lead: { top: '#ff3d9a', bottom: '#0d0d14', skin: 0.25, hair: 0.9, calm: 'guitar', yaw: 0.3 },
-    bass: { top: '#33d8ff', bottom: '#14142a', skin: 0.7, hair: 0.1, calm: 'guitar', yaw: -0.3, late: 0.5 },
-    vox: { top: '#f4f0ff', bottom: '#1a1030', skin: 0.45, hair: 0.45, calm: 'sing' },
-    drums: { top: '#9a5cff', bottom: '#0d0d14', skin: 0.15, hair: 0.2, calm: 'drums' },
-  };
-  return Object.entries(band).flatMap(([part, mesh]) => {
+export function makeBand(data: VenueData, band: Record<string, { character: string; clip: string }>): Person[] {
+  const turn: Record<string, number> = { lead: 0.3, bass: -0.3 };
+  return Object.entries(band).flatMap(([part, who]) => {
     const pos = data.band[part];
-    const look = looks[part];
-    if (!pos || !look) return [];
-    return [{ pos, yaw: 0, scale: 1.06, mesh, hype: look.calm!, threshold: 2, late: 0, top: '#fff', bottom: '#111', skin: 0.4, hair: 0.3, spot: true, ...look } as Person];
+    if (!pos) return [];
+    return [{ pos, yaw: turn[part] ?? 0, scale: 1, character: who.character, calm: who.clip, hype: who.clip, threshold: 2, phase: 0, spot: true }];
   });
 }

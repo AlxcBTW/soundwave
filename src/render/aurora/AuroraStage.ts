@@ -75,7 +75,8 @@ export class AuroraStage {
   private composer: EffectComposer | null = null;
   private readonly show: LightShow;
   private readonly beams: Beams;
-  private readonly figures: Figures;
+  private readonly crowd: Figures;
+  private readonly band: Figures;
   private readonly sparks: Particles;
   private readonly smoke: Particles;
   private readonly data: VenueData;
@@ -118,12 +119,13 @@ export class AuroraStage {
     this.owned.push(...applyVenueMaterials(venue, this.data.deck, g.lights === 'medium' || g.lights === 'high'));
     this.scene.add(venue);
 
-    this.figures = new Figures(assets.figures, assets.figureData, assets.anim);
+    this.crowd = new Figures(assets.crowd);
     const low = [...Object.values(this.data.cameras).map((c) => c.pos).filter((p) => p[1] < 10), ...EXTRA_CAMERAS];
-    this.figures.add(makeCrowd(this.data, { near: assets.figureData.crowd, far: assets.figureData.crowdFar }, LEVEL_SHARE[g.crowd], low));
-    this.figures.add(makeBand(this.data, assets.figureData.band));
-    this.scene.add(this.figures.group);
-    this.owned.push(this.figures);
+    this.crowd.add(makeCrowd(this.data, this.crowd.characters, LEVEL_SHARE[g.crowd], low, assets.crowd.data.sync));
+    this.band = new Figures(assets.band);
+    this.band.add(makeBand(this.data, assets.band.data.band ?? {}));
+    this.scene.add(this.crowd.group, this.band.group);
+    this.owned.push(this.crowd, this.band);
 
     // Lighter settings keep an even share of the moving heads.
     const share = BEAM_SHARE[g.beams];
@@ -227,7 +229,7 @@ export class AuroraStage {
 
   /** Dev diagnostics. */
   debugInfo() {
-    return { frameMs: +this.frameAvg.toFixed(1), people: this.figures.count, peopleTriangles: Math.round(this.figures.triangles), shot: this.director.shot.name, level: this.show.state.level, scale: this.dynScale, size: [this.renderer.domElement.width, this.renderer.domElement.height] };
+    return { frameMs: +this.frameAvg.toFixed(1), people: this.crowd.count, peopleTriangles: Math.round(this.crowd.triangles + this.band.triangles), shot: this.director.shot.name, level: this.show.state.level, scale: this.dynScale, size: [this.renderer.domElement.width, this.renderer.domElement.height] };
   }
 
   dispose() {

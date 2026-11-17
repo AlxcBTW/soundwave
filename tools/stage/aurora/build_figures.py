@@ -1,15 +1,18 @@
 """
-Builds the people of the venue (crowd figures and the band) and bakes their animation loops.
+Builds the venue's own people (the default band and crowd) and bakes their animation loops.
 
     blender -b --factory-startup -P tools/stage/aurora/build_figures.py -- --out public/stage/aurora
 
-A figure is a jointed doll: smooth rounded parts (head, chest, hips, upper and lower arms and legs,
-a prop), each riding one joint. The loops are posed here with a small rig (torso rotations, two-bone
-reach for hands and feet) and baked to one matrix per joint per frame, so the game can animate
-thousands of instances in a vertex shader from a single small texture.
+Everything here is original and ships with the project. A figure is a jointed doll: smooth rounded
+parts (head, chest, hips, upper and lower arms and legs, a prop), each riding one joint. The loops
+are posed with a small rig (torso rotations, two-bone reach for hands and feet) and made to fit the
+beat: each lasts a whole number of beats.
 
-Output: figures.glb (the meshes; uv.x = colour region, uv.y = joint), figures.bin (float32, per
-frame and joint a 3x4 matrix in three.js space) and figures.json (the loops and meshes).
+Output, in the same format build_people.py writes for downloaded characters, so the game treats
+both alike: band.glb and crowd.glb (meshes in their rest pose; two extra UV sets carry joint +
+weight / 2 per vertex, vertex colours carry the paint, alpha marks tops and bottoms for
+recolouring), band.bin and crowd.bin (per frame and joint a 3x4 matrix in three.js space, half
+floats) and band.json and crowd.json (characters, loops, roles).
 
 Axes: Z up, metres, a figure stands at the origin facing -Y (the crowd side of the stage).
 """
@@ -17,11 +20,11 @@ import argparse
 import json
 import math
 import os
-import struct
 import sys
 
 import bmesh
 import bpy
+import numpy as np
 from mathutils import Euler, Matrix, Vector
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
@@ -132,7 +135,7 @@ def cylinder(bm, a, b, r, segs=16, r2=None):
     return list({f for v in res['verts'] for f in v.link_faces})
 
 
-def figure(name, detail, hair='short', sleeves=True, prop=None):
+def figure(name, detail, look, hair='short', sleeves=True, prop=None):
     """detail: -1 = crowd seen from afar, 0 = crowd near a camera, 1 = band."""
     bm = bmesh.new()
     uv = bm.loops.layers.uv.verify()
@@ -209,28 +212,84 @@ def figure(name, detail, hair='short', sleeves=True, prop=None):
         tag(cylinder(bm, (0.56, -0.38, 0.86), (0.56, -0.38, 0.875), 0.17, 20), uv, GLOW, STATIC)
         for leg in ((0.26, -0.42), (-0.5, -0.32)):
             metal(cylinder(bm, (leg[0], leg[1], 0.0), (leg[0], leg[1], 0.3), 0.014, 6))
+    return finish(name, bm, look)
+
+
+def material(name):
+    return bpy.data.materials.get(name) or bpy.data.materials.new(name)
+
+
+# The game's figure shader reads these names: props get a gloss or a glow.
+SLOTS = ['Figure', 'PropBody', 'PropDark', 'PropGlow']
+SLOT_OF = {PROP_A: 1, PROP_B: 2, GLOW: 3}
+
+
+def finish(name, bm, look):
+    """
+    Turns the tagged parts into the game's format: paint from the look as vertex colours (alpha 1 on
+    tops and 0.7 on bottoms when the game may recolour them), one joint at full weight per vertex.
+    """
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    tags = bm.loops.layers.uv.verify()
+    for f in bm.faces:
+        f.material_index = SLOT_OF.get(int(f.loops[0][tags].uv.x * 8), 0)
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     bm.free()
-    me.materials.append(MAT)
+    for slot in SLOTS:
+        me.materials.append(material(slot))
+    tagged = [(int(d.uv.x * 8), int(d.uv.y * 16)) for d in me.uv_layers[0].data]
+    me.uv_layers[0].name = 'UVMap'
+    me.uv_layers['UVMap'].data.foreach_set('uv', [0.0] * (2 * len(me.loops)))
+    w0 = me.uv_layers.new(name='W0')
+    w1 = me.uv_layers.new(name='W1')
+    col = me.color_attributes.new('Col', 'FLOAT_COLOR', 'CORNER')
+    for i, (region, joint) in enumerate(tagged):
+        klass = (1.0 if region == TOP else 0.7 if region == BOTTOM else 0.0) if look.get('recolor') else 0.0
+        col.data[i].color = (*look[region], klass)
+        # glTF stores v flipped; write 1 - value so the file holds the value itself.
+        w0.data[i].uv = (joint + 0.5, 1.0)
+        w1.data[i].uv = (0.0, 1.0)
+    me.color_attributes.active_color = col
+    me.color_attributes.render_color_index = me.color_attributes.find('Col')
     o = bpy.data.objects.new(name, me)
     scene.collection.objects.link(o)
     return o
 
 
-MAT = bpy.data.materials.new('Figure')
-MESHES = [
-    figure('CrowdA', 0, hair='short', sleeves=True),
-    figure('CrowdB', 0, hair='long', sleeves=False),
-    figure('CrowdC', 0, hair='cap', sleeves=True),
-    figure('CrowdFarA', -1, hair='short', sleeves=True),
-    figure('CrowdFarB', -1, hair='long', sleeves=False),
-    figure('CrowdFarC', -1, hair='cap', sleeves=True),
-    figure('Guitarist', 1, hair='long', sleeves=False, prop='guitar'),
-    figure('Singer', 1, hair='short', sleeves=True, prop='mic'),
-    figure('Drummer', 1, hair='cap', sleeves=False, prop='drums'),
-]
+def look(skin, hair, top, bottom, shoes=(0.03, 0.03, 0.035), prop=(0.8, 0.1, 0.35), glow=(0.75, 0.6, 0.3), recolor=False):
+    return {SKIN: skin, HAIR: hair, TOP: top, BOTTOM: bottom, SHOES: shoes, PROP_A: prop, PROP_B: (0.012, 0.012, 0.015), GLOW: glow, 'recolor': recolor}
+
+
+LIGHT, TAN, BROWN, DARK = (0.8, 0.55, 0.42), (0.6, 0.38, 0.26), (0.36, 0.2, 0.13), (0.22, 0.12, 0.08)
+BLACK, CHESTNUT, BLOND = (0.012, 0.01, 0.01), (0.1, 0.05, 0.025), (0.55, 0.38, 0.15)
+DENIM, COAL, GREY, KHAKI = (0.07, 0.11, 0.28), (0.02, 0.02, 0.03), (0.2, 0.2, 0.23), (0.3, 0.24, 0.14)
+WHITE_SHOE = (0.42, 0.42, 0.44)
+# The crowd: six people, each with a nearer and a farther mesh. Their own clothes are kept by some
+# instances and recoloured by the game on others.
+CROWD = {
+    'crowd_a': dict(hair='short', sleeves=True, look=look(LIGHT, CHESTNUT, (0.6, 0.07, 0.09), DENIM, WHITE_SHOE, recolor=True)),
+    'crowd_b': dict(hair='long', sleeves=False, look=look(TAN, BLACK, (0.6, 0.6, 0.62), COAL, recolor=True)),
+    'crowd_c': dict(hair='cap', sleeves=True, look=look(DARK, BLACK, (0.05, 0.42, 0.45), GREY, WHITE_SHOE, recolor=True)),
+    'crowd_d': dict(hair='long', sleeves=True, look=look(LIGHT, BLOND, (0.75, 0.55, 0.08), DENIM, recolor=True)),
+    'crowd_e': dict(hair='short', sleeves=False, look=look(BROWN, BLACK, (0.32, 0.12, 0.6), KHAKI, WHITE_SHOE, recolor=True)),
+    'crowd_f': dict(hair='cap', sleeves=False, look=look(TAN, CHESTNUT, (0.12, 0.45, 0.14), COAL, recolor=True)),
+}
+# The band, with the loop each plays.
+BAND = {
+    'lead': dict(clip='guitar', hair='long', sleeves=False, prop='guitar', look=look(LIGHT, (0.8, 0.25, 0.5), (0.85, 0.1, 0.4), COAL, WHITE_SHOE, prop=(0.75, 0.06, 0.3))),
+    'bass': dict(clip='guitar', hair='short', sleeves=True, prop='guitar', look=look(BROWN, BLACK, (0.08, 0.6, 0.8), (0.05, 0.05, 0.12), prop=(0.05, 0.5, 0.75))),
+    'vox': dict(clip='sing', hair='short', sleeves=True, prop='mic', look=look(TAN, CHESTNUT, (0.85, 0.82, 0.9), (0.08, 0.04, 0.16), WHITE_SHOE, prop=(0.5, 0.52, 0.56))),
+    'drums': dict(clip='drums', hair='cap', sleeves=False, prop='drums', look=look(DARK, BLACK, (0.5, 0.22, 0.9), COAL, prop=(0.22, 0.07, 0.55))),
+}
+
+
+def build(name, detail, spec):
+    return figure(name, detail, spec['look'], hair=spec['hair'], sleeves=spec['sleeves'], prop=spec.get('prop'))
+
+
+CROWD_MESHES = {key: (build(key, 0, spec), build(key + '_far', -1, spec)) for key, spec in CROWD.items()}
+BAND_MESHES = {role: build('band_' + role, 1, spec) for role, spec in BAND.items()}
 
 
 # =================================================================== RIG
@@ -355,32 +414,47 @@ C = Matrix(((1, 0, 0, 0), (0, 0, 1, 0), (0, -1, 0, 0), (0, 0, 0, 1)))
 CI = C.inverted()
 
 
-def bake(out_dir):
-    rows = bytearray()
-    clips = []
-    start = 0
+def bake():
+    """All loops: rows of one 3x4 matrix per joint, and where each loop sits."""
+    rows, where, start = [], {}, 0
     for name, fn, beats in CLIPS:
         frames = beats * FRAMES_PER_BEAT
         for f in range(frames):
-            for m in solve(fn(f / frames)):
-                t = C @ m @ CI
-                for r in range(3):
-                    rows += struct.pack('<4f', *t[r])
-        clips.append({'name': name, 'start': start, 'frames': frames, 'beats': beats})
+            rows.append([[list((C @ m @ CI)[r]) for r in range(3)] for m in solve(fn(f / frames))])
+        where[name] = {'start': start, 'frames': frames, 'beats': beats}
         start += frames
-    with open(os.path.join(out_dir, 'figures.bin'), 'wb') as f:
-        f.write(rows)
-    return clips, start
+    return np.array(rows, dtype=np.float32), where
+
+
+# The names the game asks the crowd for, and the loop of ours that answers to each.
+CROWD_LOOPS = {'dance': 'bounce', 'clap': 'clap', 'headbang': 'pump', 'cheer': 'hands_up', 'fistpump': 'pump', 'excited': 'jump'}
+
+
+def write_set(name, characters, objects, extra):
+    data, where = TABLE
+    data.astype('<f2').tofile(os.path.join(args.out, name + '.bin'))
+    with open(os.path.join(args.out, name + '.json'), 'w') as f:
+        # sync: these loops are made to the beat, so everyone plays them in time.
+        json.dump({'version': 2, 'joints': JOINTS, 'frames': int(data.shape[0]), 'sync': True, 'characters': characters, **extra}, f, separators=(',', ':'))
+    bpy.ops.object.select_all(action='DESELECT')
+    for o in objects:
+        o.select_set(True)
+    bpy.ops.export_scene.gltf(filepath=os.path.join(args.out, name + '.glb'), export_format='GLB', use_selection=True, export_apply=True, export_yup=True,
+                              export_texcoords=True, export_normals=True, export_animations=False, export_skins=False,
+                              export_vertex_color='ACTIVE', export_all_vertex_colors=False, export_active_vertex_color_when_no_material=True,
+                              export_cameras=False, export_lights=False)
+    tris = {o.name: sum(len(p.vertices) - 2 for p in o.data.polygons) for o in objects}
+    print(name, tris, 'rows', int(data.shape[0]), 'files', {n: os.path.getsize(os.path.join(args.out, n)) for n in (name + '.glb', name + '.bin', name + '.json')})
 
 
 os.makedirs(args.out, exist_ok=True)
-clips, total = bake(args.out)
-with open(os.path.join(args.out, 'figures.json'), 'w') as f:
-    json.dump({'version': 1, 'joints': JOINTS, 'frames': total, 'clips': clips,
-               'crowd': ['CrowdA', 'CrowdB', 'CrowdC'], 'crowdFar': ['CrowdFarA', 'CrowdFarB', 'CrowdFarC'], 'band': {'lead': 'Guitarist', 'bass': 'Guitarist', 'vox': 'Singer', 'drums': 'Drummer'}}, f, separators=(',', ':'))
+TABLE = bake()
+loops = TABLE[1]
 if args.save:
     bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(args.save))
-bpy.ops.export_scene.gltf(filepath=os.path.join(args.out, 'figures.glb'), export_format='GLB', export_apply=True, export_yup=True,
-                          export_texcoords=True, export_normals=True, export_animations=False, export_vertex_color='NONE',
-                          export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6, export_draco_texcoord_quantization=12)
-print('figures', {o.name: sum(len(p.vertices) - 2 for p in o.data.polygons) for o in MESHES}, 'frames', total)
+write_set('crowd',
+          {key: {'mesh': key, 'far': key + '_far', 'joints': JOINTS, 'height': 1.8, 'clips': [{'name': n, **loops[ours]} for n, ours in CROWD_LOOPS.items()]} for key in CROWD},
+          [o for pair in CROWD_MESHES.values() for o in pair], {})
+write_set('band',
+          {role: {'mesh': 'band_' + role, 'joints': JOINTS, 'height': 1.8, 'clips': [{'name': spec['clip'], **loops[spec['clip']]}]} for role, spec in BAND.items()},
+          list(BAND_MESHES.values()), {'band': {role: {'character': role, 'clip': spec['clip']} for role, spec in BAND.items()}})
