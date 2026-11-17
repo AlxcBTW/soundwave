@@ -1,0 +1,509 @@
+"""
+Builds the Moonrise stage (the hero piece of the new festival venue) in Blender and exports it for
+the game.
+
+    blender -b --factory-startup -P tools/stage/aurora/build_venue.py -- \
+        --out public/stage/aurora [--save local-audio/stage/moonrise.blend] [--preview local-audio/stage/moonrise.png]
+
+The stage: a moon rising out of a breaking tide. A shell of five nested arches (the barrel of the
+wave) frames a round screen (the moon); crests curl outward on both wings, a ribbon climbs from the
+ground over each wing to a peak above the shell, and low screens run along the wings. Every large
+form is a smooth lofted blade, so it carries gradients and glitter instead of bricks and windows.
+
+The real-time look (gradients, glitter, haze, screens, beams) is made in the game's shaders; this
+file only makes shape, baked contact shading, material roles and the positions the game needs.
+
+Axes: Z up, metres. The deck centre is at y = 10; the stage extends into +y, the crowd into -y.
+"""
+import argparse
+import json
+import math
+import os
+import sys
+
+import bmesh
+import bpy
+from mathutils import Matrix, Vector
+
+argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
+ap = argparse.ArgumentParser()
+ap.add_argument('--out', default='')
+ap.add_argument('--save', default='')
+ap.add_argument('--preview', default='')
+ap.add_argument('--view', default='hero')
+ap.add_argument('--ao-samples', type=int, default=48)
+args = ap.parse_args(argv)
+
+bpy.ops.wm.read_factory_settings(use_empty=True)
+scene = bpy.context.scene
+Y = Vector((0, 1, 0))
+Z = Vector((0, 0, 1))
+
+DECK_C = Vector((0, 10, 0))
+DECK_A, DECK_B, DECK_H, DECK_P = 24.0, 12.0, 2.4, 2.6
+MOON_C = Vector((0, 25.5, 16.0))
+MOON_R = 11.5
+
+# ---------------------------------------------------------------- materials
+MATS = {}
+
+
+def material(name, color, **props):
+    """A preview colour plus the properties the game's shaders read (exported as glTF extras)."""
+    m = bpy.data.materials.new(name)
+    pr = next(n for n in m.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
+    pr.inputs['Base Color'].default_value = (*color, 1)
+    pr.inputs['Roughness'].default_value = 0.4
+    m.diffuse_color = (*color, 1)
+    for k, v in props.items():
+        m[k] = v
+    MATS[name] = m
+    return m
+
+
+# Paint: a three-stop gradient along the form (foot, body, tip), a rim colour, glitter amount and
+# how much of the gradient glows by itself.
+material('PaintShellA', (0.10, 0.16, 0.62), kind='paint', a='#0b1470', b='#2a55e8', c='#7fd8ff', rim='#9fe8ff', glitter=0.55, glow=0.34)
+material('PaintShellB', (0.26, 0.12, 0.62), kind='paint', a='#1a0b63', b='#6a3df0', c='#c9a2ff', rim='#ffb0f0', glitter=0.75, glow=0.3)
+material('PaintCrest', (0.12, 0.3, 0.75), kind='paint', a='#0a1a6e', b='#2f7af2', c='#b4f4ff', rim='#c8f6ff', glitter=0.9, glow=0.36)
+material('PaintEcho', (0.5, 0.15, 0.62), kind='paint', a='#2a0a66', b='#b032d8', c='#ff9ad6', rim='#ffc2ec', glitter=0.6, glow=0.4)
+material('PaintRibbon', (0.1, 0.5, 0.75), kind='paint', a='#0d2a8a', b='#18b8e8', c='#e6fbff', rim='#ffffff', glitter=0.35, glow=0.5)
+material('Deck', (0.03, 0.03, 0.08), kind='deck')
+material('Black', (0.01, 0.01, 0.015), kind='black')
+material('Ground', (0.02, 0.02, 0.05), kind='ground')
+material('Led', (0.4, 0.8, 1.0), kind='led')
+material('Lens', (1.0, 0.8, 0.9), kind='lens')
+material('Screen', (0.2, 0.5, 1.0), kind='screen')
+
+
+# ---------------------------------------------------------------- geometry helpers
+def catmull(points, n):
+    """n + 1 points along a Catmull-Rom spline through `points`."""
+    pts = [Vector(p) for p in points]
+    ext = [pts[0] * 2 - pts[1]] + pts + [pts[-1] * 2 - pts[-2]]
+    segs = len(pts) - 1
+    out = []
+    for i in range(n + 1):
+        u = i / n * segs
+        k = min(int(u), segs - 1)
+        t = u - k
+        p0, p1, p2, p3 = ext[k], ext[k + 1], ext[k + 2], ext[k + 3]
+        out.append(0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3))
+    return out
+
+
+def frames(path, depth_axis):
+    """Per point: arc-length fraction, tangent, in-plane normal and depth axis."""
+    lens = [0.0]
+    for a, b in zip(path, path[1:]):
+        lens.append(lens[-1] + (b - a).length)
+    total = lens[-1] or 1.0
+    out = []
+    for i, p in enumerate(path):
+        t = (path[min(i + 1, len(path) - 1)] - path[max(i - 1, 0)]).normalized()
+        n = depth_axis.cross(t)
+        if n.length < 1e-5:
+            n = Vector((1, 0, 0))
+        n.normalize()
+        b = t.cross(n).normalized()
+        out.append((lens[i] / total, p, t, n, b))
+    return out
+
+
+def superpoint(a, power):
+    c, s = math.cos(a), math.sin(a)
+    e = 2.0 / power
+    return (math.copysign(abs(c) ** e, c), math.copysign(abs(s) ** e, s))
+
+
+def new_obj(name, bm, mat, smooth=True):
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.append(MATS[mat])
+    if smooth:
+        for p in me.polygons:
+            p.use_smooth = True
+    o = bpy.data.objects.new(name, me)
+    scene.collection.objects.link(o)
+    return o
+
+
+def loft(name, path, width, depth, mat, depth_axis=Y, sides=24, power=2.0, flare=0.0, u_of=None, bm=None):
+    """
+    Sweeps a rounded section along `path`. `width(t)` is the size across the path in its plane,
+    `depth(t)` the size along `depth_axis`; `flare` turns the section about the path (radians).
+    UV: u = `u_of(t)` (default t, the fraction along the path), v = around the section.
+    """
+    own = bm is None
+    bm = bm or bmesh.new()
+    uv = bm.loops.layers.uv.verify()
+    fr = frames(path, depth_axis)
+    rings = []
+    for (t, p, tan, n, b) in fr:
+        w, d = max(0.03, width(t)), max(0.03, depth(t))
+        if flare:
+            rot = Matrix.Rotation(flare, 3, tan)
+            n, b = rot @ n, rot @ b
+        ring = []
+        for k in range(sides):
+            sx, sy = superpoint(2 * math.pi * k / sides, power)
+            ring.append(bm.verts.new(p + n * (sx * w / 2) + b * (sy * d / 2)))
+        rings.append(ring)
+    for i in range(len(rings) - 1):
+        u0 = (u_of or (lambda q: q))(fr[i][0])
+        u1 = (u_of or (lambda q: q))(fr[i + 1][0])
+        for k in range(sides):
+            k2 = (k + 1) % sides
+            f = bm.faces.new((rings[i][k], rings[i][k2], rings[i + 1][k2], rings[i + 1][k]))
+            v0, v1 = k / sides, (k + 1) / sides
+            for loop, (u, v) in zip(f.loops, ((u0, v0), (u0, v1), (u1, v1), (u1, v0))):
+                loop[uv].uv = (u, v)
+    for ring, t in ((rings[0], fr[0][0]), (rings[-1], fr[-1][0])):
+        f = bm.faces.new(ring)
+        for loop in f.loops:
+            loop[uv].uv = ((u_of or (lambda q: q))(t), 0.5)
+    return new_obj(name, bm, mat) if own else None
+
+
+def tube(bm, path, radius, sides=6):
+    loft('', path, lambda t: radius * 2, lambda t: radius * 2, None, sides=sides, bm=bm)
+
+
+def cyl(bm, a, b, r, sides=6):
+    a, b = Vector(a), Vector(b)
+    axis = b - a
+    bmesh.ops.create_cone(bm, cap_ends=True, segments=sides, radius1=r, radius2=r, depth=axis.length,
+                          matrix=Matrix.Translation((a + b) / 2) @ axis.to_track_quat('Z', 'Y').to_matrix().to_4x4())
+
+
+def box(bm, size, center, rot=None):
+    m = Matrix.Translation(center) @ (rot.to_4x4() if rot else Matrix.Identity(4)) @ Matrix.Diagonal((*size, 1))
+    bmesh.ops.create_cube(bm, size=1.0, matrix=m)
+
+
+def mirror_x(pts):
+    return [Vector((-p[0], p[1], p[2])) for p in pts]
+
+
+def deck_outline(scale, z, n=96, front_only=False):
+    pts = []
+    rng = range(n + 1)
+    for i in rng:
+        a = (math.pi + math.pi * i / n) if front_only else (2 * math.pi * i / n)
+        sx, sy = superpoint(a, DECK_P)
+        pts.append(Vector((DECK_C.x + sx * DECK_A * scale, DECK_C.y + sy * DECK_B * scale, z)))
+    return pts
+
+
+def slab(bm, scale, z0, z1, chamfer=0.12):
+    """A solid plate with the deck's outline and a chamfered top edge. UV: plan position in metres."""
+    uv = bm.loops.layers.uv.verify()
+    n = 96
+    levels = [(scale, z0), (scale, z1 - chamfer), (scale - chamfer / DECK_B, z1)]
+    rings = [[bm.verts.new(p) for p in deck_outline(s, z, n)[:-1]] for s, z in levels]
+    faces = []
+    for i in range(len(rings) - 1):
+        for k in range(n):
+            faces.append(bm.faces.new((rings[i][k], rings[i][(k + 1) % n], rings[i + 1][(k + 1) % n], rings[i + 1][k])))
+    faces.append(bm.faces.new(rings[-1]))
+    for f in faces:
+        for loop in f.loops:
+            loop[uv].uv = (loop.vert.co.x, loop.vert.co.y)
+
+
+FIXTURES = []
+
+
+def fixture(bm_body, bm_lens, pos, direction, group):
+    d = Vector(direction).normalized()
+    pos = Vector(pos)
+    q = d.to_track_quat('Z', 'Y').to_matrix().to_4x4()
+    bmesh.ops.create_cone(bm_body, cap_ends=True, segments=10, radius1=0.26, radius2=0.3, depth=0.6, matrix=Matrix.Translation(pos - d * 0.3) @ q)
+    bmesh.ops.create_circle(bm_lens, cap_ends=True, segments=10, radius=0.24, matrix=Matrix.Translation(pos + d * 0.01) @ q)
+    FIXTURES.append({'group': group, 'pos': pos.copy(), 'dir': d.copy()})
+
+
+# =================================================================== THE STAGE
+led = bmesh.new()
+black = bmesh.new()
+lens = bmesh.new()
+
+# ---------------------------------------------------------------- deck: a plate with three lit steps to the crowd
+deck = bmesh.new()
+for scale, top in ((1.0, DECK_H), (1.09, 1.8), (1.18, 1.2), (1.27, 0.6)):
+    slab(deck, scale, 0.0, top)
+    tube(led, deck_outline(scale + 0.004, top - 0.14, 128, front_only=True), 0.045)
+# drum riser
+riser = bmesh.new()
+bmesh.ops.create_cone(riser, cap_ends=True, segments=48, radius1=4.4, radius2=4.3, depth=0.8,
+                      matrix=Matrix.Translation((0, 14.5, DECK_H + 0.4)) @ Matrix.Diagonal((1, 0.62, 1, 1)))
+uvl = riser.loops.layers.uv.verify()
+for f in riser.faces:
+    for loop in f.loops:
+        loop[uvl].uv = (loop.vert.co.x, loop.vert.co.y)
+new_obj('DrumRiser', riser, 'Deck')
+tube(led, [Vector((math.cos(a) * 4.42, 14.5 + math.sin(a) * 4.42 * 0.62, DECK_H + 0.74)) for a in [math.pi + math.pi * i / 40 for i in range(41)]], 0.04)
+new_obj('Deck', deck, 'Deck')
+
+# ---------------------------------------------------------------- the shell: five nested arches leaning to the crowd
+ARCHES = []
+for i in range(5):
+    half_w = 30.0 - 4.2 * i
+    height = 31.0 - 3.3 * i
+    y = 4.0 + 4.6 * i
+    lean = math.radians(15.0 - 3.0 * i)
+    tilt = Matrix.Rotation(lean, 4, 'X')  # about the ground line through the feet: the crown comes forward
+    path = []
+    n = 96
+    for k in range(n + 1):
+        a = math.pi - math.pi * k / n
+        sx, sz = superpoint(a, 2.25)
+        p = tilt @ Vector((sx * half_w, 0, max(0.0, sz) * height))
+        path.append(Vector((p.x, y - abs(p.y), p.z)) if lean else p + Vector((0, y, 0)))
+    crown = lambda t: math.sin(math.pi * t)
+    thick = 2.9 - 0.3 * i
+    flare = math.radians(-24)  # each ridge opens toward the crowd like a bell
+    th_of = lambda t, th=thick: th * (0.5 + 0.5 * crown(t) ** 0.8)
+    d_of = lambda t: 6.2 * (0.7 + 0.3 * crown(t))
+    loft('Arch%d' % i, path, th_of, d_of, 'PaintShellA' if i % 2 == 0 else 'PaintShellB', sides=28, power=2.3, flare=flare, u_of=crown)
+    ARCHES.append((path, half_w, height, y))
+    # a line of light along the front lip, and moving heads on the outer two ridges
+    lip, heads = [], []
+    for (t, p, tan, n_, b) in frames(path, Y):
+        rot = Matrix.Rotation(flare, 3, tan)
+        n2, b2 = rot @ n_, rot @ b
+        if b2.y < 0:
+            b2 = -b2
+        lip.append(p - b2 * (d_of(t) * 0.5 + 0.02))
+        heads.append((p - n2 * (th_of(t) * 0.5) - b2 * (d_of(t) * 0.3), -n2))
+    tube(led, lip[3:-3], 0.06)
+    if i in (0, 2):
+        count = 13 if i == 0 else 9
+        for j in range(count):
+            pos, out = heads[round((0.16 + 0.68 * j / (count - 1)) * n)]
+            fixture(black, lens, pos + out * 0.3, out * 0.55 - Y * 0.75 + Z * 0.15, 'Shell%d' % i)
+
+# ---------------------------------------------------------------- the moon: a round screen behind the shell
+moon = bmesh.new()
+uvl = moon.loops.layers.uv.verify()
+bmesh.ops.create_circle(moon, cap_ends=True, segments=96, radius=MOON_R, matrix=Matrix.Translation(MOON_C) @ Matrix.Rotation(math.radians(90), 4, 'X'))
+for f in moon.faces:
+    for loop in f.loops:
+        loop[uvl].uv = ((loop.vert.co.x - MOON_C.x) / (2 * MOON_R) + 0.5, (loop.vert.co.z - MOON_C.z) / (2 * MOON_R) + 0.5)
+new_obj('ScreenMoon', moon, 'Screen', smooth=False)
+ring = [MOON_C + Vector((math.cos(a) * (MOON_R + 0.7), -0.2, math.sin(a) * (MOON_R + 0.7))) for a in [2 * math.pi * i / 96 for i in range(97)]]
+loft('MoonRim', ring, lambda t: 2.0, lambda t: 1.6, 'PaintRibbon', sides=16, u_of=lambda t: 0.5 + 0.5 * math.sin(2 * math.pi * t - math.pi / 2))
+tube(led, [p + Vector((0, -0.75, 0)) + (p - MOON_C).normalized() * -0.55 for p in ring], 0.07)
+
+
+# ---------------------------------------------------------------- crests: waves curling outward on both wings
+def crest(name, base, height, mat, turn=0.0, lean=0.0):
+    h = height
+    local = [(0, 0), (-0.05 * h, 0.4 * h), (0.03 * h, 0.75 * h), (0.24 * h, 0.96 * h), (0.5 * h, 0.99 * h), (0.7 * h, 0.86 * h), (0.8 * h, 0.72 * h)]
+    for side in (1, -1):
+        m = Matrix.Translation(Vector((base[0] * side, base[1], 0))) @ Matrix.Rotation(turn * side, 4, 'Z') @ Matrix.Rotation(lean, 4, 'X')
+        path = catmull([m @ Vector((x * side, 0, z)) for x, z in local], 72)
+        axis = (m.to_3x3() @ Y).normalized()
+        loft('%s_%s' % (name, 'R' if side > 0 else 'L'), path, lambda t: 0.44 * h * (1 - t) ** 0.62 + 0.1, lambda t: 0.05 * h * (1 - t) ** 0.4 + 0.2,
+             mat, depth_axis=axis, sides=24, power=2.0)
+        FIXTURES.append({'group': 'Sky', 'pos': path[40] - axis * (0.05 * h), 'dir': (Vector((0.25 * side, -0.35, 1))).normalized()})
+
+
+crest('CrestA', (34.0, 15.0), 36.0, 'PaintCrest', turn=math.radians(-10), lean=math.radians(4))
+crest('CrestB', (45.0, 12.5), 27.0, 'PaintCrest', turn=math.radians(-18), lean=math.radians(6))
+crest('CrestC', (55.0, 9.0), 19.0, 'PaintCrest', turn=math.radians(-26), lean=math.radians(8))
+crest('EchoA', (38.5, 10.0), 20.0, 'PaintEcho', turn=math.radians(-12), lean=math.radians(9))
+crest('EchoB', (49.5, 7.5), 14.5, 'PaintEcho', turn=math.radians(-20), lean=math.radians(11))
+crest('EchoC', (59.0, 4.0), 10.5, 'PaintEcho', turn=math.radians(-28), lean=math.radians(12))
+
+# ---------------------------------------------------------------- wing screens and the ribbon over them
+for side in (1, -1):
+    tag = 'R' if side > 0 else 'L'
+    base = catmull([(30 * side, 5.0, 0), (38 * side, 4.2, 0), (49 * side, 1.5, 0), (60 * side, -4.0, 0), (68 * side, -11.5, 0)], 48)
+    fr = frames(base, Z)
+    top = lambda t: 8.6 - 4.6 * t + 0.9 * math.sin(t * math.pi * 2.0)
+    wall = bmesh.new()
+    uvl = wall.loops.layers.uv.verify()
+    rows = 8
+    grid = []
+    for (t, p, tan, n_, b) in fr:
+        face = n_ if n_.y < 0 else -n_
+        grid.append([wall.verts.new(p + face * 0.35 + Z * (0.9 + (top(t) - 0.9) * r / rows)) for r in range(rows + 1)])
+    for i in range(len(grid) - 1):
+        for r in range(rows):
+            f = wall.faces.new((grid[i][r], grid[i + 1][r], grid[i + 1][r + 1], grid[i][r + 1]))
+            for loop, (ii, rr) in zip(f.loops, ((i, r), (i + 1, r), (i + 1, r + 1), (i, r + 1))):
+                loop[uvl].uv = (fr[ii][0] if side > 0 else 1 - fr[ii][0], rr / rows)
+    new_obj('ScreenWing' + tag, wall, 'Screen')
+    # the wall body behind the screen
+    loft('', [p + Z * (0.45 + top(t) / 2) for (t, p, tan, n_, b) in fr], lambda t: 0.36, lambda t: top(t) - 0.2, None, depth_axis=Z, sides=8, power=6, bm=black)
+    # ribbon: from the ground far out, along the wall top, over the shell's shoulder to a peak
+    crest_line = [p + Z * (top(t) + 0.5) for (t, p, tan, n_, b) in fr][::-1]
+    ribbon = [Vector((77 * side, -19, 0.2)), Vector((73 * side, -15.5, 2.4))] + crest_line[::8] + [
+        Vector((26 * side, 5, 16)), Vector((21.5 * side, 3.0, 29)), Vector((13 * side, 0.5, 38.5)), Vector((5.5 * side, -0.5, 43)), Vector((0.6 * side, -0.8, 46.5))]
+    path = catmull(ribbon, 140)
+    loft('Ribbon' + tag, path, lambda t: 0.4 + 3.6 * math.sin(math.pi * min(1.0, t * 1.03)) ** 0.5 * (1 - 0.35 * t), lambda t: 0.8 - 0.3 * t,
+         'PaintRibbon', sides=16, power=2.0)
+    tube(led, [p + Vector((0, -0.5, 0)) for p in path[10:-2]], 0.05)
+    for k in (60, 84, 104, 120):
+        FIXTURES.append({'group': 'Ribbon', 'pos': path[k] + Vector((0, -0.7, 0)), 'dir': Vector((0.3 * side * (1 if k < 100 else -0.4), -0.7, 0.55)).normalized()})
+    tube(led, [p + (n_ if n_.y < 0 else -n_) * 0.4 + Z * 0.85 for (t, p, tan, n_, b) in fr], 0.05)
+
+# ---------------------------------------------------------------- towers with line arrays at the deck corners
+for side in (1, -1):
+    x, y, h, s = 27.5 * side, -1.5, 23.0, 0.6
+    for dx in (-s, s):
+        for dy in (-s, s):
+            cyl(black, (x + dx, y + dy, 0), (x + dx, y + dy, h), 0.07)
+    bays = int(h / 1.2)
+    for k in range(bays):
+        z0, z1 = k * h / bays, (k + 1) * h / bays
+        flip = 1 if k % 2 else -1
+        cyl(black, (x - s * flip, y - s, z0), (x + s * flip, y - s, z1), 0.04, 5)
+        cyl(black, (x - s * flip, y + s, z0), (x + s * flip, y + s, z1), 0.04, 5)
+        cyl(black, (x - s, y - s * flip, z0), (x - s, y + s * flip, z1), 0.04, 5)
+        cyl(black, (x + s, y - s * flip, z0), (x + s, y + s * flip, z1), 0.04, 5)
+    # the arm and the array hanging from it
+    ax = x - 2.6 * side
+    box(black, (3.6, 0.9, 0.5), Vector((x - 1.3 * side, y - 0.2, h - 0.4)))
+    pos = Vector((ax, y - 0.5, h - 1.0))
+    ang = 0.0
+    for k in range(13):
+        ang += math.radians(0.6 + 0.42 * k)
+        rot = Matrix.Rotation(-ang, 3, 'X')
+        pos = pos + rot @ Vector((0, 0, -0.5))
+        box(black, (1.5, 0.95, 0.46), pos + rot @ Vector((0, 0.1, 0)), rot)
+    for dz in (0.5, 1.3):
+        fixture(black, lens, (x, y - s - 0.3, h + dz - 0.4), (-0.35 * side, -0.8, -0.25), 'Truss')
+
+# uplights along the front of the deck, and the crowd barrier
+for j in range(11):
+    a = math.pi * (1.14 + 0.72 * j / 10)
+    sx, sy = superpoint(a, DECK_P)
+    p = Vector((DECK_C.x + sx * DECK_A * 0.97, DECK_C.y + sy * DECK_B * 0.97, DECK_H + 0.3))
+    fixture(black, lens, p, (sx * 0.5, -0.45, 1.0), 'Floor')
+barrier = deck_outline(1.44, 0.6, 96, front_only=True)
+loft('', barrier, lambda t: 0.12, lambda t: 1.2, None, depth_axis=Z, sides=6, power=6, bm=black)
+
+new_obj('Leds', led, 'Led')
+new_obj('Rigging', black, 'Black')
+new_obj('Lenses', lens, 'Lens', smooth=False)
+
+# ---------------------------------------------------------------- ground
+ground = bmesh.new()
+bmesh.ops.create_circle(ground, cap_ends=True, segments=64, radius=520, matrix=Matrix.Translation((0, -40, -0.02)))
+uvl = ground.loops.layers.uv.verify()
+for f in ground.faces:
+    for loop in f.loops:
+        loop[uvl].uv = (loop.vert.co.x, loop.vert.co.y)
+new_obj('Ground', ground, 'Ground', smooth=False)
+
+# =================================================================== CAMERAS AND MARKS
+VIEWS = {
+    'hero': ((84, -104, 27), (-8, 10, 17), 58.0),
+    'front': ((0, -66, 4.6), (0, 14, 18), 80.0),
+    'crowd': ((9, -44, 3.1), (0, 10, 15), 72.0),
+    'close': ((-9, -19, 5.2), (0, 8, 9), 76.0),
+    'aerial': ((44, -118, 62), (0, 6, 8), 56.0),
+}
+BAND = {'lead': (-6.5, 4.0, DECK_H), 'vox': (0.0, 2.2, DECK_H), 'bass': (6.5, 4.0, DECK_H), 'drums': (0.0, 14.5, DECK_H + 0.8)}
+
+
+def to_three(v):
+    """Blender (Z up) to three.js (Y up)."""
+    return [round(v[0], 3), round(v[2], 3), round(-v[1], 3)]
+
+
+# =================================================================== PREVIEW
+def preview(path):
+    loc, tgt, hfov = VIEWS[args.view]
+    cam_data = bpy.data.cameras.new('Preview')
+    cam_data.sensor_width = 36
+    cam_data.lens = 18 / math.tan(math.radians(hfov) / 2)
+    cam_data.clip_end = 2000
+    cam = bpy.data.objects.new('Preview', cam_data)
+    scene.collection.objects.link(cam)
+    cam.location = loc
+    cam.rotation_euler = (Vector(tgt) - Vector(loc)).to_track_quat('-Z', 'Y').to_euler()
+    scene.camera = cam
+    scene.render.engine = 'BLENDER_WORKBENCH'
+    scene.display.shading.light = 'STUDIO'
+    scene.display.shading.color_type = 'MATERIAL'
+    scene.display.shading.show_cavity = True
+    scene.display.shading.show_shadows = True
+    scene.render.resolution_x, scene.render.resolution_y = 1600, 900
+    scene.render.filepath = os.path.abspath(path)
+    bpy.ops.render.render(write_still=True)
+    bpy.data.objects.remove(cam)
+
+
+if args.preview:
+    preview(args.preview)
+
+
+# =================================================================== EXPORT
+def bake_contact_shading(objs, samples):
+    """Ambient occlusion from the whole scene into vertex colours (the forms are dense enough)."""
+    scene.render.engine = 'CYCLES'
+    scene.cycles.samples = samples
+    scene.cycles.device = 'CPU'
+    world = bpy.data.worlds.new('World')
+    scene.world = world
+    world.light_settings.distance = 14.0
+    for o in objs:
+        me = o.data
+        attr = me.color_attributes.new('Col', 'BYTE_COLOR', 'POINT')
+        me.color_attributes.active_color = attr
+        me.color_attributes.render_color_index = me.color_attributes.find('Col')
+        bpy.ops.object.select_all(action='DESELECT')
+        o.select_set(True)
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.bake(type='AO', target='VERTEX_COLORS')
+
+
+def join(objs, name):
+    bpy.ops.object.select_all(action='DESELECT')
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    if len(objs) > 1:
+        bpy.ops.object.join()
+    objs[0].name = name
+    return objs[0]
+
+
+def export(out_dir):
+    os.makedirs(out_dir, exist_ok=True)
+    painted = [o for o in scene.objects if o.type == 'MESH' and o.data.materials[0].name.startswith('Paint')]
+    bake_contact_shading(painted, args.ao_samples)
+    groups = {}
+    for o in painted:
+        groups.setdefault(o.data.materials[0].name, []).append(o)
+    for mname, objs in groups.items():
+        join(objs, mname)
+    data = {
+        'version': 1,
+        'cameras': {k: {'pos': to_three(loc), 'target': to_three(tgt), 'hfov': hfov} for k, (loc, tgt, hfov) in VIEWS.items()},
+        'band': {k: to_three(v) for k, v in BAND.items()},
+        'fixtures': [{'group': f['group'], 'pos': to_three(f['pos']), 'dir': to_three(f['dir'])} for f in FIXTURES],
+        'moon': {'center': to_three(MOON_C), 'radius': MOON_R},
+        'deck': {'center': to_three(DECK_C), 'a': DECK_A, 'b': DECK_B, 'power': DECK_P, 'height': DECK_H, 'barrier': 1.44},
+    }
+    glb = os.path.join(out_dir, 'venue.glb')
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.ops.export_scene.gltf(filepath=glb, export_format='GLB', export_apply=True, export_yup=True, export_lights=False, export_cameras=False,
+                              export_texcoords=True, export_normals=True, export_extras=True, export_vertex_color='ACTIVE', export_all_vertex_colors=False,
+                              export_active_vertex_color_when_no_material=True, export_animations=False,
+                              export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6)
+    with open(os.path.join(out_dir, 'venue.json'), 'w') as f:
+        json.dump(data, f, separators=(',', ':'))
+    meshes = [o for o in scene.objects if o.type == 'MESH']
+    print('exported', glb, 'objects', len(meshes), 'tris', sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in meshes), 'fixtures', len(FIXTURES))
+
+
+if args.save:
+    bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(args.save))
+if args.out:
+    export(args.out)
