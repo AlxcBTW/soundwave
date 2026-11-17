@@ -310,6 +310,7 @@ function phraseLanes(pitches: number[], ctx: PhraseCtx): number[] {
  */
 function assignPitchedLanes(evs: Ev[], downbeats: number[], sectionStarts: number[], ctx: PhraseCtx): number[] {
   const lanes: number[] = new Array(evs.length);
+  if (!evs.length) return lanes;
   const starts = [...new Set([...sectionStarts, Infinity])].sort((a, b) => a - b);
   let prev: { lane: number; midi: number } | undefined;
 

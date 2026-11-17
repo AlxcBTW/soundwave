@@ -177,3 +177,12 @@ describe('sung lane walk', () => {
     expect(agree / moves.length).toBeGreaterThanOrEqual(0.75);
   });
 });
+
+describe('empty parts', () => {
+  it('a part without notes gives an empty chart instead of failing', () => {
+    const a = { ...fakeAnalysis(), bass: [], vocals: [] };
+    for (const part of ['bass', 'vocals'] as const) {
+      for (const d of DIFFICULTIES) expect(generateChart(a, part, d, 'song').notes).toEqual([]);
+    }
+  });
+});
