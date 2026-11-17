@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Chart } from '../chart/types';
 import type { GameEvent, GameSession } from '../game/GameSession';
+import { MAX_MULTIPLIER, multiplierFor } from '../game/scoring';
 
 export const LANE_COLORS = [0x3ddc5a, 0xff3b4e, 0xffd23d, 0x3a8bff, 0xff8a1f];
 const OVERDRIVE_COLOR = new THREE.Color(0xeaf6ff);
@@ -8,6 +9,12 @@ const OVERDRIVE_COLOR = new THREE.Color(0xeaf6ff);
 const OVERDRIVE_TILE = new THREE.Color(0x7fd2ff);
 const MISSED_TINT = 0.28;
 const WHITE = new THREE.Color(0xffffff);
+/** The rails and the deck's front lip: violet, gold on a full streak, overdrive's blue over both. */
+const RAIL = new THREE.Color(0xbd78ff);
+const STREAK_GOLD = new THREE.Color(0xffd66b);
+/** Motes of light let go by the rails each second while they are gold or in overdrive, and how many can float at once. */
+const MOTE_RATE = 120;
+const MAX_MOTES = 420;
 
 const LANE_W = 1;
 /** Where the strike line sits down the canvas when the layout does not say (see resize). */
@@ -80,6 +87,7 @@ const highwayFragment = /* glsl */ `
   uniform float uScroll;
   uniform float uOverdrive;
   uniform float uPulse;
+  uniform float uGold;
   uniform float uLight[5];
   uniform vec3 uLaneCol[5];
   varying vec2 vUv;
@@ -99,8 +107,9 @@ const highwayFragment = /* glsl */ `
     // Neighbouring lanes differ by a breath, so each reads as its own strip.
     base *= 1.0 + 0.07 * (mod(floor(x), 2.0) - 0.5);
     vec3 od = vec3(0.35, 0.65, 1.0);
-    vec3 railCol = mix(vec3(0.74, 0.47, 1.0), od, uOverdrive) * (1.0 + 0.55 * uPulse);
-    vec3 col = base + divider * vec3(0.17, 0.14, 0.36) + railGlow * railGlow * railCol * (0.2 + 0.26 * uPulse);
+    // The rails are violet, gold while the streak holds the top multiplier, and overdrive's blue over both.
+    vec3 railCol = mix(mix(vec3(0.74, 0.47, 1.0), vec3(1.0, 0.9, 0.56), uGold), od, uOverdrive) * (1.0 + 0.55 * uPulse + 0.55 * uGold);
+    vec3 col = base + divider * vec3(0.17, 0.14, 0.36) + railGlow * railGlow * railCol * (0.2 + 0.26 * uPulse + 0.45 * uGold);
     col = mix(col, railCol, rail);
     // In overdrive the edges light up light blue from inside too, in swells that run toward the player.
     float inner = smoothstep(0.16, 0.0, min(vUv.x, 1.0 - vUv.x));
@@ -124,6 +133,7 @@ const glowFragment = /* glsl */ `
   uniform float uLevel;
   uniform float uFlare;
   uniform float uSide;
+  uniform float uBlue;
   varying vec2 vUv;
   float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
   float noise(vec2 p) {
@@ -139,9 +149,39 @@ const glowFragment = /* glsl */ `
     float reach = 5.5 - 2.6 * swell - 1.5 * uFlare;
     float glow = exp(-out_ * reach) * (1.0 - out_) * (0.55 + 0.3 * swell + 0.3 * shimmer);
     float line = exp(-out_ * 40.0);
-    vec3 col = mix(vec3(0.22, 0.6, 1.0), vec3(0.55, 0.86, 1.0), line + 0.35 * swell * (1.0 - out_));
+    // Gold for a full streak, light blue for overdrive.
+    vec3 deep = mix(vec3(1.0, 0.62, 0.14), vec3(0.22, 0.6, 1.0), uBlue);
+    vec3 pale = mix(vec3(1.0, 0.93, 0.66), vec3(0.55, 0.86, 1.0), uBlue);
+    vec3 col = mix(deep, pale, line + 0.35 * swell * (1.0 - out_));
     float ends = smoothstep(1.0, 0.55, along) * smoothstep(0.0, 0.04, along);
     gl_FragColor = vec4(col * (1.0 + 0.8 * uFlare), (glow * 1.25 + 0.4 * line) * uLevel * ends);
+  }
+`;
+
+const moteVertex = /* glsl */ `
+  attribute float aSize;
+  attribute float aAlpha;
+  uniform float uScale;
+  varying vec3 vColor;
+  varying float vAlpha;
+  void main() {
+    vColor = color;
+    vAlpha = aAlpha;
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    gl_PointSize = aSize * uScale / max(0.1, -mv.z);
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+/** A disc of light out of focus: even across, soft at the rim, a little brighter in the middle. */
+const moteFragment = /* glsl */ `
+  varying vec3 vColor;
+  varying float vAlpha;
+  void main() {
+    float d = length(gl_PointCoord - 0.5) * 2.0;
+    float disc = smoothstep(1.0, 0.72, d);
+    float core = smoothstep(0.7, 0.0, d);
+    gl_FragColor = vec4(vColor, vAlpha * disc * (0.6 + 0.4 * core));
   }
 `;
 
@@ -157,6 +197,20 @@ export class Highway {
   private readonly trackMat: THREE.ShaderMaterial;
   private readonly glowMats: THREE.ShaderMaterial[] = [];
   private readonly glow = new THREE.Group();
+  private lip!: THREE.MeshBasicMaterial;
+  /** The motes of light beside the rails (see floatMotes). */
+  private motes!: THREE.Points;
+  private readonly mPos = new Float32Array(MAX_MOTES * 3);
+  private readonly mVel = new Float32Array(MAX_MOTES * 3);
+  private readonly mCol = new Float32Array(MAX_MOTES * 3);
+  private readonly mSize = new Float32Array(MAX_MOTES);
+  private readonly mAlpha = new Float32Array(MAX_MOTES);
+  private readonly mPeak = new Float32Array(MAX_MOTES);
+  private readonly mSpan = new Float32Array(MAX_MOTES);
+  private readonly mLife = new Float32Array(MAX_MOTES);
+  private moteNext = 0;
+  /** Motes owed since the last frame (a fraction carries over). */
+  private moteDebt = 0;
   private flare = 0;
   private readonly gems: THREE.InstancedMesh;
   /** The darker top face of each tile, inside its bright rim. */
@@ -240,6 +294,7 @@ export class Highway {
         uScroll: { value: 0 },
         uOverdrive: { value: 0 },
         uPulse: { value: 0 },
+        uGold: { value: 0 },
         uLight: { value: [0, 0, 0, 0, 0] },
         uLaneCol: { value: LANE_COLORS.map((c) => new THREE.Color(c)) },
       },
@@ -249,9 +304,10 @@ export class Highway {
     track.rotation.x = -Math.PI / 2;
     track.position.set(0, -0.02, -trackLen / 2 + FRONT);
     // The deck ends in a lit lip, the same light as its rails.
-    const lip = new THREE.Mesh(new THREE.BoxGeometry(this.width + 0.12, 0.05, 0.07), new THREE.MeshBasicMaterial({ color: 0xbd78ff }));
+    const lip = new THREE.Mesh(new THREE.BoxGeometry(this.width + 0.12, 0.05, 0.07), new THREE.MeshBasicMaterial({ color: RAIL }));
     lip.position.set(0, -0.02, FRONT);
     this.root.add(lip);
+    this.lip = lip.material as THREE.MeshBasicMaterial;
     track.renderOrder = -2;
     this.root.add(track);
 
@@ -264,7 +320,7 @@ export class Highway {
         transparent: true,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
-        uniforms: { uTime: { value: 0 }, uLevel: { value: 0 }, uFlare: { value: 0 }, uSide: { value: side } },
+        uniforms: { uTime: { value: 0 }, uLevel: { value: 0 }, uFlare: { value: 0 }, uSide: { value: side }, uBlue: { value: 1 } },
       });
       const strip = new THREE.Mesh(new THREE.PlaneGeometry(glowWidth, trackLen), mat);
       strip.rotation.x = -Math.PI / 2;
@@ -437,6 +493,30 @@ export class Highway {
     this.particles.frustumCulled = false;
     this.root.add(this.particles);
 
+    // Motes: points drawn as soft discs, each with its own size (in highway units) and strength.
+    const mGeo = new THREE.BufferGeometry();
+    mGeo.setAttribute('position', new THREE.BufferAttribute(this.mPos, 3));
+    mGeo.setAttribute('color', new THREE.BufferAttribute(this.mCol, 3));
+    mGeo.setAttribute('aSize', new THREE.BufferAttribute(this.mSize, 1));
+    mGeo.setAttribute('aAlpha', new THREE.BufferAttribute(this.mAlpha, 1));
+    this.motes = new THREE.Points(
+      mGeo,
+      new THREE.ShaderMaterial({
+        vertexShader: moteVertex,
+        fragmentShader: moteFragment,
+        uniforms: { uScale: { value: 600 } },
+        vertexColors: true,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+      }),
+    );
+    this.motes.frustumCulled = false;
+    this.motes.visible = false;
+    this.motes.renderOrder = 3;
+    this.root.add(this.motes);
+
     this.resize();
   }
 
@@ -478,6 +558,8 @@ export class Highway {
     const now = ((1 - new THREE.Vector3(0, 0, FRONT + 0.16).project(this.camera).y) / 2) * h;
     this.camera.setViewOffset(w, h, 0, Math.round(now - strike * h), w, h);
     this.camera.updateProjectionMatrix();
+    // A mote's size is in highway units: this turns it into pixels at its distance.
+    (this.motes.material as THREE.ShaderMaterial).uniforms.uScale.value = (h * this.renderer.getPixelRatio()) / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
   }
   /** Strike targets as thin pills, or as finger-sized squares set a little toward the player. */
   private setPadStyle(style: 'pill' | 'square') {
@@ -576,6 +658,62 @@ export class Highway {
     }
   }
 
+  /**
+   * Motes of light beside the rails: soft discs of every size, small bright ones and a few large
+   * faint ones, drifting up and outward, fading in and out. `color` is null when none are due;
+   * the ones already afloat still live out their time.
+   */
+  private floatMotes(dt: number, now: number, color: THREE.Color | null) {
+    if (color) {
+      this.moteDebt += dt * MOTE_RATE;
+      while (this.moteDebt >= 1) {
+        this.moteDebt -= 1;
+        const i = this.moteNext;
+        this.moteNext = (this.moteNext + 1) % MAX_MOTES;
+        const k = i * 3;
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const big = Math.random() < 0.26;
+        this.mPos[k] = side * (this.width / 2 - 0.08 + Math.random() * (big ? 1.9 : 1.2));
+        this.mPos[k + 1] = Math.random() * 0.8;
+        // More of them toward the player, where the rails are widest on screen.
+        this.mPos[k + 2] = FRONT - Math.pow(Math.random(), 1.5) * LENGTH * 0.8;
+        this.mVel[k] = side * Math.random() * 0.3;
+        this.mVel[k + 1] = 0.15 + Math.random() * 0.6;
+        this.mVel[k + 2] = (Math.random() - 0.5) * 0.5;
+        // Lit toward white at the core of the small ones; the large ones keep more of the colour.
+        const white = big ? 0.15 : 0.35 + Math.random() * 0.4;
+        this.mCol[k] = color.r + (1 - color.r) * white;
+        this.mCol[k + 1] = color.g + (1 - color.g) * white;
+        this.mCol[k + 2] = color.b + (1 - color.b) * white;
+        this.mSize[i] = big ? 0.34 + Math.random() * 0.6 : 0.07 + Math.random() * 0.15;
+        this.mPeak[i] = big ? 0.22 + Math.random() * 0.26 : 0.8 + Math.random() * 0.2;
+        this.mSpan[i] = 1.1 + Math.random() * 1.6;
+        this.mLife[i] = this.mSpan[i];
+      }
+    } else this.moteDebt = 0;
+
+    let alive = false;
+    for (let i = 0; i < MAX_MOTES; i++) {
+      if (this.mLife[i] <= 0) continue;
+      alive = true;
+      this.mLife[i] -= dt;
+      const k = i * 3;
+      this.mPos[k] += this.mVel[k] * dt;
+      this.mPos[k + 1] += this.mVel[k + 1] * dt;
+      this.mPos[k + 2] += this.mVel[k + 2] * dt;
+      const age = 1 - Math.max(0, this.mLife[i]) / this.mSpan[i];
+      // In over the first fifth, out over the rest, with a slow twinkle.
+      const fade = Math.min(1, age / 0.2) * Math.min(1, (1 - age) / 0.5);
+      this.mAlpha[i] = this.mLife[i] > 0 ? this.mPeak[i] * fade * (0.8 + 0.2 * Math.sin(now / 130 + i)) : 0;
+    }
+    this.motes.visible = alive;
+    if (!alive) return;
+    const g = this.motes.geometry;
+    g.attributes.position.needsUpdate = true;
+    g.attributes.color.needsUpdate = true;
+    g.attributes.aSize.needsUpdate = true;
+    g.attributes.aAlpha.needsUpdate = true;
+  }
   /** Renders the frame for song time `t`. `beatPulse` (0..1) lets the music drive the track glow. */
   render(t: number, session: GameSession, beatPulse = 0) {
     const now = performance.now();
@@ -593,12 +731,21 @@ export class Highway {
     this.pulse = Math.max(0, this.pulse - dt * 2);
     u.uPulse.value = this.pulse + beatPulse * 0.6;
     this.flare = Math.max(0, this.flare - dt * 1.1);
+    // A streak long enough for the top multiplier turns the rails a light, glowing gold and sets
+    // motes of light floating up from them. Overdrive takes the rails over in its own blue, and
+    // its motes are blue.
+    const fullStreak = multiplierFor(session.streak) >= MAX_MULTIPLIER;
+    u.uGold.value += ((fullStreak ? 1 : 0) - u.uGold.value) * Math.min(1, dt * 5);
+    this.lip.color.copy(RAIL).lerp(STREAK_GOLD, u.uGold.value).lerp(OVERDRIVE_TILE, u.uOverdrive.value);
+    const glowLevel = Math.max(u.uGold.value * 0.85, u.uOverdrive.value);
+    this.floatMotes(dt, now, session.overdriveActive ? OVERDRIVE_TILE : fullStreak ? STREAK_GOLD : null);
     for (const mat of this.glowMats) {
       mat.uniforms.uTime.value = now / 1000;
-      mat.uniforms.uLevel.value = u.uOverdrive.value;
+      mat.uniforms.uLevel.value = glowLevel;
+      mat.uniforms.uBlue.value = u.uOverdrive.value;
       mat.uniforms.uFlare.value = this.flare;
     }
-    this.glow.visible = u.uOverdrive.value > 0.01;
+    this.glow.visible = glowLevel > 0.01;
 
     // Camera shake on misses
     this.shake = Math.max(0, this.shake - dt * 2.5);
