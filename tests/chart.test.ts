@@ -146,3 +146,34 @@ describe('detectFeel', () => {
     expect(detectFeel(bars.flatMap((b) => [b, b + 0.25, b + 0.75, b + 1.5, b + 2.75, b + 3.34]))).toBe('straight');
   });
 });
+
+describe('sung lane walk', () => {
+  // A rap verse on one pitch (sixteenths) followed by a rising, then falling, sung phrase.
+  const base = fakeAnalysis();
+  const spb = 0.5;
+  const vocals: AnalysisResult['vocals'] = [];
+  for (let i = 0; i < 64; i++) vocals.push({ t: 10 + i * (spb / 4), dur: 0.1, midi: 58, strength: 0.8 });
+  const melody = [60, 62, 64, 67, 69, 67, 64, 62, 60];
+  melody.forEach((m, i) => vocals.push({ t: 22 + i * spb, dur: 0.4, midi: m, strength: 0.8 }));
+  const a = { ...base, vocals };
+  const notes = generateChart(a, 'vocals', 'expert', 'song').notes;
+
+  it('never hammers one lane with fast notes', () => {
+    for (let i = 1; i < notes.length; i++) {
+      if (notes[i].t - notes[i - 1].t < 0.25) expect(notes[i].lane).not.toBe(notes[i - 1].lane);
+    }
+  });
+
+  it('spreads a monotone verse over the lanes', () => {
+    const verse = notes.filter((n) => n.t < 20);
+    expect(new Set(verse.map((n) => n.lane)).size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('follows the melody up and down', () => {
+    const sung = notes.filter((n) => n.t >= 22);
+    const moves = sung.slice(1).map((n, i) => Math.sign(n.lane - sung[i].lane));
+    const want = melody.slice(1).map((m, i) => Math.sign(m - melody[i]));
+    const agree = moves.filter((d, i) => d === want[i]).length;
+    expect(agree / moves.length).toBeGreaterThanOrEqual(0.75);
+  });
+});

@@ -469,7 +469,7 @@ export function generateAll(a: AnalysisResult, part: Part, seedKey = ''): Record
     const evs = drums ? reduceRhythm(reduceDrums(source, d), p, spb, true, a.downbeats) : reduceRhythm(source, p, spb, false, a.downbeats);
     const notes = drums
       ? drumNotes(evs, p, d)
-      : pitchedNotes(evs, p, d, a.downbeats, sectionStarts, { lanes: p.pitchedLanes, partLo, partHi, memo: new Map() }, part === 'vocals');
+      : pitchedNotes(evs, p, d, a.downbeats, sectionStarts, { lanes: p.pitchedLanes, partLo, partHi, memo: new Map() }, part === 'vocals' ? { spb } : undefined);
     const timed: Note[] = notes.map((n) => ({ ...n, t: grid.time(n.t), dur: n.dur > 0 ? grid.time(n.t + n.dur) - grid.time(n.t) : 0 }));
     timed.sort((x, y) => x.t - y.t || x.lane - y.lane);
     const clean = validate(timed, p.lanes, p, spb);
@@ -494,24 +494,59 @@ export function generateAll(a: AnalysisResult, part: Part, seedKey = ''): Record
   return out;
 }
 
+/** Lane move for a sung interval: singers' steps are small, so leaps of a third already move two. */
+const sungStep = (interval: number) => (interval <= 2 ? 1 : interval <= 5 ? 2 : 3);
+
+/** Rests at least this long (beats) start a new sung phrase, placed afresh from its register. */
+const PHRASE_GAP_BEATS = 2;
+/** Notes closer than this (seconds) never share a lane: one finger per lane can't hammer them. */
+const FAST_REPEAT = 0.25;
+
 /**
- * Sung repeats bounce: syllables chanted on one pitch would otherwise hammer a single lane. A fast
- * repeat (within a beat) stays on the pitch's lane when it falls on the beat and moves to a partner
- * lane two over (towards the centre) off the beat, so the lanes carry the rhythm, as human vocal
- * charts do. Deterministic from the rhythm, so repeated phrases still chart the same.
+ * Sung lines walk the lanes, as human vocal charts for one-finger-per-lane play do. A phrase starts
+ * where its pitch sits in the singer's range; then the lane follows the melody (up = right, wider
+ * intervals further), and a syllable on the same pitch still moves on, rolling in the current
+ * direction and turning at the edges: two lanes on the beat and on sixteenths, one on the eighth
+ * between, so the pattern carries the rhythm and a repeated phrase charts the same. Fast notes
+ * never repeat a lane.
  */
-function bounce(evs: Ev[], lanes: number[], laneCount: number) {
-  const home = [...lanes];
-  for (let i = 1; i < evs.length; i++) {
-    const e = evs[i];
+function walkLanes(evs: Ev[], ctx: PhraseCtx, spb: number): number[] {
+  const n = ctx.lanes;
+  const lanes: number[] = [];
+  const home = (midi: number) => {
+    const reg = ctx.partHi > ctx.partLo ? (midi - ctx.partLo) / (ctx.partHi - ctx.partLo) : 0.5;
+    return Math.round(Math.max(0, Math.min(1, reg)) * (n - 1));
+  };
+  let dir = 1;
+  evs.forEach((e, i) => {
     const prev = evs[i - 1];
-    if (e.midi !== prev.midi || e.pos - prev.pos > 1 + EPS) continue;
-    if (isMultiple(e.pos, 1)) continue;
-    const h = home[i];
-    const toCentre = h < (laneCount - 1) / 2 ? 2 : -2;
-    const partner = h + toCentre >= 0 && h + toCentre < laneCount ? h + toCentre : h - toCentre;
-    if (partner >= 0 && partner < laneCount) lanes[i] = partner;
-  }
+    if (!prev || e.pos - prev.pos >= PHRASE_GAP_BEATS - EPS) {
+      lanes.push(home(e.midi));
+      dir = lanes[i] >= (n - 1) / 2 ? -1 : 1;
+      return;
+    }
+    const last = lanes[i - 1];
+    const gap = (e.pos - prev.pos) * spb;
+    const interval = e.midi - prev.midi;
+    let lane: number;
+    if (interval !== 0) {
+      dir = Math.sign(interval);
+      lane = last + dir * sungStep(Math.abs(interval));
+    } else {
+      lane = last + dir * (isMultiple(e.pos, 1) ? 2 : isMultiple(e.pos, 0.5) ? 1 : 2);
+    }
+    if (lane < 0 || lane > n - 1) {
+      // Out of room: a repeated pitch turns around; a melody step goes as far as it can.
+      lane = interval === 0 ? last - dir : Math.max(0, Math.min(n - 1, lane));
+      if (interval === 0) dir = -dir;
+    }
+    if (lane === last && gap < FAST_REPEAT) {
+      // Pinned at the edge by a rising or falling run: step back rather than hammer one lane.
+      lane = last + (last === 0 ? 1 : last === n - 1 ? -1 : dir);
+    }
+    lanes.push(Math.max(0, Math.min(n - 1, lane)));
+  });
+  return lanes;
 }
 
 /** Notes in beat positions (t and dur are positions here; converted to seconds by the caller). */
@@ -522,17 +557,9 @@ function pitchedNotes(
   downbeats: number[],
   sectionStarts: number[],
   ctx: PhraseCtx,
-  bounceRepeats = false,
+  walk?: { spb: number },
 ): Note[] {
-  // Every difficulty follows the same (top) note, so lanes move the same way on all of them.
-  const melody = evs.map((e) => e.midi);
-  const lanes = assignPitchedLanes(
-    evs.map((e, i) => ({ ...e, midi: melody[i] })),
-    downbeats,
-    sectionStarts,
-    ctx,
-  );
-  if (bounceRepeats) bounce(evs, lanes, ctx.lanes);
+  const lanes = walk ? walkLanes(evs, ctx, walk.spb) : assignPitchedLanes(evs, downbeats, sectionStarts, ctx);
   // Chord budget: the most important stabs (beat position, then length) up to the profile's rate.
   // A score threshold instead of a count keeps repeated stabs consistent.
   const chordScore = (e: Ev) => metricWeight(e.pos, downbeats) + 0.5 * Math.min(1, e.len / 2);
