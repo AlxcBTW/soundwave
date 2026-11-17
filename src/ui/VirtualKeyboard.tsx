@@ -3,15 +3,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Settings } from '../game/settings';
 import { PadGlyph } from '../input/glyphs';
 import { pads, type PadInput } from '../input/pads';
+import { watchTouchpad } from '../input/touchpad';
 import { useGlyphStyle } from '../input/usePads';
 import { useActions } from './actions';
 import { ICON_STROKE } from './icons';
 
 type Field = HTMLInputElement | HTMLTextAreaElement;
-/** A finger on a controller's touchpad, as the Gamepad API reports it: -1..1 across and down its surface. */
-interface PadTouch {
-  position: { x: number; y: number };
-}
 
 interface Props {
   /** The field being typed into. It is updated with every key, so a search narrows as it is typed. */
@@ -128,9 +125,9 @@ export function VirtualKeyboard({ target, settings, onClose }: Props) {
 
   // A controller's touchpad works a cursor: a finger sliding over the pad moves a pointer across
   // the keyboard from where it was (like a laptop's trackpad), the key under it takes the focus,
-  // and a click of the pad presses that key. This needs the browser to report touchpad contacts
-  // (the Gamepad API's `touches`); where it does not, the click alone still presses the key in
-  // focus.
+  // and a click of the pad presses that key. The finger comes from the browser where it reports
+  // the touchpad, and from the desktop app itself otherwise (see input/touchpad.ts); where neither
+  // can, the click alone still presses the key in focus.
   useEffect(() => {
     let raf = 0;
     let pointed: HTMLElement | null = null;
@@ -139,10 +136,10 @@ export function VirtualKeyboard({ target, settings, onClose }: Props) {
     // Where the cursor was left, so the next swipe carries on from there.
     let cursor: { x: number; y: number } | null = null;
     let hide = 0;
+    const touchpad = watchTouchpad();
     const tick = () => {
       raf = requestAnimationFrame(tick);
-      const gp = pads.gamepad(pads.snapshot().lastPad) as (Gamepad & { touches?: PadTouch[] | null; touchEvents?: PadTouch[] | null }) | null;
-      const finger = (gp?.touches ?? gp?.touchEvents)?.[0]?.position;
+      const finger = touchpad.read();
       const keys = box.current?.querySelector<HTMLElement>('.vk-keys');
       const dot = pointer.current;
       if (!finger || !keys || !dot) {
@@ -193,6 +190,7 @@ export function VirtualKeyboard({ target, settings, onClose }: Props) {
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(hide);
+      touchpad.stop();
       release();
     };
   }, []);

@@ -1,4 +1,5 @@
 mod haptics;
+mod touchpad;
 
 use std::time::Duration;
 use tauri::Manager;
@@ -13,7 +14,8 @@ fn exit_app(app: tauri::AppHandle) {
 pub fn run() {
   tauri::Builder::default()
     .manage(haptics::Haptics::default())
-    .invoke_handler(tauri::generate_handler![exit_app, haptics::haptics_available, haptics::haptics_play, haptics::haptics_update, haptics::haptics_release])
+    .manage(touchpad::Touchpad::default())
+    .invoke_handler(tauri::generate_handler![exit_app, haptics::haptics_available, haptics::haptics_play, haptics::haptics_update, haptics::haptics_release, touchpad::touchpad_watch, touchpad::touchpad_finger])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
