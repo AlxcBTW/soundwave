@@ -91,21 +91,25 @@ function radialTexture() {
   return tex;
 }
 
-/** A sustain trail's profile across its width: a thin bright core in a soft halo that fades to nothing at the edges. */
+/**
+ * A sustain trail's profile across its width: a clean band of the lane's colour with crisp
+ * (anti-aliased) edges and a slightly lighter line down its middle. No halo: light spilling off a
+ * trail reads as a smear on the deck.
+ */
 function trailTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 64;
   c.height = 4;
   const g = c.getContext('2d')!;
   const grad = g.createLinearGradient(0, 0, 64, 0);
-  grad.addColorStop(0, 'rgb(0,0,0)');
-  grad.addColorStop(0.22, 'rgb(40,40,40)');
-  grad.addColorStop(0.4, 'rgb(120,120,120)');
-  grad.addColorStop(0.46, 'rgb(255,255,255)');
-  grad.addColorStop(0.54, 'rgb(255,255,255)');
-  grad.addColorStop(0.6, 'rgb(120,120,120)');
-  grad.addColorStop(0.78, 'rgb(40,40,40)');
-  grad.addColorStop(1, 'rgb(0,0,0)');
+  grad.addColorStop(0, 'rgba(205,205,205,0)');
+  grad.addColorStop(0.07, 'rgba(205,205,205,1)');
+  grad.addColorStop(0.36, 'rgba(205,205,205,1)');
+  grad.addColorStop(0.45, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.55, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.64, 'rgba(205,205,205,1)');
+  grad.addColorStop(0.93, 'rgba(205,205,205,1)');
+  grad.addColorStop(1, 'rgba(205,205,205,0)');
   g.fillStyle = grad;
   g.fillRect(0, 0, 64, 4);
   const tex = new THREE.CanvasTexture(c);
@@ -490,7 +494,7 @@ export class Highway {
     tailGeo.translate(0, 0, -0.5); // extends from z=0 to z=-1 before scaling
     this.tails = new THREE.InstancedMesh(
       tailGeo,
-      new THREE.MeshBasicMaterial({ map: trailTexture(), transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ map: trailTexture(), transparent: true, opacity: 0.95, depthWrite: false }),
       MAX_TAILS,
     );
     this.tails.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TAILS * 3), 3);
@@ -893,10 +897,11 @@ export class Highway {
         const len = startZ - endZ;
         if (len > 0.01 && (!hit || held)) {
           this.v.set(x, 0.01, startZ);
-          this.s.set(held ? 0.62 : 0.46, 1, len);
+          this.s.set(held ? 0.32 : 0.26, 1, len);
           this.m.compose(this.v, this.q, this.s);
           this.tails.setMatrixAt(ti, this.m);
-          this.c.copy(color).lerp(WHITE, held ? 0.25 : 0.1).multiplyScalar(missed ? MISSED_TINT : held ? 1.5 : 1);
+          // In the lane's colour, lighter while it is held, dim once missed.
+          this.c.copy(color).lerp(WHITE, held ? 0.35 : 0).multiplyScalar(missed ? MISSED_TINT : 1);
           this.tails.setColorAt(ti, this.c);
           ti++;
         }
