@@ -44,6 +44,8 @@ export type LocalAnalyzer = (
 const abortError = () => new DOMException('analysis cancelled', 'AbortError');
 /** How much of the progress bar separating and transcribing the stems takes. */
 const SEPARATION_SHARE = 0.85;
+/** When a song has to wait for the model to download first, the download fills this much of its bar. */
+const DOWNLOAD_SHARE = 0.4;
 
 type Listener = () => void;
 
@@ -182,8 +184,17 @@ export class AnalysisManager {
     // The song is separated into stems and each pitched stem transcribed; the pipeline then builds
     // the lines from those and adds the rhythm (beat grid, drums from the drum stem) and structure.
     let assist: Assist | undefined;
+    // Where the song's own work starts on its bar: further in when the bar first shows the download.
+    let start = 0;
     if (this.separator) {
-      const r = await this.separator(id, (p, step) => progress({ state: 'analyzing', progress: p * SEPARATION_SHARE, step }), signal);
+      const r = await this.separator(
+        id,
+        (p, step, download) => {
+          if (download) start = DOWNLOAD_SHARE;
+          progress({ state: 'analyzing', progress: download ? p * DOWNLOAD_SHARE : start + p * SEPARATION_SHARE * (1 - start), step });
+        },
+        signal,
+      );
       assist = {
         // Each line is rebuilt from its stem; a stem with no notes leaves its line empty.
         lines: { bass: [], lead: [], vocals: [] },
@@ -194,7 +205,7 @@ export class AnalysisManager {
       };
     }
     if (signal.aborted) throw abortError();
-    const base = assist ? SEPARATION_SHARE : 0;
+    const base = assist ? start + SEPARATION_SHARE * (1 - start) : 0;
     progress({ state: 'analyzing', progress: base, step: STEP_LABEL.decoding });
     const result = await this.local(
       id,

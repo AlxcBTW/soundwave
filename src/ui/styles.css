@@ -655,15 +655,6 @@ input.text { width: min(100%, 16rem); min-height: 2.5rem; padding: 0.4rem 0.7rem
 .toasts { position: absolute; right: calc(var(--gutter) + var(--safe-r)); bottom: calc(var(--bar-h) + var(--safe-b) + 0.4rem); z-index: 60; display: flex; flex-direction: column; gap: 0.5rem; width: min(26rem, calc(100% - 2 * var(--gutter))); }
 .toast { display: flex; gap: 0.7rem; align-items: flex-start; text-align: left; padding: 0.8rem 1rem; border-radius: var(--r-m); background: #4a1a52; color: var(--ink); line-height: 1.4; box-shadow: 0 16px 30px -14px rgb(0 0 0 / 0.8); animation: toast-in 0.35s var(--ease); }
 .toast svg { width: 1.2rem; height: 1.2rem; flex: none; margin-top: 0.1rem; color: var(--pink-2); }
-/* Not a problem: something under way (a download with its bar) or done. */
-.toast.progress, .toast.done { background: var(--raised-hi); }
-.toast.progress svg { color: var(--ink); }
-.toast.done svg { color: var(--ok); }
-.toast-body { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; min-width: 0; }
-.toast-progress { display: flex; align-items: center; gap: 0.7rem; }
-.toast-progress .meter { flex: 1; height: 6px; border-radius: 3px; }
-.toast-progress .meter > span { border-radius: 3px; background: var(--mint); transition: width 0.25s linear; }
-.toast-detail { flex: none; font-size: 0.85rem; font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 @keyframes toast-in { from { transform: translateY(0.8rem); opacity: 0; } }
 .drop-overlay { position: absolute; inset: 0; z-index: 65; display: grid; place-items: center; padding: 1.2rem; background: rgb(9 5 28 / 0.84); pointer-events: none; animation: fade-in 0.15s; }
 .drop-overlay span { display: grid; place-items: center; width: 100%; height: 100%; border: 3px dashed var(--pink-2); border-radius: var(--r-l); font-size: clamp(1.4rem, 3vw, 2.4rem); font-weight: 900; font-style: italic; font-stretch: 112%; text-transform: uppercase; text-align: center; }

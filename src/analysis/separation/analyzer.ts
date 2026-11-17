@@ -14,10 +14,10 @@ export interface StemResult {
   notes: StemNotes;
 }
 
-export type StemAnalyzer = (songId: string, onProgress: (p: number, label: string) => void, signal: AbortSignal) => Promise<StemResult>;
+/** `download` marks progress of fetching the model, which comes before the song's own work. */
+export type StemAnalyzer = (songId: string, onProgress: (p: number, label: string, download?: boolean) => void, signal: AbortSignal) => Promise<StemResult>;
 
 const abortError = () => new DOMException('analysis cancelled', 'AbortError');
-const megabytes = (n: number) => Math.round(n / 1e6);
 
 /** The song in stereo at the model's rate. */
 async function modelInput(buffer: AudioBuffer): Promise<[Float32Array, Float32Array]> {
@@ -41,8 +41,9 @@ export const stemAnalyzer: StemAnalyzer = async (songId, onProgress, signal) => 
   if (stemModel.snapshot().state !== 'ready') {
     const report = () => {
       const s = stemModel.snapshot();
-      if (s.state === 'downloading') onProgress(s.received / s.total, `Downloading the analysis model (${megabytes(s.received)} of ${megabytes(s.total)} MB)`);
+      if (s.state === 'downloading') onProgress(s.received / s.total, 'Downloading the analysis model', true);
     };
+    report();
     const stop = stemModel.subscribe(report);
     try {
       await stemModel.ensure();

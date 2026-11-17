@@ -87,6 +87,39 @@ describe('AnalysisManager', () => {
     expect(got?.stemNotes?.bass).toHaveLength(1);
   });
 
+  it('shows a model download in the bar of the song waiting for it, before its own progress', async () => {
+    const wav = () => new ArrayBuffer(8);
+    const seen: number[] = [];
+    const steps = new Set<string>();
+    const m = new AnalysisManager(
+      (_id, onProgress) => {
+        onProgress({ step: 'rhythm', progress: 0.5 });
+        return Promise.resolve(result());
+      },
+      async (_id, onProgress) => {
+        onProgress(0.5, 'Downloading the analysis model', true);
+        onProgress(1, 'Downloading the analysis model', true);
+        onProgress(0, 'Separating stems');
+        onProgress(1, 'Separating stems');
+        return { stems: { drums: wav(), bass: wav(), vocals: wav(), other: wav() }, notes: { bass: [], vocals: [], other: [] } };
+      },
+    );
+    m.subscribe(() => {
+      const s = m.snapshot().song;
+      if (s?.state === 'analyzing') {
+        seen.push(s.progress ?? 0);
+        if (s.step) steps.add(s.step);
+      }
+    });
+    m.enqueue('song');
+    for (let i = 0; i < 5 && m.snapshot().song?.state !== 'ready'; i++) await tick();
+    expect(steps.has('Downloading the analysis model')).toBe(true);
+    // The bar only moves forward, and the download is its first part.
+    for (let i = 1; i < seen.length; i++) expect(seen[i]).toBeGreaterThanOrEqual(seen[i - 1]);
+    expect(seen[0]).toBeCloseTo(0.2);
+    expect(seen[seen.length - 1]).toBeLessThan(1);
+  });
+
   it('does not chart a song it could not separate', async () => {
     let charted = false;
     const m = new AnalysisManager(

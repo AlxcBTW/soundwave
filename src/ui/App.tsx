@@ -117,7 +117,7 @@ export function App() {
     saveSettings(s);
   }, []);
   const toasts = useToasts();
-  const { push: toast, notify } = toasts;
+  const { push: toast } = toasts;
 
   const setSetlist = useCallback((next: string[]) => {
     setSetlistState(next);
@@ -207,18 +207,9 @@ export function App() {
   useEffect(() => {
     const was = modelWas.current;
     modelWas.current = model.state;
-    // One notification for the whole download: its bar fills, then the same card says how it ended.
-    const mb = (n: number) => Math.round(n / 1e6);
-    if (model.state === 'downloading') {
-      notify('stem-model', { kind: 'progress', text: 'Downloading the analysis model', progress: model.received / model.total, detail: `${mb(model.received)} of ${mb(model.total)} MB` });
-    } else if (was === model.state) {
-      return;
-    } else if (model.state === 'ready' && was === 'downloading') {
-      notify('stem-model', { kind: 'done', text: 'The analysis model is ready.' });
-    } else if (model.state === 'error' && model.error) {
-      notify('stem-model', { kind: 'error', text: model.error });
-    }
-  }, [model, notify]);
+    // The download itself shows in the progress bar of the song waiting for it; only a failure is news.
+    if (was !== model.state && model.state === 'error' && model.error) toast(model.error);
+  }, [model, toast]);
 
   const analysisStatus = useSyncExternalStore(analysisManager.subscribe, analysisManager.snapshot);
   const status: Record<string, SongStatus> = useMemo(() => ({ ...analysisStatus, [DEMO_ID]: { state: 'ready' } }), [analysisStatus]);
