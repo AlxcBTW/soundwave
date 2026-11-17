@@ -282,7 +282,7 @@ export function App() {
   } else if (view.name === 'results') {
     content = (
       <div className="menu">
-        <MenuBackground />
+        <MenuBackground graphics={settings.graphics} />
         <ResultsScreen
           title={view.song.title}
           subtitle={`${view.chart.part} · ${view.chart.difficulty}`}
@@ -296,7 +296,7 @@ export function App() {
   } else {
     content = (
       <div className="menu">
-        <MenuBackground />
+        <MenuBackground graphics={settings.graphics} />
         {/* One entrance per screen change; the stage behind it stays. */}
         <div className={`scene ${sceneDir}`} key={view.name === 'detail' ? `detail:${view.song.id}` : view.name}>
           {view.name === 'settings' ? (

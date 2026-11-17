@@ -23,6 +23,7 @@ interface Props {
 export function PlayScreen({ title, buffer, chart, settings, onFinish, onQuit }: Props) {
   const bgRef = useRef<HTMLCanvasElement>(null);
   const hwRef = useRef<HTMLCanvasElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const hudRef = useRef<HTMLDivElement>(null);
   const ctrlRef = useRef<PlayController | null>(null);
   const [phase, setPhase] = useState<PlayPhase>('countdown');
@@ -48,7 +49,7 @@ export function PlayScreen({ title, buffer, chart, settings, onFinish, onQuit }:
       breakNumber: q('[data-hud=break-num]'),
       breakLabel: q('[data-hud=break-label]'),
       breakRing: root.querySelector<SVGCircleElement>('[data-hud=break-ring]')!,
-    });
+    }, stageRef.current!);
     let prev: PlayPhase = 'countdown';
     ctrl.onPhase = (p, n) => {
       if (p === 'paused' && prev !== 'paused') {
@@ -80,6 +81,7 @@ export function PlayScreen({ title, buffer, chart, settings, onFinish, onQuit }:
   return (
     <div className="play">
       <canvas ref={bgRef} className="layer" />
+      <div ref={stageRef} className="layer stage-host" />
       <canvas ref={hwRef} className="layer" />
       <div ref={hudRef} className="hud">
         <div className="hud-top">

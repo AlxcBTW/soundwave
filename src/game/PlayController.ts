@@ -2,6 +2,9 @@ import type { Chart } from '../chart/types';
 import { AudioEngine } from '../audio/AudioEngine';
 import { Background2D } from '../render/Background2D';
 import { Highway } from '../render/Highway';
+import { Stage3D } from '../render/stage/Stage3D';
+import { barAt, barIntensity } from '../render/stage/LightShow';
+import { resolveGraphics } from './graphics';
 import { GameSession, type Results } from './GameSession';
 import { Rumbler } from '../input/rumble';
 import { barsLeft, findBreaks, type Break } from './breaks';
@@ -38,6 +41,9 @@ export class PlayController {
   readonly session: GameSession;
   private readonly highway: Highway;
   private readonly background: Background2D;
+  /** The 3D stage, once loaded (the 2D backdrop runs until then, or instead when it is off). */
+  private stage: Stage3D | null = null;
+  private readonly barLevels: number[];
   private readonly input: KeyboardInput;
   private readonly padInput: GamepadInput;
   private readonly rumble: Rumbler;
@@ -66,6 +72,7 @@ export class PlayController {
     highwayCanvas: HTMLCanvasElement,
     backgroundCanvas: HTMLCanvasElement,
     private readonly hud: HudRefs,
+    stageHost?: HTMLElement,
   ) {
     engine.load(buffer);
     engine.offset = settings.offsetMs / 1000;
@@ -81,6 +88,17 @@ export class PlayController {
     this.highway.attach(this.session);
     this.background = new Background2D(backgroundCanvas);
     this.background.setAnalyser(engine.analyser);
+    this.barLevels = barIntensity(chart);
+    const graphics = resolveGraphics(settings.graphics);
+    if (graphics.stage3d && stageHost) {
+      Stage3D.create(stageHost, graphics, { mode: 'play', part: chart.part })
+        .then((stage) => {
+          if (this.disposed) return stage.dispose();
+          stage.setAnalyser(engine.analyser);
+          this.stage = stage;
+        })
+        .catch((err) => console.warn('3D stage unavailable, using the 2D backdrop', err));
+    }
 
     const padBindings = chart.lanes === 5 ? settings.pad5 : settings.pad4;
     this.rumble = new Rumbler(settings, chart.lanes, padBindings);
@@ -101,6 +119,7 @@ export class PlayController {
       } else if (e.type === 'sustain-end') this.rumble.sustainEnd(e.lane);
       else if (e.type === 'overdrive-start') {
         this.background.kick(1.2);
+        this.stage?.overdriveStart();
         this.odMeterAtStart = Math.max(this.session.overdrive, 0.01);
         this.rumble.overdrive();
       } else if (e.type === 'overdrive-end') this.rumble.overdriveEnd(); else if (e.type === 'phrase-complete') {
@@ -135,6 +154,7 @@ export class PlayController {
   private readonly resize = () => {
     this.highway.resize();
     this.background.resize();
+    this.stage?.resize();
     this.placeKeys();
   };
 
@@ -181,6 +201,7 @@ export class PlayController {
     if (this.phase === 'finished') return;
     this.session.update(Number.POSITIVE_INFINITY);
     this.setPhase('finished');
+    this.stage?.finale();
     this.onFinish(this.session.results());
   }
 
@@ -211,11 +232,21 @@ export class PlayController {
       beat = this.downbeats.has(this.lastBeat) ? 'downbeat' : 'beat';
       if (beat === 'downbeat') this.background.kick(0.6);
     }
+    const stage = this.stage;
     if (this.phase === 'playing' && this.session.overdriveActive) this.rumble.overdriveTick(this.session.overdrive / this.odMeterAtStart, beat);
     this.beatPulse = Math.max(0, this.beatPulse - 0.08);
 
-    this.background.render();
-    this.highway.render(t, this.session, this.beatPulse * 0.5 + this.background.bands.low * 0.5);
+    let low: number;
+    if (stage) {
+      const bar = barAt(this.barTimes, t);
+      const busy = bar >= 0 ? (this.barLevels[bar] ?? 0.3) : 0.15;
+      low = stage.bands.low;
+      stage.render({ beat, intensity: busy * 0.75 + low * 0.25, overdrive: this.session.overdriveActive, barSeconds: this.chart.secondsPerBeat * 4 });
+    } else {
+      this.background.render();
+      low = this.background.bands.low;
+    }
+    this.highway.render(t, this.session, this.beatPulse * 0.5 + low * 0.5);
     this.updateHud(t);
   };
 
@@ -300,5 +331,6 @@ export class PlayController {
     this.engine.stop();
     this.engine.onEnded = null;
     this.highway.dispose();
+    this.stage?.dispose();
   }
 }
