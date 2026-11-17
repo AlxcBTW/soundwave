@@ -561,8 +561,7 @@ ul, ol { list-style: none; }
 
 .play { position: absolute; inset: 0; background: #05030f; touch-action: none; --touch-h: clamp(84px, 19vh, 180px); }
 .play .layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-/* The track fades out a little past the strike line, so notes that got by do not run under the dial. */
-.play .highway { --strike: 0.775; -webkit-mask-image: linear-gradient(to bottom, #000 calc(var(--hw-y, 100%) + 26px), transparent calc(var(--hw-y, 100%) + 96px)); mask-image: linear-gradient(to bottom, #000 calc(var(--hw-y, 100%) + 26px), transparent calc(var(--hw-y, 100%) + 96px)); }
+.play .highway { --strike: 0.775; }
 :root[data-input='touch'] .play .highway { height: calc(100% - var(--touch-h)); --strike: 0.94; }
 .hud { position: absolute; inset: 0; pointer-events: none; font-weight: 850; --panel-hud: rgb(16 9 50 / 0.76); }
 .touch-layer { position: absolute; inset: 0; }
@@ -598,7 +597,7 @@ ul, ol { list-style: none; }
 .hud-score { font-size: clamp(26px, 2.3vw, 54px); font-variant-numeric: tabular-nums; }
 
 /* The dial under the strike line: the multiplier, ringed by the streak toward its next step. */
-.hud-dial { position: absolute; left: var(--hw-x, 50%); top: calc(var(--hw-y, 80%) + clamp(30px, 3.1vw, 58px)); transform: translateX(-50%); width: clamp(62px, 5.4vw, 104px); aspect-ratio: 1; display: grid; place-items: center; align-content: center; border-radius: 50%; background: var(--panel-hud); container-type: size; --dial: rgb(255 255 255 / 0.5); }
+.hud-dial { position: absolute; left: var(--hw-x, 50%); top: calc(var(--hw-y, 80%) + clamp(46px, 4.1vw, 76px)); transform: translateX(-50%); width: clamp(62px, 5.4vw, 104px); aspect-ratio: 1; display: grid; place-items: center; align-content: center; border-radius: 50%; background: var(--panel-hud); container-type: size; --dial: rgb(255 255 255 / 0.5); }
 .hud-dial:has([data-level='2']) { --dial: var(--lane-3); }
 .hud-dial:has([data-level='3']) { --dial: var(--lane-0); }
 .hud-dial:has([data-level='4']) { --dial: var(--lane-4); }
@@ -610,9 +609,10 @@ ul, ol { list-style: none; }
 .hud-mult { font-size: 36cqw; color: var(--ink); }
 .hud-streak { font-size: 16cqw; color: var(--ink-2); min-height: 1em; }
 
-/* Overdrive: a meter beside the strike line that is also the button that starts it. */
-.hud-od { position: absolute; left: calc(var(--hw-x, 50%) + var(--hw-w, 400px) * 0.5 + clamp(16px, 2.2vw, 44px)); top: calc(var(--hw-y, 80%) - 4px); display: flex; flex-direction: column; gap: 6px; width: clamp(110px, 10vw, 200px); padding: 0; color: var(--ink-3); text-align: left; pointer-events: auto; }
-.hud-od-bar { display: block; height: 8px; border-radius: 4px; background: rgb(255 255 255 / 0.16); overflow: hidden; }
+/* Overdrive: a meter under the lanes, as wide as they are, that is also the button that starts it. */
+.hud-od { position: absolute; left: calc(var(--hw-x, 50%) - var(--hw-w, 400px) * 0.5); top: calc(var(--hw-y, 80%) + clamp(31px, 2.9vw, 54px)); display: flex; flex-direction: column; gap: 6px; width: var(--hw-w, 400px); padding: 0; color: var(--ink-3); text-align: left; pointer-events: auto; }
+.hud-od-bar { display: block; height: 6px; border-radius: 3px; background: rgb(255 255 255 / 0.18); overflow: hidden; }
+.hud-od-label { position: absolute; left: calc(50% + clamp(44px, 3.8vw, 72px)); top: clamp(26px, 2.5vw, 46px); white-space: nowrap; }
 .hud-od-bar span { display: block; height: 100%; width: 100%; transform-origin: left; transform: scaleX(var(--od, 0)); background: var(--od); transition: transform 0.2s; }
 .hud-od-label { display: flex; align-items: center; gap: 6px; font-size: clamp(12px, 0.85vw, 20px); }
 .hud-od-label svg { width: 1.1em; height: 1.1em; }
@@ -713,6 +713,7 @@ ul, ol { list-style: none; }
 :root[data-input='touch'] .play[data-od-side='left'] .hud-od { right: auto; left: calc(8px + var(--safe-l)); }
 :root[data-input='touch'] .hud-od-bar { width: 42px; height: 6px; }
 :root[data-input='touch'] .hud-od-word { display: none; }
+:root[data-input='touch'] .hud-od-label { position: static; }
 :root[data-input='touch'] .hud-od-label svg { width: 26px; height: 26px; }
 :root[data-input='touch'] .hud.od-ready .hud-od { background: color-mix(in srgb, var(--od) 30%, var(--panel-hud)); color: #fff; }
 

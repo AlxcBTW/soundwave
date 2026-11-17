@@ -14,8 +14,10 @@ const LANE_W = 1;
 const STRIKE_AT = 0.775;
 /** Share of the canvas width the strike line spans on a wide screen and on a tall one. */
 const WIDE_SHARE = 0.43;
-const TALL_SHARE = 0.94;
+const TALL_SHARE = 0.8;
 const LENGTH = 24;
+/** How far the deck runs on past the strike line, toward the player. */
+const FRONT = 0.72;
 const MAX_GEMS = 512;
 const MAX_TAILS = 128;
 const MAX_LINES = 96;
@@ -82,26 +84,29 @@ const highwayFragment = /* glsl */ `
   void main() {
     float x = vUv.x * uLanes;
     float lane = fract(x);
-    float divider = smoothstep(0.035, 0.0, min(lane, 1.0 - lane));
-    float edge = smoothstep(0.06, 0.0, min(vUv.x, 1.0 - vUv.x));
+    // Hairlines between lanes (none along the outer edges, which have their rails).
+    float divider = smoothstep(0.024, 0.0, min(lane, 1.0 - lane)) * step(0.5, x) * step(x, uLanes - 0.5);
+    float edgeDist = min(vUv.x, 1.0 - vUv.x) * uLanes;
+    float rail = smoothstep(0.075, 0.045, edgeDist);
+    float railGlow = smoothstep(0.55, 0.0, edgeDist);
     // vUv.y: 0 = near (strike line side), 1 = far end.
-    float far = smoothstep(1.0, 0.55, vUv.y);
-    float near = smoothstep(0.0, 0.04, vUv.y);
-    float stripes = 0.5 + 0.5 * sin((vUv.y * 60.0 + uScroll) * 3.14159);
-    vec3 base = mix(vec3(0.04, 0.035, 0.11), vec3(0.08, 0.06, 0.2), vUv.y);
-    base += vec3(0.02, 0.02, 0.05) * stripes;
+    float far = smoothstep(1.0, 0.6, vUv.y);
+    // A solid violet deck, a shade lighter toward the far end, with a slow sheen running to the player.
+    float sheen = 0.5 + 0.5 * sin((vUv.y * 9.0 + uScroll) * 3.14159);
+    vec3 base = mix(vec3(0.07, 0.038, 0.19), vec3(0.115, 0.062, 0.31), vUv.y) + vec3(0.012, 0.008, 0.03) * sheen;
+    // Neighbouring lanes differ by a breath, so each reads as its own strip.
+    base *= 1.0 + 0.07 * (mod(floor(x), 2.0) - 0.5);
     vec3 od = vec3(0.35, 0.65, 1.0);
-    vec3 edgeCol = mix(vec3(0.55, 0.35, 1.0), od, uOverdrive);
-    vec3 col = base + divider * vec3(0.22, 0.2, 0.4) + edge * edgeCol * (1.2 + uPulse);
+    vec3 railCol = mix(vec3(0.74, 0.47, 1.0), od, uOverdrive) * (1.0 + 0.55 * uPulse);
+    vec3 col = base + divider * vec3(0.17, 0.14, 0.36) + railGlow * railGlow * railCol * (0.2 + 0.26 * uPulse);
+    col = mix(col, railCol, rail);
     // In overdrive the edges light up light blue from inside too, in swells that run toward the player.
     float inner = smoothstep(0.16, 0.0, min(vUv.x, 1.0 - vUv.x));
     col += vec3(0.32, 0.7, 1.0) * inner * inner * uOverdrive * (0.45 + 0.4 * (0.5 + 0.5 * sin((vUv.y * 6.0 + uScroll) * 3.14159)));
-    col += od * uOverdrive * 0.12 * (0.6 + 0.4 * stripes);
-    float alpha = (0.88 + edge * 0.12) * far * near;
-    gl_FragColor = vec4(col, alpha);
+    col += od * uOverdrive * 0.1 * (0.6 + 0.4 * sheen);
+    gl_FragColor = vec4(col, 0.965 * far);
   }
 `;
-
 /**
  * Overdrive's light: a soft light-blue glow lying along the outside of both edges of the lane,
  * brightest at the edge, with slow swells running down it toward the player and a fine shimmer.
@@ -146,6 +151,8 @@ export class Highway {
   private readonly glow = new THREE.Group();
   private flare = 0;
   private readonly gems: THREE.InstancedMesh;
+  /** The darker top face of each tile, inside its bright rim. */
+  private readonly cores: THREE.InstancedMesh;
   private readonly shines: THREE.InstancedMesh;
   /** The light every tile gives off while overdrive lasts: a soft bloom round it, facing the camera. */
   private readonly auras: THREE.InstancedMesh;
@@ -224,10 +231,14 @@ export class Highway {
         uPulse: { value: 0 },
       },
     });
-    const trackLen = LENGTH + 1.5;
+    const trackLen = LENGTH + FRONT;
     const track = new THREE.Mesh(new THREE.PlaneGeometry(this.width + 0.12, trackLen), this.trackMat);
     track.rotation.x = -Math.PI / 2;
-    track.position.set(0, -0.02, -trackLen / 2 + 1.5);
+    track.position.set(0, -0.02, -trackLen / 2 + FRONT);
+    // The deck ends in a lit lip, the same light as its rails.
+    const lip = new THREE.Mesh(new THREE.BoxGeometry(this.width + 0.12, 0.05, 0.07), new THREE.MeshBasicMaterial({ color: 0xbd78ff }));
+    lip.position.set(0, -0.02, FRONT);
+    this.root.add(lip);
     track.renderOrder = -2;
     this.root.add(track);
 
@@ -245,7 +256,7 @@ export class Highway {
       const strip = new THREE.Mesh(new THREE.PlaneGeometry(glowWidth, trackLen), mat);
       strip.rotation.x = -Math.PI / 2;
       // it starts just inside the edge, so no dark line shows between the lane and its glow
-      strip.position.set(side * (this.width / 2 + 0.03 + glowWidth / 2), -0.015, -trackLen / 2 + 1.5);
+      strip.position.set(side * (this.width / 2 + 0.03 + glowWidth / 2), -0.015, -trackLen / 2 + FRONT);
       strip.renderOrder = -1.5;
       this.glowMats.push(mat);
       this.glow.add(strip);
@@ -256,7 +267,7 @@ export class Highway {
     // Beat / bar lines
     this.lines = new THREE.InstancedMesh(
       new THREE.PlaneGeometry(1, 1),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: 0xd9c8ff, transparent: true, opacity: 0.2, depthWrite: false }),
       MAX_LINES,
     );
     this.lines.renderOrder = -1;
@@ -264,14 +275,15 @@ export class Highway {
     this.root.add(this.lines);
 
     // Strike pads
-    const padGeo = new THREE.ShapeGeometry(roundedRect(0.86, 0.36, 0.12));
-    const padRing = new THREE.ShapeGeometry(roundedRect(0.92, 0.42, 0.15));
+    // Strike targets: a thin pill outline per lane in its colour, dark inside until the lane is played.
+    const padGeo = new THREE.ShapeGeometry(roundedRect(0.8, 0.26, 0.13), 10);
+    const padRing = new THREE.ShapeGeometry(roundedRect(0.88, 0.34, 0.17), 10);
     for (let i = 0; i < this.lanes; i++) {
       const x = this.laneX(i);
       const ring = new THREE.Mesh(padRing, new THREE.MeshBasicMaterial({ color: this.laneColors[i], transparent: true, opacity: 0.9 }));
       ring.quaternion.copy(this.flat);
       ring.position.set(x, 0.0, 0);
-      const fill = new THREE.Mesh(padGeo, new THREE.MeshBasicMaterial({ color: 0x0a0818 }));
+      const fill = new THREE.Mesh(padGeo, new THREE.MeshBasicMaterial({ color: 0x100828 }));
       fill.quaternion.copy(this.flat);
       fill.position.set(x, 0.005, 0);
       const glow = new THREE.Mesh(
@@ -285,37 +297,45 @@ export class Highway {
       this.padGlows.push(glow);
     }
 
-    // Gems: beveled rounded tiles with a glossy top highlight.
-    const gemGeo = new THREE.ExtrudeGeometry(roundedRect(0.8, 0.34, 0.11), {
-      depth: 0.1,
+    // Tiles: a pill with a bright rim, its top a deeper shade of the lane's colour under a gloss.
+    const gemGeo = new THREE.ExtrudeGeometry(roundedRect(0.82, 0.32, 0.16), {
+      depth: 0.09,
       bevelEnabled: true,
-      bevelThickness: 0.04,
-      bevelSize: 0.035,
+      bevelThickness: 0.035,
+      bevelSize: 0.03,
       bevelSegments: 3,
-      curveSegments: 6,
+      curveSegments: 10,
     });
     gemGeo.rotateX(-Math.PI / 2);
     gemGeo.translate(0, 0.02, 0);
     this.gems = new THREE.InstancedMesh(
       gemGeo,
-      new THREE.MeshStandardMaterial({ roughness: 0.28, metalness: 0.15, emissive: 0x222222 }),
+      new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.1, emissive: 0x141414 }),
       MAX_GEMS,
     );
     this.gems.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_GEMS * 3), 3);
     this.gems.frustumCulled = false;
     this.root.add(this.gems);
 
-    const shineGeo = new THREE.ShapeGeometry(roundedRect(0.6, 0.1, 0.05));
+    const coreGeo2 = new THREE.ShapeGeometry(roundedRect(0.72, 0.22, 0.11), 10);
+    coreGeo2.rotateX(-Math.PI / 2);
+    coreGeo2.translate(0, 0.148, 0);
+    this.cores = new THREE.InstancedMesh(coreGeo2, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.92, depthWrite: false }), MAX_GEMS);
+    this.cores.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_GEMS * 3), 3);
+    this.cores.frustumCulled = false;
+    this.root.add(this.cores);
+
+    const shineGeo = new THREE.ShapeGeometry(roundedRect(0.5, 0.05, 0.025), 6);
     shineGeo.rotateX(-Math.PI / 2);
-    shineGeo.translate(0, 0.185, -0.06);
+    shineGeo.translate(0, 0.15, -0.055);
     this.shines = new THREE.InstancedMesh(
       shineGeo,
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, depthWrite: false }),
       MAX_GEMS,
     );
     this.shines.frustumCulled = false;
+    this.shines.renderOrder = 1;
     this.root.add(this.shines);
-
     // Light, not a shadow on the lane: it is drawn over the tile and everything round it.
     this.auras = new THREE.InstancedMesh(
       new THREE.PlaneGeometry(1, 1),
@@ -431,17 +451,17 @@ export class Highway {
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
     const strike = Number.parseFloat(getComputedStyle(this.canvas).getPropertyValue('--strike')) || STRIKE_AT;
-    const now = ((1 - new THREE.Vector3(0, 0, 0.42).project(this.camera).y) / 2) * h;
+    const now = ((1 - new THREE.Vector3(0, 0, FRONT + 0.16).project(this.camera).y) / 2) * h;
     this.camera.setViewOffset(w, h, 0, Math.round(now - strike * h), w, h);
     this.camera.updateProjectionMatrix();
   }
-  /** Screen positions (CSS px, relative to the canvas) just in front of each strike pad. */
+  /** Screen positions (CSS px, relative to the canvas) under each lane, just past the deck's front lip. */
   padScreenPositions(): { x: number; y: number }[] {
     const w = this.canvas.clientWidth;
     const h = this.canvas.clientHeight;
     this.camera.updateMatrixWorld();
     return Array.from({ length: this.lanes }, (_, i) => {
-      const p = new THREE.Vector3(this.laneX(i), 0, 0.42).project(this.camera);
+      const p = new THREE.Vector3(this.laneX(i), 0, FRONT + 0.16).project(this.camera);
       return { x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h };
     });
   }
@@ -539,7 +559,7 @@ export class Highway {
       if (isBar) di++;
       this.q.copy(this.flat);
       this.v.set(0, 0, -dz);
-      this.s.set(this.width, isBar ? 0.06 : 0.025, 1);
+      this.s.set(this.width, isBar ? 0.05 : 0.02, 1);
       this.m.compose(this.v, this.q, this.s);
       this.lines.setMatrixAt(li++, this.m);
     }
@@ -613,17 +633,23 @@ export class Highway {
 
       if (hit || gi >= MAX_GEMS) continue;
       const z = -(n.t - t) * speed;
-      if (z > 2) continue;
+      if (z > FRONT) continue;
+      // A tile that got past the strike line shrinks away before the deck ends.
+      const k = z > 0.2 ? Math.max(0, 1 - (z - 0.2) / (FRONT - 0.25)) : 1;
       this.v.set(x, 0, z);
-      this.s.set(1, 1, 1);
+      this.s.set(k, k, k);
       this.m.compose(this.v, this.q, this.s);
       this.gems.setMatrixAt(gi, this.m);
+      this.cores.setMatrixAt(gi, this.m);
       this.shines.setMatrixAt(gi, this.m);
       // Their light swells and ebbs, a wave running down the lane toward the player.
       const swell = 0.5 + 0.5 * Math.sin(now / 150 + z * 0.8);
       this.c.copy(color);
       if (missed) this.c.multiplyScalar(MISSED_TINT);
       else if (drive > 0.01) this.c.multiplyScalar(1 + drive * (0.08 + 0.2 * swell));
+      // The top face keeps the lane's colour; the rim around it is the same colour lit up.
+      this.cores.setColorAt(gi, this.c);
+      this.c.lerp(WHITE, missed ? 0.1 : 0.3);
       this.gems.setColorAt(gi, this.c);
       if (drive > 0.01) {
         // a wide, low bloom centred on the tile, turned to the camera; only its strength moves
@@ -637,6 +663,7 @@ export class Highway {
       gi++;
     }
     this.gems.count = gi;
+    this.cores.count = gi;
     this.shines.count = gi;
     this.auras.count = drive > 0.01 ? gi : 0;
     this.auras.instanceMatrix.needsUpdate = true;
@@ -648,6 +675,8 @@ export class Highway {
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
     this.gems.instanceMatrix.needsUpdate = true;
+    this.cores.instanceMatrix.needsUpdate = true;
+    if (this.cores.instanceColor) this.cores.instanceColor.needsUpdate = true;
     this.shines.instanceMatrix.needsUpdate = true;
     if (this.gems.instanceColor) this.gems.instanceColor.needsUpdate = true;
     this.tails.instanceMatrix.needsUpdate = true;
