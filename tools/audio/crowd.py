@@ -287,40 +287,86 @@ def ovation(seconds: float, *, peak_at: float, hold: float, decay: float, seed: 
 
 
 # Real applause and cheering, for the finale. Recordings from Wikimedia Commons, all free to use
-# without conditions (see "Music and sound" in the README for where each comes from):
-# (file, start in seconds, gain).
+# without conditions (see "Music and sound" in the README for where each comes from).
 RECORDED = ROOT / "local-audio" / "samples" / "crowd" / "commons"
-OVATION_TAKES = [
-    ("Applause-i.wav", 1.3, 1.0),  # an audience applauding with cheers and whoops (public domain)
-    ("277021-sandermotions-applause-2.wav", 0.6, 0.55),  # a concert hall applauding, for size (CC0)
-    ("Clapping-hurray.wav", 0.5, 0.65),  # clapping with shouts of hurray close by (public domain)
+# The hands: (file, start in seconds, gain).
+APPLAUSE_TAKES = [
+    ("Applause-i.wav", 1.3, 1.0),  # an audience applauding (public domain)
+    ("277021-sandermotions-applause-2.wav", 0.6, 0.6),  # a concert hall applauding, for size (CC0)
+]
+# The voices: (file, from, to) are the seconds of each recording in which people cheer.
+CHEER_TAKES = [
+    ("Hurray.wav", 0.2, 3.4),  # a group cheering "hurray" (public domain)
+    ("Clapping-hurray.wav", 6.4, 8.7),  # clapping with shouts over it (public domain)
+    ("Clapping-hurray.wav", 9.4, 11.3),
 ]
 
 
-def recorded_ovation(seconds: float, fade_in: float = 0.12, fade_out: float = 1.0) -> np.ndarray | None:
+def _take(name: str) -> np.ndarray | None:
+    path = RECORDED / name
+    if not path.exists():
+        return None
+    x, sr = sf.read(str(path), dtype="float32", always_2d=True)
+    if sr != SR:
+        x = signal.resample_poly(x, SR, sr, axis=0).astype(np.float32)
+    return x
+
+
+def recorded_ovation(seconds: float, fade_in: float = 0.12, fade_out: float = 1.0, seed: int = 31, groups: int = 10, voice_gain: float = 2.8) -> np.ndarray | None:
     """
-    A crowd clapping and cheering, mixed from real recordings: `seconds` of each take, levelled
-    against each other, up at once and down over the last second. None when the recordings are not
-    there (then the synthesized `ovation` stands in).
+    A crowd clapping and cheering, mixed from real recordings: applause as the bed and, well above
+    it (cheering at the applause's own level is buried under it), a crowd of voices made by laying
+    the cheering takes over each other several times,
+    each copy at its own pitch and pace, starting at its own moment and standing in its own place.
+    Up at once and down over the last second. None when the recordings are not there (then the
+    synthesized `ovation` stands in).
     """
+    rng = np.random.default_rng(seed)
     n = int(seconds * SR)
-    out = np.zeros((n, 2), dtype=np.float32)
-    for name, start, gain in OVATION_TAKES:
-        path = RECORDED / name
-        if not path.exists():
+    hands = np.zeros((n, 2), dtype=np.float32)
+    for name, start, gain in APPLAUSE_TAKES:
+        x = _take(name)
+        if x is None:
             return None
-        x, sr = sf.read(str(path), dtype="float32", always_2d=True)
-        if sr != SR:
-            x = signal.resample_poly(x, SR, sr, axis=0).astype(np.float32)
         if x.shape[1] == 1:
-            # A mono take is spread a little: the same sound a few milliseconds later on one side.
-            d = int(0.011 * SR)
-            x = np.stack([x[:, 0], np.concatenate([np.zeros(d, dtype=np.float32), x[:-d, 0]])], axis=1)
+            x = np.repeat(x, 2, axis=1)
         seg = x[int(start * SR) : int(start * SR) + n]
         if len(seg) < n:
             seg = np.concatenate([seg, np.zeros((n - len(seg), 2), dtype=np.float32)])
-        level = np.sqrt((seg[: int(3.5 * SR)] ** 2).mean()) + 1e-9
-        out += seg / level * gain
+        hands += seg / (np.sqrt((seg[: int(3.5 * SR)] ** 2).mean()) + 1e-9) * gain
+
+    voices = np.zeros((n, 2), dtype=np.float32)
+    cheers = []
+    for name, a, b in CHEER_TAKES:
+        x = _take(name)
+        if x is None:
+            return None
+        seg = x[int(a * SR) : int(b * SR)].mean(axis=1)
+        edge = int(0.05 * SR)
+        seg[:edge] *= np.linspace(0, 1, edge)
+        seg[-edge:] *= np.linspace(1, 0, edge)
+        cheers.append(seg / (np.sqrt((seg**2).mean()) + 1e-9))
+    # Groups of people cheering in waves from the first moment to the last second. More groups than
+    # this blur into a murmur in which no cheer can be made out.
+    for k in range(groups):
+        seg = cheers[k % len(cheers)]
+        # A different pace is a different pitch too: other people, not the same ones again.
+        pace = rng.uniform(0.86, 1.16)
+        seg = signal.resample_poly(seg, 100, int(round(100 * pace))).astype(np.float32)
+        # The first few are right beside you and start at once: the finale opens on a cheer.
+        near = 1.0 if k < 3 else rng.uniform(0.3, 1.0)
+        if near < 0.6:
+            seg = signal.sosfilt(signal.butter(1, 2500 + 5000 * near, "lowpass", fs=SR, output="sos"), seg).astype(np.float32)
+        # The rest come in one after another across the whole time, so the cheering never sags.
+        spread = (k - 3 + rng.uniform(0.0, 0.8)) / max(1, groups - 3) * max(0.1, seconds - 2.0)
+        i = int((spread if k > 2 else rng.uniform(0.0, 0.15)) * SR)
+        j = min(n, i + len(seg))
+        pan = rng.uniform(0.05, 0.95)
+        voices[i:j, 0] += seg[: j - i] * near * np.cos(pan * np.pi / 2)
+        voices[i:j, 1] += seg[: j - i] * near * np.sin(pan * np.pi / 2)
+
+    level = lambda y: np.sqrt((y[: int(3.5 * SR)] ** 2).mean()) + 1e-9
+    out = hands / level(hands) + voices / level(voices) * voice_gain
     t = np.arange(n) / SR
     env = np.clip(t / fade_in, 0, 1) * np.clip((seconds - t) / fade_out, 0, 1) ** 1.5
     return (out * env[:, None] * 0.2).astype(np.float32)
