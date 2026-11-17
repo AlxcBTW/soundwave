@@ -457,10 +457,14 @@ export class Highway {
     // How much of the width the strike line takes: under half on a wide screen, nearly all of it
     // on a tall one, where the lanes also have to be wide enough for fingers.
     const a = this.camera.aspect;
-    const share = WIDE_SHARE + (TALL_SHARE - WIDE_SHARE) * Math.min(1, Math.max(0, (1.5 - a) / (1.5 - 0.65)));
-    // The camera's distance: 5 lanes pull it back a little, a narrow screen brings it in.
+    const css = getComputedStyle(this.canvas);
+    // A layout played by touch asks for a minimum share (--deck-share), on wide screens too.
+    const asked = Number.parseFloat(css.getPropertyValue('--deck-share')) || 0;
+    const share = Math.max(asked, WIDE_SHARE + (TALL_SHARE - WIDE_SHARE) * Math.min(1, Math.max(0, (1.5 - a) / (1.5 - 0.65))));
+    // The camera's distance: 5 lanes pull it back a little, a narrow screen brings it in. Without
+    // a share asked for, a screen wider than 3:2 keeps the deck at its size and gains room at the sides.
     const back = this.lanes === 5 ? 1.12 : 1;
-    const fit = Math.max(1, 1.5 / a) * (WIDE_SHARE / share);
+    const fit = (asked ? 1.5 / a : Math.max(1, 1.5 / a)) * (WIDE_SHARE / share);
     this.camera.position.set(0, 3.6 * back * fit, 6 * back * fit);
     this.camera.lookAt(0, 0, -7.5);
     // The picture is then slid up or down so the strike line sits where the layout wants it (a
@@ -469,7 +473,6 @@ export class Highway {
     this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
-    const css = getComputedStyle(this.canvas);
     const strike = Number.parseFloat(css.getPropertyValue('--strike')) || STRIKE_AT;
     this.setPadStyle(css.getPropertyValue('--pads').trim() === 'square' ? 'square' : 'pill');
     const now = ((1 - new THREE.Vector3(0, 0, FRONT + 0.16).project(this.camera).y) / 2) * h;

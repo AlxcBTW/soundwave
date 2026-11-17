@@ -566,7 +566,7 @@ ul, ol { list-style: none; }
 .play .layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .play .highway { --strike: 0.775; }
 /* Touch: the lanes are the controls. The deck runs to the foot of the screen and its targets are finger-sized squares. */
-:root[data-input='touch'] .play .highway { height: calc(100% - var(--safe-b)); --strike: 0.992; --pads: square; }
+:root[data-input='touch'] .play .highway { height: calc(100% - var(--safe-b)); --strike: 0.992; --pads: square; --deck-share: 0.4; }
 .hud { position: absolute; inset: 0; pointer-events: none; font-weight: 850; --panel-hud: rgb(16 9 50 / 0.76); }
 .touch-layer { position: absolute; inset: 0; }
 :root[data-input='touch'] .touch-layer { pointer-events: auto; touch-action: none; }
