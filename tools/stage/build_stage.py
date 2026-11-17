@@ -907,6 +907,78 @@ for a, b in zip(tops, tops[1:]):
 bm_obj('FairyLights', fl, M['bulbs'])
 
 
+# ---------------------------------------------------------------- lantern bearers: robed statues raising lanterns
+def lathe_folds(bm, profile, segs=48, folds=9, depth=0.07):
+    """Like lathe, with pleats: the radius ripples around the axis, more toward the hem."""
+    rings = []
+    zmax = max(z for _, z in profile)
+    for r, z in profile:
+        k = depth * (1 - z / zmax) ** 0.7
+        rings.append([bm.verts.new((r * (1 + k * math.sin(folds * 2 * math.pi * j / segs)) * math.cos(2 * math.pi * j / segs),
+                                    r * (1 + k * math.sin(folds * 2 * math.pi * j / segs)) * math.sin(2 * math.pi * j / segs), z)) for j in range(segs)])
+    for a, b in zip(rings, rings[1:]):
+        for j in range(segs):
+            bm.faces.new([a[j], a[(j + 1) % segs], b[(j + 1) % segs], b[j]])
+
+
+def lantern_bearer(name, x, y, scale, side, yaw):
+    """A hooded figure in a pleated robe on a plinth, one arm raising a glowing lantern."""
+    stone, gilt, glow, bl = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
+    bm_box(stone, (6.4, 6.4, 4.0), Vector((0, 0, 2.0)), bevel=0.2, segs=2)
+    bm_box(gilt, (7.0, 7.0, 0.4), Vector((0, 0, 4.1)))
+    bm_box(gilt, (7.0, 7.0, 0.4), Vector((0, 0, 0.2)))
+    bulbs_line(bl, (-3.3, -3.6, 3.4), (3.3, -3.6, 3.4), step=0.6, r=0.12)
+    base = 4.3
+    lathe_folds(stone, [(2.9, base), (2.8, base + 1.0), (2.45, base + 4.0), (2.0, base + 8.0), (1.65, base + 10.5), (1.6, base + 11.6), (1.25, base + 12.4)])
+    bmesh.ops.create_cone(gilt, cap_ends=False, segments=48, radius1=2.98, radius2=2.92, depth=0.5, matrix=Matrix.Translation((0, 0, base + 0.5)))
+    # shoulders, hood, face in shadow with two glints
+    bmesh.ops.create_uvsphere(stone, u_segments=32, v_segments=16, radius=1.0, matrix=Matrix.Translation((0, 0, base + 12.2)) @ Matrix.Diagonal((1.9, 1.3, 1.1, 1)))
+    bmesh.ops.create_uvsphere(stone, u_segments=32, v_segments=16, radius=1.3, matrix=Matrix.Translation((0, 0.15, base + 14.4)) @ Matrix.Diagonal((1.0, 1.05, 1.2, 1)))
+    bmesh.ops.create_uvsphere(gilt, u_segments=24, v_segments=12, radius=0.95, matrix=Matrix.Translation((0, -0.55, base + 14.2)) @ Matrix.Diagonal((0.85, 0.6, 1.0, 1)))
+    for ex in (-0.33, 0.33):
+        bmesh.ops.create_icosphere(glow, subdivisions=2, radius=0.12, matrix=Matrix.Translation((ex, -1.1, base + 14.4)))
+    # the raised arm with a flared sleeve, the other hand at the robe
+    sh = Vector((side * 1.7, -0.1, base + 12.4))
+    el = Vector((side * 2.6, -0.9, base + 15.3))
+    hd = Vector((side * 2.2, -1.3, base + 18.6))
+    bm_cyl(stone, sh, el, 0.75, segs=16, r2=0.62)
+    bm_cyl(stone, el, hd, 0.52, segs=16, r2=0.42)
+    bmesh.ops.create_cone(stone, cap_ends=True, segments=16, radius1=0.95, radius2=0.6, depth=1.6,
+                          matrix=Matrix.Translation(el.lerp(hd, 0.25)) @ (hd - el).to_track_quat('Z', 'Y').to_matrix().to_4x4())
+    bm_cyl(stone, Vector((-side * 1.7, -0.1, base + 12.2)), Vector((-side * 1.9, -1.0, base + 9.0)), 0.7, segs=16, r2=0.5)
+    # the lantern: a gilt cage around a glowing orb
+    lc = hd + Vector((0, 0, 1.9))
+    bmesh.ops.create_icosphere(glow, subdivisions=3, radius=1.05, matrix=Matrix.Translation(lc))
+    for j in range(8):
+        a = 2 * math.pi * j / 8
+        q0 = lc + Vector((math.cos(a) * 1.25, math.sin(a) * 1.25, -1.2))
+        q1 = lc + Vector((math.cos(a) * 1.25, math.sin(a) * 1.25, 1.2))
+        bm_cyl(gilt, q0, q1, 0.07, segs=5)
+    for dz in (-1.25, 1.25):
+        bmesh.ops.create_cone(gilt, cap_ends=True, segments=24, radius1=1.45, radius2=0.6 if dz > 0 else 1.45, depth=0.35, matrix=Matrix.Translation(lc + Vector((0, 0, dz))))
+    bmesh.ops.create_cone(gilt, cap_ends=True, segments=16, radius1=0.45, radius2=0.05, depth=1.2, matrix=Matrix.Translation(lc + Vector((0, 0, 2.0))))
+    bm_cyl(gilt, hd, lc - Vector((0, 0, 1.2)), 0.12, segs=6)
+    m = Matrix.Translation((x, y, 0)) @ Matrix.Rotation(math.radians(yaw), 4, 'Z') @ Matrix.Scale(scale, 4)
+    for b in (stone, gilt, glow, bl):
+        bmesh.ops.transform(b, matrix=m, verts=b.verts)
+        for f in b.faces:
+            f.smooth = True
+    bm_obj(name, stone, BRONZE)
+    bm_obj(name + '_gilt', gilt, M['gilt'])
+    bm_obj(name + '_glow', glow, LANTERN)
+    bm_obj(name + '_bulbs', bl, M['bulbs'])
+    q = m @ lc
+    lt = point(name + '_light', tuple(q + Vector((0, -1.8 * scale, 0))), (1.0, 0.7, 0.4), 150000 * scale, radius=1.0)
+    lt.visible_volume_scatter = True
+
+
+LANTERN = mat_emit('Lantern', (1.0, 0.75, 0.42), 30)
+BRONZE = mat_pbr('Bronze', (0.2, 0.13, 0.08), rough=0.38, metal=0.85)
+for side in (-1, 1):
+    lantern_bearer('Bearer%+d' % side, side * 34.5, 0.5, 1.35, side, side * 12)
+    lantern_bearer('BearerSmall%+d' % side, side * 57.0, -3.0, 0.9, -side, side * 20)
+
+
 # ---------------------------------------------------------------- fireworks: frozen fans of sparks over the skyline
 SPARK = mat_emit('Spark', (1.0, 0.93, 0.82), 25)
 SPARK_GOLD = mat_emit('SparkGold', (1.0, 0.7, 0.35), 22)
@@ -1317,10 +1389,10 @@ def person(pose):
                 f.material_index = idx
 
     for s in (-1, 1):
-        bm_cyl(bm, (s * 0.1, 0, 0), (s * 0.11, 0, 0.86), 0.075, segs=6, r2=0.09)
-    res = bmesh.ops.create_cone(bm, cap_ends=True, segments=8, radius1=0.17, radius2=0.21, depth=0.6,
+        bm_cyl(bm, (s * 0.1, 0, 0), (s * 0.11, 0, 0.86), 0.075, segs=10, r2=0.09)
+    res = bmesh.ops.create_cone(bm, cap_ends=True, segments=14, radius1=0.17, radius2=0.21, depth=0.6,
                                 matrix=Matrix.Translation((0, 0, 1.16)) @ Matrix.Diagonal((1, 0.62, 1, 1)))
-    res = bmesh.ops.create_uvsphere(bm, u_segments=10, v_segments=7, radius=0.11, matrix=Matrix.Translation((0, 0, 1.6)))
+    res = bmesh.ops.create_uvsphere(bm, u_segments=16, v_segments=10, radius=0.11, matrix=Matrix.Translation((0, 0, 1.6)))
     tag(res['verts'], 1)
     shoulder = 1.42
     arms = {'down': [(-1, 'down'), (1, 'down')], 'one': [(-1, 'down'), (1, 'up')], 'both': [(-1, 'up'), (1, 'up')],
@@ -1335,11 +1407,13 @@ def person(pose):
             p1 = Vector((s * 0.05, -0.3, 1.95))
         else:
             p1 = Vector((s * 0.12, -0.35, 1.92))
-        v = bm_cyl(bm, p0, p1, 0.05, segs=5, r2=0.045)
+        v = bm_cyl(bm, p0, p1, 0.05, segs=8, r2=0.045)
         tag(v, 1 if a != 'down' else 0)
         if a == 'phone':
             res = bmesh.ops.create_cube(bm, size=1.0, matrix=Matrix.Translation(p1 + Vector((0, -0.04, 0.08))) @ Matrix.Diagonal((0.07, 0.012, 0.13, 1)))
             tag(res['verts'], 2)
+    for f in bm.faces:
+        f.smooth = f.material_index != 2
     me = bpy.data.meshes.new('Person_' + pose)
     bm.to_mesh(me)
     bm.free()
@@ -1361,7 +1435,7 @@ while len(crowd_pts) < args.crowd and tries < args.crowd * 5:
         continue  # catwalk and B-stage
     if y > -9.0:
         continue  # in front of the barrier only
-    if math.hypot(x - 5, y + 64) < 2.2:
+    if math.hypot(x - 5, y + 64) < 3.5:
         continue  # room for the crowd camera
     if abs(x) < 8 and -86 < y < -74:
         continue  # FOH
@@ -1376,7 +1450,7 @@ flag_cols = [MAGENTA, CYAN, GOLD, (0.9, 0.9, 0.95), (0.2, 0.35, 1.0), (1.0, 0.35
 bm_pole = bmesh.new()
 for i in range(26):
     x, y = random.uniform(-60, 60), random.uniform(-100, -14)
-    if abs(x) < 9 or y > -14:
+    if abs(x) < 9 or y > -14 or math.hypot(x - 5, y + 64) < 25:
         continue
     hgt = random.uniform(3.6, 5.2)
     bm_cyl(bm_pole, (x, y, 0), (x, y, hgt), 0.025, segs=4)
@@ -1464,22 +1538,22 @@ hnoise.inputs['Detail'].default_value = 3
 htc = hn.nodes.new('ShaderNodeTexCoord')
 hn.links.new(htc.outputs['Object'], hnoise.inputs['Vector'])
 hr = hn.nodes.new('ShaderNodeMapRange')
-hr.inputs['To Min'].default_value = 0.0002
-hr.inputs['To Max'].default_value = 0.0009
+hr.inputs['To Min'].default_value = 0.00006
+hr.inputs['To Max'].default_value = 0.0003
 hn.links.new(hnoise.outputs['Fac'], hr.inputs['Value'])
 hn.links.new(hr.outputs[0], hv.inputs['Density'])
 hn.links.new(hv.outputs[0], ho.inputs['Volume'])
 bm = bmesh.new()
-bm_box(bm, (240, 190, 120), Vector((0, -55, 59.9)))
+bm_box(bm, (260, 200, 70), Vector((0, -55, 34.9)))
 bm_obj('HazeDomain', bm, haze, 'FX')
 stage_haze = haze.copy()
 stage_haze.name = 'StageHaze'
 for n in stage_haze.node_tree.nodes:
     if n.bl_idname == 'ShaderNodeMapRange':
-        n.inputs['To Min'].default_value = 0.0006
-        n.inputs['To Max'].default_value = 0.0028
+        n.inputs['To Min'].default_value = 0.0004
+        n.inputs['To Max'].default_value = 0.0022
 bm = bmesh.new()
-bm_box(bm, (190, 75, 45), Vector((0, 8, 22.4)))
+bm_box(bm, (190, 75, 34), Vector((0, 8, 16.9)))
 bm_obj('StageHaze', bm, stage_haze, 'FX')
 
 # ---------------------------------------------------------------- sky: deep night, faint clouds, stars
