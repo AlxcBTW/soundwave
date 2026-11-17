@@ -180,7 +180,7 @@ Third-party parts keep their own licences:
 | three.js, React, fft.js, music-metadata, ONNX Runtime Web | MIT |
 | idb, lucide-react | ISC |
 | Basic Pitch (code and model), Tauri | Apache-2.0 (Tauri also MIT) |
-| Archivo typeface | SIL Open Font License 1.1 |
+| Archivo typeface (`src/ui/fonts/archivo`) | SIL Open Font License 1.1 |
 | Band and crowd characters, and the crowd's dance loop: Ultimate Modular Men, Ultimate Modular Women and Universal Animation Library by Quaternius | CC0 1.0 (public domain) |
 | The crowd in the finale sound: "Crowd cheering" by voicebosch, from Pixabay | Pixabay Content License (free to use, not to be passed on as a standalone sound) |
 | The applause under it: recordings by thore (public domain) and by Sandermotions (CC0), from Wikimedia Commons | Public domain / CC0 1.0 |

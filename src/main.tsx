@@ -3,8 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { applyDisplayMode } from './game/displayMode';
 import { loadSettings } from './game/settings';
 import { App } from './ui/App';
-import '@fontsource-variable/archivo/wdth.css';
-import '@fontsource-variable/archivo/wdth-italic.css';
+import './ui/fonts/archivo/archivo.css';
 import './ui/styles.css';
 
 // The desktop window starts hidden; this puts it in the stored display mode and shows it.

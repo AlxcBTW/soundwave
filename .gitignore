@@ -13,7 +13,6 @@ __pycache__/
 test-results/
 playwright-report/
 .claude/
-public/models/
 public/draco/
 public/ort/
 local-audio/

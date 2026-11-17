@@ -24,7 +24,7 @@ const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const nm = (m: number) => NAMES[m % 12] + (Math.floor(m / 12) - 1);
 
 function modelHandler() {
-  const base = join(process.cwd(), 'node_modules', '@spotify', 'basic-pitch', 'model');
+  const base = join(process.cwd(), 'public', 'models', 'basic-pitch');
   const json = JSON.parse(readFileSync(join(base, 'model.json'), 'utf8'));
   const buffers = json.weightsManifest.flatMap((g: { paths: string[] }) => g.paths.map((p) => readFileSync(join(base, p))));
   const all = Buffer.concat(buffers);

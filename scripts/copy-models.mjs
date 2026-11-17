@@ -1,17 +1,11 @@
 // Copies runtime assets from packages into public/ so they can be fetched (web and desktop):
-// the Basic Pitch model, the Draco decoder the 3D stage is compressed with, and the ONNX Runtime files.
+// the Draco decoder the 3D stage is compressed with, and the ONNX Runtime files. (The models and the
+// fonts are in the repository itself: public/models, models/ and src/ui/fonts.)
 import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const src = join(root, 'node_modules', '@spotify', 'basic-pitch', 'model');
-const dst = join(root, 'public', 'models', 'basic-pitch');
-if (existsSync(src)) {
-  mkdirSync(dst, { recursive: true });
-  cpSync(src, dst, { recursive: true });
-} else console.warn('basic-pitch model not found; skipping copy');
-
 const draco = join(root, 'node_modules', 'three', 'examples', 'jsm', 'libs', 'draco', 'gltf');
 const dracoDst = join(root, 'public', 'draco');
 if (existsSync(draco)) {
