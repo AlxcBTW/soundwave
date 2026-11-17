@@ -512,8 +512,28 @@ h1, h2, h3, p { margin: 0; }
 .hud-break.on.bounce .hud-break-num { animation: break-tick 0.5s cubic-bezier(0.2, 1.4, 0.4, 1), break-shine 0.7s ease-out; }
 @keyframes break-glow { 0% { filter: drop-shadow(0 0 8px currentColor) brightness(1); } 25% { filter: drop-shadow(0 0 22px currentColor) drop-shadow(0 0 44px currentColor) brightness(1.6); } 100% { filter: drop-shadow(0 0 8px currentColor) brightness(1); } }
 @keyframes break-shine { 0% { filter: brightness(1); } 25% { filter: brightness(1.35) drop-shadow(0 0 18px #fff); } 100% { filter: brightness(1); } }
-/* Its last beat: it drifts up and fades instead of cutting out. */
-.hud-break.on.leaving { opacity: 0; transform: translate(-50%, -56%) scale(0.92); animation: none; transition: opacity var(--break-fade, 0.5s) ease-in, transform var(--break-fade, 0.5s) ease-in; }
+/* Its last beat: it gathers itself for a moment, then opens out into light and is gone. The ring
+   thins and flares as it widens; the number swells and lets go a little sooner. */
+.hud-break.on.leaving { animation: break-leave var(--break-fade, 0.5s) cubic-bezier(0.3, 0, 0.25, 1) forwards; transition: none; }
+.hud-break.on.leaving .hud-break-ring .fill { animation: break-leave-ring var(--break-fade, 0.5s) ease-out forwards; }
+.hud-break.on.leaving .hud-break-ring circle { transition: fill var(--break-fade, 0.5s) ease-out; fill: rgba(8, 5, 24, 0); }
+.hud-break.on.leaving .hud-break-num { animation: break-leave-num var(--break-fade, 0.5s) ease-in forwards; }
+.hud-break.on.leaving .hud-break-label { opacity: 0; transition: opacity calc(var(--break-fade, 0.5s) * 0.4); }
+@keyframes break-leave {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: blur(0); }
+  22% { opacity: 1; transform: translate(-50%, -50%) scale(0.93); filter: blur(0); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.55); filter: blur(5px); }
+}
+@keyframes break-leave-ring {
+  0% { stroke-width: 8; filter: drop-shadow(0 0 8px currentColor) brightness(1); }
+  30% { stroke-width: 9; filter: drop-shadow(0 0 20px currentColor) drop-shadow(0 0 40px currentColor) brightness(1.7); }
+  100% { stroke-width: 1.5; filter: drop-shadow(0 0 30px currentColor) brightness(2); }
+}
+@keyframes break-leave-num {
+  0% { opacity: 1; transform: scale(1); }
+  25% { opacity: 1; transform: scale(1.12); }
+  75%, 100% { opacity: 0; transform: scale(1.5); }
+}
 @keyframes break-bounce { 0% { transform: translate(-50%, -50%) scale(1); } 30% { transform: translate(-50%, -58%) scale(1.1); } 100% { transform: translate(-50%, -50%) scale(1); } }
 .hud-break-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
 .hud-break-ring circle { fill: rgba(8, 5, 24, 0.74); stroke-width: 8; }
@@ -593,6 +613,7 @@ h1, h2, h3, p { margin: 0; }
   .slide > .sel, .btn, .riser, .tab, .song-card { transition: none; }
   .hud-break-num.tick, .hud-break.on.bounce, .hud-break.on.beat, .hud-break.on.bounce .hud-break-ring .fill, .hud-break.on.bounce .hud-break-num, .keycap.listening::before { animation: none; }
   .hud-break { transition: none; }
+  .hud-break.on.leaving, .hud-break.on.leaving .hud-break-ring .fill, .hud-break.on.leaving .hud-break-num { animation: none; opacity: 0; }
 }
 
 /* ------------------------------------------------------------------------------------------- */
