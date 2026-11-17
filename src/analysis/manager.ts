@@ -200,7 +200,7 @@ export class AnalysisManager {
       } catch (e) {
         if (signal.aborted) throw abortError();
         console.warn('remote analysis failed, using in-app analysis', e);
-        warning = `The analysis service failed (${(e as Error).message}), so the in-app analysis was used and no stems were separated.`;
+        warning = `The analysis service failed (${(e as Error).message}). These charts come from the in-app analysis, which is less accurate without separated stems; re-analyze to try the service again.`;
       }
     }
     if (signal.aborted) throw abortError();

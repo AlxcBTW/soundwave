@@ -29,11 +29,11 @@ export async function checkHealth(url: string, timeoutMs = 1500): Promise<MlHeal
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Analyzer backed by the local ML service. Returns null (→ in-app analysis) when the service is down. */
+/** Analyzer backed by the local ML service. Throws when the service is down (→ in-app analysis, with a warning). */
 export function mlAnalyzer(url: string): RemoteAnalyzer {
   const base = trimUrl(url);
   return async (songId, onProgress, signal) => {
-    if (!(await checkHealth(base))) return null;
+    if (!(await checkHealth(base))) throw new Error(`not reachable at ${base}`);
     if (!(await getAudio(songId))) return null;
     onProgress(0, 'Uploading');
     // Upload what the app decoded, as WAV: files are often not what their extension says (an
