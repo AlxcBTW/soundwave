@@ -31,6 +31,7 @@ ap.add_argument('--res', default='1920x1080')
 ap.add_argument('--save', default='')
 ap.add_argument('--crowd', type=int, default=16000)
 ap.add_argument('--trees', type=int, default=1400)
+ap.add_argument('--export', default='', help='write the real-time version (GLB + JSON) to this folder instead of rendering')
 args = ap.parse_args(argv)
 
 random.seed(11)
@@ -983,10 +984,12 @@ for side in (-1, 1):
 SPARK = mat_emit('Spark', (1.0, 0.93, 0.82), 25)
 SPARK_GOLD = mat_emit('SparkGold', (1.0, 0.7, 0.35), 22)
 FIREWORKS = []
+FIREWORK_SPECS = []
 
 
 def firework_fan(name, origin, n=16, spread=55, length=(22, 34), lean=0.0, gold=False, seed=0):
     """Comet trails fanning out of one launch point, curving under gravity, glitter along them."""
+    FIREWORK_SPECS.append({'origin': tuple(origin), 'n': n, 'spread': spread, 'length': list(length), 'lean': lean, 'gold': gold})
     rnd = random.Random(seed)
     trails, glitter = bmesh.new(), bmesh.new()
     o = Vector(origin)
@@ -1270,6 +1273,9 @@ gn.links.new(gramp.outputs[0], gp.inputs['Base Color'])
 bm_obj('Terrain', bm, ground, 'Environment', smooth=True)
 
 
+SCATTERS = {}
+
+
 def scatter(name, pts, variants, where):
     """Instances `variants` on points (x, y, z, rot, scale) with geometry nodes."""
     me = bpy.data.meshes.new(name)
@@ -1280,6 +1286,7 @@ def scatter(name, pts, variants, where):
     sa.data.foreach_set('value', [p[4] for p in pts])
     o = bpy.data.objects.new(name, me)
     link(o, where)
+    SCATTERS[name] = (pts, variants)
     vc = bpy.data.collections.new(name + '_variants')
     for v in variants:
         vc.objects.link(v)
@@ -1674,6 +1681,189 @@ try:
     tree.links.new(gl.outputs['Image'], out.inputs[0])
 except Exception as e:
     print('bloom skipped:', e)
+
+
+# =================================================================== REAL-TIME EXPORT
+def to_three(v):
+    """Blender (Z up) to three.js (Y up) coordinates."""
+    return [round(v[0], 3), round(v[2], 3), round(-v[1], 3)]
+
+
+def flatten_material(m):
+    """Bakes a node material down to constant glTF-friendly PBR values."""
+    nt = m.node_tree
+    if not nt:
+        return
+    base, metal, rough, emit, es = (0.5, 0.5, 0.5, 1), 0.0, 0.5, (0, 0, 0, 1), 0.0
+    pr = next((n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+    em = next((n for n in nt.nodes if n.type == 'EMISSION'), None)
+    if pr:
+        base = tuple(pr.inputs['Base Color'].default_value) if not pr.inputs['Base Color'].is_linked else (0.5, 0.5, 0.6, 1)
+        metal = pr.inputs['Metallic'].default_value
+        rough = pr.inputs['Roughness'].default_value
+        emit = tuple(pr.inputs['Emission Color'].default_value)
+        es = pr.inputs['Emission Strength'].default_value if not pr.inputs['Emission Strength'].is_linked else 1.0
+    elif em:
+        base = (0, 0, 0, 1)
+        emit = tuple(em.inputs['Color'].default_value) if not em.inputs['Color'].is_linked else (0.6, 0.6, 0.8, 1)
+        es = em.inputs['Strength'].default_value
+    nt.nodes.clear()
+    out = nt.nodes.new('ShaderNodeOutputMaterial')
+    p = nt.nodes.new('ShaderNodeBsdfPrincipled')
+    p.inputs['Base Color'].default_value = base
+    p.inputs['Metallic'].default_value = metal
+    p.inputs['Roughness'].default_value = rough
+    p.inputs['Emission Color'].default_value = emit
+    p.inputs['Emission Strength'].default_value = es
+    nt.links.new(p.outputs[0], out.inputs[0])
+
+
+def islands(obj):
+    """Centres and radii of the loose parts of a mesh, in world space."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bm.transform(obj.matrix_world)
+    bm.verts.ensure_lookup_table()
+    seen = bytearray(len(bm.verts))
+    out = []
+    for v in bm.verts:
+        if seen[v.index]:
+            continue
+        stack, comp = [v], []
+        seen[v.index] = 1
+        while stack:
+            a = stack.pop()
+            comp.append(a.co.copy())
+            for e in a.link_edges:
+                b = e.other_vert(a)
+                if not seen[b.index]:
+                    seen[b.index] = 1
+                    stack.append(b)
+        c = sum(comp, Vector()) / len(comp)
+        out.append((c, max((q - c).length for q in comp)))
+    bm.free()
+    return out
+
+
+def join(objs, name):
+    """Joins mesh objects (world transforms kept) into one named object."""
+    if len(objs) == 1:
+        objs[0].name = name
+        return objs[0]
+    for o in bpy.context.view_layer.objects:
+        o.select_set(False)
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    with bpy.context.temp_override(active_object=objs[0], selected_editable_objects=objs, selected_objects=objs):
+        bpy.ops.object.join()
+    objs[0].name = name
+    return objs[0]
+
+
+def export_for_game(out_dir):
+    import json
+    import os
+    import re
+    os.makedirs(out_dir, exist_ok=True)
+    bpy.context.view_layer.update()
+    data = {'version': 1}
+    data['cameras'] = {k: {'pos': to_three(loc), 'target': to_three(tgt), 'hfov': round(math.degrees(2 * math.atan(18 / lens)), 2)}
+                       for k, (loc, tgt, lens) in VIEWS.items()}
+    beams, washes, glows = [], [], []
+    for o in list(scene.objects):
+        if o.type != 'LIGHT':
+            continue
+        L = o.data
+        mw = o.matrix_world
+        e = {'group': re.match(r'[A-Za-z]+', o.name).group(0), 'pos': to_three(mw.translation),
+             'dir': to_three((mw.to_3x3() @ Vector((0, 0, -1))).normalized()), 'color': [round(c, 3) for c in L.color], 'energy': round(L.energy)}
+        if L.type == 'SPOT':
+            e['angle'] = round(math.degrees(L.spot_size), 2)
+            (beams if o.visible_volume_scatter else washes).append(e)
+        elif L.type in ('POINT', 'AREA'):
+            glows.append(e)
+        bpy.data.objects.remove(o)
+    data['beams'], data['washes'], data['glows'] = beams, washes, glows
+    # volumes, fireworks and cameras are rebuilt live in the game
+    for o in list(scene.objects):
+        vol = o.type == 'MESH' and len(o.data.materials) > 0 and any(
+            m and m.node_tree and any(n.type == 'OUTPUT_MATERIAL' and n.inputs['Volume'].is_linked for n in m.node_tree.nodes) for m in o.data.materials)
+        if vol or o.name.startswith('Firework') or o.type == 'CAMERA':
+            bpy.data.objects.remove(o)
+    data['fireworks'] = [{**f, 'origin': to_three(f['origin'])} for f in FIREWORK_SPECS]
+    data['co2'] = [to_three(c) for c in cannons]
+    data['wheel'] = to_three(WHEEL)
+    data['armillary'] = to_three(ARM)
+    data['sun'] = to_three(SUN)
+    # bulbs become a point list (the wheel keeps its own so they can turn with it)
+    bulbs = []
+    for o in list(scene.objects):
+        if o.type == 'MESH' and len(o.data.materials) > 0 and o.data.materials[0] and o.data.materials[0].name.startswith('Bulbs') and not o.name.startswith('Wheel'):
+            parts = islands(o)
+            if max(r for _, r in parts) > 0.5:
+                continue  # LED strips share the bulb material; they stay geometry
+            for c, r in parts:
+                bulbs += to_three(c) + [round(r, 2)]
+            bpy.data.objects.remove(o)
+    data['bulbs'] = bulbs
+    # crowd and trees: instance points plus their variant meshes
+    inst = bpy.data.collections.new('Instances')
+    root_col.children.link(inst)
+    for name, (pts, variants) in SCATTERS.items():
+        data[name.lower()] = {'points': [v for q in pts for v in (*to_three(q[:3]), round(q[3], 3), round(q[4], 3))],
+                              'variants': ['Variant_%s_%d' % (name, i) for i in range(len(variants))]}
+        for i, v in enumerate(variants):
+            v.name = 'Variant_%s_%d' % (name, i)
+            inst.objects.link(v)
+            # thousands of copies: real time gets a lighter mesh than the offline render
+            dec = v.modifiers.new('lod', 'DECIMATE')
+            dec.ratio = 0.3 if name == 'Crowd' else 0.15
+        bpy.data.objects.remove(bpy.data.objects[name])
+    # band positions, then flatten the hierarchy
+    bpy.context.view_layer.update()
+    band = {}
+    for o in list(scene.objects):
+        if o.type == 'EMPTY' and o.name.startswith('Player_'):
+            band[o.name[7:]] = (o.matrix_world.translation.copy(), [c for c in o.children_recursive if c.type == 'MESH'])
+    for o in list(scene.objects):
+        if o.parent is not None:
+            mw = o.matrix_world.copy()
+            o.parent = None
+            o.matrix_world = mw
+    data['band'] = {k: to_three(pos) for k, (pos, _) in band.items()}
+    for kind, (_, parts) in band.items():
+        if parts:
+            join(parts, 'Band_' + kind)
+    for o in list(scene.objects):
+        if o.type == 'EMPTY':
+            bpy.data.objects.remove(o)
+    for m in bpy.data.materials:
+        flatten_material(m)
+    keep = ('Band_', 'Wheel', 'Armillary', 'GateScreen', 'SunFace', 'Variant_', 'Terrain')
+    groups = {}
+    for o in scene.objects:
+        if o.type == 'MESH' and not o.name.startswith(keep) and len(o.data.materials) == 1 and o.data.materials[0]:
+            groups.setdefault(o.data.materials[0].name, []).append(o)
+    for mname, objs in groups.items():
+        join(objs, 'M_' + mname)
+    for o in scene.objects:
+        if o.type not in ('MESH',):
+            print('warning: non-mesh left in export', o.name, o.type)
+    glb = os.path.join(out_dir, 'stage.glb')
+    bpy.ops.export_scene.gltf(filepath=glb, export_format='GLB', export_apply=True, export_yup=True, export_lights=False, export_cameras=False,
+                              export_texcoords=False, export_draco_mesh_compression_enable=True, export_draco_mesh_compression_level=6)
+    with open(os.path.join(out_dir, 'stage.json'), 'w') as f:
+        json.dump(data, f, separators=(',', ':'))
+    meshes = [o for o in scene.objects if o.type == 'MESH']
+    print('exported', glb, 'objects', len(meshes), 'tris', sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in meshes),
+          'bulbs', len(bulbs) // 4, 'beams', len(beams), 'washes', len(washes))
+
+
+if args.export:
+    export_for_game(args.export)
+    raise SystemExit(0)
+
 
 print('lights:', LIGHT_COUNT[0], 'crowd:', len(crowd_pts), 'trees:', len(tree_pts))
 if args.save:
