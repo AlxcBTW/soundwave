@@ -7,6 +7,7 @@ import { isAudioFile, readSongFile } from '../audio/importSong';
 import { DEMO_ID, forgetSongBuffer, loadSongBuffer } from '../audio/songAudio';
 import type { Results } from '../game/GameSession';
 import { demoChart } from '../game/demo';
+import { applyDisplayMode } from '../game/displayMode';
 import { loadSettings, saveSettings, type Settings } from '../game/settings';
 import { installMenuNav } from '../input/menuNav';
 import { loadSfx, playSfx, setSfxVolume, sfxStatus } from '../audio/sfx';
@@ -74,6 +75,7 @@ export function App() {
   useEffect(() => setSfxVolume(settings.sfxVolume), [settings.sfxVolume]);
   useEffect(() => setMusicVolume(settings.musicVolume), [settings.musicVolume]);
   useEffect(() => setMenuRumble(settings.rumble), [settings.rumble]);
+  useEffect(() => void applyDisplayMode(settings.displayMode), [settings.displayMode]);
 
   const refresh = useCallback(async () => {
     try {

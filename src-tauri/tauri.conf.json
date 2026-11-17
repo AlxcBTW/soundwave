@@ -17,6 +17,7 @@
         "height": 800,
         "resizable": true,
         "fullscreen": false,
+        "visible": false,
         "minWidth": 960,
         "minHeight": 600,
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required"

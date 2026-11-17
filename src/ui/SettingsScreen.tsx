@@ -1,6 +1,7 @@
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { DEFAULT_SETTINGS, keyLabel, type RumbleLevel, type Settings } from '../game/settings';
+import { inDesktopApp } from '../game/displayMode';
+import { DEFAULT_SETTINGS, keyLabel, type DisplayMode, type RumbleLevel, type Settings } from '../game/settings';
 import { applyPreset, autoTier, resolveGraphics, type CameraMode, type GraphicsPreset, type GraphicsSettings, type Level } from '../game/graphics';
 import { PadGlyph, STYLE_LABEL } from '../input/glyphs';
 import { TAB_EVENT } from '../input/menuNav';
@@ -45,7 +46,7 @@ const RUMBLE_LEVELS: [RumbleLevel, string][] = [
 ];
 const GENERAL_FIELDS = ['noteSpeed', 'volume', 'musicVolume', 'sfxVolume', 'offsetMs'] as const;
 const ANALYSIS_FIELDS = ['mlEnabled', 'mlUrl'] as const;
-const GRAPHICS_FIELDS = ['graphics'] as const;
+const GRAPHICS_FIELDS = ['graphics', 'displayMode'] as const;
 const FIELDS: Record<Tab, readonly (keyof Settings)[]> = { general: GENERAL_FIELDS, graphics: GRAPHICS_FIELDS, keyboard: KEYBOARD_FIELDS, controller: CONTROLLER_FIELDS, analysis: ANALYSIS_FIELDS };
 
 function loadTab(): Tab {
@@ -258,6 +259,12 @@ const CAMERA_CHOICES: [CameraMode, string, string][] = [
   ['fixed', 'Fixed', 'One view from the crowd.'],
 ];
 
+const DISPLAY_CHOICES: [DisplayMode, string, string][] = [
+  ['fullscreen', 'Fullscreen', 'The game takes over the whole screen.'],
+  ['borderless', 'Windowed fullscreen', 'A borderless window that fills the screen. Switching to other apps stays instant.'],
+  ['windowed', 'Window', 'A normal window that you can move and resize.'],
+];
+
 function GraphicsTab({ settings, set }: { settings: Settings; set: SetFn }) {
   const g = settings.graphics;
   // Auto shows what it picked; touching any option turns that into a custom setup.
@@ -275,6 +282,19 @@ function GraphicsTab({ settings, set }: { settings: Settings; set: SetFn }) {
   const off = !shown.stage3d;
   return (
     <>
+      {inDesktopApp() && (
+        <>
+          <div className="section-label">Display mode</div>
+          <div className="seg small wrap">
+            {DISPLAY_CHOICES.map(([v, label]) => (
+              <button key={v} className={`seg-btn ${settings.displayMode === v ? 'on' : ''}`} onClick={() => set({ displayMode: v })}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="hint">{DISPLAY_CHOICES.find(([v]) => v === settings.displayMode)?.[2]}</p>
+        </>
+      )}
       <div className="section-label">Quality</div>
       <div className="seg small wrap">
         {(['auto', 'low', 'medium', 'high', 'ultra'] as const).map((p) => (

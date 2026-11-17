@@ -29,9 +29,14 @@ export interface Settings {
   rumbleOverdrive: boolean;
   /** The 3D stage behind the highway. */
   graphics: GraphicsSettings;
+  /** How the desktop app's window fills the screen. */
+  displayMode: DisplayMode;
 }
 
 export type RumbleLevel = 'off' | 'weak' | 'strong';
+/** Fullscreen, a borderless window covering the monitor, or a normal window. */
+export type DisplayMode = 'fullscreen' | 'borderless' | 'windowed';
+export const DISPLAY_MODES: readonly DisplayMode[] = ['fullscreen', 'borderless', 'windowed'];
 
 export const DEFAULT_SETTINGS: Settings = {
   noteSpeed: 9,
@@ -57,6 +62,7 @@ export const DEFAULT_SETTINGS: Settings = {
   rumbleSustains: true,
   rumbleOverdrive: true,
   graphics: DEFAULT_GRAPHICS,
+  displayMode: 'borderless',
 };
 
 /** Controller defaults of an earlier version, replaced by the current ones when stored unchanged. */
@@ -75,6 +81,7 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
   else if (r !== 'off' && r !== 'weak' && r !== 'strong') s.rumble = DEFAULT_SETTINGS.rumble;
   for (const old of ['rumbleStrength', 'dualSenseHaptics']) delete (s as Record<string, unknown>)[old];
   s.graphics = normalizeGraphics(s.graphics);
+  if (!DISPLAY_MODES.includes(s.displayMode)) s.displayMode = DEFAULT_SETTINGS.displayMode;
   for (const k of ['keys4', 'keys5', 'pad4', 'pad5'] as const) {
     if (!Array.isArray(s[k]) || s[k].length !== DEFAULT_SETTINGS[k].length) s[k] = [...DEFAULT_SETTINGS[k]];
   }
