@@ -4,6 +4,7 @@ import { Background2D } from '../render/Background2D';
 import { Highway } from '../render/Highway';
 import { GameSession, type Results } from './GameSession';
 import { Rumbler } from '../input/rumble';
+import { findBreaks, type Break } from './breaks';
 import { GamepadInput, KeyboardInput, type InputHandlers } from './input';
 import type { Settings } from './settings';
 
@@ -18,6 +19,10 @@ export interface HudRefs {
   root: HTMLElement;
   /** One label per lane, positioned under its strike pad. */
   keys: HTMLElement[];
+  /** Countdown shown during long breaks: the root, its number and its ring. */
+  breakTimer: HTMLElement;
+  breakNumber: HTMLElement;
+  breakRing: SVGCircleElement;
 }
 
 export type PlayPhase = 'countdown' | 'playing' | 'paused' | 'finished';
@@ -39,7 +44,8 @@ export class PlayController {
   private phase: PlayPhase = 'countdown';
   private lastBeat = -1;
   private beatPulse = 0;
-  private hudCache = { score: -1, mult: -1, streak: -1, od: -1, stars: -1, odActive: false };
+  private hudCache = { score: -1, mult: -1, streak: -1, od: -1, stars: -1, odActive: false, breakSec: -1 };
+  private readonly breaks: Break[];
   private feedbackTimer = 0;
   private disposed = false;
   private lastCount = -1;
@@ -65,6 +71,7 @@ export class PlayController {
     engine.onEnded = () => this.finish();
 
     this.downbeats = new Set(chart.downbeats);
+    this.breaks = findBreaks(chart);
     this.session = new GameSession(chart);
     this.highway = new Highway(highwayCanvas, chart);
     this.highway.speed = settings.noteSpeed;
@@ -234,7 +241,34 @@ export class PlayController {
     const stars = s.progressStars;
     if (stars !== c.stars) this.hud.stars.textContent = '★'.repeat(stars) + '☆'.repeat(5 - stars);
     this.hud.progress.style.width = `${Math.max(0, Math.min(1, t / this.chart.duration)) * 100}%`;
+    this.updateBreak(t);
     Object.assign(c, { score, mult, streak: s.streak, od, stars, odActive: s.overdriveActive });
+  }
+
+  /** The break countdown: whole seconds to the next note, a ring draining over the break. */
+  private updateBreak(t: number) {
+    const b = this.phase === 'playing' || this.phase === 'paused' ? this.breaks.find((x) => t >= x.from && t < x.to) : undefined;
+    const el = this.hud.breakTimer;
+    const c = this.hudCache;
+    if (!b) {
+      if (c.breakSec !== -1) {
+        el.classList.remove('on', 'final');
+        c.breakSec = -1;
+      }
+      return;
+    }
+    const left = b.next - t;
+    const sec = Math.max(1, Math.ceil(left));
+    this.hud.breakRing.style.strokeDashoffset = String(1 - Math.max(0, Math.min(1, left / b.length)));
+    if (sec === c.breakSec) return;
+    c.breakSec = sec;
+    this.hud.breakNumber.textContent = String(sec);
+    el.classList.add('on');
+    el.classList.toggle('final', sec <= 3);
+    // Restart the pop on every new second.
+    this.hud.breakNumber.classList.remove('tick');
+    void this.hud.breakNumber.offsetWidth;
+    this.hud.breakNumber.classList.add('tick');
   }
 
   dispose() {

@@ -40,6 +40,9 @@ export function PlayScreen({ title, buffer, chart, settings, onFinish, onQuit }:
       progress: q('[data-hud=progress]'),
       feedback: q('[data-hud=feedback]'),
       keys: Array.from(root.querySelectorAll<HTMLElement>('.lane-key')),
+      breakTimer: q('[data-hud=break]'),
+      breakNumber: q('[data-hud=break-num]'),
+      breakRing: root.querySelector<SVGCircleElement>('[data-hud=break-ring]')!,
     });
     ctrl.onPhase = (p, n) => {
       setPhase(p);
@@ -82,6 +85,14 @@ export function PlayScreen({ title, buffer, chart, settings, onFinish, onQuit }:
           <div className="hud-od-key">{odLabel}</div>
         </div>
         <div className="hud-feedback" data-hud="feedback" />
+        <div className="hud-break" data-hud="break" aria-live="off">
+          <svg viewBox="0 0 120 120" className="hud-break-ring">
+            <circle cx="60" cy="60" r="52" className="track" />
+            <circle cx="60" cy="60" r="52" className="fill" pathLength={1} data-hud="break-ring" />
+          </svg>
+          <div className="hud-break-num" data-hud="break-num" />
+          <div className="hud-break-label">Break</div>
+        </div>
         {keys.map((k, i) => (
           <span key={i} className={`lane-key lane-${i} ${usingPad ? 'pad' : ''}`}>{usingPad ? <PadGlyph input={padKeys[i]} style={style} /> : keyLabel(k)}</span>
         ))}
