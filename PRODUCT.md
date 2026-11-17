@@ -6,13 +6,13 @@
 
 web
 
-Desktop-first: shipped as a Tauri desktop app (Windows first) whose UI is a web view; the same build also runs in a desktop browser.
+Shipped as a Tauri desktop app (Windows first) whose UI is a web view; the same build runs in a browser on desktops, tablets and phones.
 
 ## Users
 
 Rhythm-game players who want to play along to their own music collection. The game is headed for a public release, so first-time players arriving with no context are a primary audience, alongside returning players building up a library.
 
-They play in three settings, all of which must work: at a desk with a keyboard, at a desk with a controller, and from a couch with a controller on a TV several metres away.
+They play in four settings, all of which must work: at a desk with a keyboard and mouse, at a desk with a controller, from a couch with a controller on a TV several metres away, and on a touchscreen held in the hands, down to a phone.
 
 ## Product Purpose
 
@@ -27,19 +27,21 @@ The game charts the player's own music. There is no fixed setlist: every song co
 ## Operating Context
 
 - Import by file picker or drag and drop; analysis runs in the background with progress per song and can take a minute or more per song.
-- A song page offers stem previews (instrument, bass, drums, vocals), part and difficulty choice, best scores, re-analysis, a chart debug view and removal.
-- Play: countdown, highway with lanes and hit pads, score, stars, multiplier, overdrive meter, break countdowns for long gaps, pause with resume/restart/quit, results with grades, accuracy, streak and stars.
-- Settings: General (note speed, volume, audio offset and tap calibration), Keyboard bindings, Controller (detected controllers, glyph style, bindings, rumble), Analysis (local service).
-- Input: keyboard and game controllers (Xbox, PlayStation 4 and 5, Switch and others), including full menu navigation by controller with confirm/back conventions per controller family; rumble and DualSense haptics.
+- Home offers sets: the player's own setlist and sets dealt from the library (a shuffle, the newest songs, songs without a score).
+- The music library lists every song with search and sort; a song is added to or taken out of the setlist (up to four songs) with one press. A song's details offer stem previews (instrument, bass, drums, vocals), best scores on every part and difficulty, re-analysis, a chart debug view and removal.
+- Ready up: the set in order, one part and one difficulty for the whole set, and a button that is held to start.
+- Play: the set's songs back to back. Countdown, highway with lanes and hit pads, score, stars, multiplier, overdrive meter, break countdowns for long gaps, pause with resume/restart/skip/leave, results after each song with grades, accuracy, streak and stars, and a summary of the whole set.
+- Settings: Video (window mode, interface size, menu motion, stage quality), Audio (volumes), Gameplay (note speed, audio offset and tap calibration), Keyboard bindings, Controller (detected controllers, glyph style, bindings, rumble), Touch (tap vibration, overdrive button side), Analysis (local service).
+- Input: keyboard, mouse, touch and game controllers (Xbox, PlayStation 4 and 5, Switch and others). Menus are navigated by direction with the arrow keys or a controller (confirm/back conventions per controller family), by pointer, or by touch, and the interface shows the variant for the input used last: key hints, controller symbols or larger touch targets. Songs are played with keys, controller buttons or a touch pad under each lane; rumble and DualSense haptics.
 
 ## Capabilities and Constraints
 
-- Everything must be fully operable by keyboard alone and by controller alone; mouse is optional.
-- Must read from a couch at TV distance as well as at a desk.
+- Everything must be fully operable by keyboard alone, by controller alone and by touch alone; mouse is optional.
+- Must read from a couch at TV distance, at a desk, and on a phone.
 - Audio playback is the core of the experience; UI motion must never compete with the gameplay highway or cost frame time during play.
 - The product name is open: "Festival" is a working title and the design must not depend on it.
 - The game must not name, imitate or recreate any existing commercial rhythm game, in look, copy, assets or layouts.
-- The settings layout is tabbed; the screen set is Library, Song, Play (with Pause), Results, Settings, plus a developer chart-debug screen.
+- The settings layout is tabbed; the screen set is Home, Music library (with Song details), Ready up, Play (with Pause), Results, Set summary, Settings, plus a developer chart-debug screen.
 
 ## Evidence on Hand
 
@@ -49,14 +51,16 @@ The game charts the player's own music. There is no fixed setlist: every song co
 ## Product Principles
 
 1. Your music, playable in minutes: importing and starting a song should take as few steps as possible.
-2. Any input, any distance: every screen works by keyboard, controller and mouse, at a desk and from the couch.
+2. Any input, any distance: every screen works by keyboard, controller, mouse and touch, at a desk, from the couch and in the hand.
 3. The highway is sacred: during play nothing distracts from reading notes.
 4. Honest feedback: analysis progress, failures and fallbacks are always visible.
 5. Feels like playing: timing, feedback and rumble make hits feel physical.
 
 ## Accessibility & Inclusion
 
-- Full keyboard-only and controller-only operation with clearly visible focus.
+- Full keyboard-only, controller-only and touch-only operation with clearly visible focus.
+- Touch targets of at least 44 CSS pixels; nothing that needs a hover.
+- Actions that ask to be held (starting a set) also work for assistive technology that cannot hold.
 - Large, high-contrast text legible at TV distance.
-- Respect reduced-motion preferences for non-essential animation.
+- Respect reduced-motion preferences for non-essential animation, with a setting to override the system either way, and a setting for interface size.
 - Sound is muted in automated testing; all states must also be understandable without audio.

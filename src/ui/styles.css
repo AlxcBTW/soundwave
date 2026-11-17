@@ -426,12 +426,12 @@ ul, ol { list-style: none; }
 .lane-0 { --lane: var(--lane-0); } .lane-1 { --lane: var(--lane-1); } .lane-2 { --lane: var(--lane-2); } .lane-3 { --lane: var(--lane-3); } .lane-4 { --lane: var(--lane-4); }
 
 /* Hold to start: the button fills while held and fires when full. */
-.hold-btn { position: relative; isolation: isolate; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem; min-height: 4.6rem; margin-top: 0.5rem; border-radius: var(--r-m); background: #8c2a66; color: #fff; transition: transform 0.2s var(--ease), background 0.2s; touch-action: none; }
-.hold-fill { position: absolute; inset: 0; z-index: -1; background: var(--pink); transform-origin: left; transform: scaleX(var(--hold, 0)); }
+.hold-btn { position: relative; isolation: isolate; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem; min-height: 4.6rem; margin-top: 0.5rem; border-radius: var(--r-m); background: var(--pink); color: var(--pink-ink); transition: transform 0.2s var(--ease), background 0.2s; touch-action: none; }
+.hold-fill { position: absolute; inset: 0; z-index: -1; background: #ffc4e0; transform-origin: left; transform: scaleX(var(--hold, 0)); }
 .hold-label { font-size: 1.3rem; font-weight: 900; font-style: italic; font-stretch: 112%; text-transform: uppercase; }
 .hold-hint { font-size: 0.9rem; font-weight: 700; opacity: 0.92; }
 .hold-btn.holding { transform: scale(0.985); }
-.hold-btn.fired { background: var(--pink); color: var(--pink-ink); }
+.hold-btn.fired { background: #ffc4e0; }
 .hold-btn:disabled { background: #4a2a66; color: #cbb6dc; }
 
 /* ------------------------------------------------------------------------------------------- */
@@ -783,6 +783,14 @@ ul, ol { list-style: none; }
 
   .lobby-body { grid-template-columns: 1fr; }
   .results-body { grid-template-columns: 1fr; align-content: start; }
+}
+
+/* A phone on its side is wide but short: side by side still fits. */
+@media (max-width: 900px) and (min-width: 641px) and (max-height: 560px) {
+  .lobby-body { grid-template-columns: minmax(0, 1fr) minmax(17rem, 1fr); }
+  .results-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .results-stats > div { padding: 0.4rem 0.6rem; }
+  .results-stats dd { font-size: 1.2rem; }
 }
 
 @media (max-width: 640px) {

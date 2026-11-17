@@ -74,6 +74,9 @@ const remembered = new WeakMap<Element, HTMLElement>();
 
 function focusEl(el: HTMLElement, announce = true) {
   el.focus({ preventScroll: true });
+  // A window without focus (a controller used right after switching apps) moves focus silently:
+  // say so, for the screens that follow the focused control.
+  if (!document.hasFocus()) el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
   el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   if (announce) window.dispatchEvent(new Event(MOVE_EVENT));
 }

@@ -9,9 +9,11 @@ A rhythm game for your own music. Drop in a song (MP3, WAV, FLAC, OGG, M4A). The
 | Hard | 4 | sixteenths, two-note chords |
 | Expert | 5 | literal transcription, three-note chords |
 
-You play them on a 3D note highway with the keyboard or a controller, in front of a live 3D festival stage that follows the music: a band, a crowd of thousands, beams, screens and pyro (with a light 2D backdrop as the fallback). Features: sustains, streak multiplier (up to ×4), overdrive phrases (Space doubles the multiplier), Perfect/Great/Good timing, star rating, best scores, tap calibration and key rebinding.
+You play them on a 3D note highway with the keyboard, a controller or a touchscreen, in front of a live 3D festival stage that follows the music: a band, a crowd of thousands, beams, screens and pyro (with a light 2D backdrop as the fallback). Features: sustains, streak multiplier (up to ×4), overdrive phrases (Space doubles the multiplier), Perfect/Great/Good timing, star rating, best scores, tap calibration and key rebinding.
 
-It runs in the browser and as a desktop app (Tauri).
+You pick up to four songs as a setlist, choose a part and a difficulty for the set and play the songs back to back, with a result after each and a total at the end. The home screen also deals a few sets from your library (a shuffle, your newest songs, songs without a score).
+
+It runs in the browser, on phones and tablets too, and as a desktop app (Tauri).
 
 ## Quick start (browser)
 
@@ -24,7 +26,9 @@ Open http://localhost:5173. A built-in demo track is always available.
 
 Default keys are `D F J K` (plus `L` on Expert), `Space` for overdrive and `Esc` to pause. All of them can be changed in Settings.
 
-Controllers (Xbox, PlayStation 4 and 5, Nintendo Switch and most others) work in the menus and in songs. By default the lanes are D-pad left, D-pad right and the left, top and right face buttons (four-lane difficulties skip the top one), the right trigger triggers overdrive and Start/Options/+ pauses. Every lane and overdrive can be rebound to any button, trigger or stick direction in Settings → Controller, where the button glyphs follow the connected controller or can be fixed to one style. Rumble is off, weak or strong. In the desktop app, a PS5 DualSense connected by USB automatically plays each hit on its left or right haptic motor, following the lane.
+The menus work with whatever you last touched, and change with it. With a keyboard, the arrow keys move a focus ring between controls, `Enter` selects, `Esc` goes back, `Q` and `E` switch tabs, and every action along the bottom of the screen shows its key. With a mouse the same actions are buttons. On a touchscreen the targets grow and the hints go away, and in a song each lane gets a pad along the bottom of the screen: tap to play, hold for long notes, several fingers for chords.
+
+Controllers (Xbox, PlayStation 4 and 5, Nintendo Switch and most others) work in the menus and in songs: the D-pad or left stick moves the focus ring, the shoulder buttons switch tabs, and the action bar shows the controller's own button symbols. By default the lanes are D-pad left, D-pad right and the left, top and right face buttons (four-lane difficulties skip the top one), the right trigger triggers overdrive and Start/Options/+ pauses. Every lane and overdrive can be rebound to any button, trigger or stick direction in Settings → Controller, where the button glyphs follow the connected controller or can be fixed to one style. Rumble is off, weak or strong. In the desktop app, a PS5 DualSense connected by USB automatically plays each hit on its left or right haptic motor, following the lane.
 
 ## Desktop app
 
@@ -76,7 +80,7 @@ To tune analysis or charts on your own files without the UI, see `scripts/dev/an
 
 ### Optional ML service
 
-`ml-service/` is a local Python service. It adds Demucs stem separation and per-stem transcription, which give more accurate charts. Enable it under **Settings → Analysis service**. If it is not running, the game falls back to in-app analysis. Songs analyzed this way keep their stems, and the song page's **Listen** buttons play each one (instruments, bass, drums, vocals) for checking the separation. See [ml-service/README.md](ml-service/README.md).
+`ml-service/` is a local Python service. It adds Demucs stem separation and per-stem transcription, which give more accurate charts. Enable it under **Settings → Analysis service**. If it is not running, the game falls back to in-app analysis. Songs analyzed this way keep their stems, and the **Listen** buttons in a song's details play each one (instruments, bass, drums, vocals) for checking the separation. See [ml-service/README.md](ml-service/README.md).
 
 ## Tests
 
