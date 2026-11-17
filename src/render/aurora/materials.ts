@@ -139,15 +139,27 @@ void main() {
 }`;
 
 /**
- * A player's podium. Its top is a pool of water: the surface rolls and ripples, rings run out from
- * the player's feet on every beat (higher with the bass), a net of light plays under it, and it
- * mirrors the sky and the main screen. Its wall is a ring of level meters: bass toward the
- * audience, treble at the back.
+ * A player's podium: a display all over, playing water. The lid shows a pool from above: blue
+ * depths, a net of sunlight wandering over the floor, a ring spreading from the player's feet on
+ * every beat. The wall shows the same pool from the side, like the glass of a tank: it is full up
+ * to a rolling waterline that stands higher where the music is louder (bass toward the audience,
+ * treble at the back), with light playing in the water and bubbles rising. It is a picture, not
+ * water: it glows by itself, on a grid of lamps, and mirrors nothing but a little sky on its glass.
  */
 const PODIUM_FRAGMENT = /* glsl */ `
 ${COMMON}
 uniform float uWho; uniform vec2 uRadii; uniform float uFloor;
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
+
+float ridge(float n) { return 1.0 - abs(n * 2.0 - 1.0); }
+/** The net of light on the floor of a pool: two webs of bright lines, brighter where they cross. */
+float caustics(vec2 p, float t) {
+  vec2 w = p + 0.35 * vec2(vnoise(p * 0.7 + t * 0.21), vnoise(p * 0.7 - t * 0.17 + 9.2));
+  float a = ridge(vnoise(w * 1.5 + vec2(t * 0.26, -t * 0.19)));
+  float b = ridge(vnoise(w * 2.1 + vec2(-t * 0.22, t * 0.24) + 4.7));
+  return pow(a, 7.0) * 0.6 + pow(b, 7.0) * 0.45 + pow(a * b, 3.0) * 0.9;
+}
+
 void main() {
   int who = int(uWho + 0.5);
   vec3 c = uBand[who];
@@ -155,64 +167,56 @@ void main() {
   vec3 n = normalize(vWNorm);
   vec3 v = normalize(cameraPosition - vWPos);
   float fres = 0.05 + 0.95 * pow(max(0.0, 1.0 - max(0.0, dot(n, v))), 4.0);
-  vec3 col = vec3(0.004, 0.006, 0.02);
+  float t = uTime;
+  // The water's colours: its own blues, leaning toward the colours of the show.
+  vec3 deep = mix(vec3(0.0, 0.035, 0.12), uWash * 0.22, 0.5);
+  vec3 shallow = mix(vec3(0.0, 0.2, 0.36), uKey * 0.4, 0.4);
+  vec3 bright = mix(vec3(0.65, 0.95, 1.0), uAccent, 0.4);
+  float level = (0.6 + 0.2 * feature + 0.25 * uLow + 0.2 * uPulse) * 0.85;
+  vec3 pic;
+  vec2 cells;
   if (vUv.y < -0.5) {
+    // The lid: the pool from above.
     vec2 q = (vWPos.xz - c.xz) / uRadii;
     float r = length(q);
-    vec2 p = vWPos.xz;
-    float t = uTime;
-    // The surface: a slow swell, small ripples over it, and the rings the beat sends out.
-    vec2 swellA = vec2(vnoise(p * 1.1 + vec2(t * 0.32, t * 0.18)), vnoise(p * 1.1 + vec2(-t * 0.22, t * 0.28) + 31.7)) - 0.5;
-    vec2 ripple = vec2(vnoise(p * 4.2 + t * 0.85), vnoise(p * 4.2 - t * 0.75 + 11.1)) - 0.5;
     float beat = fract(uBeat);
-    float lead = r - beat * 1.15;
-    float ring = exp(-lead * lead * 70.0) * (1.0 - beat);
-    vec2 slope = swellA * 0.55 + ripple * 0.3 + (q / max(r, 1e-3)) * ring * sin(lead * 44.0) * (0.45 + 0.9 * uLow);
-    vec3 wn = normalize(vec3(slope.x, 1.0, slope.y));
-    vec3 refl = reflect(-v, wn);
-    refl.y = abs(refl.y);
-    float shine = 0.04 + 0.96 * pow(clamp(1.0 - dot(wn, v), 0.0, 1.0), 5.0);
-    float level = 0.3 + 0.3 * feature + 0.3 * uLow + 0.25 * uPulse;
-    // Deep water, lit from below by a drifting net of light.
-    col = mix(vec3(0.003, 0.012, 0.035), uWash * 0.1, 0.45);
-    vec2 cp = p * 2.1 + slope * 1.6;
-    float netA = pow(1.0 - abs(vnoise(cp + vec2(t * 0.28, -t * 0.2)) * 2.0 - 1.0), 7.0);
-    float netB = pow(1.0 - abs(vnoise(cp * 1.7 + vec2(-t * 0.24, t * 0.3) + 5.3) * 2.0 - 1.0), 7.0);
-    col += mix(uAccent, uKey, 0.5 + 0.5 * sin(r * 5.0 - t * 0.6)) * (netA * 0.55 + netB * 0.35) * level * smoothstep(1.0, 0.8, r);
-    // The crest of each ring catches the light.
-    col += mix(uAccent, vec3(1.0), 0.35) * ring * (0.5 + 0.5 * sin(lead * 44.0)) * (0.35 + 0.5 * uLow);
-    // What it mirrors: the main screen, the sky, and the ring of lamps overhead as glints.
-    if (refl.z < -1e-3) {
-      vec3 hit = vWPos + refl * ((uMoon.z - vWPos.z) / refl.z);
-      col += moonContent((hit.xy - uMoon.xy) / (2.0 * uMoon.w) + 0.5) * onScreen(hit.xy) * shine * 0.7;
-    }
-    col += skyGradient(refl) * shine;
-    col += mix(uAccent, vec3(1.0), 0.5) * pow(max(0.0, dot(refl, normalize(vec3(0.0, 18.2, -5.0) - vWPos))), 160.0) * (0.5 + 0.5 * uPulse);
-    // Its rim.
-    col += uAccent * smoothstep(0.9, 0.99, r) * (0.28 + 0.55 * uPulse);
+    float lead = r - beat * 1.1;
+    float ring = exp(-lead * lead * 90.0) * (1.0 - beat);
+    // The ring bends the picture under it, as a ripple would.
+    vec2 bend = (q / max(r, 1e-3)) * ring * sin(lead * 40.0) * 0.12 * uRadii.x;
+    pic = mix(deep, shallow, vnoise(vWPos.xz * 0.6 + vec2(t * 0.08, -t * 0.06)) * 0.8 + 0.25 * ring);
+    pic += bright * caustics(vWPos.xz * 1.25 + bend, t) * (0.5 + 0.4 * uLow);
+    pic += bright * ring * (0.5 + 0.5 * sin(lead * 40.0)) * 0.6;
+    pic *= level * smoothstep(1.0, 0.95, r);
+    pic += uAccent * smoothstep(0.9, 0.99, r) * (0.28 + 0.55 * uPulse);
+    cells = vWPos.xz / 0.055;
   } else {
-    // The wall, as much of it as stands above the island: columns of lamps that fill with the sound.
-    float rowH = 0.08;
+    // The wall: the pool from the side, as much of it as stands above the island.
     float height = max(0.05, c.y - uFloor);
-    float up = (vWPos.y - uFloor) / rowH;
+    float up = vWPos.y - uFloor;
+    float ang = vUv.x * 6.2831853;
     float cols = floor(max(uRadii.x, uRadii.y) * 26.0);
-    float u = vUv.x * cols;
-    float id = floor(u);
     float across = abs(fract(vUv.x + 0.75) - 0.5) * 2.0;
     float sound = mix(mix(uLow, uMid, smoothstep(0.0, 0.5, across)), uHigh, smoothstep(0.5, 1.0, across));
-    float h = hash11(id * 1.7 + uWho * 13.0);
-    float flutter = 0.6 + 0.4 * sin(uTime * (3.0 + 5.0 * h) + h * 40.0);
-    float bar = clamp(0.14 + 1.15 * sound * flutter + 0.3 * uPulse * h, 0.08, 1.0);
-    float at = (floor(up) + 0.5) * rowH / height;
-    float on = step(at, bar);
-    float tip = on * step(bar, at + rowH / height);
-    vec2 lamp = abs(vec2(fract(u), fract(up)) - 0.5);
-    float shape = smoothstep(0.5, 0.36, lamp.x) * smoothstep(0.5, 0.32, lamp.y);
-    shape = mix(shape, 0.55, clamp(max(fwidth(u), fwidth(up)) * 1.4, 0.0, 1.0));
-    vec3 tint = mix(mix(uWash, uKey, clamp(at, 0.0, 1.0)), mix(uAccent, vec3(1.0), 0.3), tip);
-    col += tint * shape * (on * (0.5 + 0.4 * feature + 0.35 * tip) + 0.03);
-    col += skyGradient(reflect(-v, n)) * fres * 0.4;
+    float line = clamp(0.42 + 0.42 * sound + 0.06 * uPulse + 0.05 * sin(ang * 6.0 + t * 2.2) + 0.03 * sin(ang * 11.0 - t * 3.1), 0.12, 0.94) * height;
+    float under = smoothstep(line + 0.012, line - 0.012, up);
+    pic = mix(deep, shallow, clamp(up / line, 0.0, 1.0) * 0.8);
+    pic += bright * caustics(vec2(vWPos.x * 0.8 + vWPos.z * 0.6, up * 1.3) * 1.6, t) * 0.4;
+    // Bubbles, a column here and there.
+    float h = hash11(floor(vUv.x * cols) * 1.7 + uWho * 13.0);
+    vec2 bq = vec2(fract(vUv.x * cols) - 0.5, (fract(up * 1.4 - t * (0.25 + 0.35 * h) + h * 9.0) - 0.5) * 3.0);
+    pic += bright * smoothstep(0.32, 0.14, length(bq)) * step(0.62, h) * 0.5;
+    pic *= under;
+    pic += bright * smoothstep(0.03, 0.006, abs(up - line)) * (0.75 + 0.5 * uLow);
+    pic += deep * 0.2 * (1.0 - under);
+    pic *= level;
+    cells = vec2(vUv.x * cols * 4.0, up / 0.045);
   }
+  // The lamps the picture is made of show up close and melt together with distance.
+  vec2 lamp = abs(fract(cells) - 0.5);
+  float lit = smoothstep(0.5, 0.38, max(lamp.x, lamp.y));
+  pic *= mix(0.55 + 0.6 * lit, 1.0, clamp(max(fwidth(cells.x), fwidth(cells.y)) * 1.6, 0.0, 1.0));
+  vec3 col = vec3(0.004, 0.006, 0.02) + pic + skyGradient(reflect(-v, n)) * fres * 0.5;
   gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
   ${OUTPUT}
 }`;

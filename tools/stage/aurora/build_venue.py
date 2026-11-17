@@ -91,7 +91,7 @@ material('Ground', (0.02, 0.02, 0.05), kind='ground')
 material('Led', (0.4, 0.8, 1.0), kind='led')
 material('Lens', (1.0, 0.8, 0.9), kind='lens')
 material('Screen', (0.2, 0.5, 1.0), kind='screen')
-# The podiums: a pool of water on top, a wall of light around; each knows whose it is.
+# The podiums: a display showing water on top, a wall of light around; each knows whose it is.
 for _i, _part in enumerate(PLAYERS):
     material('Podium' + _part.title(), (0.2, 0.3, 0.8), kind='podium', who=_i, rx=PODIUMS[_part][2], ry=PODIUMS[_part][3], floor=ISLAND_H)
 
@@ -349,7 +349,8 @@ grille = bmesh.new()
 deck = bmesh.new()
 for scale, top in ((1.0, DECK_H), (1.09, 1.8), (1.18, 1.2), (1.27, 0.6)):
     slab(deck, scale, 0.0, top)
-    tube(led, deck_outline(scale + 0.004, top - 0.14, 128, front_only=True), 0.045)
+    # the light ring sits in the chamfer of the edge, not under it
+    tube(led, deck_outline(scale - 0.003, top - 0.06, 128, front_only=True), 0.045)
 # the band's island: a low round platform with a lit edge (the podiums on it come further down)
 def platform(name, centre, rx, ry, z0, z1):
     plate = bmesh.new()
@@ -360,7 +361,9 @@ def platform(name, centre, rx, ry, z0, z1):
         for loop in f.loops:
             loop[layer].uv = (loop.vert.co.x, loop.vert.co.y)
     new_obj(name, plate, 'Deck')
-    tube(led, [Vector((centre.x + math.cos(a) * (rx + 0.02), centre.y + math.sin(a) * (ry + 0.02), z1 - 0.07)) for a in [2 * math.pi * i / 96 for i in range(97)]], 0.035)
+    # the light ring hugs the top edge (the side leans in toward it)
+    lean = 0.985 + 0.015 * 0.035 / (z1 - z0)
+    tube(led, [Vector((centre.x + math.cos(a) * (rx * lean + 0.012), centre.y + math.sin(a) * (ry * lean + 0.012), z1 - 0.035)) for a in [2 * math.pi * i / 96 for i in range(97)]], 0.035)
 
 
 platform('Island', ISLAND_C, ISLAND_A, ISLAND_B, DECK_H - 0.02, ISLAND_H)
@@ -563,7 +566,7 @@ def mic_stand(pos, lean, black=None):
 
 def podium(part):
     """
-    One player's podium: a round lift whose top is a pool of water and whose wall is a band of light, with
+    One player's podium: a round lift whose top is a display showing water and whose wall is a band of light, with
     the player's own things on it (monitor, pedals, a microphone). The game raises and lowers it
     with the music, so it is exported by itself, in parts named Podium_<player>_*; the wall runs
     down into the island as far as the lift can rise. A low lit step rings it on the island.
@@ -590,7 +593,7 @@ def podium(part):
     new_obj('Podium_%s_Top' % part, bm, 'Podium' + part.title(), sharp=35)
 
     lamps, gear, cloth = bmesh.new(), bmesh.new(), bmesh.new()
-    tube(lamps, [Vector((x + math.cos(a) * (rx + 0.015), y + math.sin(a) * (ry + 0.015), top - 0.1)) for a in [2 * math.pi * i / 96 for i in range(97)]], 0.03)
+    tube(lamps, [Vector((x + math.cos(a) * (rx + 0.012), y + math.sin(a) * (ry + 0.012), top - 0.045)) for a in [2 * math.pi * i / 96 for i in range(97)]], 0.03)
     if part != 'drums':
         # a monitor at the front edge, turned to face the player
         wedge(Vector((x * 1.04, y - ry + 0.42, top)), math.radians(-x * 3.0), gear, cloth)
