@@ -73,6 +73,7 @@ material('PaintEcho', (0.5, 0.15, 0.62), kind='paint', a='#2a0a66', b='#b032d8',
 material('PaintRibbon', (0.1, 0.5, 0.75), kind='paint', a='#0d2a8a', b='#18b8e8', c='#e6fbff', rim='#ffffff', glitter=0.35, glow=0.5)
 material('Deck', (0.03, 0.03, 0.08), kind='deck')
 material('Black', (0.01, 0.01, 0.015), kind='black')
+material('Grille', (0.05, 0.05, 0.06), kind='grille')
 material('Ground', (0.02, 0.02, 0.05), kind='ground')
 material('Led', (0.4, 0.8, 1.0), kind='led')
 material('Lens', (1.0, 0.8, 0.9), kind='lens')
@@ -119,8 +120,12 @@ def superpoint(a, power):
     return (math.copysign(abs(c) ** e, c), math.copysign(abs(s) ** e, s))
 
 
-def new_obj(name, bm, mat, smooth=True):
+def new_obj(name, bm, mat, smooth=True, sharp=None):
+    """`sharp`: edges bent by more than this many degrees stay crisp instead of being smoothed over."""
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    if sharp is not None:
+        limit = math.radians(sharp)
+        bmesh.ops.split_edges(bm, edges=[e for e in bm.edges if len(e.link_faces) == 2 and e.calc_face_angle(0.0) > limit])
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     bm.free()
@@ -221,27 +226,75 @@ FIXTURES = []
 CLEAR = []
 
 
+def stamp(target, build, matrix, bevel=0.0):
+    """Builds one part in its own space, softens its edges, and adds it to `target` in place."""
+    tmp = bmesh.new()
+    build(tmp)
+    bmesh.ops.recalc_face_normals(tmp, faces=tmp.faces)
+    if bevel:
+        bmesh.ops.bevel(tmp, geom=tmp.edges[:], offset=bevel, segments=1, affect='EDGES', profile=0.5)
+    tmp.transform(matrix)
+    me = bpy.data.meshes.new('part')
+    tmp.to_mesh(me)
+    tmp.free()
+    target.from_mesh(me)
+    bpy.data.meshes.remove(me)
+
+
+def cube(size):
+    return lambda t: bmesh.ops.create_cube(t, size=1.0, matrix=Matrix.Diagonal((*size, 1)))
+
+
+def cabinet(size, center, rot=None, bevel=0.025):
+    """A speaker cabinet with a grille on its front (local -y)."""
+    w, d, h = size
+    m = Matrix.Translation(center) @ (rot.to_4x4() if rot else Matrix.Identity(4))
+    stamp(black, cube(size), m, bevel)
+    stamp(grille, cube((w - 0.12, 0.014, h - 0.12)), m @ Matrix.Translation((0, -d / 2 - 0.005, 0)))
+
+
+def prism(t, profile, width):
+    """A solid with the side profile (y, z) carried across x."""
+    left = [t.verts.new((-width / 2, y, z)) for y, z in profile]
+    right = [t.verts.new((width / 2, y, z)) for y, z in profile]
+    t.faces.new(left)
+    t.faces.new(right[::-1])
+    for i in range(len(profile)):
+        j = (i + 1) % len(profile)
+        t.faces.new((left[i], left[j], right[j], right[i]))
+
+
+def wedge(pos, yaw=0.0):
+    """A floor monitor: a wedge whose sloped, grilled face looks up at the band (+y)."""
+    m = Matrix.Translation(pos) @ Matrix.Rotation(yaw, 4, 'Z')
+    stamp(black, lambda t: prism(t, [(-0.30, 0), (0.30, 0), (0.30, 0.10), (-0.05, 0.45), (-0.30, 0.32)], 0.72), m, 0.016)
+    stamp(grille, cube((0.62, 0.014, 0.41)), m @ Matrix.Translation((0, 0.131, 0.281)) @ Matrix.Rotation(math.radians(45), 4, 'X'))
+
+
 def fixture(bm_body, bm_lens, pos, direction, group, mount=(0, 0, -1)):
     """
-    A moving head: a head with a lit lens, held by a yoke on a base. `pos` is the lens, `mount` the
-    direction from the head to whatever carries it.
+    A moving head: a barrel with a bezel and a lit lens, held by a yoke on a base. `pos` is the
+    lens, `mount` the direction from the head to whatever carries it.
     """
     d = Vector(direction).normalized()
     pos = Vector(pos)
     m = Vector(mount).normalized()
     q = d.to_track_quat('Z', 'Y').to_matrix().to_4x4()
-    bmesh.ops.create_cone(bm_body, cap_ends=True, segments=12, radius1=0.19, radius2=0.25, depth=0.5, matrix=Matrix.Translation(pos - d * 0.25) @ q)
-    bmesh.ops.create_circle(bm_lens, cap_ends=True, segments=12, radius=0.21, matrix=Matrix.Translation(pos + d * 0.012) @ q)
+    cone = lambda r1, r2, depth: (lambda t: bmesh.ops.create_cone(t, cap_ends=True, segments=20, radius1=r1, radius2=r2, depth=depth))
+    stamp(bm_body, cone(0.13, 0.2, 0.1), Matrix.Translation(pos - d * 0.49) @ q)
+    stamp(bm_body, cone(0.2, 0.2, 0.38), Matrix.Translation(pos - d * 0.25) @ q)
+    stamp(bm_body, cone(0.2, 0.245, 0.07), Matrix.Translation(pos - d * 0.03) @ q)
+    bmesh.ops.create_circle(bm_lens, cap_ends=True, segments=20, radius=0.205, matrix=Matrix.Translation(pos + d * 0.008) @ q)
     side = m.cross(d)
     if side.length < 1e-3:
         side = m.cross(Vector((1, 0, 0)))
     side.normalize()
-    rot = Matrix((side, m.cross(side).normalized(), m)).transposed()
+    rot = Matrix((side, m.cross(side).normalized(), m)).transposed().to_4x4()
     c = pos - d * 0.25
     for sgn in (-1, 1):
-        box(bm_body, (0.06, 0.16, 0.5), c + side * (0.3 * sgn) + m * 0.2, rot)
-    box(bm_body, (0.66, 0.2, 0.08), c + m * 0.44, rot)
-    box(bm_body, (0.46, 0.46, 0.16), c + m * 0.56, rot)
+        stamp(bm_body, cube((0.07, 0.2, 0.5)), Matrix.Translation(c + side * (0.3 * sgn) + m * 0.2) @ rot, 0.014)
+    stamp(bm_body, cube((0.67, 0.2, 0.07)), Matrix.Translation(c + m * 0.45) @ rot, 0.014)
+    stamp(bm_body, cube((0.46, 0.46, 0.15)), Matrix.Translation(c + m * 0.57) @ rot, 0.03)
     FIXTURES.append({'group': group, 'pos': pos.copy(), 'dir': d.copy()})
 
 
@@ -273,6 +326,7 @@ def dots(bm, points, size=0.16):
 led = bmesh.new()
 black = bmesh.new()
 lens = bmesh.new()
+grille = bmesh.new()
 
 # ---------------------------------------------------------------- deck: a plate with three lit steps to the crowd
 deck = bmesh.new()
@@ -457,7 +511,7 @@ for side in (1, -1):
         ang += math.radians(0.6 + 0.42 * k)
         rot = Matrix.Rotation(-ang, 3, 'X')
         pos = pos + rot @ Vector((0, 0, -0.5))
-        box(black, (1.5, 0.95, 0.46), pos + rot @ Vector((0, 0.1, 0)), rot)
+        cabinet((1.5, 0.95, 0.46), pos + rot @ Vector((0, 0.1, 0)), rot, bevel=0.03)
     for dz in (0.5, 1.3):
         fixture(black, lens, (x, y - s - 0.3, h + dz - 0.4), (-0.35 * side, -0.8, -0.25), 'Truss')
 
@@ -472,23 +526,23 @@ loft('', barrier, lambda t: 0.12, lambda t: 1.2, None, depth_axis=Z, sides=6, po
 
 # ---------------------------------------------------------------- backline and what stands around the deck
 for x in (-8.5, -5.0, -1.6, 1.6, 5.0, 8.5):
-    box(black, (0.75, 0.5, 0.42), Vector((x, -0.6, DECK_H + 0.2)), Matrix.Rotation(math.radians(-32), 3, 'X'))
+    wedge(Vector((x, -0.75, DECK_H)), math.radians(-x * 2.2))
 for side in (1, -1):
     for col in range(2):
         for row in range(2):
             c = Vector((side * (6.6 + col * 1.35), 16.2, DECK_H + 0.55 + row * 1.08))
-            box(black, (1.25, 0.6, 1.02), c)
+            cabinet((1.25, 0.6, 1.02), c)
             dots(led, [c + Vector((-0.4, -0.31, 0.38))], 0.05)
     # side fills turned toward the band
-    turn = Matrix.Rotation(math.radians(38 * side), 3, 'Z')
+    turn = Matrix.Rotation(math.radians(-70 * side), 3, 'Z')
     for row in range(2):
-        box(black, (1.5, 1.0, 1.15), Vector((side * 19.5, 6.5, DECK_H + 0.6 + row * 1.2)), turn)
+        cabinet((1.5, 1.0, 1.15), Vector((side * 19.5, 6.5, DECK_H + 0.6 + row * 1.2)), turn)
 # subs in the pit, along the barrier
 for j in range(15):
     a = math.pi * (1.17 + 0.66 * j / 14)
     sx, sy = superpoint(a, DECK_P)
     c = Vector((DECK_C.x + sx * DECK_A * 1.355, DECK_C.y + sy * DECK_B * 1.355, 0.36))
-    box(black, (1.4, 0.95, 0.72), c, Matrix.Rotation(math.atan2(sx * DECK_A, -sy * DECK_B), 3, 'Z'))
+    cabinet((1.4, 0.95, 0.72), c, Matrix.Rotation(math.atan2(sx * DECK_A, -sy * DECK_B), 3, 'Z'))
 # a camera jib in the pit
 jib = Vector((DECK_C.x + 0.62 * DECK_A * 1.36, DECK_C.y - 0.72 * DECK_B * 1.36, 0))
 for leg in ((0.5, 0.3), (-0.5, 0.3), (0, -0.55)):
@@ -518,13 +572,13 @@ CLEAR.append((FOH, 7.5))
 for side in (1, -1):
     base = Vector((52 * side, -40, 0))
     truss(black, [(base + Vector((0, 0, z)), Vector((1, 0, 0)), Vector((0, 1, 0))) for z in [k * 1.2 for k in range(13)]], s=0.3)
-    box(black, (2.2, 0.8, 0.4), base + Vector((0, 0.9, 14.2)))
-    pos, ang = base + Vector((0, 1.5, 13.9)), 0.0
+    box(black, (2.2, 0.8, 0.4), base + Vector((0, -0.9, 14.2)))
+    pos, ang = base + Vector((0, -1.5, 13.9)), 0.0
     for k in range(7):
         ang += math.radians(1.5 + 0.9 * k)
-        rot = Matrix.Rotation(ang, 3, 'X')
+        rot = Matrix.Rotation(-ang, 3, 'X')
         pos = pos + rot @ Vector((0, 0, -0.48))
-        box(black, (1.3, 0.8, 0.44), pos, rot)
+        cabinet((1.3, 0.8, 0.44), pos, rot)
     fixture(black, lens, base + Vector((0, 0.6, 15.0)), (-0.3 * side, 0.55, 0.78), 'Delay', mount=(0, 0, -1))
     dots(led, [base + Vector((0.34, -0.34, z)) for z in (3, 6, 9, 12)], 0.07)
     CLEAR.append((base, 2.6))
@@ -537,7 +591,8 @@ for index, (base, height, paint, turn, lean) in enumerate(SPRAY):
     crest('Spray%d' % index, base, height, paint, turn=math.radians(turn), lean=math.radians(lean))
 
 new_obj('Leds', led, 'Led')
-new_obj('Rigging', black, 'Black')
+new_obj('Rigging', black, 'Black', sharp=35)
+new_obj('Grilles', grille, 'Grille', smooth=False)
 new_obj('Lenses', lens, 'Lens', smooth=False)
 
 # ---------------------------------------------------------------- ground
@@ -558,7 +613,7 @@ VIEWS = {
     'aerial': ((44, -118, 62), (0, 6, 8), 56.0),
 }
 # Extra viewpoints for the clay preview only (not sent to the game).
-CHECKS = {'check-side': ((46, -30, 14), (22, 2, 14), 60.0), 'check-stage': ((0, -14, 5), (0, 14, 13), 86.0), 'check-wing': ((44, -22, 6), (48, 2, 5), 60.0)}
+CHECKS = {'check-gear': ((3.5, -5.5, 4.2), (1.5, 0, 2.7), 60.0), 'check-heads': ((6, -9, 4), (4, -2, 3.2), 50.0), 'check-side': ((46, -30, 14), (22, 2, 14), 60.0), 'check-stage': ((0, -14, 5), (0, 14, 13), 86.0), 'check-wing': ((44, -22, 6), (48, 2, 5), 60.0)}
 # Pyro: fans of sparks from behind the skyline (origin, rays, spread and lean in degrees, ray length)
 # and CO2 jets along the front of the deck.
 FIREWORKS = [

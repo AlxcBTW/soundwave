@@ -142,14 +142,40 @@ void main() {
   ${OUTPUT}
 }`;
 
-const BLACK_FRAGMENT = /* glsl */ `
+/**
+ * Stage equipment (trusses, cabinets, fixtures) and its grilles: satin black that still takes the
+ * stage's light and a highlight, so the shapes read instead of sinking into silhouettes. Grilles
+ * are perforated metal, with holes that melt into an even tone with distance.
+ */
+const GEAR_FRAGMENT = /* glsl */ `
 ${COMMON}
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
 void main() {
   vec3 n = normalize(vWNorm);
   vec3 v = normalize(cameraPosition - vWPos);
-  float fres = pow(1.0 - abs(dot(n, v)), 3.0);
-  vec3 col = vec3(0.003, 0.003, 0.007) + (uWash * 0.25 + skyGradient(reflect(-v, n))) * fres * 0.6;
+  if (dot(n, v) < 0.0) n = -n;
+  vec3 base = vec3(0.058, 0.06, 0.07);
+  float gloss = 0.45;
+  #ifdef GRILLE
+    vec3 an = abs(n);
+    vec2 p = an.y > 0.75 ? vWPos.xz : (an.x > an.z ? vWPos.zy : vWPos.xy);
+    vec2 g = p * 52.0;
+    g.x += 0.5 * floor(g.y);
+    float hole = smoothstep(0.36, 0.26, length(fract(g) - 0.5));
+    float far = clamp(max(fwidth(g.x), fwidth(g.y)) * 1.3, 0.0, 1.0);
+    base = vec3(0.14, 0.145, 0.165) * mix(1.0 - 0.8 * hole, 0.6, far);
+    gloss = 0.6;
+  #endif
+  vec3 toGlow = uGlowPos - vWPos;
+  float gd = length(toGlow);
+  toGlow /= gd;
+  float stage = 1.0 / (1.0 + gd * gd * 0.0008);
+  vec3 stageCol = mix(uKey, vec3(1.0), 0.4) * uScreenLevel;
+  vec3 light = vec3(0.05, 0.07, 0.16) * (0.55 + 0.45 * n.y) + stageCol * (max(0.0, dot(n, toGlow)) * 0.7 + 0.3) * stage * 1.5 + uWash * 0.3 * stage;
+  vec3 col = base * light;
+  float fres = pow(1.0 - max(0.0, dot(n, v)), 3.0);
+  col += stageCol * pow(max(0.0, dot(n, normalize(toGlow + v))), 36.0) * gloss * stage * 0.5;
+  col += (uWash * 0.2 + skyGradient(reflect(-v, n))) * fres * gloss;
   gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
   ${OUTPUT}
 }`;
@@ -197,7 +223,8 @@ const FRAGMENTS: Record<string, string> = {
   paint: PAINT_FRAGMENT,
   deck: DECK_FRAGMENT,
   ground: GROUND_FRAGMENT,
-  black: BLACK_FRAGMENT,
+  black: GEAR_FRAGMENT,
+  grille: GEAR_FRAGMENT,
   led: LED_FRAGMENT,
   lens: LENS_FRAGMENT,
   screen: SCREEN_FRAGMENT,
@@ -243,7 +270,7 @@ export function applyVenueMaterials(root: THREE.Object3D, deck: DeckInfo, glitte
         vertexShader: STATIC_VERTEX,
         fragmentShader: FRAGMENTS[kind],
         vertexColors: !!mesh.geometry.getAttribute('color'),
-        defines: moon ? { MOON: '' } : kind === 'paint' && glitter ? { GLITTER: '' } : {},
+        defines: moon ? { MOON: '' } : kind === 'paint' && glitter ? { GLITTER: '' } : kind === 'grille' ? { GRILLE: '' } : {},
         side: kind === 'screen' || kind === 'lens' ? THREE.DoubleSide : THREE.FrontSide,
       });
       byName.set(key, mat);
