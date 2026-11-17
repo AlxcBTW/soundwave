@@ -485,23 +485,6 @@ for side in (1, -1):
     base = catmull([(30 * side, 5.0, 0), (38 * side, 4.2, 0), (49 * side, 1.5, 0), (60 * side, -4.0, 0), (68 * side, -11.5, 0)], 48)
     fr = frames(base, Z)
     top = lambda t: 8.6 - 4.6 * t + 0.9 * math.sin(t * math.pi * 2.0)
-    wall = bmesh.new()
-    uvl = wall.loops.layers.uv.verify()
-    rows = 8
-    grid = []
-    for (t, p, tan, n_, b) in fr:
-        face = n_ if n_.y < 0 else -n_
-        # the screen runs up to the middle of the ribbon that rides the wall and lies behind its
-        # belly, so the ribbon rises out of the picture with nothing bare between the two
-        grid.append([wall.verts.new(p + face * 0.2 + Z * (0.9 + top(t) * r / rows)) for r in range(rows + 1)])
-    for i in range(len(grid) - 1):
-        for r in range(rows):
-            f = wall.faces.new((grid[i][r], grid[i + 1][r], grid[i + 1][r + 1], grid[i][r + 1]))
-            for loop, (ii, rr) in zip(f.loops, ((i, r), (i + 1, r), (i + 1, r + 1), (i, r + 1))):
-                loop[uvl].uv = (fr[ii][0] if side > 0 else 1 - fr[ii][0], rr / rows)
-    new_obj('ScreenWing' + tag, wall, 'Screen')
-    # the wall body behind the screen, a little lower than it so none of it shows over the top
-    loft('', [p + Z * (0.55 + top(t) / 2) for (t, p, tan, n_, b) in fr], lambda t: 0.36, lambda t: top(t), None, depth_axis=Z, sides=8, power=6, bm=black)
     # ribbon: from the ground far out, along the wall top, over the shell's shoulder to a peak
     crest_line = [p + Z * (top(t) + 0.9) for (t, p, tan, n_, b) in fr][::-1]
     # It leaves the wall before the shell and climbs outside and in front of the outer ridge and its
@@ -510,14 +493,62 @@ for side in (1, -1):
         Vector((39 * side, 1.5, 12)), Vector((35.5 * side, -1.5, 16)), Vector((31.5 * side, -4.5, 21.5)), Vector((25.5 * side, -7, 28)),
         Vector((16.5 * side, -8.8, 35.5)), Vector((7 * side, -9.8, 41)), Vector((0.6 * side, -10.2, 44.5))]
     path = catmull(ribbon, 140)
-    loft('Ribbon' + tag, path, lambda t: 0.4 + 3.6 * math.sin(math.pi * min(1.0, t * 1.03)) ** 0.5 * (1 - 0.35 * t), lambda t: 0.8 - 0.3 * t,
-         'PaintRibbon', sides=16, power=2.0)
+    ribbon_w = lambda t: 0.4 + 3.6 * math.sin(math.pi * min(1.0, t * 1.03)) ** 0.5 * (1 - 0.35 * t)
+    loft('Ribbon' + tag, path, ribbon_w, lambda t: 0.8 - 0.3 * t, 'PaintRibbon', sides=16, power=2.0)
     tube(led, [p + Vector((0, -0.5, 0)) for p in path[10:-2]], 0.05)
     for k in (60, 84, 104, 120):
         FIXTURES.append({'group': 'Ribbon', 'pos': path[k] + Vector((0, -0.7, 0)), 'dir': Vector((0.3 * side * (1 if k < 100 else -0.4), -0.7, 0.55)).normalized()})
-    tube(led, [p + (n_ if n_.y < 0 else -n_) * 0.25 + Z * 0.85 for (t, p, tan, n_, b) in fr], 0.05)
-    # and a line of light along the screen's top edge, which shows where the ribbon has left the wall
-    tube(led, [p + (n_ if n_.y < 0 else -n_) * 0.2 + Z * (0.9 + top(t)) for (t, p, tan, n_, b) in fr], 0.045)
+
+    # The screen under it ends exactly where the ribbon begins: its top edge follows the ribbon's
+    # lower edge wherever the ribbon rides the wall (tucked a hand's width into it, so no gap can
+    # open), and where the ribbon has left the wall it keeps to the wall's own height. The two never
+    # lie over one another, and no bare wall shows between them.
+    lower = []
+    for (t, q, tan, n_, b) in frames(path, Y):
+        half = n_ * (ribbon_w(t) / 2)
+        lower.append(min(q + half, q - half, key=lambda v: v.z))
+
+    def under_ribbon(p):
+        """Height of the ribbon's lower edge over a point of the wall line; None where it is not over it."""
+        best = None
+        for e0, e1 in zip(lower, lower[1:]):
+            dx, dy = e1.x - e0.x, e1.y - e0.y
+            span = dx * dx + dy * dy
+            if span < 1e-9:
+                continue
+            u = max(0.0, min(1.0, ((p.x - e0.x) * dx + (p.y - e0.y) * dy) / span))
+            at = e0.lerp(e1, u)
+            dist = math.hypot(at.x - p.x, at.y - p.y)
+            if best is None or dist < best[0]:
+                best = (dist, at.z)
+        return best[1] if best and best[0] < 0.7 else None
+
+    limit = [under_ribbon(p) for (t, p, tan, n_, b) in fr]
+    tops = [min(top(t) - 0.2, lim + 0.1) if lim is not None else top(t) - 0.2 for (t, p, tan, n_, b), lim in zip(fr, limit)]
+    for _ in range(3):  # ease the step where the ribbon lifts off, without ever rising into the ribbon
+        eased = [(tops[max(0, i - 1)] + tops[i] + tops[min(len(tops) - 1, i + 1)]) / 3 for i in range(len(tops))]
+        tops = [min(e, lim + 0.1) if lim is not None else e for e, lim in zip(eased, limit)]
+    top_at = lambda t: tops[min(len(tops) - 1, max(0, round(t * (len(tops) - 1))))]
+
+    wall = bmesh.new()
+    uvl = wall.loops.layers.uv.verify()
+    rows = 8
+    grid = []
+    for i, (t, p, tan, n_, b) in enumerate(fr):
+        face = n_ if n_.y < 0 else -n_
+        grid.append([wall.verts.new(p + face * 0.05 + Z * (0.9 + (tops[i] - 0.9) * r / rows)) for r in range(rows + 1)])
+    for i in range(len(grid) - 1):
+        for r in range(rows):
+            f = wall.faces.new((grid[i][r], grid[i + 1][r], grid[i + 1][r + 1], grid[i][r + 1]))
+            for loop, (ii, rr) in zip(f.loops, ((i, r), (i + 1, r), (i + 1, r + 1), (i, r + 1))):
+                loop[uvl].uv = (fr[ii][0] if side > 0 else 1 - fr[ii][0], rr / rows)
+    new_obj('ScreenWing' + tag, wall, 'Screen')
+    # the wall body stands behind the screen and stops short of its top, so none of it shows
+    loft('', [p - (n_ if n_.y < 0 else -n_) * 0.22 + Z * (0.55 + (tops[i] - 0.75) / 2) for i, (t, p, tan, n_, b) in enumerate(fr)],
+         lambda t: 0.36, lambda t: max(0.2, top_at(t) - 0.75), None, depth_axis=Z, sides=8, power=6, bm=black)
+    # lines of light along the screen's foot and along its top edge
+    tube(led, [p + (n_ if n_.y < 0 else -n_) * 0.12 + Z * 0.85 for (t, p, tan, n_, b) in fr], 0.05)
+    tube(led, [p + (n_ if n_.y < 0 else -n_) * 0.07 + Z * tops[i] for i, (t, p, tan, n_, b) in enumerate(fr)], 0.04)
 
 # ---------------------------------------------------------------- towers with line arrays, outside the shell and clear of the ribbon
 for side in (1, -1):
