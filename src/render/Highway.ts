@@ -967,12 +967,13 @@ export class Highway {
       this.c.lerp(WHITE, missed ? 0.1 : 0.42);
       this.gems.setColorAt(gi, this.c);
       if (drive > 0.01) {
-        // In overdrive only: a wide, low bloom centred on the tile, turned to the camera.
+        // In overdrive only: a faint, low bloom close round the tile, turned to the camera. It is
+        // a hint of light, not a halo: the tile's own colour does the talking.
         this.v.set(x, 0.1, z);
-        this.s.set(2.0 * here, 1.1 * here, 1);
+        this.s.set(1.45 * here, 0.7 * here, 1);
         this.m.compose(this.v, this.camera.quaternion, this.s);
         this.auras.setMatrixAt(gi, this.m);
-        this.c.copy(OVERDRIVE_TILE).multiplyScalar(here * drive * (missed ? 0.08 : 0.3 + 0.22 * swell));
+        this.c.copy(OVERDRIVE_TILE).multiplyScalar(here * drive * (missed ? 0.02 : 0.08 + 0.05 * swell));
         this.auras.setColorAt(gi, this.c);
       }
       gi++;
