@@ -488,7 +488,7 @@ export class AuroraStage {
         case 'Halo':
           // The ring over the band: every head stays on its player and breathes with the bar.
           tilt = Math.sin(t * 0.4 + i) * 0.012;
-          level = 0.34 + 0.22 * this.barPulse + 0.2 * s.beamLevel;
+          level = 0.25 + 0.16 * this.barPulse + 0.15 * s.beamLevel;
           break;
         case 'Delay':
         case 'Foh':

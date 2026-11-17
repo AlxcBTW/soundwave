@@ -126,7 +126,7 @@ void main() {
       float t = (uMoon.z - vWPos.z) / r.z;
       vec3 hit = vWPos + r * t;
       vec2 q = (hit.xy - uMoon.xy) / (2.0 * uMoon.w) + 0.5;
-      col += moonContent(q) * onScreen(hit.xy) * fres * 0.62;
+      col += moonContent(q) * onScreen(hit.xy) * fres * 0.46;
     }
     col += skyGradient(r) * fres;
     col += uWash * 0.05;
@@ -213,7 +213,7 @@ void main() {
   vec2 lamp = abs(fract(cells) - 0.5);
   float lit = smoothstep(0.5, 0.38, max(lamp.x, lamp.y));
   pic *= mix(0.55 + 0.6 * lit, 1.0, clamp(max(fwidth(cells.x), fwidth(cells.y)) * 1.6, 0.0, 1.0));
-  vec3 col = vec3(0.004, 0.006, 0.02) + pic + skyGradient(reflect(-v, n)) * fres * 0.5;
+  vec3 col = vec3(0.004, 0.006, 0.02) + pic * 0.66 + skyGradient(reflect(-v, n)) * fres * 0.5;
   gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
   ${OUTPUT}
 }`;
@@ -450,6 +450,9 @@ varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
 void main() {
   float run = 0.5 + 0.5 * sin(vUv.x * 60.0 - uTime * 2.5 - vWPos.y * 0.3);
   vec3 col = mix(uKey, uAccent, run) * (0.8 + 0.7 * uPulse + 0.35 * uEnergy);
+  // The rings round the podiums and the band's island sit right beside the players: held well back.
+  float byBand = step(length((vWPos.xz - uIsland.xy) / uIsland.zw), 1.08) * step(vWPos.y, 6.0);
+  col *= mix(1.0, 0.42, byBand);
   gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
   ${OUTPUT}
 }`;
@@ -468,7 +471,7 @@ uniform float uCells;
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
 void main() {
   #ifdef MOON
-    vec3 col = moonContent(vUv) * 0.62;
+    vec3 col = moonContent(vUv) * 0.46;
     vec2 cells = vUv * uCells;
   #else
     vec3 col = wingContent(vUv) * 1.0;
