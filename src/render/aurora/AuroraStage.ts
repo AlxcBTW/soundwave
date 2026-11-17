@@ -12,7 +12,7 @@ import { Particles } from '../stage/Particles';
 import { loadVenue, type VenueAssets, type VenueData } from './assets';
 import { Beams } from './beams';
 import { CROWD_RECT, buildCrowdMap } from './crowdMap';
-import { Figures, makeBand, makeCrowd } from './figures';
+import { Figures, makeBand, makeCrowd, type Person } from './figures';
 import { applyVenueMaterials } from './materials';
 import { shared } from './shared';
 import { buildSky } from './sky';
@@ -53,6 +53,12 @@ const LOOKS: { key: Rgb; accent: Rgb; wash: Rgb }[] = [
 ];
 const EXPOSURE = 0.86;
 
+/** A pulse `age` seconds old: it swells to full strength over `attack` seconds, then rings out. */
+function swell(age: number, attack: number, decay: number): number {
+  const x = Math.min(1, age / attack);
+  return x * x * (3 - 2 * x) * Math.exp(-Math.max(0, age - attack) * decay);
+}
+
 /**
  * The Moonrise venue in real time: painted forms, a polished deck, screens, haze, a clouded night
  * sky, moving beams with star flares, a band and a crowd that move with the beat. Same contract as
@@ -88,6 +94,8 @@ export class AuroraStage {
   private readonly data: VenueData;
   private readonly owned: { dispose(): void }[] = [];
   private readonly crowdMap: THREE.Texture;
+  /** The players' podiums: what rides on each, how far it may rise and how high it is now. */
+  private readonly lifts: { part: string; index: number; group: THREE.Group; person?: Person; rest: number; travel: number; height: number }[] = [];
   private readonly key = new THREE.Color();
   private readonly accent = new THREE.Color();
   private readonly wash = new THREE.Color();
@@ -104,6 +112,13 @@ export class AuroraStage {
   private pulse = 0;
   private barPulse = 0;
   private low = 0;
+  private mid = 0;
+  private high = 0;
+  /** Seconds since the last beat and bar, and what was left of the pulse before them. */
+  private beatAge = 9;
+  private barAge = 9;
+  private pulseTail = 0;
+  private barTail = 0;
   private beatClock = 0;
   private pendingBeat: StageFrame['beat'] = 'none';
   private shown = false;
@@ -135,6 +150,13 @@ export class AuroraStage {
     const venue = assets.scene.clone(true);
     this.owned.push(...applyVenueMaterials(venue, this.data.deck, g.lights === 'medium' || g.lights === 'high'));
     this.scene.add(venue);
+    // Each podium and what stands on it moves as one.
+    for (const [part, p] of Object.entries(this.data.podiums ?? {})) {
+      const group = new THREE.Group();
+      venue.add(group);
+      for (const piece of venue.children.filter((o) => o.name.startsWith(`Podium_${part}_`))) group.add(piece);
+      this.lifts.push({ part, index: PLAYERS.indexOf(part), group, rest: this.data.band[part]?.[1] ?? 0, travel: p.travel, height: 0 });
+    }
 
     // The land, the lake and the festival grounds around the stage.
     const land = assets.scenery;
@@ -167,7 +189,9 @@ export class AuroraStage {
     this.band = new Figures(assets.band);
     // The part being played is picked out: more light on that player and under their feet.
     const focus = opts.part === 'vocals' ? 'vox' : opts.part;
-    this.band.add(makeBand(this.data, assets.band.data.band ?? {}, focus));
+    const players = makeBand(this.data, assets.band.data.band ?? {}, focus);
+    this.band.add(players, true);
+    for (const lift of this.lifts) lift.person = players.find((p) => p.part === lift.part);
     PLAYERS.forEach((key, i) => {
       const p = this.data.band[key];
       if (p) shared.uBand.value[i].set(...p);
@@ -276,9 +300,26 @@ export class AuroraStage {
     shared.uBurst.value.w *= Math.exp(-dt * 1.6);
     this.director.update(dt, beat === 'downbeat', this.show.state.level, f.barSeconds);
     this.energy += (f.intensity - this.energy) * Math.min(1, dt * 1.2);
+    this.beatAge += dt;
+    this.barAge += dt;
+    if (beat !== 'none') {
+      this.beatAge = 0;
+      this.pulseTail = this.pulse;
+    }
+    if (beat === 'downbeat') {
+      this.barAge = 0;
+      this.barTail = this.barPulse;
+    }
     this.applyShow(this.show.state, bands, dt);
+    this.moveLifts(this.show.state, dt);
 
     const pose = this.director.pose();
+    // A close-up of a player follows their podium up and down.
+    const shot = this.director.shot.name;
+    const riding = shot === 'band' ? this.lifts : this.lifts.filter((l) => shot === `band-${l.part === 'vox' ? 'vocals' : l.part}`);
+    const raised = riding.reduce((sum, l) => sum + l.height, 0) / Math.max(1, riding.length);
+    pose.pos[1] += raised;
+    pose.target[1] += raised;
     this.camera.position.set(...pose.pos);
     this.camera.lookAt(...pose.target);
     const vfov = (2 * Math.atan(Math.tan((pose.hfov * Math.PI) / 360) / this.camera.aspect) * 180) / Math.PI;
@@ -329,23 +370,29 @@ export class AuroraStage {
     // Overdrive hands over a rainbow palette of its own: take its colours as they are.
     const ease = (rate: number) => Math.min(1, dt * rate);
     this.setLook(index >= 0 ? LOOKS[index] : { key: s.palette.key, accent: LOOKS[0].accent, wash: s.palette.wash }, ease(1.1));
-    // Nothing reaches the scene as a step: pulses swell in over a few frames and fade out slowly,
-    // the bass is followed loosely, and (below) every beam eases to its level, colour and angle.
-    this.pulse += (s.pulse - this.pulse) * ease(s.pulse > this.pulse ? 14 : 5);
-    this.barPulse += (s.barPulse - this.barPulse) * ease(s.barPulse > this.barPulse ? 8 : 3.5);
-    this.low += (bands.low - this.low) * ease(3);
-    const washLevel = 0.55 + 0.25 * this.low + 0.12 * this.barPulse + 0.2 * s.overdrive;
+    // Everything reaches the scene at full strength but never as a step: a beat swells to its peak
+    // over a few frames and rings out, picking up from whatever was left of the one before; the
+    // bass, middle and treble are followed closely on the way up and let go more slowly; and
+    // (below) every beam eases to its level, colour and angle.
+    this.pulse = Math.max(this.pulseTail * Math.exp(-this.beatAge * 9), swell(this.beatAge, 0.07, 4.5));
+    this.barPulse = Math.max(this.barTail * Math.exp(-this.barAge * 5), swell(this.barAge, 0.09, 1.7));
+    this.low += (bands.low - this.low) * ease(bands.low > this.low ? 20 : 5);
+    this.mid += (bands.mid - this.mid) * ease(bands.mid > this.mid ? 20 : 5);
+    this.high += (bands.high - this.high) * ease(bands.high > this.high ? 20 : 6);
+    const washLevel = 0.55 + 0.25 * this.low + 0.2 * this.barPulse + 0.2 * s.overdrive;
     shared.uTime.value = t;
     shared.uCrowdMap.value = this.crowdMap;
     shared.uBeat.value = this.beatClock;
-    shared.uPulse.value = this.pulse * 0.7;
-    shared.uBarPulse.value = this.barPulse * 0.7;
+    shared.uPulse.value = this.pulse;
+    shared.uBarPulse.value = this.barPulse;
     shared.uEnergy.value = Math.min(1, this.energy + 0.4 * s.overdrive);
     shared.uLow.value = this.low;
+    shared.uMid.value = this.mid;
+    shared.uHigh.value = this.high;
     shared.uKey.value.copy(this.key);
     shared.uAccent.value.copy(this.accent);
     shared.uWash.value.copy(this.wash);
-    shared.uScreenLevel.value = 0.62 + 0.16 * washLevel + 0.06 * this.barPulse;
+    shared.uScreenLevel.value = 0.62 + 0.16 * washLevel + 0.18 * this.barPulse;
     shared.uHazeNear.value.setRGB(0.03, 0.035, 0.15).lerp(this.wash, 0.14).multiplyScalar(0.6 + 0.35 * s.beamLevel);
 
     for (let i = 0; i < this.beams.states.length; i++) {
@@ -365,12 +412,12 @@ export class AuroraStage {
           level *= 0.12;
           break;
         case 'Truss':
-          level = 0.25 + 0.2 * this.barPulse;
+          level = 0.25 + 0.2 * this.barPulse + 0.12 * this.low;
           break;
         case 'Halo':
           // The ring over the band: every head stays on its player and breathes with the bar.
           tilt = Math.sin(t * 0.4 + i) * 0.012;
-          level = 0.34 + 0.18 * this.barPulse + 0.2 * s.beamLevel;
+          level = 0.34 + 0.22 * this.barPulse + 0.2 * s.beamLevel;
           break;
         case 'Delay':
         case 'Foh':
@@ -378,29 +425,47 @@ export class AuroraStage {
           break;
         case 'Floor':
           pan = Math.sin(t * 0.5 + i * 0.6) * 0.25;
-          level *= 0.4 + 0.3 * this.pulse;
+          level *= 0.35 + 0.4 * this.pulse;
           break;
         default:
           if (s.beamMode === 'sweep') {
             pan = Math.sin(t * 0.6 + i * 0.45) * 0.36;
             tilt = Math.sin(t * 0.45 + i) * 0.14;
           } else if (s.beamMode === 'fan') {
-            pan = (i % 2 ? 1 : -1) * (0.1 + 0.22 * Math.sin(t * 1.0)) * (1 + this.pulse * 0.3);
+            pan = (i % 2 ? 1 : -1) * (0.1 + 0.22 * Math.sin(t * 1.0)) * (1 + this.pulse * 0.4);
             tilt = Math.cos(t * 0.8) * 0.08;
           } else if (s.beamMode === 'chase') {
             // A swell that travels along the row with the beat, not lamps switching on and off.
-            level *= (this.beats + i) % 4 === 0 ? 1 : 0.32;
+            level *= (this.beats + i) % 4 === 0 ? 1 : 0.12;
             pan = Math.sin(t * 0.4 + i) * 0.1;
           } else {
             tilt = Math.sin(t * 0.3 + i) * 0.04;
           }
-          level *= 0.78 + 0.22 * this.pulse;
+          level *= 0.7 + 0.3 * this.pulse;
       }
       level *= i % 2 ? 1 : 0.55;
       b.pan += (pan - b.pan) * ease(4);
       b.tilt += (tilt - b.tilt) * ease(4);
-      b.level += (level - b.level) * ease(level > b.level ? 7 : 3);
+      b.level += (level - b.level) * ease(level > b.level ? 16 : 5);
       b.color.lerp(group === 'Sky' || i % 3 === 0 ? this.accent : this.key, ease(3));
+    }
+  }
+
+  /**
+   * Raises and lowers the podiums: higher as the music gets busier, the player whose part is being
+   * played above the rest, all the way up in overdrive, and each drifting a little on a cycle of
+   * its own so that none ever stands still. Lifts are slow: they glide.
+   */
+  private moveLifts(s: ShowState, dt: number) {
+    const busy = Math.min(1, Math.max(0, (this.energy - 0.2) / 0.55));
+    for (const l of this.lifts) {
+      const drift = 0.5 + 0.5 * Math.sin((this.beatClock / 16) * Math.PI * 2 + l.index * 1.9);
+      const featured = shared.uFeature.value[l.index] ?? 0.6;
+      const want = Math.max(s.overdrive, (0.1 + 0.6 * busy) * (0.5 + 0.5 * featured) + 0.3 * drift * (0.4 + 0.6 * busy));
+      l.height += (l.travel * Math.min(1, want) - l.height) * Math.min(1, dt * 0.9);
+      l.group.position.y = l.height;
+      if (l.person) this.band.setHeight(l.person, l.rest + l.height);
+      if (l.index >= 0) shared.uBand.value[l.index].y = l.rest + l.height;
     }
   }
 

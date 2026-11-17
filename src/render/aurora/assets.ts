@@ -12,6 +12,8 @@ export interface VenueData {
   band: Record<string, Vec3>;
   /** The low platform the band plays on: centre (at its top) and half axes. */
   island?: { center: Vec3; a: number; b: number };
+  /** The podium each player stands on: half axes, and how far it can rise from where it rests. */
+  podiums?: Record<string, { rx: number; ry: number; travel: number }>;
   fixtures: Fixture[];
   /** The main screen: centre and radius of the moon drawn on it, and the arch outline it fills. */
   moon: { center: Vec3; radius: number; arch?: { halfWidth: number; height: number; power: number } };

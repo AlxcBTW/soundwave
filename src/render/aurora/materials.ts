@@ -82,14 +82,14 @@ void main() {
   float up = n.y * 0.5 + 0.5;
   vec3 light = mix(uWash * 0.42, vec3(0.085, 0.145, 0.4), up) + moonCol * min(0.5, moonLit) * 0.8;
   vec3 col = base * light * ao;
-  col += base * uGlow * mix(0.55, 1.0, ao) * (0.5 + 0.22 * uBarPulse);
+  col += base * uGlow * mix(0.55, 1.0, ao) * (0.5 + 0.22 * uBarPulse + 0.1 * uLow);
 
   float fres = pow(max(0.0, 1.0 - ndv), 3.0);
   col += uRim * fres * (0.22 + 0.26 * uEnergy) * ao;
   col += uRim * pipe * (0.2 + 0.3 * (0.5 + 0.5 * sin(vUv.x * 14.0 - uTime * 1.6)) + 0.22 * uPulse) * mix(0.5, 1.0, ao);
   col += skyGradient(reflect(-v, n)) * (0.04 + fres) * 1.6;
   #ifdef GLITTER
-    col += mix(uC, vec3(1.0), 0.5) * glitter(vWPos, n, v, dist) * uGlitter * 3.0 * mix(0.4, 1.0, ao);
+    col += mix(uC, vec3(1.0), 0.5) * glitter(vWPos, n, v, dist) * uGlitter * 3.0 * mix(0.4, 1.0, ao) * (0.8 + 0.7 * uHigh);
   #endif
 
   gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
@@ -131,6 +131,74 @@ void main() {
   } else {
     // Risers: lit softly from the crowd side.
     col += uWash * 0.07 * max(0.0, n.z) + skyGradient(reflect(-v, n)) * fres * 0.6;
+  }
+  gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
+  ${OUTPUT}
+}`;
+
+/**
+ * A player's podium. Its top is a moon that passes through its phases every sixteen beats, each
+ * player's a quarter of the way on from the last; a ripple leaves the player's feet on every beat.
+ * Its wall is a ring of level meters: bass toward the audience, treble at the back.
+ */
+const PODIUM_FRAGMENT = /* glsl */ `
+${COMMON}
+uniform float uWho; uniform vec2 uRadii; uniform float uFloor;
+varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
+void main() {
+  int who = int(uWho + 0.5);
+  vec3 c = uBand[who];
+  float feature = uFeature[who];
+  vec3 n = normalize(vWNorm);
+  vec3 v = normalize(cameraPosition - vWPos);
+  float fres = 0.05 + 0.95 * pow(max(0.0, 1.0 - max(0.0, dot(n, v))), 4.0);
+  vec3 col = vec3(0.004, 0.006, 0.02);
+  if (vUv.y < -0.5) {
+    vec2 q = (vWPos.xz - c.xz) / uRadii;
+    float r = length(q);
+    // The phase: the lit part grows from one limb to full, then shrinks away to the other.
+    float turn = fract(uBeat / 16.0 + uWho * 0.25);
+    float k = cos(6.2831853 * turn);
+    float w = sqrt(max(0.0, 1.0 - q.y * q.y));
+    float d = turn < 0.5 ? q.x - k * w : -k * w - q.x;
+    float lit = smoothstep(-0.05, 0.05, d) * smoothstep(1.0, 0.94, r);
+    // Seas and craters.
+    float sea = smoothstep(0.35, 0.7, fbm(q * 2.4 + uWho * 7.3));
+    vec2 g = q * 3.0 + uWho * 3.0;
+    vec2 cell = floor(g);
+    vec2 f = fract(g) - 0.5 - (vec2(hash21(cell), hash21(cell + 5.3)) - 0.5) * 0.5;
+    float cr = length(f) / (0.12 + 0.2 * hash21(cell + 9.7));
+    float crater = smoothstep(1.25, 1.0, cr) * (smoothstep(0.75, 1.0, cr) * 0.5 - 0.22);
+    float surface = clamp(0.62 - 0.4 * sea + crater, 0.1, 1.0);
+    vec3 moonlight = mix(vec3(0.82, 0.9, 1.0), uAccent, 0.35);
+    col += moonlight * surface * lit * (0.3 + 0.3 * feature + 0.28 * uPulse + 0.3 * uLow);
+    col += (uWash * 0.07 + vec3(0.0, 0.004, 0.02)) * surface * (1.0 - lit);
+    float beat = fract(uBeat);
+    col += uKey * smoothstep(0.07, 0.0, abs(r - beat * 1.05)) * (1.0 - beat) * 0.5;
+    col += uAccent * smoothstep(0.9, 0.99, r) * (0.28 + 0.55 * uPulse);
+    col += skyGradient(reflect(-v, n)) * fres;
+  } else {
+    // The wall, as much of it as stands above the island: columns of lamps that fill with the sound.
+    float rowH = 0.08;
+    float height = max(0.05, c.y - uFloor);
+    float up = (vWPos.y - uFloor) / rowH;
+    float cols = floor(max(uRadii.x, uRadii.y) * 26.0);
+    float u = vUv.x * cols;
+    float id = floor(u);
+    float across = abs(fract(vUv.x + 0.75) - 0.5) * 2.0;
+    float sound = mix(mix(uLow, uMid, smoothstep(0.0, 0.5, across)), uHigh, smoothstep(0.5, 1.0, across));
+    float h = hash11(id * 1.7 + uWho * 13.0);
+    float flutter = 0.6 + 0.4 * sin(uTime * (3.0 + 5.0 * h) + h * 40.0);
+    float bar = clamp(0.14 + 1.15 * sound * flutter + 0.3 * uPulse * h, 0.08, 1.0);
+    float at = (floor(up) + 0.5) * rowH / height;
+    float on = step(at, bar);
+    float tip = on * step(bar, at + rowH / height);
+    vec2 lamp = abs(vec2(fract(u), fract(up)) - 0.5);
+    float shape = smoothstep(0.5, 0.36, lamp.x) * smoothstep(0.5, 0.32, lamp.y);
+    shape = mix(shape, 0.55, clamp(max(fwidth(u), fwidth(up)) * 1.4, 0.0, 1.0));
+    vec3 tint = mix(mix(uWash, uKey, clamp(at, 0.0, 1.0)), mix(uAccent, vec3(1.0), 0.3), tip);
+    col += tint * shape * (on * (0.5 + 0.4 * feature + 0.35 * tip) + 0.03);
+    col += skyGradient(reflect(-v, n)) * fres * 0.4;
   }
   gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
   ${OUTPUT}
@@ -390,6 +458,7 @@ void main() {
 const FRAGMENTS: Record<string, string> = {
   paint: PAINT_FRAGMENT,
   deck: DECK_FRAGMENT,
+  podium: PODIUM_FRAGMENT,
   ground: GROUND_FRAGMENT,
   black: GEAR_FRAGMENT,
   grille: GEAR_FRAGMENT,
@@ -414,7 +483,7 @@ export function applyVenueMaterials(root: THREE.Object3D, deck: DeckInfo, glitte
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;
     const src = mesh.material as THREE.Material;
-    const info = src.userData as { kind?: string; a?: string; b?: string; c?: string; rim?: string; glitter?: number; glow?: number; panels?: number; veins?: number; tint?: string; twinkle?: number };
+    const info = src.userData as { kind?: string; a?: string; b?: string; c?: string; rim?: string; glitter?: number; glow?: number; panels?: number; veins?: number; tint?: string; twinkle?: number; who?: number; rx?: number; ry?: number; floor?: number };
     const kind = info.kind && FRAGMENTS[info.kind] ? info.kind : 'black';
     const moon = kind === 'screen' && /Moon/.test(mesh.name);
     const key = kind === 'screen' ? `screen-${moon}` : src.name;
@@ -433,6 +502,10 @@ export function applyVenueMaterials(root: THREE.Object3D, deck: DeckInfo, glitte
       } else if (kind === 'deck' || kind === 'ground') {
         uniforms.uDeckC = { value: new THREE.Vector3(...deck.center) };
         uniforms.uDeckShape = { value: new THREE.Vector3(deck.a, deck.b, deck.power) };
+      } else if (kind === 'podium') {
+        uniforms.uWho = { value: info.who ?? 0 };
+        uniforms.uRadii = { value: new THREE.Vector2(info.rx ?? 1.7, info.ry ?? 1.7) };
+        uniforms.uFloor = { value: info.floor ?? 0 };
       } else if (kind === 'screen') {
         uniforms.uCells = { value: moon ? 150 : 60 };
       } else if (kind === 'lamp' || kind === 'canvas') {

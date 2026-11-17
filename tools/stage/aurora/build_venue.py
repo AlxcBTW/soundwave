@@ -53,8 +53,12 @@ MOON_R = SCREEN_W
 # centre, guitar and bass either side a step back and turned in, the drums on a riser behind.
 ISLAND_C, ISLAND_A, ISLAND_B = Vector((0, 4.6, 0)), 8.2, 5.6
 ISLAND_H = DECK_H + 0.25
-RISER_C, RISER_R, RISER_H = Vector((0, 7.5, 0)), 3.2, 0.6
-BAND = {'lead': (-4.5, 3.4, ISLAND_H), 'vox': (0.0, 1.5, ISLAND_H), 'bass': (4.5, 3.4, ISLAND_H), 'drums': (0.0, 7.5, ISLAND_H + RISER_H)}
+# Every player has a podium of their own on the island: where it stands (x, y), its half axes, how
+# high it is at rest and how far the game may raise it. The order is the one the game's shaders
+# know the players in.
+PLAYERS = ('lead', 'vox', 'bass', 'drums')
+PODIUMS = {'lead': (-4.5, 3.4, 1.7, 1.7, 0.35, 0.8), 'vox': (0.0, 1.7, 1.5, 1.5, 0.35, 0.8), 'bass': (4.5, 3.4, 1.7, 1.7, 0.35, 0.8), 'drums': (0.0, 7.5, 3.2, 2.3, 0.6, 0.6)}
+BAND = {k: (x, y, ISLAND_H + h) for k, (x, y, rx, ry, h, travel) in PODIUMS.items()}
 
 # ---------------------------------------------------------------- materials
 MATS = {}
@@ -87,6 +91,9 @@ material('Ground', (0.02, 0.02, 0.05), kind='ground')
 material('Led', (0.4, 0.8, 1.0), kind='led')
 material('Lens', (1.0, 0.8, 0.9), kind='lens')
 material('Screen', (0.2, 0.5, 1.0), kind='screen')
+# The podiums: a moon on top, a wall of light around; each knows whose it is.
+for _i, _part in enumerate(PLAYERS):
+    material('Podium' + _part.title(), (0.2, 0.3, 0.8), kind='podium', who=_i, rx=PODIUMS[_part][2], ry=PODIUMS[_part][3], floor=ISLAND_H)
 
 
 # ---------------------------------------------------------------- geometry helpers
@@ -273,9 +280,10 @@ def prism(t, profile, width):
         t.faces.new((left[i], left[j], right[j], right[i]))
 
 
-def wedge(pos, yaw=0.0):
+def wedge(pos, yaw=0.0, body=None, face=None):
     """A floor monitor: a wedge whose sloped, grilled face looks up at the band (+y)."""
     m = Matrix.Translation(pos) @ Matrix.Rotation(yaw, 4, 'Z')
+    black, grille = body or globals()['black'], face or globals()['grille']
     stamp(black, lambda t: prism(t, [(-0.30, 0), (0.30, 0), (0.30, 0.10), (-0.05, 0.45), (-0.30, 0.32)], 0.72), m, 0.016)
     stamp(grille, cube((0.62, 0.014, 0.41)), m @ Matrix.Translation((0, 0.131, 0.281)) @ Matrix.Rotation(math.radians(45), 4, 'X'))
 
@@ -342,7 +350,7 @@ deck = bmesh.new()
 for scale, top in ((1.0, DECK_H), (1.09, 1.8), (1.18, 1.2), (1.27, 0.6)):
     slab(deck, scale, 0.0, top)
     tube(led, deck_outline(scale + 0.004, top - 0.14, 128, front_only=True), 0.045)
-# the band's island and, on it, the drum riser: two low round platforms with lit edges
+# the band's island: a low round platform with a lit edge (the podiums on it come further down)
 def platform(name, centre, rx, ry, z0, z1):
     plate = bmesh.new()
     bmesh.ops.create_cone(plate, cap_ends=True, segments=64, radius1=1.0, radius2=0.985, depth=z1 - z0,
@@ -356,7 +364,6 @@ def platform(name, centre, rx, ry, z0, z1):
 
 
 platform('Island', ISLAND_C, ISLAND_A, ISLAND_B, DECK_H - 0.02, ISLAND_H)
-platform('DrumRiser', RISER_C, RISER_R, RISER_R * 0.72, ISLAND_H - 0.02, ISLAND_H + RISER_H)
 new_obj('Deck', deck, 'Deck')
 
 # ---------------------------------------------------------------- the shell: five nested arches leaning to the crowd
@@ -437,7 +444,7 @@ for k in range(0, 48, 4):
     # three heads per player, each aimed at its player's chest
     lamp = c - up * 0.95
     player = min(BAND.values(), key=lambda b: (Vector((b[0], b[1], 0)) - Vector((lamp.x, lamp.y, 0))).length)
-    fixture(black, lens, lamp, Vector((player[0], player[1], player[2] + 1.2)) - lamp, 'Halo', mount=up)
+    fixture(black, lens, lamp, Vector((player[0], player[1], player[2] + 1.5)) - lamp, 'Halo', mount=up)
 for k in (6, 18, 30, 42):
     c = halo[k][0]
     cyl(black, c, c + Vector((0, 0, 7.5)), 0.02, 4)
@@ -542,8 +549,9 @@ barrier = deck_outline(1.44, 0.6, 96, front_only=True)
 loft('', barrier, lambda t: 0.12, lambda t: 1.2, None, depth_axis=Z, sides=6, power=6, bm=black)
 
 # ---------------------------------------------------------------- backline and what stands around the deck
-def mic_stand(pos, lean):
+def mic_stand(pos, lean, black=None):
     """A boom stand: tripod, pole, a short boom toward the player and the microphone on it."""
+    black = black or globals()['black']
     top = pos + Vector((0, 0, 1.42))
     for a in (0.4, 2.5, 4.6):
         cyl(black, pos + Vector((math.cos(a) * 0.3, math.sin(a) * 0.3, 0.02)), pos + Vector((0, 0, 0.3)), 0.012, 5)
@@ -553,22 +561,64 @@ def mic_stand(pos, lean):
     cyl(black, tip, tip + Vector((lean[0], lean[1], 0)).normalized() * 0.17, 0.024, 8)
 
 
-# a monitor in front of every player who stands, turned to face them
-for part in ('lead', 'vox', 'bass'):
-    x, y, z = BAND[part]
-    wedge(Vector((x * 1.06, y - 1.85, z)), math.radians(-x * 3.0))
-# guitar and bass: an amp stack behind, a pedalboard at the feet, a stand for backing vocals
+def podium(part):
+    """
+    One player's podium: a round lift whose top is a moon and whose wall is a band of light, with
+    the player's own things on it (monitor, pedals, a microphone). The game raises and lowers it
+    with the music, so it is exported by itself, in parts named Podium_<player>_*; the wall runs
+    down into the island as far as the lift can rise. A low lit step rings it on the island.
+    UV: the lid is marked by v = -1; on the wall u runs round it and v is metres below the top.
+    """
+    x, y, rx, ry, h, travel = PODIUMS[part]
+    top, foot, bevel, n = ISLAND_H + h, ISLAND_H - travel - 0.15, 0.05, 72
+    bm = bmesh.new()
+    uv = bm.loops.layers.uv.verify()
+
+    def ring(inset, z):
+        return [bm.verts.new((x + math.cos(2 * math.pi * k / n) * (rx - inset), y + math.sin(2 * math.pi * k / n) * (ry - inset), z)) for k in range(n)]
+
+    lid, edge, base = ring(bevel, top), ring(0.0, top - bevel), ring(0.0, foot)
+    for loop in bm.faces.new(lid).loops:
+        loop[uv].uv = (0.0, -1.0)
+    for k in range(n):
+        j = (k + 1) % n
+        for loop in bm.faces.new((edge[k], edge[j], lid[j], lid[k])).loops:
+            loop[uv].uv = (0.0, -1.0)
+        wall = bm.faces.new((base[k], base[j], edge[j], edge[k]))
+        for loop, at in zip(wall.loops, ((k / n, top - foot), ((k + 1) / n, top - foot), ((k + 1) / n, bevel), (k / n, bevel))):
+            loop[uv].uv = at
+    new_obj('Podium_%s_Top' % part, bm, 'Podium' + part.title(), sharp=35)
+
+    lamps, gear, cloth = bmesh.new(), bmesh.new(), bmesh.new()
+    tube(lamps, [Vector((x + math.cos(a) * (rx + 0.015), y + math.sin(a) * (ry + 0.015), top - 0.1)) for a in [2 * math.pi * i / 96 for i in range(97)]], 0.03)
+    if part != 'drums':
+        # a monitor at the front edge, turned to face the player
+        wedge(Vector((x * 1.04, y - ry + 0.42, top)), math.radians(-x * 3.0), gear, cloth)
+    if part in ('lead', 'bass'):
+        # guitar and bass: a pedalboard at the feet and a stand for backing vocals
+        side = 1 if x > 0 else -1
+        stamp(gear, cube((0.7, 0.32, 0.05)), Matrix.Translation((x - side * 0.15, y - 0.7, top + 0.03)), 0.01)
+        dots(lamps, [Vector((x - side * 0.15 + dx, y - 0.7, top + 0.07)) for dx in (-0.24, -0.08, 0.08, 0.24)], 0.035)
+        mic_stand(Vector((x - side * 0.75, y - 0.5, top)), (side * 0.22, 0.2), gear)
+    new_obj('Podium_%s_Led' % part, lamps, 'Led')
+    if gear.verts:
+        new_obj('Podium_%s_Gear' % part, gear, 'Black', sharp=35)
+        new_obj('Podium_%s_Grille' % part, cloth, 'Grille', smooth=False)
+    step = 0.3
+    platform('Step_' + part, Vector((x, y, 0)), rx + step, ry + step, ISLAND_H - 0.02, ISLAND_H + 0.12)
+
+
+for part in PLAYERS:
+    podium(part)
+# guitar and bass: an amp stack behind the podium
 for part in ('lead', 'bass'):
-    x, y, z = BAND[part]
+    x, y = PODIUMS[part][:2]
     side = 1 if x > 0 else -1
     for col in range(2):
         for row in range(2):
-            c = Vector((x + side * (0.5 + col * 1.3), y + 2.5, z + 0.53 + row * 1.06))
+            c = Vector((x + side * (0.5 + col * 1.3), y + 2.5, ISLAND_H + 0.53 + row * 1.06))
             cabinet((1.25, 0.6, 1.02), c)
             dots(led, [c + Vector((-0.4, -0.31, 0.38))], 0.05)
-    stamp(black, cube((0.7, 0.32, 0.05)), Matrix.Translation((x - side * 0.15, y - 0.75, z + 0.03)), 0.01)
-    dots(led, [Vector((x - side * 0.15 + dx, y - 0.75, z + 0.07)) for dx in (-0.24, -0.08, 0.08, 0.24)], 0.035)
-    mic_stand(Vector((x - side * 0.75, y - 0.55, z)), (side * 0.22, 0.2))
 for side in (1, -1):
     # side fills turned toward the band
     turn = Matrix.Rotation(math.radians(-70 * side), 3, 'Z')
@@ -743,6 +793,7 @@ def export(out_dir):
         'cameras': {k: {'pos': to_three(loc), 'target': to_three(tgt), 'hfov': hfov} for k, (loc, tgt, hfov) in VIEWS.items()},
         'band': {k: to_three(v) for k, v in BAND.items()},
         'island': {'center': to_three(Vector((ISLAND_C.x, ISLAND_C.y, ISLAND_H))), 'a': ISLAND_A, 'b': ISLAND_B},
+        'podiums': {k: {'rx': rx, 'ry': ry, 'travel': travel} for k, (x, y, rx, ry, h, travel) in PODIUMS.items()},
         'fixtures': [{'group': f['group'], 'pos': to_three(f['pos']), 'dir': to_three(f['dir'])} for f in FIXTURES],
         'moon': {'center': to_three(MOON_C), 'radius': MOON_R, 'arch': {'halfWidth': SCREEN_W, 'height': SCREEN_H, 'power': SCREEN_POWER}},
         'fireworks': [{**f, 'origin': to_three(f['origin'])} for f in FIREWORKS],

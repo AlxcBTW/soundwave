@@ -29,6 +29,8 @@ export interface Person {
   recolor?: number;
   /** Lit by the front spots (the band): 1 for a band member, more for the one picked out. */
   spot?: number;
+  /** The part a band member plays. */
+  part?: string;
 }
 
 const VERTEX = /* glsl */ `
@@ -145,6 +147,8 @@ export class Figures {
   private readonly texture: THREE.DataTexture;
   private readonly materials = new Map<string, THREE.ShaderMaterial>();
   private readonly owned: { dispose(): void }[] = [];
+  /** Where people added with `movable` are drawn, so they can be moved later. */
+  private readonly placed = new Map<Person, { mesh: THREE.InstancedMesh; index: number; matrix: THREE.Matrix4 }[]>();
   count = 0;
   triangles = 0;
 
@@ -159,8 +163,8 @@ export class Figures {
     return Object.keys(this.set.data.characters);
   }
 
-  /** Adds people; one instanced draw per character mesh part. */
-  add(people: Person[]) {
+  /** Adds people; one instanced draw per character mesh part. `movable` people can be raised later. */
+  add(people: Person[], movable = false) {
     const groups = new Map<string, Person[]>();
     for (const p of people) {
       const key = `${p.character}|${p.far ? 'far' : 'near'}`;
@@ -206,6 +210,7 @@ export class Figures {
         geo.setAttribute('aBottom', inst(bottom, 3));
         const mesh = new THREE.InstancedMesh(geo, this.materialFor(part, far), n);
         matrices.forEach((mat, i) => mesh.setMatrixAt(i, mat));
+        if (movable) list.forEach((p, i) => this.placed.set(p, [...(this.placed.get(p) ?? []), { mesh, index: i, matrix: matrices[i] }]));
         mesh.instanceMatrix.needsUpdate = true;
         mesh.frustumCulled = false;
         this.group.add(mesh);
@@ -213,6 +218,15 @@ export class Figures {
         this.triangles += n * ((geo.index ? geo.index.count : geo.attributes.position.count) / 3);
       });
       this.count += n;
+    }
+  }
+
+  /** Stands a movable person at another height. */
+  setHeight(person: Person, y: number) {
+    for (const at of this.placed.get(person) ?? []) {
+      at.matrix.elements[13] = y;
+      at.mesh.setMatrixAt(at.index, at.matrix);
+      at.mesh.instanceMatrix.needsUpdate = true;
     }
   }
 
@@ -338,6 +352,6 @@ export function makeBand(data: VenueData, band: Record<string, { character: stri
   return Object.entries(band).flatMap(([part, who]) => {
     const pos = data.band[part];
     if (!pos) return [];
-    return [{ pos, yaw: turn[part] ?? 0, scale: 1, character: who.character, calm: who.clip, hype: who.clip, threshold: 2, phase: 0, spot: part === focus ? 1.3 : 1 }];
+    return [{ pos, yaw: turn[part] ?? 0, scale: 1, character: who.character, calm: who.clip, hype: who.clip, threshold: 2, phase: 0, spot: part === focus ? 1.3 : 1, part }];
   });
 }

@@ -13,7 +13,10 @@ export const shared = {
   uBarPulse: { value: 0 },
   /** How busy the music is, 0..1 (smoothed). */
   uEnergy: { value: 0.3 },
+  /** Bass, middle and treble of what is playing, 0..1, eased. */
   uLow: { value: 0.2 },
+  uMid: { value: 0.2 },
+  uHigh: { value: 0.2 },
   uKey: { value: new THREE.Color(1, 0.45, 0.8) },
   uAccent: { value: new THREE.Color(0.4, 0.9, 1) },
   uWash: { value: new THREE.Color(0.25, 0.2, 1) },
@@ -55,6 +58,8 @@ uniform float uPulse;
 uniform float uBarPulse;
 uniform float uEnergy;
 uniform float uLow;
+uniform float uMid;
+uniform float uHigh;
 uniform vec3 uKey;
 uniform vec3 uAccent;
 uniform vec3 uWash;
