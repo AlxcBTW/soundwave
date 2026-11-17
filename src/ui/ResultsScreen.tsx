@@ -6,6 +6,7 @@ import { menuPulse } from '../input/rumble';
 import type { SongMeta } from '../storage/db';
 import { useActions } from './actions';
 import { Cover } from './Cover';
+import { shownStars, isGold } from '../game/scoring';
 import { Stars } from './icons';
 
 /** One song of a set once it has been played (or skipped). */
@@ -64,7 +65,7 @@ export function ResultsScreen({ song, subtitle, results: r, best, position, tota
   }, [r.stars]);
   // The stars land one by one (see .results-stars in styles.css); each rings a little higher.
   useEffect(() => {
-    const timers = Array.from({ length: r.stars }, (_, k) =>
+    const timers = Array.from({ length: shownStars(r.stars) }, (_, k) =>
       window.setTimeout(() => {
         playSfx('star', { index: k });
         menuPulse('star');
@@ -107,6 +108,7 @@ export function ResultsScreen({ song, subtitle, results: r, best, position, tota
           </div>
           <div className="results-tags">
             {newBest && <span className="tag hot">New best</span>}
+            {isGold(r.stars) && <span className="tag gold">Gold stars</span>}
             {r.fullCombo && <span className="tag gold">Full combo</span>}
             {!newBest && best !== undefined && <span className="tag">Best {best.toLocaleString()}</span>}
           </div>
@@ -153,7 +155,7 @@ interface SummaryProps {
 export function SummaryScreen({ set, subtitle, onAgain, onDone }: SummaryProps) {
   const played = set.filter((s) => s.results);
   const totalScore = played.reduce((t, s) => t + s.results!.score, 0);
-  const stars = played.reduce((t, s) => t + s.results!.stars, 0);
+  const stars = played.reduce((t, s) => t + shownStars(s.results!.stars), 0);
   const score = useCountUp(totalScore, 1400, 300);
   useEffect(() => {
     const timer = window.setTimeout(() => playSfx(stars >= played.length * 3 ? 'cheer' : 'applause'), 60);

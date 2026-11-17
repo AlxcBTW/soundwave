@@ -8,7 +8,8 @@ import { formatTime } from '../game/setlist';
 import { getStem, listStems, type BestScore, type SongMeta } from '../storage/db';
 import { Cover } from './Cover';
 import { Dialog } from './Dialog';
-import { DIFFICULTY_LABEL, ICON_STROKE, PART_ICON, PART_LABEL } from './icons';
+import { isGold, shownStars } from '../game/scoring';
+import { DIFFICULTY_LABEL, ICON_STROKE, PART_ICON, PART_LABEL, starsLabel } from './icons';
 import { analysisLabel, StatusPill, type SongStatus } from './LibraryScreen';
 import { PreviewBar } from './PreviewBar';
 
@@ -185,8 +186,8 @@ export function SongSheet({ song, builtin, status, scores, slot, setFull, volume
                           <td key={d} className={b ? (b.fullCombo ? 'fc' : '') : 'none'}>
                             {b ? (
                               <>
-                                <span className="best-stars" aria-label={`${b.stars} of 5 stars`}>
-                                  {b.stars}
+                                <span className={`best-stars ${isGold(b.stars) ? 'gold' : ''}`} aria-label={starsLabel(b.stars)}>
+                                  {shownStars(b.stars)}
                                   <Star strokeWidth={ICON_STROKE} aria-hidden />
                                 </span>
                                 <span className="best-score">{b.score.toLocaleString()}</span>

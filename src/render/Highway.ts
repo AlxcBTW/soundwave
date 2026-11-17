@@ -20,13 +20,20 @@ const MAX_MOTES = 420;
 
 const LANE_W = 1;
 /** Where the strike line sits down the canvas when the layout does not say (see resize). */
-const STRIKE_AT = 0.775;
-/** Share of the canvas width the strike line spans on a wide screen and on a tall one. */
-const WIDE_SHARE = 0.43;
-const TALL_SHARE = 0.8;
+const STRIKE_AT = 0.8;
+/** Share of the canvas width the deck spans at the strike line, on a wide screen and on a tall one. */
+const WIDE_SHARE = 0.37;
+/** The camera's distances below give a share of 0.485 at the strike line: this moves it back to WIDE_SHARE. */
+const BACK = 0.485 / WIDE_SHARE;
+const TALL_SHARE = 0.9;
 const LENGTH = 24;
-/** How far the deck runs on past the strike line, toward the player. */
-const FRONT = 0.72;
+/**
+ * How far the deck runs on past the strike line, toward the player: far enough to leave the foot
+ * of the screen, so the multiplier dial and the lane labels stand on it.
+ */
+const FRONT = 3.6;
+/** How far past the strike line a missed tile gets before it has shrunk away. */
+const PAST = 0.72;
 const MAX_GEMS = 512;
 /** The stretch at the far end of the deck over which a note fades in and grows to full size. */
 const APPEAR = 5;
@@ -113,22 +120,43 @@ const highwayFragment = /* glsl */ `
   uniform float uGold;
   uniform float uLight[5];
   uniform vec3 uLaneCol[5];
+  uniform float uLen;
+  uniform float uFront;
+  uniform float uTime;
+  uniform float uTravel;
   varying vec2 vUv;
+  float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
   void main() {
     float x = vUv.x * uLanes;
     float lane = fract(x);
-    // Hairlines between lanes (none along the outer edges, which have their rails).
-    float divider = smoothstep(0.024, 0.0, min(lane, 1.0 - lane)) * step(0.5, x) * step(x, uLanes - 0.5);
+    // z: distance beyond the strike line in highway units (negative on the player's side of it).
+    float z = vUv.y * uLen - uFront;
+    float run = uLen - uFront;
+    float depth = clamp(z / run, 0.0, 1.0);
+    float ahead = step(0.0, z);
+    // Hairlines between lanes (none along the outer edges, which have their rails), fainter in front of the strike line.
+    float divider = smoothstep(0.024, 0.0, min(lane, 1.0 - lane)) * step(0.5, x) * step(x, uLanes - 0.5) * mix(0.45, 1.0, ahead);
     float edgeDist = min(vUv.x, 1.0 - vUv.x) * uLanes;
     float rail = smoothstep(0.075, 0.045, edgeDist);
     float railGlow = smoothstep(0.55, 0.0, edgeDist);
-    // vUv.y: 0 = near (strike line side), 1 = far end.
-    float far = smoothstep(1.0, 0.6, vUv.y);
+    float far = smoothstep(run, run * 0.6, z);
     // A solid violet deck, a shade lighter toward the far end, with a slow sheen running to the player.
-    float sheen = 0.5 + 0.5 * sin((vUv.y * 9.0 + uScroll) * 3.14159);
-    vec3 base = mix(vec3(0.07, 0.038, 0.19), vec3(0.115, 0.062, 0.31), vUv.y) + vec3(0.012, 0.008, 0.03) * sheen;
+    float sheen = 0.5 + 0.5 * sin((depth * 9.0 + uScroll) * 3.14159);
+    vec3 base = mix(vec3(0.07, 0.038, 0.19), vec3(0.115, 0.062, 0.31), depth) + vec3(0.012, 0.008, 0.03) * sheen;
     // Neighbouring lanes differ by a breath, so each reads as its own strip.
     base *= 1.0 + 0.07 * (mod(floor(x), 2.0) - 0.5);
+    // Like glass under stage light, the deck is lighter toward both rails and darkest down the middle.
+    float side = 1.0 - min(vUv.x, 1.0 - vUv.x) * 2.0;
+    base += vec3(0.085, 0.06, 0.2) * pow(side, 2.4);
+    // Its surface is cut in large facets that travel with the notes; each catches the light a little
+    // differently, and all of them answer the beat.
+    vec2 g = vec2(x * 0.5 + 0.25, (z + uTravel) * 0.5);
+    vec2 cell = floor(g);
+    vec2 f = fract(g);
+    float facet = hash(vec2(cell.x, mod(cell.y, 8.0)) + step(f.x + f.y, 1.0) * 7.3);
+    base *= 1.0 + (facet - 0.5) * (0.16 + 0.2 * uPulse);
+    // A dark groove across the deck on the player's side of the targets: the line the notes are played on.
+    base *= 1.0 - 0.6 * smoothstep(0.3, 0.36, -z) * smoothstep(0.52, 0.46, -z);
     vec3 od = vec3(0.35, 0.65, 1.0);
     // The rails are violet, gold while the streak holds the top multiplier, and overdrive's blue over both.
     vec3 railCol = mix(mix(vec3(0.74, 0.47, 1.0), vec3(1.0, 0.9, 0.56), uGold), od, uOverdrive) * (1.0 + 0.55 * uPulse + 0.55 * uGold);
@@ -143,7 +171,10 @@ const highwayFragment = /* glsl */ `
     vec3 beam = vec3(0.0);
     for (int i = 0; i < 5; i++) { if (float(i) == l) beam = uLaneCol[i] * uLight[i]; }
     float inLane = smoothstep(0.0, 0.06, lane) * smoothstep(1.0, 0.94, lane);
-    col += beam * inLane * (0.1 + 0.42 * (1.0 - smoothstep(0.0, 0.8, vUv.y)));
+    col += beam * inLane * (0.1 + 0.42 * (1.0 - smoothstep(0.0, 17.0, max(z, 0.0))));
+    // While it is lit, dashes of light run up its middle, away from the player.
+    float dash = smoothstep(0.72, 0.8, fract(z * 0.7 - uTime * 4.0 + l * 0.31)) * smoothstep(0.17, 0.09, abs(lane - 0.5));
+    col += beam * dash * 0.7 * (1.0 - smoothstep(0.0, 7.0, max(z, 0.0))) * ahead;
     gl_FragColor = vec4(col, 0.965 * far);
   }
 `;
@@ -332,6 +363,10 @@ export class Highway {
         uGold: { value: 0 },
         uLight: { value: [0, 0, 0, 0, 0] },
         uLaneCol: { value: LANE_COLORS.map((c) => new THREE.Color(c)) },
+        uLen: { value: LENGTH + FRONT },
+        uFront: { value: FRONT },
+        uTime: { value: 0 },
+        uTravel: { value: 0 },
       },
     });
     const trackLen = LENGTH + FRONT;
@@ -408,7 +443,7 @@ export class Highway {
     }
 
     // Tiles: a pill with a bright rim, its top a deeper shade of the lane's colour under a gloss.
-    const gemGeo = new THREE.ExtrudeGeometry(roundedRect(0.82, 0.32, 0.16), {
+    const gemGeo = new THREE.ExtrudeGeometry(roundedRect(0.84, 0.34, 0.12), {
       depth: 0.09,
       bevelEnabled: true,
       bevelThickness: 0.035,
@@ -431,7 +466,7 @@ export class Highway {
     this.gems.frustumCulled = false;
     this.root.add(this.gems);
 
-    const coreGeo2 = new THREE.ShapeGeometry(roundedRect(0.72, 0.22, 0.11), 10);
+    const coreGeo2 = new THREE.ShapeGeometry(roundedRect(0.73, 0.23, 0.075), 10);
     coreGeo2.rotateX(-Math.PI / 2);
     coreGeo2.translate(0, 0.148, 0);
     coreGeo2.setAttribute('aFade', this.gemFade);
@@ -589,7 +624,7 @@ export class Highway {
     // a share asked for, a screen wider than 3:2 keeps the deck at its size and gains room at the sides.
     const back = this.lanes === 5 ? 1.12 : 1;
     const fit = (asked ? 1.5 / a : Math.max(1, 1.5 / a)) * (WIDE_SHARE / share);
-    this.camera.position.set(0, 3.6 * back * fit, 6 * back * fit);
+    this.camera.position.set(0, 3.6 * back * fit * BACK, 6 * back * fit * BACK);
     this.camera.lookAt(0, 0, -7.5);
     // The picture is then slid up or down so the strike line sits where the layout wants it (a
     // share of the canvas height, from the canvas's own --strike), with the lane labels, the
@@ -599,7 +634,9 @@ export class Highway {
     this.camera.updateMatrixWorld();
     const strike = Number.parseFloat(css.getPropertyValue('--strike')) || STRIKE_AT;
     this.setPadStyle(css.getPropertyValue('--pads').trim() === 'square' ? 'square' : 'pill');
-    const now = ((1 - new THREE.Vector3(0, 0, FRONT + 0.16).project(this.camera).y) / 2) * h;
+    // What --strike places: the strike line itself, or for touch the foot of the square targets.
+    const anchor = this.padStyle === 'square' ? PAST + 0.16 : 0;
+    const now = ((1 - new THREE.Vector3(0, 0, anchor).project(this.camera).y) / 2) * h;
     this.camera.setViewOffset(w, h, 0, Math.round(now - strike * h), w, h);
     this.camera.updateProjectionMatrix();
     // A mote's size is in highway units: this turns it into pixels at its distance.
@@ -619,15 +656,31 @@ export class Highway {
     }
   }
 
-  /** Screen positions (CSS px, relative to the canvas) under each lane, just past the deck's front lip. */
-  padScreenPositions(): { x: number; y: number }[] {
+  /**
+   * Screen positions (CSS px, relative to the canvas) of each lane's middle, `z` highway units on
+   * the player's side of the strike line (0 = on the line).
+   */
+  padScreenPositions(z = 0): { x: number; y: number }[] {
     const w = this.canvas.clientWidth;
     const h = this.canvas.clientHeight;
     this.camera.updateMatrixWorld();
     return Array.from({ length: this.lanes }, (_, i) => {
-      const p = new THREE.Vector3(this.laneX(i), 0, FRONT + 0.16).project(this.camera);
+      const p = new THREE.Vector3(this.laneX(i), 0, z).project(this.camera);
       return { x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h };
     });
+  }
+
+  /**
+   * Where the lanes' labels stand: each lane's middle on the deck, `margin` CSS px above the foot
+   * of the canvas (or at the deck's front edge, should that come first).
+   */
+  footRow(margin: number): { x: number; y: number }[] {
+    const h = this.canvas.clientHeight || 1;
+    const eye = this.camera.position;
+    this.camera.updateMatrixWorld();
+    this.v.set(0, 1 - ((h - margin) / h) * 2, 0.5).unproject(this.camera).sub(eye);
+    const z = this.v.y < -1e-4 ? eye.z + this.v.z * (-eye.y / this.v.y) : 1.4;
+    return this.padScreenPositions(Math.min(FRONT - 0.3, Math.max(0.9, z)));
   }
 
   /**
@@ -720,7 +773,7 @@ export class Highway {
         this.mPos[k] = side * (this.width / 2 - 0.05 + Math.random() * 0.38);
         this.mPos[k + 1] = Math.random() * 0.25;
         // More of them toward the player, where the rails are widest on screen.
-        this.mPos[k + 2] = FRONT - Math.pow(Math.random(), 1.5) * LENGTH * 0.8;
+        this.mPos[k + 2] = PAST - Math.pow(Math.random(), 1.5) * LENGTH * 0.8;
         this.mVel[k] = side * Math.random() * 0.08;
         this.mVel[k + 1] = 0.1 + Math.random() * 0.34;
         this.mVel[k + 2] = (Math.random() - 0.5) * 0.3;
@@ -777,6 +830,9 @@ export class Highway {
     const u = this.trackMat.uniforms;
     u.uOverdrive.value += (odTarget - u.uOverdrive.value) * Math.min(1, dt * 6);
     u.uScroll.value = (t * speed * 0.5) % 2;
+    u.uTime.value = (now / 1000) % 1000;
+    // The facets move with the notes; 16 units is a whole number of their repeats.
+    u.uTravel.value = (t * speed) % 16;
     this.pulse = Math.max(0, this.pulse - dt * 2);
     u.uPulse.value = this.pulse + beatPulse * 0.6;
     this.flare = Math.max(0, this.flare - dt * 1.1);
@@ -891,9 +947,9 @@ export class Highway {
 
       if (hit || gi >= MAX_GEMS) continue;
       const z = -(n.t - t) * speed;
-      if (z > FRONT) continue;
+      if (z > PAST) continue;
       // A tile that got past the strike line shrinks away before the deck ends.
-      const gone = z > 0.2 ? Math.max(0, 1 - (z - 0.2) / (FRONT - 0.25)) : 1;
+      const gone = z > 0.2 ? Math.max(0, 1 - (z - 0.2) / (PAST - 0.25)) : 1;
       // At the far end it fades in and grows to its size, so it arrives instead of popping up.
       const here = arrived(z + LENGTH);
       const k = gone * (0.6 + 0.4 * here);
@@ -911,24 +967,27 @@ export class Highway {
       else if (drive > 0.01) this.c.multiplyScalar(1 + drive * (0.08 + 0.2 * swell));
       // The top face keeps the lane's colour; the rim around it is the same colour lit up.
       this.cores.setColorAt(gi, this.c);
-      this.c.lerp(WHITE, missed ? 0.1 : 0.3);
+      this.c.lerp(WHITE, missed ? 0.1 : 0.42);
       this.gems.setColorAt(gi, this.c);
+      // Every tile glows a little in its own colour: a low bloom centred on it, turned to the camera.
+      // In overdrive the bloom is wider and stronger, and only its strength moves.
+      this.v.set(x, 0.1, z);
+      this.s.set(1.5 + 0.5 * drive, 0.75 + 0.35 * drive, 1);
+      this.m.compose(this.v, this.camera.quaternion, this.s);
+      this.auras.setMatrixAt(gi, this.m);
+      this.c.copy(color).multiplyScalar(here * gone * (missed ? 0.03 : 0.2) * (1 - drive));
       if (drive > 0.01) {
-        // a wide, low bloom centred on the tile, turned to the camera; only its strength moves
-        this.v.set(x, 0.1, z);
-        this.s.set(2.0, 1.1, 1);
-        this.m.compose(this.v, this.camera.quaternion, this.s);
-        this.auras.setMatrixAt(gi, this.m);
-        this.c.copy(OVERDRIVE_TILE).multiplyScalar(here * drive * (missed ? 0.08 : 0.3 + 0.22 * swell));
-        this.auras.setColorAt(gi, this.c);
+        const k2 = here * drive * (missed ? 0.08 : 0.3 + 0.22 * swell);
+        this.c.setRGB(this.c.r + OVERDRIVE_TILE.r * k2, this.c.g + OVERDRIVE_TILE.g * k2, this.c.b + OVERDRIVE_TILE.b * k2);
       }
+      this.auras.setColorAt(gi, this.c);
       gi++;
     }
     this.gemFade.needsUpdate = true;
     this.gems.count = gi;
     this.cores.count = gi;
     this.shines.count = gi;
-    this.auras.count = drive > 0.01 ? gi : 0;
+    this.auras.count = gi;
     this.auras.instanceMatrix.needsUpdate = true;
     if (this.auras.instanceColor) this.auras.instanceColor.needsUpdate = true;
     this.tails.count = ti;

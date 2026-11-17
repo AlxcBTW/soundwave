@@ -9,15 +9,22 @@ import { GameSession, type Results } from './GameSession';
 import { Rumbler } from '../input/rumble';
 import { barsLeft, findBreaks, type Break } from './breaks';
 import { GamepadInput, KeyboardInput, TouchInput, type InputHandlers } from './input';
-import { MAX_MULTIPLIER, multiplierFor, STREAK_PER_MULTIPLIER } from './scoring';
+import { WINDOWS } from './judge';
+import { GOLD_STARS, MAX_MULTIPLIER, multiplierFor, STREAK_PER_MULTIPLIER } from './scoring';
 import type { Settings } from './settings';
 
 export interface HudRefs {
   score: HTMLElement;
   multiplier: HTMLElement;
+  /** The five stars' container; each child is one star. */
   stars: HTMLElement;
-  progress: HTMLElement;
+  /** The song's timeline (takes --song-p and --segments) and the time left beside it. */
+  timeline: HTMLElement;
+  remaining: HTMLElement;
+  /** The tag that says how the last note was hit, the word on it, and the streak above it. */
   feedback: HTMLElement;
+  feedbackWord: HTMLElement;
+  feedbackStreak: HTMLElement;
   root: HTMLElement;
   /** One label per lane, positioned under its strike pad. */
   keys: HTMLElement[];
@@ -55,7 +62,7 @@ export class PlayController {
   private phase: PlayPhase = 'countdown';
   private lastBeat = -1;
   private beatPulse = 0;
-  private hudCache = { score: -1, mult: -1, streak: -1, od: -1, stars: -1, starP: -1, odActive: false, breakSec: -1 };
+  private hudCache = { score: -1, mult: -1, streak: -1, od: -1, stars: -1, starP: -1, odActive: false, breakSec: -1, songP: -1, left: -1 };
   private readonly breaks: Break[];
   /** A beat fell in the frame being drawn, and how much bass there is right now (0..1). */
   private beatNow = false;
@@ -123,14 +130,14 @@ export class PlayController {
     this.rumble = new Rumbler(settings, chart.lanes, padBindings);
     this.session.on((e) => {
       if (e.type === 'hit') {
-        this.flashFeedback(e.grade.toUpperCase(), e.grade);
+        this.flashFeedback(e.grade.toUpperCase(), e.grade, e.delta);
         this.rumble.hit(e.lane, e.grade);
         if (chart.notes[e.noteIndex].dur > 0) this.rumble.sustainStart(e.lane);
       } else if (e.type === 'miss') {
         this.flashFeedback('MISS', 'miss');
         this.rumble.miss(e.lane);
       } else if (e.type === 'release') {
-        this.flashFeedback(`${e.grade.toUpperCase()} RELEASE`, e.grade);
+        this.flashFeedback(e.grade.toUpperCase(), e.grade, e.delta);
         this.rumble.hit(e.lane, e.grade);
       } else if (e.type === 'release-miss') {
         this.flashFeedback(e.early ? 'TOO EARLY' : 'LET GO!', 'miss');
@@ -142,7 +149,7 @@ export class PlayController {
         this.odMeterAtStart = Math.max(this.session.overdrive, 0.01);
         this.rumble.overdrive();
       } else if (e.type === 'overdrive-end') this.rumble.overdriveEnd(); else if (e.type === 'phrase-complete') {
-        this.flashFeedback('OVERDRIVE READY', 'od');
+        this.flashFeedback('CHARGED', 'od');
         this.rumble.phraseComplete();
       }
     });
@@ -178,6 +185,7 @@ export class PlayController {
     hud.overdriveButton.addEventListener('pointerdown', this.overdrivePress);
 
     // The canvas changes size with the window and when the touch pads take the bottom of the screen.
+    this.drawTimeline();
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(highwayCanvas);
     window.addEventListener('resize', this.resize);
@@ -201,14 +209,40 @@ export class PlayController {
     this.resize();
   }
 
-  /** Puts the lane labels under their lanes and tells the HUD where the highway is. */
+  /**
+   * The timeline's shape: thick where there are notes to play, a thin line through every longer
+   * stretch without any (the intro, a break, the fade-out).
+   */
+  private drawTimeline() {
+    const d = this.chart.duration;
+    if (!(d > 0)) return;
+    const min = Math.max(4, d * 0.02);
+    const pct = (t: number) => `${((Math.min(d, Math.max(0, t)) / d) * 100).toFixed(2)}%`;
+    let css = 'linear-gradient(to right';
+    let free = 0;
+    let from = 0;
+    const quiet = (a: number, b: number) => {
+      if (b - a < min) return;
+      css += `, #000 ${pct(from)} ${pct(a)}, transparent ${pct(a)} ${pct(b)}`;
+      from = b;
+    };
+    for (const n of this.chart.notes) {
+      quiet(free, n.t);
+      free = Math.max(free, n.t + n.dur);
+    }
+    quiet(free, d);
+    this.hud.timeline.style.setProperty('--segments', `${css}, #000 ${pct(from)} 100%)`);
+  }
+
+  /** Puts the lane labels on the deck under their lanes and tells the HUD where the highway is. */
   private placeKeys() {
     const pos = this.highway.padScreenPositions();
     if (!pos.length) return;
-    pos.forEach((p, i) => {
-      const at = `translate(${p.x}px, ${p.y}px) translate(-50%, 0)`;
+    // The labels stand at the foot of the screen; the dial sits between them and the strike line.
+    const foot = this.highway.footRow(Math.max(24, Math.min(46, window.innerHeight * 0.034)));
+    foot.forEach((p, i) => {
       const key = this.hud.keys[i];
-      if (key) key.style.transform = at;
+      if (key) key.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -50%)`;
     });
     const first = pos[0];
     const last = pos[pos.length - 1];
@@ -217,6 +251,7 @@ export class PlayController {
     const root = (this.hud.root.parentElement ?? this.hud.root).style;
     root.setProperty('--hw-x', `${((first.x + last.x) / 2).toFixed(1)}px`);
     root.setProperty('--hw-y', `${first.y.toFixed(1)}px`);
+    root.setProperty('--hw-foot', `${(foot[0]?.y ?? first.y + 120).toFixed(1)}px`);
     root.setProperty('--lane-w', `${laneW.toFixed(1)}px`);
     root.setProperty('--hw-w', `${(laneW * pos.length).toFixed(1)}px`);
   }
@@ -323,15 +358,24 @@ export class PlayController {
     this.updateHud(t);
   };
 
-  private flashFeedback(text: string, kind: string) {
+  /**
+   * Shows how the last note went on the tag beside the strike line. `delta` (seconds, negative =
+   * early) moves the bar in the tag's little target above or below its middle.
+   */
+  private flashFeedback(text: string, kind: string, delta?: number) {
     const el = this.hud.feedback;
-    el.textContent = text;
+    this.hud.feedbackWord.textContent = text;
     el.dataset.kind = kind;
+    if (delta === undefined) delete el.dataset.timing;
+    else {
+      el.dataset.timing = Math.abs(delta) < WINDOWS.perfect * 0.35 ? 'on' : delta < 0 ? 'early' : 'late';
+      el.style.setProperty('--off', Math.max(-1, Math.min(1, delta / WINDOWS.good)).toFixed(2));
+    }
     el.classList.remove('pop');
     void el.offsetWidth;
     el.classList.add('pop');
     clearTimeout(this.feedbackTimer);
-    this.feedbackTimer = window.setTimeout(() => el.classList.remove('pop'), 450);
+    this.feedbackTimer = window.setTimeout(() => el.classList.remove('pop'), 1150);
   }
 
   private updateHud(t: number) {
@@ -342,12 +386,16 @@ export class PlayController {
     const mult = s.multiplier;
     if (mult !== c.mult) {
       this.hud.multiplier.textContent = `×${mult}`;
-      this.hud.multiplier.dataset.level = String(Math.min(mult, 8));
+      // The dial's colour follows the streak's own step; overdrive recolours it (see .hud.overdrive).
+      this.hud.multiplier.dataset.level = String(multiplierFor(s.streak));
     }
     if (s.streak !== c.streak) {
       // The dial's ring: how far the streak is toward the next multiplier step (full at the top one).
       const top = multiplierFor(s.streak) >= MAX_MULTIPLIER;
       this.hud.root.style.setProperty('--streak-p', top ? '1' : ((s.streak % STREAK_PER_MULTIPLIER) / STREAK_PER_MULTIPLIER).toFixed(2));
+      // The streak stands above the tag once it is worth showing, and burns at the top multiplier.
+      this.hud.feedbackStreak.textContent = s.streak >= 5 ? String(s.streak) : '';
+      this.hud.feedbackStreak.toggleAttribute('data-hot', top);
     }
     const od = Math.round(s.overdrive * 100);
     if (od !== c.od) {
@@ -357,12 +405,20 @@ export class PlayController {
     }
     if (s.overdriveActive !== c.odActive) this.hud.root.classList.toggle('overdrive', s.overdriveActive);
     const stars = s.progressStars;
-    if (stars !== c.stars) this.hud.stars.dataset.count = String(stars);
+    if (stars !== c.stars) {
+      this.hud.stars.dataset.count = String(stars);
+      Array.from(this.hud.stars.children).forEach((el, i) => {
+        (el as HTMLElement).dataset.state = stars >= GOLD_STARS ? 'gold' : i < stars ? 'on' : i === stars ? 'next' : 'off';
+      });
+    }
     const starP = Math.round(s.nextStarProgress * 50) / 50;
     if (starP !== c.starP) this.hud.stars.style.setProperty('--star-p', String(starP));
-    this.hud.progress.style.width = `${Math.max(0, Math.min(1, t / this.chart.duration)) * 100}%`;
+    const songP = Math.round(Math.max(0, Math.min(1, t / this.chart.duration)) * 1000) / 1000;
+    if (songP !== c.songP) this.hud.timeline.style.setProperty('--song-p', String(songP));
+    const left = Math.max(0, Math.ceil(this.chart.duration - Math.max(0, t)));
+    if (left !== c.left) this.hud.remaining.textContent = `-${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
     this.updateBreak(t);
-    Object.assign(c, { score, mult, streak: s.streak, od, stars, starP, odActive: s.overdriveActive });
+    Object.assign(c, { score, mult, streak: s.streak, od, stars, starP, odActive: s.overdriveActive, songP, left });
   }
 
   /**

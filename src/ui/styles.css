@@ -51,6 +51,8 @@
 
   --font: 'Archivo Variable', 'Archivo', system-ui, sans-serif;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  /* An earned star. Gold is kept for gold stars, the tier beyond five. */
+  --star: #c4a6ff;
   --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
   /* A gentler landing than --ease, for large things that arrive (the home tiles). */
   --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
@@ -191,7 +193,9 @@ ul, ol { list-style: none; }
 
 .stars { display: inline-flex; gap: 0.1em; }
 .stars svg { width: 1em; height: 1em; color: rgb(210 201 250 / 0.32); fill: transparent; }
-.stars svg.on { color: var(--gold); fill: var(--gold); }
+/* Earned stars are lit violet. Gold is the tier beyond five: all of them, glowing. */
+.stars svg.on { color: var(--star); fill: var(--star); }
+.stars.gold svg.on { color: var(--gold); fill: var(--gold); filter: drop-shadow(0 0 0.22em rgb(255 176 46 / 0.75)); }
 .pips { display: inline-flex; gap: 3px; }
 .pips span { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: rgb(127 110 200 / 0.4); }
 .pips[data-level='1'] .lit { background: var(--lane-0); }
@@ -423,7 +427,8 @@ img.cover { animation: fade-in 0.35s var(--ease) backwards; }
 .bests td.none { background: var(--well); color: var(--ink-3); }
 .bests td.fc { box-shadow: inset 0 -3px 0 var(--gold); }
 .bests thead td { background: none; }
-.best-stars { display: flex; align-items: center; justify-content: center; gap: 0.15rem; font-weight: 900; color: var(--gold); }
+.best-stars { display: flex; align-items: center; justify-content: center; gap: 0.15rem; font-weight: 900; color: var(--star); }
+.best-stars.gold { color: var(--gold); text-shadow: 0 0 0.6em rgb(255 176 46 / 0.6); }
 .best-stars svg { width: 0.85em; height: 0.85em; fill: currentColor; }
 .best-score { display: block; font-size: 0.82rem; color: var(--ink-2); }
 
@@ -592,7 +597,7 @@ img.cover { animation: fade-in 0.35s var(--ease) backwards; }
 .summary-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.4rem 1.2rem; }
 .summary-total { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.4rem 1.6rem; }
 .summary-stars { color: var(--ink-2); font-weight: 700; font-size: 1.1rem; }
-.summary-stars .num { color: var(--gold); font-size: 1.6rem; }
+.summary-stars .num { color: var(--star); font-size: 1.6rem; }
 
 /* Toasts, drop target, launch */
 .toasts { position: absolute; right: calc(var(--gutter) + var(--safe-r)); bottom: calc(var(--bar-h) + var(--safe-b) + 0.4rem); z-index: 60; display: flex; flex-direction: column; gap: 0.5rem; width: min(26rem, calc(100% - 2 * var(--gutter))); }
@@ -624,62 +629,130 @@ img.cover { animation: fade-in 0.35s var(--ease) backwards; }
 
 .play { position: absolute; inset: 0; background: #05030f; touch-action: none; }
 .play .layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.play .highway { --strike: 0.775; }
+.play .highway { --strike: 0.8; }
 /* Touch: the lanes are the controls. The deck runs to the foot of the screen and its targets are finger-sized squares. */
-:root[data-input='touch'] .play .highway { height: calc(100% - var(--safe-b)); --strike: 0.992; --pads: square; --deck-share: 0.4; }
+:root[data-input='touch'] .play .highway { height: calc(100% - var(--safe-b)); --strike: 0.992; --pads: square; --deck-share: 0.45; }
 .hud { position: absolute; inset: 0; pointer-events: none; font-weight: 850; --panel-hud: rgb(16 9 50 / 0.76); }
 .touch-layer { position: absolute; inset: 0; }
 :root[data-input='touch'] .touch-layer { pointer-events: auto; touch-action: none; }
 
-.hud-top { position: absolute; top: calc(12px + var(--safe-t)); left: 50%; transform: translateX(-50%); width: min(560px, 56%); text-align: center; }
-.hud-title { display: flex; align-items: baseline; justify-content: center; gap: 10px; font-size: clamp(16px, 1.05vw, 26px); white-space: nowrap; text-shadow: 0 1px 6px rgb(0 0 0 / 0.7); }
-.hud-pos { color: var(--pink-2); }
-.hud-song { font-weight: 800; overflow: hidden; text-overflow: ellipsis; }
-.hud-artist { color: var(--ink-2); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
-.hud-progress { margin-top: 6px; height: 4px; border-radius: 2px; background: rgb(255 255 255 / 0.16); overflow: hidden; }
-.hud-progress > div { height: 100%; width: 0; border-radius: 2px; background: var(--pink); }
+/* The left column: the song and how far through it is, the stars, the score. */
+.hud-scorebox { position: absolute; left: calc(1.6% + var(--safe-l)); bottom: calc(3.5% + var(--safe-b)); width: clamp(216px, 17.6vw, 380px); display: flex; flex-direction: column; gap: clamp(8px, 0.8vw, 14px); }
+.hud-songbox { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; padding: clamp(8px, 0.7vw, 14px) clamp(10px, 0.9vw, 18px) clamp(5px, 0.45vw, 9px); border-radius: 12px; background: linear-gradient(90deg, var(--panel-hud), rgb(16 9 50 / 0.4)); }
+.hud-artist { grid-column: 1 / -1; color: var(--ink-2); font-weight: 700; font-size: clamp(12px, 0.85vw, 18px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hud-song { grid-column: 1 / -1; font-weight: 850; font-size: clamp(16px, 1.15vw, 26px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hud-pos { color: var(--pink-2); margin-right: 0.45em; }
+/* The timeline is a thick bar where there are notes to play and a thin line through every longer
+   stretch without any (the intro, a break, the fade-out): `--segments` is drawn by the game. */
+.hud-timeline { grid-column: 1 / -1; position: relative; height: 12px; margin-top: 7px; }
+.hud-timeline-bar { position: absolute; inset: 0; border-radius: 3px; background: rgb(255 255 255 / 0.22); overflow: hidden; -webkit-mask: linear-gradient(#000 0 0) center / 100% 2px no-repeat, var(--segments, linear-gradient(#000 0 0)) center / 100% 100% no-repeat; mask: linear-gradient(#000 0 0) center / 100% 2px no-repeat, var(--segments, linear-gradient(#000 0 0)) center / 100% 100% no-repeat; }
+.hud-timeline-fill { height: 100%; width: calc(var(--song-p, 0) * 100%); background: linear-gradient(90deg, #b3306f, var(--pink)); }
+.hud-timeline-head { position: absolute; top: -3px; bottom: -3px; left: calc(var(--song-p, 0) * 100%); width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--ink); box-shadow: 0 0 8px rgb(255 255 255 / 0.65); }
+.hud-timeline::before, .hud-timeline::after { content: ''; position: absolute; top: -1px; bottom: -1px; width: 2px; border-radius: 1px; background: rgb(255 255 255 / 0.5); }
+.hud-timeline::before { left: -1px; }
+.hud-timeline::after { right: -1px; }
+.hud-remaining { grid-column: 2; justify-self: end; font-size: clamp(12px, 0.85vw, 18px); font-weight: 800; font-style: italic; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+
+/* Stars: a cut star on a disc. One not yet earned is a dim outline; the next to earn stands on a
+   dark disc with a ring filling toward it; an earned one is lit on a violet disc. After the fifth,
+   gold rises in all five until they turn gold stars: gold discs, glowing. */
+.hud-defs { position: absolute; width: 0; height: 0; }
+.hud-stars { display: flex; gap: clamp(4px, 0.45vw, 9px); }
+.hud-star { position: relative; flex: none; width: clamp(36px, 3.1vw, 62px); aspect-ratio: 1; }
+.hud-star svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.hud-star .disc { fill: rgb(16 9 50 / 0.5); }
+.hud-star .rim { fill: none; stroke: transparent; stroke-width: 1.5; }
+.hud-star :is(.ring-track, .ring) { fill: none; stroke-width: 3.2; opacity: 0; }
+.hud-star .ring-track { stroke: rgb(255 255 255 / 0.2); }
+.hud-star .ring { stroke: var(--star); stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--star-p, 0)); transform: rotate(-90deg); transform-origin: 24px 24px; transition: stroke-dashoffset 0.2s; }
+.hud-star .star { fill: rgb(210 201 250 / 0.3); stroke: rgb(210 201 250 / 0.3); stroke-width: 1.6; stroke-linejoin: round; transition: fill 0.25s, stroke 0.25s; }
+.hud-star :is(.facet-hi, .facet-lo, .gold-rise) { opacity: 0; }
+.hud-star .gold-rise { fill: var(--gold); transform: translateY(calc((1 - var(--star-p, 0)) * 25px)); transition: transform 0.25s; }
+.hud-star[data-state='next'] .disc { fill: rgb(16 9 50 / 0.8); }
+.hud-star[data-state='next'] :is(.ring-track, .ring) { opacity: 1; }
+.hud-star[data-state='next'] .star { fill: rgb(196 166 255 / 0.6); stroke: rgb(196 166 255 / 0.6); }
+.hud-star[data-state='on'] { animation: star-earn 0.55s var(--ease); }
+.hud-star[data-state='on'] .disc { fill: url(#hud-star-disc); }
+.hud-star[data-state='on'] .rim { stroke: rgb(255 255 255 / 0.3); }
+.hud-star[data-state='on'] .star { fill: #f1e9ff; stroke: #f1e9ff; }
+.hud-star[data-state='on'] .facet-hi { fill: #fff; opacity: 0.6; }
+.hud-star[data-state='on'] .facet-lo { fill: #9d83ee; opacity: 0.6; }
+.hud-stars[data-count='5'] .hud-star .gold-rise { opacity: 1; }
+.hud-star[data-state='gold'] { animation: star-earn 0.6s var(--ease) backwards, gold-breathe 2.6s ease-in-out infinite alternate; animation-delay: calc(var(--i, 0) * 70ms), 0.6s; }
+.hud-star[data-state='gold'] .disc { fill: url(#hud-star-gold); }
+.hud-star[data-state='gold'] .rim { stroke: #fff3bd; }
+.hud-star[data-state='gold'] .star { fill: #fffbe8; stroke: #fffbe8; }
+.hud-star[data-state='gold'] .facet-hi { fill: #fff; opacity: 0.95; }
+.hud-star[data-state='gold'] .facet-lo { fill: #ffd27a; opacity: 0.85; }
+@keyframes star-earn { 0% { transform: scale(1.45) rotate(-16deg); } 60% { transform: scale(0.94); } }
+@keyframes gold-breathe { from { filter: drop-shadow(0 0 4px rgb(255 170 40 / 0.75)); } to { filter: drop-shadow(0 0 11px rgb(255 190 70 / 0.95)); } }
+
+/* On the deck, on the player's side of the strike line: the multiplier dial, the overdrive meter
+   arching over it, and the overdrive prompt beside it. */
+.hud-cluster { position: absolute; left: var(--hw-x, 50%); top: calc((var(--hw-y, 80%) + var(--hw-foot, 96%)) / 2); width: 0; height: 0; --dial-size: min(clamp(72px, 6.6vw, 128px), calc((var(--hw-foot, 620px) - var(--hw-y, 500px)) * 0.78)); }
+.hud-dial { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: var(--dial-size); aspect-ratio: 1; display: grid; place-items: center; container-type: size; --dial: rgb(255 255 255 / 0.55); }
+.hud-dial:has([data-level='2']) { --dial: var(--lane-3); }
+.hud-dial:has([data-level='3']) { --dial: var(--lane-0); }
+.hud-dial:has([data-level='4']) { --dial: var(--lane-2); }
+.hud-dial:has([data-level='5']) { --dial: var(--lane-4); }
+.hud-dial:has([data-level='6']) { --dial: var(--gold); }
+.hud.overdrive .hud-dial { --dial: var(--od); }
+.hud-dial-ring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.hud-dial-ring .plate { fill: rgb(12 7 40 / 0.92); stroke: rgb(255 255 255 / 0.14); stroke-width: 1.5; }
+.hud.overdrive .hud-dial-ring .plate { fill: rgb(8 28 62 / 0.94); }
+.hud-dial-ring :is(.track, .fill) { fill: none; stroke-width: 7; transform: rotate(-90deg); transform-origin: 60px 60px; }
+.hud-dial-ring .track { stroke: rgb(255 255 255 / 0.14); }
+.hud-dial-ring .fill { stroke: var(--dial); stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--streak-p, 0)); transition: stroke-dashoffset 0.15s, stroke 0.2s; }
+/* The overdrive meter: four segments, one for every phrase played. */
+.hud-dial-ring :is(.od-track, .od-fill) { fill: none; stroke-width: 7.5; }
+.hud-dial-ring .od-track { stroke: rgb(255 255 255 / 0.2); stroke-dasharray: 0.235 0.02; }
+.hud-dial-ring .od-fill { stroke: var(--od); stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--od-level, 0)); transition: stroke-dashoffset 0.2s; }
+.hud.od-ready .od-fill { filter: drop-shadow(0 0 5px var(--od)); animation: odpulse 1.2s ease-in-out infinite alternate; }
+.hud.overdrive .od-fill { filter: drop-shadow(0 0 7px var(--od)); }
+@keyframes odpulse { from { opacity: 0.7; } }
+.hud-mult { position: relative; font-size: 25cqw; color: var(--ink); }
+.hud-cluster .hud-od { position: absolute; left: calc(var(--dial-size) * 0.5 + clamp(8px, 0.8vw, 16px)); top: 0; transform: translateY(-50%); }
+
+/* Beside the strike line: how the last note was hit, on a slanted tag, with the streak above it.
+   The little target on the tag shows the timing: its bar sits above the middle for a press that
+   came early and below it for one that came late. */
+.hud-feedback { position: absolute; left: calc(var(--hw-x, 50%) - var(--hw-w, 400px) * 0.5 - clamp(14px, 1.6vw, 34px)); top: var(--hw-y, 80%); transform: translate(-100%, -50%); }
+.fb-streak { position: absolute; right: 0.25em; bottom: calc(100% + 0.25em); font-size: clamp(18px, 1.5vw, 34px); font-style: italic; font-weight: 900; font-stretch: 112%; font-variant-numeric: tabular-nums; color: #ffe2b0; text-shadow: 0 2px 8px rgb(0 0 0 / 0.7); }
+.fb-streak[data-hot] { color: #fff; text-shadow: 0 0 10px #ff7a1f, 0 0 22px rgb(255 77 30 / 0.8), 0 2px 6px rgb(0 0 0 / 0.7); }
+.fb-tag { position: relative; isolation: isolate; display: flex; align-items: center; gap: 0.45em; padding: 0.22em 0.75em 0.22em 0.85em; font-size: clamp(15px, 1.15vw, 28px); white-space: nowrap; color: #fff; opacity: 0; --fb: linear-gradient(100deg, #cbbcff, #6a4cf0); }
+.fb-tag::before { content: ''; position: absolute; inset: 0; z-index: -1; transform: skewX(-14deg); border-radius: 4px; background: var(--fb); box-shadow: 0 4px 14px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.45); }
+.fb-tag.pop { animation: fb-pop 1.15s var(--ease) forwards; }
+@keyframes fb-pop { 0% { opacity: 1; transform: translateX(10px) scale(1.16); } 14% { transform: none; } 78% { opacity: 1; } 100% { opacity: 0; transform: none; } }
+.fb-tag[data-kind='perfect'] { --fb: linear-gradient(100deg, #ffe489, #ffb43a 55%, #ff7d3d); color: #3a1500; }
+.fb-tag[data-kind='great'] { --fb: linear-gradient(100deg, #a6f9ea, #5df2d6 50%, #3ab8ff); color: #05283a; }
+.fb-tag[data-kind='good'] { --fb: linear-gradient(100deg, #cbbcff, #9a80ff 55%, #6a4cf0); color: #fff; }
+.fb-tag[data-kind='miss'] { --fb: linear-gradient(100deg, #ff97a6, #ff4d6a 55%, #bb2447); color: #fff; }
+.fb-tag[data-kind='od'] { --fb: linear-gradient(100deg, #e2f5ff, var(--od)); color: #06203a; }
+.fb-tag[data-kind='perfect']::after { content: '✦'; position: absolute; right: -0.15em; top: -0.8em; font-size: 0.8em; font-style: normal; color: #fff; text-shadow: 0 0 8px #ffd66b; }
+.fb-pip { flex: none; width: 1.55em; height: 0.93em; overflow: visible; }
+.fb-pip .slot { fill: rgb(0 0 0 / 0.25); stroke: currentColor; stroke-width: 2; }
+.fb-pip .note { fill: currentColor; transform: translateY(calc(var(--off, 0) * 4.5px)); }
+.fb-tag:not([data-timing]) .fb-pip { display: none; }
+/* Where the highway fills the width there is no room beside it: the tag sits above the strike line. */
+:root[data-input='touch'] .hud-feedback { left: 50%; top: 25%; transform: translate(-50%, -50%); }
+:root[data-input='touch'] .fb-streak { right: 50%; transform: translateX(50%); }
+
+/* The lanes' keys stand on the deck at the foot of the screen, each under its lane. */
+.lane-key { position: absolute; left: 0; top: 0; min-width: 1.9em; height: 1.6em; padding: 0 0.42em; display: grid; place-items: center; border-radius: 5px; background: rgb(0 0 0 / 0.55); font-size: clamp(14px, 1vw, 22px); font-weight: 900; box-shadow: inset 0 -3px 0 var(--lane); }
 .hud-pause { position: absolute; top: calc(10px + var(--safe-t)); right: calc(12px + var(--safe-r)); display: none; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--panel-hud); color: var(--ink); pointer-events: auto; transition: background 0.16s, transform 0.2s var(--ease); }
 .hud-pause svg { width: 22px; height: 22px; }
 .hud-pause:active { transform: scale(0.9); }
 :root:is([data-input='mouse'], [data-input='touch']) .hud-pause { display: grid; }
 
-.hud-scorebox { position: absolute; left: calc(3.5% + var(--safe-l)); bottom: calc(9% + var(--safe-b)); display: flex; flex-direction: column; gap: 8px; }
-.hud-stars { display: flex; gap: clamp(4px, 0.4vw, 8px); }
-.hud-star { position: relative; display: grid; place-items: center; width: clamp(34px, 3vw, 58px); aspect-ratio: 1; border-radius: 50%; background: var(--panel-hud); }
-.hud-star svg { width: 58%; height: 58%; }
-.hud-star path { fill: rgb(210 201 250 / 0.28); transition: fill 0.25s; }
-.hud-star::before { content: ''; position: absolute; inset: 0; border-radius: 50%; opacity: 0; background: conic-gradient(var(--gold) calc(var(--star-p, 0) * 1turn), rgb(255 255 255 / 0.2) 0); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4.5px), #000 calc(100% - 4px)); mask: radial-gradient(farthest-side, transparent calc(100% - 4.5px), #000 calc(100% - 4px)); }
-.hud-stars[data-count='0'] .hud-star:nth-child(1)::before, .hud-stars[data-count='1'] .hud-star:nth-child(2)::before, .hud-stars[data-count='2'] .hud-star:nth-child(3)::before,
-.hud-stars[data-count='3'] .hud-star:nth-child(4)::before, .hud-stars[data-count='4'] .hud-star:nth-child(5)::before { opacity: 1; }
-.hud-stars[data-count='1'] .hud-star:nth-child(-n + 1), .hud-stars[data-count='2'] .hud-star:nth-child(-n + 2), .hud-stars[data-count='3'] .hud-star:nth-child(-n + 3),
-.hud-stars[data-count='4'] .hud-star:nth-child(-n + 4), .hud-stars[data-count='5'] .hud-star:nth-child(-n + 5) { background: var(--raised-hi); animation: star-earn 0.5s var(--ease); }
-.hud-stars[data-count='1'] .hud-star:nth-child(-n + 1) path, .hud-stars[data-count='2'] .hud-star:nth-child(-n + 2) path, .hud-stars[data-count='3'] .hud-star:nth-child(-n + 3) path,
-.hud-stars[data-count='4'] .hud-star:nth-child(-n + 4) path, .hud-stars[data-count='5'] .hud-star:nth-child(-n + 5) path { fill: var(--gold); }
-@keyframes star-earn { 0% { transform: scale(1.35); } }
-.hud-scorepanel { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; padding: clamp(6px, 0.6vw, 12px) clamp(12px, 1vw, 20px); border-radius: 12px; background: var(--panel-hud); }
-.hud-part { font-size: clamp(11px, 0.8vw, 18px); color: var(--ink-2); white-space: nowrap; }
+.hud-scorepanel { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: clamp(6px, 0.6vw, 12px) clamp(12px, 1vw, 20px); border-radius: 12px; background: var(--panel-hud); }
+/* The label stands on two lines beside the number, so the panel stays as narrow as the column. */
+.hud-part { width: min-content; font-size: clamp(11px, 0.8vw, 18px); line-height: 1.05; color: var(--ink-2); }
 /* The instrument being played, in front of its name. */
 .hud-part-icon { flex: none; align-self: center; width: clamp(18px, 1.5vw, 34px); height: clamp(18px, 1.5vw, 34px); margin-right: -8px; color: var(--ink); }
 .hud-score { margin-left: auto; }
 .hud-score { font-size: clamp(26px, 2.3vw, 54px); font-variant-numeric: tabular-nums; }
 
-/* Under the lanes: the overdrive meter across their width, then the multiplier dial in the middle
-   with the overdrive button beside it. They are one grid, so they line up whatever their sizes. */
-.hud-cluster { position: absolute; left: calc(var(--hw-x, 50%) - var(--hw-w, 400px) * 0.5); top: calc(var(--hw-y, 80%) + clamp(31px, 2.9vw, 54px)); width: var(--hw-w, 400px); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-areas: 'bar bar bar' '. dial od'; align-items: center; gap: clamp(8px, 0.7vw, 14px) clamp(10px, 1vw, 18px); }
-.hud-od-bar { grid-area: bar; display: block; height: 6px; border-radius: 3px; background: rgb(255 255 255 / 0.18); overflow: hidden; }
-.hud-od-bar span { display: block; height: 100%; transform-origin: left; transform: scaleX(var(--od-level, 0)); background: var(--od); transition: transform 0.2s; }
 
-/* The dial: the multiplier, ringed by the streak toward its next step. */
-.hud-dial { grid-area: dial; position: relative; width: clamp(62px, 5.4vw, 104px); aspect-ratio: 1; display: grid; place-items: center; align-content: center; border-radius: 50%; background: var(--panel-hud); container-type: size; --dial: rgb(255 255 255 / 0.5); }
-.hud-dial:has([data-level='2']) { --dial: var(--lane-3); }
-.hud-dial:has([data-level='3']) { --dial: var(--lane-0); }
-.hud-dial:has([data-level='4']) { --dial: var(--lane-4); }
-.hud-dial:has([data-level='6'], [data-level='8']) { --dial: var(--od); }
-.hud-dial-ring { position: absolute; inset: 0; transform: rotate(-90deg); }
-.hud-dial-ring circle { fill: none; stroke-width: 8; }
-.hud-dial-ring .track { stroke: rgb(255 255 255 / 0.14); }
-.hud-dial-ring .fill { stroke: var(--dial); stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--streak-p, 0)); transition: stroke-dashoffset 0.15s, stroke 0.2s; }
-.hud-mult { font-size: 36cqw; color: var(--ink); }
 
 /* Overdrive: its name and key beside the dial; pressing it starts overdrive. */
 .hud-od { grid-area: od; justify-self: start; position: relative; display: flex; align-items: center; gap: 6px; padding: 0; border-radius: 999px; color: var(--ink-3); font-size: clamp(12px, 0.85vw, 20px); white-space: nowrap; pointer-events: auto; transform-origin: 0 50%; transition: font-size 0.2s var(--ease), padding 0.2s var(--ease), background 0.2s, color 0.2s; }
@@ -700,21 +773,6 @@ img.cover { animation: fade-in 0.35s var(--ease) backwards; }
 .hud.od-ready .hud-od-key .glyph { font-size: 0.85em; }
 /* The call-out holds still: only its glow breathes, slowly, so it never pulls the eye off the notes. */
 @keyframes od-call { 50% { box-shadow: 0 0 30px var(--od), 0 0 0 3px rgb(191 230 255 / 0.22); } }
-.hud.od-ready .hud-od-bar { box-shadow: 0 0 14px var(--od); animation: odpulse 1.2s ease-in-out infinite alternate; }
-.hud.overdrive .hud-od-bar { box-shadow: 0 0 18px var(--od); }
-@keyframes odpulse { to { box-shadow: 0 0 20px var(--od); } }
-.hud-feedback { position: absolute; left: calc(var(--hw-x, 50%) - var(--hw-w, 400px) * 0.5 - clamp(16px, 2.2vw, 44px)); top: calc(var(--hw-y, 80%) - clamp(34px, 3vw, 60px)); transform: translate(-100%, -50%) scale(0.8); transform-origin: 100% 50%; font-size: clamp(26px, 2.2vw, 58px); opacity: 0; white-space: nowrap; text-shadow: 0 2px 10px rgb(0 0 0 / 0.6); }
-.hud-feedback.pop { animation: pop 0.45s ease-out forwards; }
-.hud-feedback[data-kind='perfect'] { color: #fff7a8; }
-.hud-feedback[data-kind='great'] { color: #9ff3ff; }
-.hud-feedback[data-kind='good'] { color: #d6c8ff; }
-.hud-feedback[data-kind='miss'] { color: #ff7b8b; }
-.hud-feedback[data-kind='od'] { color: var(--od); }
-@keyframes pop { 0% { opacity: 1; transform: translate(-100%, -50%) scale(1.15); } 100% { opacity: 0; transform: translate(-100%, -90%) scale(1); } }
-/* Where the highway fills the width there is no room beside it: the word sits above the strike line. */
-:root[data-input='touch'] .hud-feedback { left: 50%; top: 25%; transform-origin: 50% 50%; animation-name: none; }
-:root[data-input='touch'] .hud-feedback.pop { animation: pop-mid 0.45s ease-out forwards; }
-@keyframes pop-mid { 0% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -80%) scale(1); } }
 
 /* Break countdown: bars left in a ring that drains until the next note is due. */
 .hud-break { position: absolute; left: 50%; top: 34%; width: clamp(120px, 13vw, 190px); aspect-ratio: 1; transform: translate(-50%, -50%) scale(0.85); opacity: 0; transition: opacity 0.35s, transform 0.35s; display: grid; place-items: center; container-type: size; }
@@ -771,7 +829,6 @@ img.cover { animation: fade-in 0.35s var(--ease) backwards; }
 .hud-break.final .hud-break-num { color: #fff7c2; text-shadow: 0 0 30px var(--gold); }
 @keyframes break-tick { 0% { transform: scale(1.45); opacity: 0.4; } 100% { transform: scale(1); opacity: 1; } }
 
-.lane-key { position: absolute; left: 0; top: 0; min-width: 2em; height: 1.75em; padding: 0 0.45em; display: grid; place-items: center; border-radius: 5px; background: rgb(0 0 0 / 0.62); font-size: clamp(16px, 1.05vw, 24px); font-weight: 900; box-shadow: inset 0 -3px 0 var(--lane); }
 .lane-key.pad { background: transparent; box-shadow: none; height: auto; font-size: clamp(16px, 1vw, 24px); padding: 0; }
 :root[data-input='touch'] .lane-key { display: none; }
 .countdown { position: absolute; inset: 0; display: grid; place-items: center; font-size: clamp(90px, 14vw, 170px); pointer-events: none; animation: count 1s ease-out forwards; text-shadow: 0 0 40px var(--pink); }
@@ -783,10 +840,13 @@ img.cover { animation: fade-in 0.35s var(--ease) backwards; }
    the dial and the overdrive button are one flex column, and pause is centred on its width. */
 :root[data-input='touch'] .hud { --edge: 64px; --edge-r: calc(12px + var(--safe-r)); }
 :root[data-input='touch'] .hud-pause { width: 48px; height: 48px; right: calc(var(--edge-r) + (var(--edge) - 48px) / 2); }
-:root[data-input='touch'] .hud-cluster { left: auto; right: var(--edge-r); top: max(30%, calc(70px + var(--safe-t))); width: var(--edge); display: flex; flex-direction: column; align-items: center; gap: 12px; }
-:root[data-input='touch'] .hud-od-bar { display: none; }
-:root[data-input='touch'] .hud-dial { width: var(--edge); }
-:root[data-input='touch'] .hud-od { width: var(--edge); height: var(--edge); justify-content: center; border-radius: 50%; background: var(--panel-hud); color: var(--ink-2); }
+:root[data-input='touch'] .hud-cluster { left: auto; right: var(--edge-r); top: max(30%, calc(70px + var(--safe-t))); width: var(--edge); height: auto; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+:root[data-input='touch'] .hud-dial { position: relative; transform: none; width: var(--edge); }
+/* There the meter is the overdrive button's own ring, so the dial is only the dial. */
+:root[data-input='touch'] .hud-dial-ring { transform: scale(1.45); }
+:root[data-input='touch'] .hud-dial-ring :is(.od-track, .od-fill) { display: none; }
+:root[data-input='touch'] .hud-mult { font-size: 34cqw; }
+:root[data-input='touch'] .hud-od { position: relative; left: auto; top: auto; transform: none; width: var(--edge); height: var(--edge); justify-content: center; border-radius: 50%; background: var(--panel-hud); color: var(--ink-2); }
 /* There the meter is the button's own ring, like the streak's ring on the dial. */
 :root[data-input='touch'] .hud-od::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(var(--od) calc(var(--od-level, 0) * 1turn), rgb(255 255 255 / 0.18) 0); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5.5px)); }
 :root[data-input='touch'] .hud-od-word { display: none; }
@@ -795,10 +855,11 @@ img.cover { animation: fade-in 0.35s var(--ease) backwards; }
 :root[data-input='touch'] .hud.od-ready .hud-od::before { opacity: 0; }
 /* With the button on the left, it leaves the column for the other edge, level with the dial. */
 :root[data-input='touch'] .play[data-od-side='left'] .hud-od { position: absolute; top: 0; right: calc(100vw - var(--edge-r) - var(--safe-l) - 12px - var(--edge)); }
-:root[data-input='touch'] .hud-scorebox { left: calc(12px + var(--safe-l)); bottom: auto; top: calc(10px + var(--safe-t)); flex-direction: column-reverse; }
-:root[data-input='touch'] .hud-top { top: 0; left: 0; width: 100%; transform: none; }
-:root[data-input='touch'] .hud-title { display: none; }
-:root[data-input='touch'] .hud-progress { margin: 0; border-radius: 0; height: calc(4px + var(--safe-t)); }
+:root[data-input='touch'] .hud-scorebox { left: calc(12px + var(--safe-l)); bottom: auto; top: calc(10px + var(--safe-t)); flex-direction: column-reverse; width: clamp(170px, 44vw, 250px); gap: 6px; }
+:root[data-input='touch'] :is(.hud-artist, .hud-song) { display: none; }
+:root[data-input='touch'] .hud-songbox { padding: 6px 8px 2px; }
+:root[data-input='touch'] .hud-timeline { margin-top: 0; }
+:root[data-input='touch'] .hud-star { width: clamp(26px, 7vw, 36px); }
 /* ------------------------------------------------------------------------------------------- */
 /* Chart debugger (developer tool)                                                              */
 
@@ -996,9 +1057,9 @@ img.cover { animation: fade-in 0.35s var(--ease) backwards; }
 /* ------------------------------------------------------------------------------------------- */
 /* Calm motion when asked for: state changes stay, travel and bounce go.                       */
 
-:root[data-motion='reduced'] *:not(.hud-feedback, .countdown, .hud-break, .hud-break *),
-:root[data-motion='reduced'] *:not(.hud-feedback, .countdown, .hud-break, .hud-break *)::before,
-:root[data-motion='reduced'] *:not(.hud-feedback, .countdown, .hud-break, .hud-break *)::after {
+:root[data-motion='reduced'] *:not(.fb-tag, .countdown, .hud-break, .hud-break *),
+:root[data-motion='reduced'] *:not(.fb-tag, .countdown, .hud-break, .hud-break *)::before,
+:root[data-motion='reduced'] *:not(.fb-tag, .countdown, .hud-break, .hud-break *)::after {
   animation-duration: 0.01ms !important;
   animation-delay: 0s !important;
   animation-iteration-count: 1 !important;
