@@ -19,6 +19,18 @@ export type StemAnalyzer = (songId: string, onProgress: (p: number, label: strin
 
 const abortError = () => new DOMException('analysis cancelled', 'AbortError');
 
+/** A stem at the model's rate, mono, brought to the analysis rate by the browser's resampler. */
+async function toAnalysisRate(stem: Float32Array): Promise<Float32Array> {
+  const buffer = new AudioBuffer({ length: stem.length, numberOfChannels: 1, sampleRate: MODEL_RATE });
+  buffer.copyToChannel(stem as Float32Array<ArrayBuffer>, 0);
+  const ctx = new OfflineAudioContext(1, Math.ceil((stem.length * ANALYSIS_SAMPLE_RATE) / MODEL_RATE), ANALYSIS_SAMPLE_RATE);
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(ctx.destination);
+  src.start();
+  return (await ctx.startRendering()).getChannelData(0);
+}
+
 /** The song in stereo at the model's rate. */
 async function modelInput(buffer: AudioBuffer): Promise<[Float32Array, Float32Array]> {
   const ctx = new OfflineAudioContext(2, Math.ceil(buffer.duration * MODEL_RATE), MODEL_RATE);
@@ -60,6 +72,7 @@ export const stemAnalyzer: StemAnalyzer = async (songId, onProgress, signal) => 
 
   return new Promise<StemResult>((resolve, reject) => {
     const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+    const wavs = {} as Record<StemName, ArrayBuffer>;
     const stop = () => {
       worker.terminate();
       reject(abortError());
@@ -73,12 +86,24 @@ export const stemAnalyzer: StemAnalyzer = async (songId, onProgress, signal) => 
       const m = e.data;
       if (m.type === 'progress') onProgress(m.progress, m.step);
       else if (m.type === 'log') console.info('[analysis]', m.message);
-      else {
+      else if (m.type === 'separated') {
+        void (async () => {
+          try {
+            const rated = {} as Record<StemName, Float32Array>;
+            for (const name of STEM_NAMES) rated[name] = await toAnalysisRate(m.stems[name]);
+            for (const name of STEM_NAMES) wavs[name] = wavBytes(rated[name], ANALYSIS_SAMPLE_RATE);
+            const pitched = { bass: rated.bass, vocals: rated.vocals, other: rated.other };
+            const next: SeparationRequest = { type: 'transcribe', stems: pitched };
+            worker.postMessage(next, Object.values(pitched).map((s) => s.buffer));
+          } catch (err) {
+            end();
+            reject(new Error(`The stems could not be prepared (${(err as Error).message}).`));
+          }
+        })();
+      } else {
         end();
         if (m.type === 'error') return reject(new Error(`The song could not be separated into stems (${m.message}).`));
-        const stems = {} as Record<StemName, ArrayBuffer>;
-        for (const name of STEM_NAMES) stems[name] = wavBytes(m.stems[name], ANALYSIS_SAMPLE_RATE);
-        resolve({ stems, notes: m.notes });
+        resolve({ stems: wavs, notes: m.notes });
       }
     };
     worker.onerror = (e) => {

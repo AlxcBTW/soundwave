@@ -3,24 +3,32 @@ import * as ort from 'onnxruntime-web/webgpu';
 import { transcribeOnnx } from '../pitch/basicPitchOnnx';
 import type { StemName, StemNotes } from '../types';
 import type { LoadedModel } from './model';
-import { halve } from './resample';
 import { MODEL_STEMS, separate, type SegmentModel } from './separate';
 import { BINS, FRAMES, SEGMENT } from './stft';
 
-export type SeparationRequest = {
-  type: 'separate';
-  /** The song in stereo at 44.1 kHz. */
-  left: Float32Array;
-  right: Float32Array;
-  model: LoadedModel;
-  device: 'gpu' | 'cpu';
-  pitchModelUrl: string;
-};
+/**
+ * Two steps: the song is separated and its stems handed back at the model's rate; the page brings
+ * them to the analysis rate (the browser's own resampler is far faster than any done here) and
+ * hands the pitched ones back for transcription.
+ */
+export type SeparationRequest =
+  | {
+      type: 'separate';
+      /** The song in stereo at 44.1 kHz. */
+      left: Float32Array;
+      right: Float32Array;
+      model: LoadedModel;
+      device: 'gpu' | 'cpu';
+      pitchModelUrl: string;
+    }
+  | { type: 'transcribe'; stems: Record<'bass' | 'vocals' | 'other', Float32Array> };
 
 export type SeparationResponse =
   | { type: 'progress'; progress: number; step: string }
   | { type: 'log'; message: string }
-  | { type: 'done'; stems: Record<StemName, Float32Array>; notes: StemNotes; device: 'gpu' | 'cpu' }
+  /** Each stem in mono at 44.1 kHz. */
+  | { type: 'separated'; stems: Record<StemName, Float32Array> }
+  | { type: 'done'; notes: StemNotes; device: 'gpu' | 'cpu' }
   | { type: 'error'; message: string };
 
 const post = (m: SeparationResponse, transfer: Transferable[] = []) => (self as DedicatedWorkerGlobalScope).postMessage(m, transfer);
@@ -60,9 +68,12 @@ function runner(session: ort.InferenceSession): SegmentModel {
   };
 }
 
+/** Set by the separation step for the transcription step. */
+let pitch: { url: string; device: 'gpu' | 'cpu' } | null = null;
+
 self.onmessage = async (e: MessageEvent<SeparationRequest>) => {
   const req = e.data;
-  if (req.type !== 'separate') return;
+  if (req.type === 'transcribe') return transcribeStems(req.stems);
   try {
     // The runtime's script and WebAssembly file are served next to the app (public/ort). The script
     // is handed over as a blob, because the runtime starts its threads from the script's own address:
@@ -91,18 +102,29 @@ self.onmessage = async (e: MessageEvent<SeparationRequest>) => {
     }
     post({ type: 'log', message: `stem model on ${device} loaded in ${Math.round(performance.now() - opened)} ms` });
 
-    // Separation is nearly all of the work, on a graphics card and on a processor alike.
-    const share = 0.9;
     const started = performance.now();
     const full = await separate(req.left, req.right, runner(session), (p) => post({ type: 'progress', progress: p * share, step: 'Separating stems' }));
     await session.release();
     post({ type: 'log', message: `separated ${(req.left.length / 44100).toFixed(0)} s in ${Math.round(performance.now() - started)} ms` });
 
     const stems = {} as Record<StemName, Float32Array>;
-    MODEL_STEMS.forEach((name, i) => (stems[name] = halve(full[i])));
+    MODEL_STEMS.forEach((name, i) => (stems[name] = full[i]));
+    pitch = { url: req.pitchModelUrl, device };
+    post({ type: 'separated', stems }, full.map((s) => s.buffer));
+  } catch (err) {
+    post({ type: 'error', message: (err as Error).message || String(err) });
+  }
+};
+
+/** Separation is nearly all of the work, on a graphics card and on a processor alike. */
+const share = 0.9;
+
+async function transcribeStems(stems: Record<'bass' | 'vocals' | 'other', Float32Array>) {
+  try {
+    const { url, device } = pitch!;
     const notes = {} as StemNotes;
     const pitched = ['bass', 'vocals', 'other'] as const;
-    const transcriber = await openPitchSession(req.pitchModelUrl, device);
+    const transcriber = await openPitchSession(url, device);
     for (const [i, name] of pitched.entries()) {
       const at = share + ((1 - share) * i) / pitched.length;
       const label = name === 'other' ? 'Transcribing instruments' : `Transcribing ${name}`;
@@ -112,8 +134,8 @@ self.onmessage = async (e: MessageEvent<SeparationRequest>) => {
       post({ type: 'log', message: `transcribed ${name} on ${device} in ${Math.round(t.modelMs + t.notesMs)} ms (${Math.round(t.notesMs)} ms of it decoding notes)` });
     }
     await transcriber.release();
-    post({ type: 'done', stems, notes, device }, Object.values(stems).map((s) => s.buffer));
+    post({ type: 'done', notes, device });
   } catch (err) {
     post({ type: 'error', message: (err as Error).message || String(err) });
   }
-};
+}

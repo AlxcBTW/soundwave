@@ -1,4 +1,4 @@
-import { addInverse, BINS, FRAMES, SEGMENT, spectrogram } from './stft';
+import { addInversePair, BINS, FRAMES, SEGMENT, spectrogram } from './stft';
 
 /** The stems in the order the model gives them. */
 export const MODEL_STEMS = ['drums', 'bass', 'other', 'vocals'] as const;
@@ -12,7 +12,8 @@ const SOURCES = MODEL_STEMS.length;
 /**
  * The network itself, for one segment: `x` is the normalised spectrogram (4 planes of BINS x FRAMES:
  * left re, left im, right re, right im) and `xt` the normalised segment (left, then right). It
- * returns, still normalised, 4 such planes per stem and 2 channels per stem.
+ * returns, still normalised, 4 such planes per stem and 2 channels per stem. The input arrays must
+ * not be changed until the returned promise settles.
  */
 export interface SegmentModel {
   run(x: Float32Array, xt: Float32Array): Promise<{ x: Float32Array; xt: Float32Array }>;
@@ -34,10 +35,27 @@ function normalise(a: Float32Array): [number, number] {
   return [mean, dev];
 }
 
+/** One segment's input to the network, and what is needed to read its output. */
+interface Segment {
+  offset: number;
+  /** Samples of the song in it, and where they start in it (a short last segment is centred). */
+  span: number;
+  lead: number;
+  x: Float32Array;
+  xt: Float32Array;
+  xMean: number;
+  xDev: number;
+  tMean: number;
+  tDev: number;
+}
+
 /**
  * Splits a stereo song at 44.1 kHz into its four stems, each mixed to mono, the way Demucs applies
  * its model: overlapping 7.8 s segments, each weighted by a triangle and summed. Unlike Demucs'
  * default there is no random time shift, so the same song always gives the same stems.
+ *
+ * The network and the work around it overlap: while the network runs on one segment, the next one
+ * is prepared and the previous one's output turned into sound.
  */
 export async function separate(
   left: Float32Array,
@@ -57,16 +75,14 @@ export async function separate(
 
   const stems = MODEL_STEMS.map(() => new Float32Array(length));
   const weights = new Float32Array(length);
-  const xt = new Float32Array(2 * SEGMENT);
-  const x = new Float32Array(4 * PLANE);
-  const mono = new Float32Array(SEGMENT);
-  const both = new Float32Array(2 * PLANE);
+  const monos = [new Float32Array(SEGMENT), new Float32Array(SEGMENT)];
   const half = SEGMENT / 2;
   const weight = (i: number) => (i < half ? i + 1 : SEGMENT - i) / half;
+  // Two sets of input buffers: one is with the network while the other is filled.
+  const buffers = [0, 1].map(() => ({ x: new Float32Array(4 * PLANE), xt: new Float32Array(2 * SEGMENT) }));
 
-  for (let offset = 0; offset < length; offset += STRIDE) {
-    if (aborted()) throw new DOMException('analysis cancelled', 'AbortError');
-    // A short last segment is centred in a full-length one, with what comes before it and silence after.
+  const prepare = (offset: number, buffer: (typeof buffers)[number]): Segment => {
+    const { x, xt } = buffer;
     const span = Math.min(length - offset, SEGMENT);
     const lead = Math.floor((SEGMENT - span) / 2);
     const start = offset - lead;
@@ -80,28 +96,40 @@ export async function separate(
     spectrogram(xt.subarray(SEGMENT), x, 2);
     const [xMean, xDev] = normalise(x);
     const [tMean, tDev] = normalise(xt);
-    const out = await model.run(x, xt);
+    return { offset, span, lead, x, xt, xMean, xDev, tMean, tDev };
+  };
 
-    // Both outputs come back normalised like the inputs.
-    for (let i = 0; i < out.x.length; i++) out.x[i] = out.x[i] * xDev + xMean;
-    for (let s = 0; s < SOURCES; s++) {
-      // Both channels at once: the mono stem is their average, and the inverse transform is linear,
-      // so the two spectrograms are averaged and transformed back together.
-      const at0 = s * 4 * PLANE;
-      for (let i = 0; i < 2 * PLANE; i++) both[i] = (out.x[at0 + i] + out.x[at0 + 2 * PLANE + i]) / 2;
-      mono.fill(0);
-      addInverse(both, 0, PLANE, mono, 1);
-      const l = s * 2 * SEGMENT;
-      const r = l + SEGMENT;
-      const stem = stems[s];
-      for (let i = 0; i < span; i++) {
-        const at = lead + i;
-        const v = mono[at] + ((out.xt[l + at] + out.xt[r + at]) / 2) * tDev + tMean;
-        stem[offset + i] += weight(i) * v;
+  const finish = (seg: Segment, out: { x: Float32Array; xt: Float32Array }) => {
+    for (let s = 0; s < SOURCES; s += 2) {
+      const [m1, m2] = monos;
+      m1.fill(0);
+      m2.fill(0);
+      addInversePair(out.x, s * 4 * PLANE, (s + 1) * 4 * PLANE, seg.xDev, seg.xMean, m1, m2);
+      for (const [j, mono] of [m1, m2].entries()) {
+        const l = (s + j) * 2 * SEGMENT;
+        const r = l + SEGMENT;
+        const stem = stems[s + j];
+        for (let i = 0; i < seg.span; i++) {
+          const at = seg.lead + i;
+          stem[seg.offset + i] += weight(i) * (mono[at] + ((out.xt[l + at] + out.xt[r + at]) / 2) * seg.tDev + seg.tMean);
+        }
       }
     }
-    for (let i = 0; i < span; i++) weights[offset + i] += weight(i);
-    onProgress(Math.min(1, (offset + span) / length));
+    for (let i = 0; i < seg.span; i++) weights[seg.offset + i] += weight(i);
+  };
+
+  const offsets: number[] = [];
+  for (let offset = 0; offset < length; offset += STRIDE) offsets.push(offset);
+  let current = prepare(offsets[0], buffers[0]);
+  let pending = model.run(current.x, current.xt);
+  for (let k = 0; k < offsets.length; k++) {
+    if (aborted()) throw new DOMException('analysis cancelled', 'AbortError');
+    const next = k + 1 < offsets.length ? prepare(offsets[k + 1], buffers[(k + 1) % 2]) : null;
+    const out = await pending;
+    if (next) pending = model.run(next.x, next.xt);
+    finish(current, out);
+    onProgress(Math.min(1, (current.offset + current.span) / length));
+    if (next) current = next;
   }
   for (const stem of stems) for (let i = 0; i < length; i++) stem[i] = (stem[i] / weights[i]) * scale + mean;
   return stems;

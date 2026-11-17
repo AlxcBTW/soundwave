@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { halve } from '../src/analysis/separation/resample';
 import { MODEL_STEMS, separate, type SegmentModel } from '../src/analysis/separation/separate';
-import { addInverse, BINS, FRAMES, SEGMENT, spectrogram } from '../src/analysis/separation/stft';
+import { addInverse, addInversePair, BINS, FRAMES, SEGMENT, spectrogram } from '../src/analysis/separation/stft';
 
 const PLANE = BINS * FRAMES;
 const tone = (i: number) => Math.fround(Math.sin(0.01 * i) + 0.5 * Math.sin(0.37 * i + 1));
@@ -52,6 +51,35 @@ describe('the stem model transform', () => {
   });
 });
 
+describe('the paired inverse transform', () => {
+  it('gives each of two stems what transforming its averaged channels on its own gives', () => {
+    // Model-like output for two stems: four planes each, still normalised.
+    const rnd = (() => {
+      let v = 7;
+      return () => ((v = (v * 1664525 + 1013904223) >>> 0) / 2 ** 32) * 2 - 1;
+    })();
+    const planes = Float32Array.from({ length: 8 * PLANE }, rnd);
+    const dev = 3.5;
+    const mean = 0.02;
+    const pair = [new Float32Array(SEGMENT), new Float32Array(SEGMENT)];
+    addInversePair(planes, 0, 4 * PLANE, dev, mean, pair[0], pair[1]);
+    for (const [j, base] of [0, 4 * PLANE].entries()) {
+      // The plain way: undo the normalisation, average the channels, transform.
+      const avg = new Float32Array(2 * PLANE);
+      for (let i = 0; i < 2 * PLANE; i++) avg[i] = ((planes[base + i] * dev + mean) + (planes[base + 2 * PLANE + i] * dev + mean)) / 2;
+      const single = new Float32Array(SEGMENT);
+      addInverse(avg, 0, PLANE, single, 1);
+      let worst = 0;
+      let peak = 0;
+      for (let i = 0; i < SEGMENT; i++) {
+        worst = Math.max(worst, Math.abs(single[i] - pair[j][i]));
+        peak = Math.max(peak, Math.abs(single[i]));
+      }
+      expect(worst / peak).toBeLessThan(1e-5);
+    }
+  });
+});
+
 describe('separating a song', () => {
   // A stand-in network: every stem gets a quarter of the song through the spectrogram and none
   // through the time branch, so the four stems must add up to the song.
@@ -85,17 +113,5 @@ describe('separating a song', () => {
   it('stops when the analysis is cancelled', async () => {
     const l = new Float32Array(SEGMENT);
     await expect(separate(l, l, quarter, () => {}, () => true)).rejects.toThrow(/cancelled/);
-  });
-});
-
-describe('halving the sample rate', () => {
-  it('keeps what is below the new limit and removes what would fold back', () => {
-    const n = 44100;
-    const low = Float32Array.from({ length: n }, (_, i) => Math.sin((2 * Math.PI * 1000 * i) / 44100));
-    const high = Float32Array.from({ length: n }, (_, i) => Math.sin((2 * Math.PI * 15000 * i) / 44100));
-    const rms = (a: Float32Array) => Math.sqrt(a.slice(500, -500).reduce((s, v) => s + v * v, 0) / (a.length - 1000));
-    expect(halve(low)).toHaveLength(n / 2);
-    expect(rms(halve(low))).toBeCloseTo(Math.SQRT1_2, 2);
-    expect(rms(halve(high))).toBeLessThan(0.001);
   });
 });

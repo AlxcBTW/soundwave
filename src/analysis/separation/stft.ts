@@ -85,3 +85,49 @@ export function addInverse(planes: Float32Array, re: number, im: number, out: Fl
     for (let n = from; n < to; n++) out[at + n] += time[2 * n] * HANN[n] * k;
   }
 }
+
+/**
+ * The mono signals of two stems at once, added onto `out1` and `out2`. `planes` is the model's
+ * output for a segment; each stem's four planes (left re, left im, right re, right im, BINS x FRAMES
+ * each) start at `base1` and `base2` and are still normalised: `dev` and `mean` undo that.
+ *
+ * Mono is the average of the channels, and the transform is linear, so the channels are averaged
+ * before it. Two stems share one transform: both signals are real, so the inverse of
+ * Z1 + i·Z2 has the first stem as its real part and the second as its imaginary part. As in
+ * HTDemucs._ispec, the imaginary part of the first bin is ignored.
+ */
+export function addInversePair(planes: Float32Array, base1: number, base2: number, dev: number, mean: number, out1: Float32Array, out2: Float32Array): void {
+  const shift = PAD + CENTER;
+  const k = 1 / (SCALE * WINDOW_SUM);
+  const P = BINS * FRAMES;
+  const half = 0.5 * dev;
+  for (let t = 0; t < FRAMES; t++) {
+    for (let f = 0; f < BINS; f++) {
+      const at = f * FRAMES + t;
+      const r1 = (planes[base1 + at] + planes[base1 + 2 * P + at]) * half + mean;
+      const i1 = (planes[base1 + P + at] + planes[base1 + 3 * P + at]) * half + mean;
+      const r2 = (planes[base2 + at] + planes[base2 + 2 * P + at]) * half + mean;
+      const i2 = (planes[base2 + P + at] + planes[base2 + 3 * P + at]) * half + mean;
+      if (f === 0) {
+        spectrum[0] = r1;
+        spectrum[1] = r2;
+        continue;
+      }
+      spectrum[2 * f] = r1 - i2;
+      spectrum[2 * f + 1] = i1 + r2;
+      spectrum[2 * (NFFT - f)] = r1 + i2;
+      spectrum[2 * (NFFT - f) + 1] = r2 - i1;
+    }
+    spectrum[2 * BINS] = 0;
+    spectrum[2 * BINS + 1] = 0;
+    fft.inverseTransform(time, spectrum);
+    const at = (t + SKIP) * HOP - shift;
+    const from = Math.max(0, -at);
+    const to = Math.min(NFFT, SEGMENT - at);
+    for (let n = from; n < to; n++) {
+      const w = HANN[n] * k;
+      out1[at + n] += time[2 * n] * w;
+      out2[at + n] += time[2 * n + 1] * w;
+    }
+  }
+}
