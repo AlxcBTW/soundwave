@@ -85,6 +85,9 @@ export function ResultsScreen({ title, subtitle, results: r, best, onRetry, onDo
           <div><dt>Good</dt><dd>{r.counts.good}</dd></div>
           <div className="miss"><dt>Miss</dt><dd>{r.counts.miss}</dd></div>
           <div><dt>Overdrives</dt><dd>{r.overdriveActivations}</dd></div>
+          {r.releases.total > 0 && (
+            <div><dt>Releases</dt><dd>{r.releases.hit}/{r.releases.total}</dd></div>
+          )}
           <div><dt>Notes</dt><dd>{r.totalNotes}</dd></div>
         </dl>
         <div className="results-actions">

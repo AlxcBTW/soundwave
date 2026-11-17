@@ -13,6 +13,8 @@ export interface Note {
   lane: number;
   /** Sustain length in seconds (0 = tap note). */
   dur: number;
+  /** A held note that must also be let go on time, at the end of its sustain. */
+  release?: boolean;
   /** Overdrive phrase id, or -1 when the note is not part of a phrase. */
   phrase: number;
 }

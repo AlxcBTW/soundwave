@@ -197,3 +197,28 @@ describe('local feel', () => {
     expect(feel(34)).toBe('triplet');
   });
 });
+
+describe('release notes', () => {
+  // Long sung notes that end on a beat, each followed by a rest.
+  const base = fakeAnalysis();
+  const spb = 0.5;
+  const vocals: AnalysisResult['vocals'] = [];
+  for (let i = 0; i < 24; i++) vocals.push({ t: 1 + i * 4 * spb, dur: 2 * spb, midi: 60 + (i % 5), strength: 0.8 });
+  const a = { ...base, vocals };
+
+  it('appear on medium and up, never on easy', () => {
+    expect(generateChart(a, 'vocals', 'easy', 'song').notes.some((n) => n.release)).toBe(false);
+    for (const d of ['medium', 'hard', 'expert'] as const) expect(generateChart(a, 'vocals', d, 'song').notes.some((n) => n.release)).toBe(true);
+  });
+
+  it('end on a beat or half-beat, with room before the next note', () => {
+    const c = generateChart(a, 'vocals', 'expert', 'song');
+    const times = c.notes.map((n) => n.t);
+    for (const n of c.notes.filter((x) => x.release)) {
+      const endBeat = (n.t + n.dur - 1) / spb;
+      expect(Math.abs(endBeat * 2 - Math.round(endBeat * 2))).toBeLessThan(1e-3);
+      const next = times.find((t) => t > n.t + 1e-6);
+      if (next !== undefined) expect(next - (n.t + n.dur)).toBeGreaterThanOrEqual(0.5 * spb - 1e-6);
+    }
+  });
+});

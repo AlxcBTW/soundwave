@@ -306,7 +306,7 @@ Responsive: at 900px the song page collapses to one column with a 9rem cover bes
 Controller hints (Select, Back with the platform's own button glyphs) sit fixed at the bottom left whenever the last input was a controller, and never during play.
 
 ### HUD
-The HUD is sized in px (with vw clamps) because it sits over the highway's own geometry, not over the rem-scaled menu. Song title and a thin skewed magenta progress bar sit top centre; score and stars bottom left at 4% inset; multiplier disc, streak and the skewed overdrive meter bottom right; hit feedback pops at 42% height and drifts up; a break countdown ring appears at 34% height during long gaps. Lane key labels sit under the hit pads with a lane-coloured underline (or the controller glyph with no underline).
+The HUD is sized in px (with vw clamps) because it sits over the highway's own geometry, not over the rem-scaled menu. Song title and a thin skewed magenta progress bar sit top centre; score and stars bottom left at 4% inset; multiplier disc, streak and the skewed overdrive meter bottom right; hit feedback pops at 42% height and drifts up; a break countdown ring appears at 34% height during long gaps. Lane key labels sit under the hit pads with a lane-coloured underline (or the controller glyph with no underline). A hold-and-release note ends in a release marker: a lighter tile at the tail's end with an upright, translucent five-sided pointer standing on it (brighter rim, softer core, gently breathing until judged); a release on time bursts white sparks and pops "<grade> RELEASE", a missed one dims the marker.
 
 ## Elevation & Depth
 

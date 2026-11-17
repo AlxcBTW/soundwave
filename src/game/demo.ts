@@ -53,6 +53,13 @@ export function demoChart(difficulty: Difficulty): Chart {
     const bar = Math.floor(b / 4);
     const t = LEAD_IN + b * SPB;
     const phrase = bar % 4 === 2 ? bar : -1;
+    // Every four bars, a hold from the third bar's downbeat let go 1.5 beats later (on easy, a plain hold).
+    const inPhrase = b % 16;
+    if (inPhrase > 8 && inPhrase < 10) continue;
+    if (inPhrase === 8) {
+      notes.push({ t, lane: pattern[k++ % pattern.length], dur: SPB * 1.5, phrase: -1, ...(difficulty !== 'easy' ? { release: true } : {}) });
+      continue;
+    }
     const lane = pattern[k++ % pattern.length];
     const sustain = Number.isInteger(b) && b % 8 === 7 ? SPB * Math.min(0.9, step * 1.8) : 0;
     notes.push({ t, lane, dur: sustain, phrase });

@@ -91,3 +91,58 @@ describe('GameSession', () => {
     expect(s.overdrive).toBe(0);
   });
 });
+
+describe('hold and release notes', () => {
+  const holdThenRelease = () => {
+    const s = new GameSession(chart([{ t: 1, dur: 1, release: true }, { t: 3 }]));
+    const events: string[] = [];
+    s.on((e) => events.push(e.type === 'release' ? `release ${e.grade}` : e.type === 'release-miss' ? `release-miss ${e.early ? 'early' : 'late'}` : e.type));
+    s.update(0.99);
+    s.press(0, 1.0);
+    return { s, events };
+  };
+
+  it('scores a release on time', () => {
+    const { s, events } = holdThenRelease();
+    s.update(1.98);
+    const before = s.score;
+    s.release(0, 2.01);
+    expect(events).toContain('release perfect');
+    expect(s.score).toBeGreaterThan(before);
+    expect(s.results().releases).toEqual({ hit: 1, total: 1 });
+  });
+
+  it('letting go clearly early is a miss that breaks the streak', () => {
+    const { s, events } = holdThenRelease();
+    s.update(1.5);
+    s.release(0, 1.5);
+    expect(events).toContain('release-miss early');
+    expect(s.streak).toBe(0);
+    expect(s.isReleaseMissed(0)).toBe(true);
+  });
+
+  it('holding past the window is a late miss', () => {
+    const { s, events } = holdThenRelease();
+    s.update(2.0);
+    expect(events).not.toContain('release-miss late');
+    s.update(2.2);
+    expect(events).toContain('release-miss late');
+    expect(s.holding[0]).toBe(-1);
+  });
+
+  it('a pause drops the hold without breaking the streak', () => {
+    const { s, events } = holdThenRelease();
+    s.update(1.4);
+    s.dropHolds();
+    expect(s.streak).toBe(1);
+    expect(s.isReleaseMissed(0)).toBe(true);
+    expect(events.filter((e) => e.startsWith('release'))).toEqual([]);
+  });
+
+  it('a missed head misses its release too', () => {
+    const s = new GameSession(chart([{ t: 1, dur: 1, release: true }]));
+    s.update(1.5);
+    expect(s.isReleaseMissed(0)).toBe(true);
+    expect(s.results().releases).toEqual({ hit: 0, total: 1 });
+  });
+});

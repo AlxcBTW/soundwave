@@ -7,6 +7,8 @@ export type GameEvent =
   | { type: 'miss'; lane: number; noteIndex: number }
   | { type: 'ghost'; lane: number }
   | { type: 'sustain-end'; lane: number; complete: boolean }
+  | { type: 'release'; lane: number; grade: Grade; noteIndex: number }
+  | { type: 'release-miss'; lane: number; noteIndex: number; early: boolean }
   | { type: 'phrase-complete'; phrase: number }
   | { type: 'phrase-failed'; phrase: number }
   | { type: 'overdrive-start' }
@@ -34,6 +36,8 @@ export interface Results {
   totalNotes: number;
   fullCombo: boolean;
   overdriveActivations: number;
+  /** Hold-and-release notes let go on time, of all release notes in the chart. */
+  releases: { hit: number; total: number };
 }
 
 /**
@@ -46,6 +50,9 @@ export class GameSession {
   /** Per-lane index of the note currently being sustained, or -1. */
   readonly holding: Int32Array;
   readonly laneDown: Uint8Array;
+  /** Per note: 0 = release pending (or not a release note), 1 = released on time, 2 = missed. */
+  readonly releaseState: Uint8Array;
+  releasesHit = 0;
 
   score = 0;
   streak = 0;
@@ -67,9 +74,10 @@ export class GameSession {
     this.state = new Uint8Array(chart.notes.length);
     this.holding = new Int32Array(chart.lanes).fill(-1);
     this.laneDown = new Uint8Array(chart.lanes);
+    this.releaseState = new Uint8Array(chart.notes.length);
     let base = 0;
     chart.notes.forEach((n, i) => {
-      base += NOTE_POINTS.perfect + (n.dur / chart.secondsPerBeat) * SUSTAIN_POINTS_PER_BEAT;
+      base += NOTE_POINTS.perfect + (n.dur / chart.secondsPerBeat) * SUSTAIN_POINTS_PER_BEAT + (n.release ? NOTE_POINTS.perfect : 0);
       if (n.phrase >= 0) this.phraseLast.set(n.phrase, i);
     });
     this.baseScore = base;
@@ -126,7 +134,52 @@ export class GameSession {
     if (idx < 0) return;
     const n = this.chart.notes[idx];
     this.holding[lane] = -1;
-    this.emit({ type: 'sustain-end', lane, complete: t >= n.t + n.dur - SUSTAIN_RELEASE_GRACE });
+    const end = n.t + n.dur;
+    if (n.release) {
+      // Let go within the timing windows of the end: a graded release; earlier is a miss.
+      const grade = gradeFor(t - end);
+      if (grade) this.releaseHit(idx, lane, grade);
+      else this.releaseMiss(idx, lane, true);
+      this.emit({ type: 'sustain-end', lane, complete: grade !== null });
+      return;
+    }
+    this.emit({ type: 'sustain-end', lane, complete: t >= end - SUSTAIN_RELEASE_GRACE });
+  }
+
+  private releaseHit(i: number, lane: number, grade: Grade) {
+    this.releaseState[i] = 1;
+    this.releasesHit++;
+    this.score += NOTE_POINTS[grade] * this.multiplier;
+    this.emit({ type: 'release', lane, grade, noteIndex: i });
+  }
+
+  private releaseMiss(i: number, lane: number, early: boolean) {
+    this.releaseState[i] = 2;
+    this.streak = 0;
+    this.emit({ type: 'release-miss', lane, noteIndex: i, early });
+  }
+
+  /**
+   * Ends every hold without judging it (pausing rewinds the song, so a hold can't be finished).
+   * A release note dropped this way counts as not released, but doesn't break the streak.
+   */
+  dropHolds() {
+    for (let lane = 0; lane < this.holding.length; lane++) {
+      this.laneDown[lane] = 0;
+      const idx = this.holding[lane];
+      if (idx < 0) continue;
+      this.holding[lane] = -1;
+      if (this.chart.notes[idx].release) this.releaseState[idx] = 2;
+      this.emit({ type: 'sustain-end', lane, complete: false });
+    }
+  }
+
+  isReleased(i: number) {
+    return this.releaseState[i] === 1;
+  }
+
+  isReleaseMissed(i: number) {
+    return this.releaseState[i] === 2;
   }
 
   activateOverdrive() {
@@ -152,7 +205,14 @@ export class GameSession {
       const from = Math.max(n.t, t - dt);
       const to = Math.min(end, t);
       if (to > from) this.score += ((to - from) / spb) * SUSTAIN_POINTS_PER_BEAT * this.multiplier;
-      if (t >= end) {
+      if (n.release) {
+        // Still holding once the release window has passed: too late.
+        if (t > end + WINDOWS.good) {
+          this.holding[lane] = -1;
+          this.releaseMiss(idx, lane, false);
+          this.emit({ type: 'sustain-end', lane, complete: false });
+        }
+      } else if (t >= end) {
         this.holding[lane] = -1;
         this.emit({ type: 'sustain-end', lane, complete: true });
       }
@@ -173,6 +233,7 @@ export class GameSession {
       if (this.state[i] === NoteState.Pending) {
         if (t - n.t <= WINDOWS.good) break;
         this.state[i] = NoteState.Missed;
+        if (n.release) this.releaseState[i] = 2;
         this.counts.miss++;
         this.streak = 0;
         this.emit({ type: 'miss', lane: n.lane, noteIndex: i });
@@ -228,6 +289,7 @@ export class GameSession {
       totalNotes: total,
       fullCombo: total > 0 && hits === total,
       overdriveActivations: this.overdriveActivations,
+      releases: { hit: this.releasesHit, total: this.chart.notes.filter((n) => n.release).length },
     };
   }
 }

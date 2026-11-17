@@ -444,7 +444,7 @@ h1, h2, h3, p { margin: 0; }
 .results-score { font-size: clamp(3.4rem, 8vw, 6rem); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .results-tags { display: flex; gap: 0.6rem; animation: fade-in 0.4s 1.2s backwards; }
 .results-tags .tag { font-size: 1rem; padding: 0.25rem 0.8rem; }
-.results-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; width: 100%; margin: 1.2rem 0 0.8rem; border-top: 1px solid var(--slab-line); }
+.results-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: 0; width: 100%; margin: 1.2rem 0 0.8rem; border-top: 1px solid var(--slab-line); }
 .results-stats > div { padding: 0.8rem 0.4rem; border-bottom: 1px solid var(--slab-line); animation: rise-in 0.5s var(--ease-out) backwards; }
 .results-stats > div:nth-child(n) { animation-delay: calc(0.85s + var(--n, 0) * 45ms); }
 .results-stats dt { font-size: 1rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-3); }

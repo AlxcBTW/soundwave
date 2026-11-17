@@ -92,6 +92,12 @@ export class PlayController {
       } else if (e.type === 'miss') {
         this.flashFeedback('MISS', 'miss');
         this.rumble.miss(e.lane);
+      } else if (e.type === 'release') {
+        this.flashFeedback(`${e.grade.toUpperCase()} RELEASE`, e.grade);
+        this.rumble.hit(e.lane, e.grade);
+      } else if (e.type === 'release-miss') {
+        this.flashFeedback(e.early ? 'TOO EARLY' : 'LET GO!', 'miss');
+        this.rumble.miss(e.lane);
       } else if (e.type === 'sustain-end') this.rumble.sustainEnd(e.lane);
       else if (e.type === 'overdrive-start') {
         this.background.kick(1.2);
@@ -157,7 +163,7 @@ export class PlayController {
     if (this.phase !== 'paused') return;
     // Rewind slightly so the player can re-enter the groove.
     const at = Math.max(-LEAD_IN, this.engine.time() - 1.5);
-    for (let l = 0; l < this.chart.lanes; l++) this.session.release(l, this.engine.time());
+    this.session.dropHolds();
     await this.engine.play(at, 0.05);
     this.highway.reset();
     this.lastCount = -1;

@@ -600,6 +600,19 @@ function walkLanes(evs: Ev[], ctx: PhraseCtx, spb: number): number[] {
   return lanes;
 }
 
+/**
+ * Where a held note can end in a release, or 0: a note held at least a beat (1.5 on medium) whose
+ * end falls on a beat or half-beat (snapped when close) and is followed by a rest of half a beat
+ * (three quarters on medium), so letting go is part of the rhythm. Easy keeps plain holds.
+ */
+function releaseEnd(pos: number, len: number, nextPos: number | undefined, d: Difficulty): number {
+  if (d === 'easy' || len < (d === 'medium' ? 1.5 : 1)) return 0;
+  const end = Math.round((pos + len) * 2) / 2;
+  if (Math.abs(end - (pos + len)) > 0.25 || end - pos < (d === 'medium' ? 1.5 : 1)) return 0;
+  if (nextPos !== undefined && nextPos - end < (d === 'medium' ? 0.75 : 0.5)) return 0;
+  return end;
+}
+
 /** Notes in beat positions (t and dur are positions here; converted to seconds by the caller). */
 function pitchedNotes(
   evs: Ev[],
@@ -630,8 +643,10 @@ function pitchedNotes(
     let len = e.len >= minLen ? e.len : 0;
     if (len && next) len = Math.min(len, next.pos - e.pos - p.sustainGapBeats);
     if (len < minLen * 0.75) len = 0;
+    const release = len > 0 && releaseEnd(e.pos, len, next?.pos, d);
+    if (release) len = release - e.pos;
     const shape = chordHere ? chordShape(lanes[i], e.chord!, p) : [lanes[i]];
-    for (const lane of new Set(shape)) notes.push({ t: e.pos, lane, dur: len, phrase: -1 });
+    for (const lane of new Set(shape)) notes.push({ t: e.pos, lane, dur: len, phrase: -1, ...(release ? { release: true } : {}) });
   });
   return notes;
 }
@@ -700,9 +715,14 @@ export function validate(notes: Note[], lanes: number, p: DifficultyProfile, spb
     for (let j = i + 1; j < out.length && out[j].t < n.t + n.dur + gap; j++) {
       const m = out[j];
       if (m.t <= n.t + 1e-6) continue;
-      n.dur = Math.min(n.dur, m.t - n.t - gap);
+      const dur = Math.min(n.dur, m.t - n.t - gap);
+      if (dur < n.dur) delete n.release;
+      n.dur = dur;
     }
-    if (n.dur < spb * 0.4) n.dur = 0;
+    if (n.dur < spb * 0.4) {
+      n.dur = 0;
+      delete n.release;
+    }
   }
   return out;
 }

@@ -5,6 +5,7 @@ import type { GameEvent, GameSession } from '../game/GameSession';
 export const LANE_COLORS = [0x3ddc5a, 0xff3b4e, 0xffd23d, 0x3a8bff, 0xff8a1f];
 const OVERDRIVE_COLOR = new THREE.Color(0xeaf6ff);
 const MISSED_TINT = 0.28;
+const WHITE = new THREE.Color(0xffffff);
 
 const LANE_W = 1;
 const LENGTH = 24;
@@ -26,6 +27,19 @@ function roundedRect(w: number, h: number, r: number) {
   s.quadraticCurveTo(x, y + h, x, y + h - r);
   s.lineTo(x, y + r);
   s.quadraticCurveTo(x, y, x + r, y);
+  return s;
+}
+
+/** The release marker's pointer: an upright five-sided plate, square below and pointed on top. */
+function pointer(w: number, h: number, peak: number, inset = 0) {
+  const s = new THREE.Shape();
+  const x = w / 2 - inset;
+  s.moveTo(-x, inset);
+  s.lineTo(x, inset);
+  s.lineTo(x, h - peak);
+  s.lineTo(0, h - inset * 1.4);
+  s.lineTo(-x, h - peak);
+  s.closePath();
   return s;
 }
 
@@ -91,6 +105,10 @@ export class Highway {
   private readonly gems: THREE.InstancedMesh;
   private readonly shines: THREE.InstancedMesh;
   private readonly tails: THREE.InstancedMesh;
+  /** Release markers: a light tile at the end of the hold with an upright pointer standing on it. */
+  private readonly capTiles: THREE.InstancedMesh;
+  private readonly capPointers: THREE.InstancedMesh;
+  private readonly capCores: THREE.InstancedMesh;
   private readonly lines: THREE.InstancedMesh;
   private readonly pads: THREE.Mesh[] = [];
   private readonly padGlows: THREE.Mesh[] = [];
@@ -244,6 +262,34 @@ export class Highway {
     this.tails.renderOrder = 0;
     this.root.add(this.tails);
 
+    // Release markers at the end of hold-and-release tails: a light tile (the gem shape) with an
+    // upright translucent pointer standing on it, a brighter rim around a softer core.
+    this.capTiles = new THREE.InstancedMesh(
+      gemGeo,
+      new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.1, emissive: 0x3a3a3a, transparent: true, opacity: 0.92 }),
+      MAX_TAILS,
+    );
+    const rimGeo = new THREE.ExtrudeGeometry(pointer(0.5, 0.78, 0.22), { depth: 0.04, bevelEnabled: false });
+    rimGeo.translate(0, 0.12, -0.02);
+    this.capPointers = new THREE.InstancedMesh(
+      rimGeo,
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.85, depthWrite: false }),
+      MAX_TAILS,
+    );
+    const coreGeo = new THREE.ShapeGeometry(pointer(0.5, 0.78, 0.22, 0.06));
+    coreGeo.translate(0, 0.12, 0.03);
+    this.capCores = new THREE.InstancedMesh(
+      coreGeo,
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.55, depthWrite: false }),
+      MAX_TAILS,
+    );
+    for (const mesh of [this.capTiles, this.capPointers, this.capCores]) {
+      mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TAILS * 3), 3);
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 1;
+      this.root.add(mesh);
+    }
+
     // Hit flashes
     const tex = radialTexture();
     const flashGeo = new THREE.PlaneGeometry(1.6, 1.6);
@@ -320,6 +366,13 @@ export class Highway {
         break;
       case 'miss':
         this.shake = Math.max(this.shake, 0.4);
+        break;
+      case 'release':
+        this.flashLife[e.lane] = 1;
+        this.burst(e.lane, e.grade === 'perfect' ? 22 : 12, WHITE);
+        break;
+      case 'release-miss':
+        this.shake = Math.max(this.shake, 0.3);
         break;
       case 'phrase-complete':
         for (let i = 0; i < this.lanes; i++) this.burst(i, 6, OVERDRIVE_COLOR);
@@ -401,6 +454,9 @@ export class Highway {
     }
     let gi = 0;
     let ti = 0;
+    let ci = 0;
+    // Pending release pointers breathe, so they read as an instruction rather than a note to hit.
+    const breathe = 1 + 0.06 * Math.sin(now / 140);
     this.q.identity();
     for (let i = this.firstNote; i < notes.length; i++) {
       const n = notes[i];
@@ -426,6 +482,29 @@ export class Highway {
           ti++;
         }
         if (held) this.padLight[n.lane] = Math.max(this.padLight[n.lane], 0.8);
+
+        // The release marker sits at the tail's end until the release is judged.
+        const capZ = -(n.t + n.dur - t) * speed;
+        if (n.release && !session.isReleased(i) && capZ > -LENGTH && capZ < 1.5 && ci < MAX_TAILS) {
+          const dim = session.isReleaseMissed(i) || missed ? MISSED_TINT : 1;
+          this.v.set(x, 0, capZ);
+          this.s.set(1, 1, 1);
+          this.m.compose(this.v, this.q, this.s);
+          this.capTiles.setMatrixAt(ci, this.m);
+          this.c.copy(color).lerp(WHITE, 0.35).multiplyScalar(dim);
+          this.capTiles.setColorAt(ci, this.c);
+          // The pointer stands on the tile and breathes; its rim is brighter than its core.
+          const k = dim < 1 ? 1 : breathe;
+          this.s.set(k, k, 1);
+          this.m.compose(this.v, this.q, this.s);
+          this.capPointers.setMatrixAt(ci, this.m);
+          this.capCores.setMatrixAt(ci, this.m);
+          this.c.copy(color).lerp(WHITE, 0.7).multiplyScalar(dim);
+          this.capPointers.setColorAt(ci, this.c);
+          this.c.copy(color).lerp(WHITE, 0.25).multiplyScalar(dim);
+          this.capCores.setColorAt(ci, this.c);
+          ci++;
+        }
       }
 
       if (hit || gi >= MAX_GEMS) continue;
@@ -444,6 +523,11 @@ export class Highway {
     this.gems.count = gi;
     this.shines.count = gi;
     this.tails.count = ti;
+    for (const mesh of [this.capTiles, this.capPointers, this.capCores]) {
+      mesh.count = ci;
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    }
     this.gems.instanceMatrix.needsUpdate = true;
     this.shines.instanceMatrix.needsUpdate = true;
     if (this.gems.instanceColor) this.gems.instanceColor.needsUpdate = true;
