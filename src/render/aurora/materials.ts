@@ -231,6 +231,7 @@ const GROUND_FRAGMENT = /* glsl */ `
 ${COMMON}
 uniform sampler2D uCrowdMap; uniform vec4 uCrowdRect;
 uniform vec3 uDeckC; uniform vec3 uDeckShape;
+uniform float uWaterLevel;
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
 
 /** Height of the surface: tussocks of grass, clods and footprints where it is worn to earth. */
@@ -276,6 +277,8 @@ void main() {
   float straw = smoothstep(0.72, 0.9, vnoise(vec2(p.x * 23.0 - p.y * 7.0, p.y * 5.0 + p.x * 2.0) + 4.1)) * close;
   earth = mix(earth, vec3(0.13, 0.115, 0.06), straw * 0.6);
   vec3 albedo = mix(grass, earth, worn);
+  // Where the land goes down to the lake it is wet sand, then the lake's floor.
+  albedo = mix(albedo, vec3(0.03, 0.028, 0.026), smoothstep(0.4, 0.05, vWPos.y - uWaterLevel));
 
   // The lie of the surface.
   float e = 0.07;
@@ -327,6 +330,7 @@ void main() {
  */
 const WATER_FRAGMENT = /* glsl */ `
 ${COMMON}
+uniform sampler2D uMirrorMap; uniform mat4 uMirrorMatrix; uniform float uMirrorOn;
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
 void main() {
   vec3 toCam = cameraPosition - vWPos;
@@ -342,7 +346,17 @@ void main() {
   vec3 r = reflect(-v, n);
   r.y = abs(r.y);
   float fres = 0.03 + 0.97 * pow(clamp(1.0 - dot(n, v), 0.0, 1.0), 5.0);
-  vec3 col = vec3(0.002, 0.005, 0.016) + skyGradient(r) * fres * 1.4;
+  vec3 above = skyGradient(r) * 1.4;
+  if (uMirrorOn > 0.5) {
+    // The stage, the sky and everything else that stands over the water, seen in it: looked up in
+    // the picture taken from below the surface, at a point the ripples push about.
+    vec4 at = uMirrorMatrix * vec4(vWPos + vec3(g.x, 0.0, g.y) * (2.5 + dist * 0.05), 1.0);
+    above = texture2D(uMirrorMap, clamp(at.xy / max(at.w, 1e-3), 0.001, 0.999)).rgb * 0.9;
+  }
+  vec3 col = vec3(0.002, 0.005, 0.016) + above * fres;
+  // Near the stage the water takes up the colours of the show.
+  float fromStage = distance(vWPos.xz, uGlowPos.xz + vec2(0.0, 14.0));
+  col += mix(uWash, uKey, 0.4) * uScreenLevel * 0.05 / (1.0 + fromStage * fromStage * 0.0005);
   float toMoon = max(0.0, dot(r, uMoonDir));
   col += uMoonCol * (pow(toMoon, 420.0) * 2.6 + pow(toMoon, 60.0) * 0.3);
   for (int i = 0; i < 8; i++) {

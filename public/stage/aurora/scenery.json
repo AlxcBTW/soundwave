@@ -1,1 +1,1 @@
-{"version":1,"terrain":{"centre":10.0,"flat":24.0,"steep":0.00048,"cap":7.5,"lead":30.0,"shore":30.0,"side":85.0,"bank":14.0,"drop":1.6,"water":-0.55},"wheel":{"center":[-78.0,36.5,178.0],"radius":25.0},"shore":[],"moon":[-0.5119,0.2588,-0.8192]}
+{"version":1,"terrain":{"centre":10.0,"flat":24.0,"steep":0.00048,"cap":7.5,"lead":30.0,"shore":30.0,"bank":14.0,"side":78.0,"turn":-25.0,"sweep":0.75,"cove":16.0,"end":-105.0,"fade":20.0,"drop":1.6,"water":-0.55},"wheel":{"center":[-78.0,36.5,178.0],"radius":25.0},"shore":[],"moon":[-0.5119,0.2588,-0.8192]}

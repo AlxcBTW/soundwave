@@ -337,9 +337,11 @@ export function makeCrowd(data: VenueData, characters: string[], share: number, 
       for (const c of cameras) nearest = Math.min(nearest, Math.hypot(px - c[0], pz - c[2]));
       if (nearest < 2.2) continue;
       if (data.clear?.some((c) => Math.hypot(px - c.pos[0], pz - c.pos[2]) < c.radius)) continue;
+      const stands = ground(px, pz);
+      if (stands < -0.05) continue; // the bank of the lake
       const style = rand();
       people.push({
-        pos: [px, ground(px, pz), pz],
+        pos: [px, stands, pz],
         yaw: Math.atan2(center[0] - px, center[2] - 6 - pz) + (rand() - 0.5) * 0.5,
         scale: 0.94 + rand() * 0.12,
         character: characters[Math.floor(rand() * characters.length)],

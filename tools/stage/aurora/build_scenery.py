@@ -3,8 +3,9 @@ Builds the scenery around the Moonrise stage: the land, the lake and the festiva
 
     blender -b --factory-startup -P tools/stage/aurora/build_scenery.py -- --out public/stage/aurora
 
-The stage stands on a lake shore. This file makes the ground (a gentle amphitheatre in front, a
-bank falling into the water behind and beyond the wings), the lake, and,
+The stage stands on a point of land in a lake. This file makes the ground (a gentle amphitheatre in
+front, banks falling into the water behind the stage and in a cove beside each wing), the lake, a
+jetty with lanterns in each cove, and,
 behind the audience, the grounds: a big wheel, a row of stalls under strings of lamps, an entrance
 arch, flags, floodlight towers, a campsite of small lights and trees framing it all. Like the
 stage, everything is generated, original, and carries only shape and material roles; the look is
@@ -128,8 +129,11 @@ canvas = [bmesh.new() for _ in CANVAS]
 # =================================================================== THE LAND AND THE LAKE
 land = bmesh.new()
 # A grid that is fine near the stage and coarse far away.
-xs = sorted({round(s * (abs(k) ** 1.6) * 0.34, 2) for k in range(0, 61) for s in (-1, 1)})
-ys = sorted({round(10 + s * (abs(k) ** 1.6) * 0.34, 2) for k in range(0, 61) for s in (-1, 1) if -470 < 10 + s * (abs(k) ** 1.6) * 0.34 < 70})
+xs = sorted({round(s * (abs(k) ** 1.6) * 0.34, 2) for k in range(0, 61) for s in (-1, 1)}
+            # finer still where the coves' shores run, so the waterline is a smooth curve
+            | {round(s * (58 + 2.0 * i), 2) for i in range(48) for s in (-1, 1)})
+ys = sorted({round(10 + s * (abs(k) ** 1.6) * 0.34, 2) for k in range(0, 61) for s in (-1, 1) if -470 < 10 + s * (abs(k) ** 1.6) * 0.34 < 70}
+            | {round(-114 + 2.5 * i, 2) for i in range(66)})
 verts = [[land.verts.new((x, y, H(x, y) - 0.02)) for x in xs] for y in ys]
 for j in range(len(ys) - 1):
     for i in range(len(xs) - 1):
@@ -138,13 +142,32 @@ new_obj('Terrain', land, 'Ground')
 
 water = bmesh.new()
 level = terrain.PARAMS['water']
-quad = [water.verts.new(p) for p in ((-2600, -60, level), (2600, -60, level), (2600, 2600, level), (-2600, 2600, level))]
+quad = [water.verts.new(p) for p in ((-2600, -112, level), (2600, -112, level), (2600, 2600, level), (-2600, 2600, level))]
 water.faces.new(quad)
-new_obj('Water', water, 'Water', smooth=False)
+lake = new_obj('Water', water, 'Water', smooth=False)
+# one face by itself has no outside to tell which way it should look: make sure it looks up
+if lake.data.polygons[0].normal.z < 0:
+    lake.data.flip_normals()
 
 # The far shore is dark: nothing over there but hills against the sky. (The game can still be
 # handed lights for the water to mirror; there are none.)
 SHORE = []
+
+# A jetty runs out into each cove beside the stage, lanterns on its posts, and a few lanterns float
+# on the water round it.
+for side in (1, -1):
+    jy, x0, x1, top = -4.0, 76.0, 104.0, level + 0.95
+    box(black, (x1 - x0, 2.2, 0.16), Vector(((x0 + x1) / 2 * side, jy, top)))
+    box(black, (5.0, 6.0, 0.16), Vector(((x1 + 1.5) * side, jy, top)))
+    for i in range(8):
+        x = (x0 + 2.0 + i * 3.6) * side
+        for dy in (-1.0, 1.0):
+            cyl(black, (x, jy + dy, level - 1.6), (x, jy + dy, top + 0.12), 0.09, 6)
+    for x in (84.0, 94.0, 104.0):
+        cyl(black, (x * side, jy + 1.0, top), (x * side, jy + 1.0, top + 2.3), 0.05, 5)
+        dot(lamps['LampWarm'], (x * side, jy + 1.0, top + 2.45), 0.32)
+    for (x, y), kind in zip(((90, -24), (99, 9), (110, -17), (93, 20), (116, 2)), ('LampWarm', 'LampPink', 'LampWarm', 'LampCool', 'LampWarm')):
+        dot(lamps[kind], (x * side, y, level + 0.16), 0.4)
 
 # =================================================================== THE GROUNDS BEHIND THE AUDIENCE
 # ---------------------------------------------------------------- the big wheel

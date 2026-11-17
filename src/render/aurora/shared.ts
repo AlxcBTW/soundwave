@@ -45,6 +45,15 @@ export const shared = {
   uBurst: { value: new THREE.Vector4(0, 60, -40, 0) },
   /** Overall brightness of the screens. */
   uScreenLevel: { value: 1 },
+  /**
+   * What stands above the lake as the water sees it: a picture taken from below the surface, the
+   * matrix that finds a point of the water in it, and whether there is one (light settings go without).
+   */
+  uMirrorMap: { value: null as THREE.Texture | null },
+  uMirrorMatrix: { value: new THREE.Matrix4() },
+  uMirrorOn: { value: 0 },
+  /** Height of the lake's surface. */
+  uWaterLevel: { value: -0.55 },
   /** The audience from above (see crowdMap.ts), and the ground it covers: corner x, z and 1 / size. */
   uCrowdMap: { value: null as THREE.Texture | null },
   uCrowdRect: { value: new THREE.Vector4(-136, -18, 1 / 272, 1 / 156) },

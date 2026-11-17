@@ -87,6 +87,13 @@ export class AuroraStage {
   private readonly beams: Beams;
   private readonly crowd: Figures;
   private readonly band: Figures;
+  /**
+   * The lake, and the picture it mirrors: the scene above it, drawn once more each frame from the
+   * camera's reflection below the surface.
+   */
+  private water: THREE.Object3D | null = null;
+  private mirror: THREE.WebGLRenderTarget | null = null;
+  private readonly mirrorCamera = new THREE.PerspectiveCamera();
   /** The big wheel on the festival grounds, turning slowly. */
   private wheel: THREE.Object3D | null = null;
   private readonly sparks: Particles;
@@ -173,6 +180,12 @@ export class AuroraStage {
       this.wheel = wheel;
       this.scene.add(scenery);
       shared.uMoonDir.value.set(...land.data.moon).normalize();
+      shared.uWaterLevel.value = land.data.terrain.water;
+      this.water = scenery.getObjectByName('Water') ?? null;
+      if (this.water && (g.lights === 'medium' || g.lights === 'high')) {
+        this.mirror = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
+        this.owned.push(this.mirror);
+      }
       land.data.shore.slice(0, 8).forEach((s, i) => {
         shared.uShore.value[i].set(...s.pos);
         shared.uShoreCol.value[i].set(s.color);
@@ -257,6 +270,7 @@ export class AuroraStage {
     this.renderer.setSize(w, h, false);
     this.composer?.setPixelRatio(ratio);
     this.composer?.setSize(w, h);
+    this.mirror?.setSize(Math.max(1, Math.round((w * ratio) / 2)), Math.max(1, Math.round((h * ratio) / 2)));
     this.camera.aspect = w / Math.max(1, h);
     this.camera.updateProjectionMatrix();
   }
@@ -332,12 +346,43 @@ export class AuroraStage {
     this.beams.update(this.camera, scale);
     this.sparks.setScale(scale);
     this.smoke.setScale(scale);
+    this.renderMirror(pose.pos, pose.target);
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);
     if (!this.shown) {
       this.shown = true;
       this.canvas.classList.add('on');
     }
+  }
+
+  /**
+   * Draws what the lake mirrors: the sky, the stage and the grounds as seen from the camera's own
+   * reflection under the water (the audience, the band and the beams are left out: they are costly
+   * and hardly show). The water then looks each of its points up in that picture.
+   */
+  private renderMirror(pos: readonly number[], target: readonly number[]) {
+    const mirror = this.mirror;
+    shared.uMirrorOn.value = mirror ? 1 : 0;
+    if (!mirror || !this.water) return;
+    const level = shared.uWaterLevel.value;
+    const cam = this.mirrorCamera;
+    cam.fov = this.camera.fov;
+    cam.aspect = this.camera.aspect;
+    cam.near = this.camera.near;
+    cam.far = this.camera.far;
+    cam.updateProjectionMatrix();
+    cam.position.set(pos[0], 2 * level - pos[1], pos[2]);
+    cam.up.set(0, -1, 0);
+    cam.lookAt(target[0], 2 * level - target[1], target[2]);
+    cam.updateMatrixWorld();
+    shared.uMirrorMatrix.value.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1).multiply(cam.projectionMatrix).multiply(cam.matrixWorldInverse);
+    const left = [this.water, this.crowd.group, this.band.group, this.beams.group].filter((o) => o.visible);
+    for (const o of left) o.visible = false;
+    this.renderer.setRenderTarget(mirror);
+    this.renderer.render(this.scene, cam);
+    this.renderer.setRenderTarget(null);
+    for (const o of left) o.visible = true;
+    shared.uMirrorMap.value = mirror.texture;
   }
 
   /** Dev diagnostics. */

@@ -1,8 +1,8 @@
 /**
  * The lie of the land around the stage, as tools/stage/aurora/terrain.py defines it: level around
  * the stage, rising gently toward the back of the audience, falling under the lake behind the
- * stage and beyond the wings. The build writes the numbers to scenery.json; this mirrors its
- * `height` so the game can stand people on the ground.
+ * stage and in a cove beside each wing. The build writes the numbers to scenery.json; this mirrors
+ * its `height` so the game can stand people on the ground.
  */
 export interface TerrainParams {
   centre: number;
@@ -11,8 +11,13 @@ export interface TerrainParams {
   cap: number;
   lead: number;
   shore: number;
-  side: number;
   bank: number;
+  side: number;
+  turn: number;
+  sweep: number;
+  cove: number;
+  end: number;
+  fade: number;
   drop: number;
   water: number;
 }
@@ -28,6 +33,9 @@ export function terrainHeight(p: TerrainParams | undefined, x: number, z: number
   const beyond = Math.max(0, Math.hypot(x, y - p.centre) - p.flat);
   const rise = toward * Math.min(p.cap, p.steep * beyond * beyond);
   const back = clamp01((y - p.shore) / p.bank);
-  const side = clamp01((Math.abs(x) - p.side) / p.bank) * clamp01((y + 30) / 30);
-  return rise - p.drop * Math.max(back, side);
+  const edge = p.side + p.sweep * Math.max(0, p.turn - y);
+  const side = clamp01((Math.abs(x) - edge) / p.cove) * clamp01((y - p.end) / p.fade);
+  let wet = Math.max(back, side);
+  wet = wet * wet * (3 - 2 * wet);
+  return rise * (1 - wet) - p.drop * wet;
 }
