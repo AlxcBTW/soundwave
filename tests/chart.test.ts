@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AnalysisResult } from '../src/analysis/types';
-import { detectFeel, generateChart } from '../src/chart/generator';
+import { detectFeel, generateChart, thumbOf } from '../src/chart/generator';
+import { demoChart } from '../src/game/demo';
 import { PROFILES } from '../src/chart/profiles';
 import { DIFFICULTIES, PARTS, lanesFor } from '../src/chart/types';
 
@@ -219,6 +220,35 @@ describe('release notes', () => {
       expect(Math.abs(endBeat * 2 - Math.round(endBeat * 2))).toBeLessThan(1e-3);
       const next = times.find((t) => t > n.t + 1e-6);
       if (next !== undefined) expect(next - (n.t + n.dur)).toBeGreaterThanOrEqual(0.5 * spb - 1e-6);
+    }
+  });
+});
+
+describe('one thumb, one button', () => {
+  // On a controller the left thumb plays the two leftmost lanes and the right thumb the rest.
+  const conflicts = (notes: { t: number; lane: number }[]) => {
+    const byT = new Map<string, number[]>();
+    for (const n of notes) byT.set(n.t.toFixed(4), [...(byT.get(n.t.toFixed(4)) ?? []), thumbOf(n.lane)]);
+    return [...byT.values()].filter((th) => new Set(th).size < th.length).length;
+  };
+  const a = fakeAnalysis();
+  for (const part of PARTS) {
+    it(`${part}: no chord needs one thumb twice`, () => {
+      for (const d of DIFFICULTIES) expect(conflicts(generateChart(a, part, d, 'song').notes)).toBe(0);
+    });
+  }
+  it('the demo track too', () => {
+    for (const d of DIFFICULTIES) expect(conflicts(demoChart(d).notes)).toBe(0);
+  });
+  it('a held note never shares its thumb with another note', () => {
+    for (const part of PARTS) {
+      for (const d of DIFFICULTIES) {
+        const notes = generateChart(a, part, d, 'song').notes;
+        for (const h of notes.filter((n) => n.dur > 0)) {
+          const busy = notes.filter((n) => n !== h && thumbOf(n.lane) === thumbOf(h.lane) && n.t >= h.t - 1e-6 && n.t < h.t + h.dur);
+          expect(busy).toEqual([]);
+        }
+      }
     }
   });
 });

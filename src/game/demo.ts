@@ -1,3 +1,4 @@
+import { thumbOf } from '../chart/generator';
 import { lanesFor, type Chart, type Difficulty, type Note } from '../chart/types';
 
 const BPM = 120;
@@ -64,7 +65,8 @@ export function demoChart(difficulty: Difficulty): Chart {
     const sustain = Number.isInteger(b) && b % 8 === 7 ? SPB * Math.min(0.9, step * 1.8) : 0;
     notes.push({ t, lane, dur: sustain, phrase });
     if (difficulty !== 'easy' && b % 4 === 0 && bar % 2 === 1) {
-      notes.push({ t, lane: (lane + 2) % lanes, dur: 0, phrase });
+      // The second note goes under the other thumb (see thumbOf in the generator).
+      notes.push({ t, lane: thumbOf(lane) === 0 ? Math.min(lanes - 1, lane + 2) : 1, dur: 0, phrase });
     }
   }
   notes.sort((a, b) => a.t - b.t || a.lane - b.lane);

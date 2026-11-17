@@ -438,18 +438,32 @@ function assignPitchedLanes(evs: Ev[], downbeats: number[], sectionStarts: numbe
   return lanes;
 }
 
-/** Chord lanes ending on the melody lane: the interval decides how far apart the notes sit. */
+/**
+ * Which thumb plays a lane on a controller: the left thumb has the two leftmost lanes (D-pad left
+ * and right), the right thumb the face-button lanes. One thumb presses one button at a time.
+ */
+export const thumbOf = (lane: number) => (lane <= 1 ? 0 : 1);
+
+/**
+ * Chord lanes: the melody lane first, plus one partner under the other thumb (a thumb can't hold
+ * two buttons). The interval decides how far apart they sit; the partner prefers the left side.
+ */
 function chordShape(top: number, chord: number[], p: DifficultyProfile): number[] {
   const span = chord[chord.length - 1] - chord[0];
-  const pcs = new Set(chord.map((m) => m % 12)).size;
-  const three = p.maxChord >= 3 && pcs >= 3 && chord.length >= 4;
   const gap = Math.min(span <= 4 ? 1 : span <= 8 ? 2 : 3, p.maxChordSpread);
   if (gap < 1) return [top];
-  let shape = three ? [-2, -1, 0] : [-gap, 0];
-  if (three && span > 8 && p.lanes === 5) shape = [-4, -2, 0];
-  // The melody note keeps its lane; without room to the left, the chord grows to the right.
-  if (top + shape[0] < 0) shape = shape.map((s) => -s);
-  return shape.map((s) => Math.max(0, Math.min(p.lanes - 1, top + s)));
+  let best = -1;
+  let bestCost = Infinity;
+  for (let lane = 0; lane < p.lanes; lane++) {
+    const d = top - lane;
+    if (thumbOf(lane) === thumbOf(top) || Math.abs(d) > p.maxChordSpread) continue;
+    const cost = Math.abs(Math.abs(d) - gap) + (d < 0 ? 0.5 : 0);
+    if (cost < bestCost) {
+      bestCost = cost;
+      best = lane;
+    }
+  }
+  return best < 0 ? [top] : [top, best];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -680,16 +694,18 @@ function drumNotes(evs: Ev[], p: DifficultyProfile, d: Difficulty): Note[] {
     const backbeat = isMultiple(group[0].pos, 1) && Math.round(group[0].pos) % 2 === 1;
     const allowChord = d === 'expert' || (d === 'hard' ? hits[1]?.strength >= 0.45 : backbeat && hits[1]?.strength >= 0.5);
     hits = hits.slice(0, allowChord ? p.maxChord : 1);
-    const taken = new Set<number>();
+    // One hit per thumb: a hit whose thumb is busy takes its other lane if that is under the free
+    // thumb, otherwise it drops (hits are in order of strength).
+    const thumbs = new Set<number>();
     for (const h of hits) {
       const [first, second] = DRUM_LANES[p.lanes][h.kind!];
       const prev = last[h.kind!];
       const bar = Math.floor(h.pos / 4);
       // Alternate on quick repeats; reset each bar so repeated bars chart identically.
       let lane = prev.bar === bar && prev.lane === first && h.pos - prev.pos <= 0.5 + EPS ? second : first;
-      if (taken.has(lane)) lane = lane === first ? second : first;
-      if (taken.has(lane)) continue;
-      taken.add(lane);
+      if (thumbs.has(thumbOf(lane))) lane = lane === first ? second : first;
+      if (thumbs.has(thumbOf(lane))) continue;
+      thumbs.add(thumbOf(lane));
       last[h.kind!] = { lane, pos: h.pos, bar };
       notes.push({ t: h.pos, lane, dur: 0, phrase: -1 });
     }
@@ -697,15 +713,20 @@ function drumNotes(evs: Ev[], p: DifficultyProfile, d: Difficulty): Note[] {
   return notes;
 }
 
-/** Removes duplicates and makes sure sustains never run into later notes. */
+/**
+ * Removes duplicates, keeps at most one note per thumb at any moment (see thumbOf), and makes sure
+ * sustains never run into later notes, so a held note never needs its thumb for anything else.
+ */
 export function validate(notes: Note[], lanes: number, p: DifficultyProfile, spb: number): Note[] {
   const out: Note[] = [];
   const seen = new Set<string>();
   for (const n of notes) {
     if (n.lane < 0 || n.lane >= lanes || !Number.isFinite(n.t)) continue;
     const k = `${n.t.toFixed(4)}:${n.lane}`;
-    if (seen.has(k)) continue;
+    const thumb = `${n.t.toFixed(4)}:thumb${thumbOf(n.lane)}`;
+    if (seen.has(k) || seen.has(thumb)) continue;
     seen.add(k);
+    seen.add(thumb);
     out.push({ ...n });
   }
   const gap = Math.max(0.05, spb * p.sustainGapBeats);
