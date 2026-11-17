@@ -1,6 +1,6 @@
 import type { Chart } from '../chart/types';
 import { gradeFor, WINDOWS, type Grade } from './judge';
-import { multiplierFor, NOTE_POINTS, OVERDRIVE_FACTOR, starProgress, starsFor, SUSTAIN_POINTS_PER_BEAT } from './scoring';
+import { goldThreshold, multiplierFor, NOTE_POINTS, OVERDRIVE_FACTOR, starProgress, starsFor, SUSTAIN_POINTS_PER_BEAT } from './scoring';
 
 export type GameEvent =
   /** `delta`: how far off the press was, in seconds (negative = early, positive = late). */
@@ -69,6 +69,8 @@ export class GameSession {
   private readonly phraseLast = new Map<number, number>();
   /** The score of a flawless run without overdrive: what the stars are measured against. */
   private readonly par: number;
+  /** The share of par that turns the stars gold on this chart (it depends on how much overdrive the chart offers). */
+  private readonly goldAt: number;
   private listeners: ((e: GameEvent) => void)[] = [];
 
   constructor(chart: Chart) {
@@ -85,6 +87,11 @@ export class GameSession {
       if (n.phrase >= 0) this.phraseLast.set(n.phrase, i);
     });
     this.par = par;
+    // What overdrive can cover if every phrase is played: each one buys a fixed number of beats.
+    const notes = chart.notes;
+    const span = notes.length ? notes[notes.length - 1].t + notes[notes.length - 1].dur - notes[0].t : 0;
+    const overdriveTime = this.phraseLast.size * BEATS_PER_REWARD * chart.secondsPerBeat;
+    this.goldAt = goldThreshold(span > 0 ? overdriveTime / span : 0);
   }
 
   on(fn: (e: GameEvent) => void) {
@@ -279,11 +286,11 @@ export class GameSession {
 
   /** How far the score is toward the next star, or toward gold after the fifth, 0..1 (1 once they are gold). */
   get nextStarProgress() {
-    return starProgress(this.score, this.par);
+    return starProgress(this.score, this.par, this.goldAt);
   }
 
   get progressStars() {
-    return starsFor(this.score, this.par);
+    return starsFor(this.score, this.par, this.goldAt);
   }
 
   results(): Results {
@@ -291,7 +298,7 @@ export class GameSession {
     const hits = this.counts.perfect + this.counts.great + this.counts.good;
     return {
       score: Math.round(this.score),
-      stars: starsFor(this.score, this.par),
+      stars: starsFor(this.score, this.par, this.goldAt),
       accuracy: total ? hits / total : 0,
       counts: { ...this.counts },
       bestStreak: this.bestStreak,

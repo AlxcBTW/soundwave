@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Chart, Note } from '../src/chart/types';
 import { GameSession, PHRASE_REWARD } from '../src/game/GameSession';
 import { gradeFor } from '../src/game/judge';
-import { multiplierFor, starsFor } from '../src/game/scoring';
+import { goldThreshold, multiplierFor, starsFor } from '../src/game/scoring';
 
 const chart = (notes: Partial<Note>[], lanes: 4 | 5 = 4): Chart => ({
   part: 'lead',
@@ -34,12 +34,19 @@ describe('scoring', () => {
   });
   it('awards stars by the share of par, and gold stars at par', () => {
     expect(starsFor(0, 100)).toBe(0);
-    expect(starsFor(9, 100)).toBe(0);
-    expect(starsFor(10, 100)).toBe(1);
-    expect(starsFor(78, 100)).toBe(5);
-    expect(starsFor(99, 100)).toBe(5);
-    expect(starsFor(100, 100)).toBe(6);
+    expect(starsFor(3, 100)).toBe(0);
+    expect(starsFor(4, 100)).toBe(1);
+    expect(starsFor(15, 100)).toBe(3);
+    expect(starsFor(46, 100)).toBe(4);
+    expect(starsFor(77, 100)).toBe(5);
+    expect(starsFor(112, 100)).toBe(5);
+    expect(starsFor(113, 100)).toBe(6);
     expect(starsFor(300, 100)).toBe(6);
+    // A chart with no overdrive to give turns gold at par; one with a little asks for a little more.
+    expect(goldThreshold(0)).toBe(1);
+    expect(goldThreshold(0.1)).toBeCloseTo(1.075);
+    expect(goldThreshold(0.5)).toBe(1.13);
+    expect(starsFor(100, 100, goldThreshold(0))).toBe(6);
   });
 });
 
