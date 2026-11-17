@@ -43,7 +43,7 @@ attribute vec4 aVar;
 attribute vec3 aTop;
 attribute vec3 aBottom;
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying vec4 vCol;
-varying vec3 vTop; varying vec3 vBottom; varying vec2 vLook;
+varying vec3 vTop; varying vec3 vBottom; varying vec2 vLook; varying float vFoot;
 
 mat4 jointAt(int joint, int row) {
   vec4 r0 = texelFetch(uAnim, ivec2(joint * 3, row), 0);
@@ -86,6 +86,7 @@ void main() {
     vCol = vec4(1.0, 1.0, 1.0, 0.0);
   #endif
   vTop = aTop; vBottom = aBottom; vLook = aVar.zw;
+  vFoot = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).y;
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
@@ -96,7 +97,7 @@ uniform vec3 uBase;
 uniform float uGloss;
 uniform float uGlow;
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying vec4 vCol;
-varying vec3 vTop; varying vec3 vBottom; varying vec2 vLook;
+varying vec3 vTop; varying vec3 vBottom; varying vec2 vLook; varying float vFoot;
 void main() {
   vec3 base = uBase * vCol.rgb;
   #ifdef TEXTURED
@@ -123,7 +124,7 @@ void main() {
   float wrap = max(0.0, dot(n, toGlow) * 0.6 + 0.4);
   vec3 stageCol = mix(uKey, vec3(1.0), 0.35) * uScreenLevel;
   // People standing shoulder to shoulder shade each other below the shoulders.
-  float packed = mix(smoothstep(0.2, 1.7, vWPos.y) * 0.85 + 0.15, 1.0, min(1.0, vLook.y));
+  float packed = mix(smoothstep(0.2, 1.7, vWPos.y - vFoot) * 0.85 + 0.15, 1.0, min(1.0, vLook.y));
   vec3 light = (vec3(0.02, 0.035, 0.11) * (0.6 + 0.4 * n.y) + stageCol * wrap * stage * 0.95 + uWash * 0.16 * stage) * packed;
   // The band stands in the front spots.
   vec3 spotDir = normalize(vec3(0.25, 0.75, 0.6));
@@ -280,9 +281,10 @@ const NEAR_CAMERA = 12;
  * the back and sides. `share` (0..1) thins it further for lighter graphics settings. People within
  * a few metres of a low camera get the detailed mesh and a little room is kept around the lens;
  * everybody else is the light mesh. With `sync` the loops are made to the beat and everyone plays
- * them nearly in time; otherwise each person starts at a point of their own.
+ * them nearly in time; otherwise each person starts at a point of their own. `ground` gives the
+ * height of the land where each one stands.
  */
-export function makeCrowd(data: VenueData, characters: string[], share: number, cameras: Vec3[] = [], sync = false): Person[] {
+export function makeCrowd(data: VenueData, characters: string[], share: number, cameras: Vec3[] = [], sync = false, ground: (x: number, z: number) => number = () => 0): Person[] {
   const rand = rng(31);
   const people: Person[] = [];
   if (!characters.length) return people;
@@ -309,7 +311,7 @@ export function makeCrowd(data: VenueData, characters: string[], share: number, 
       if (data.clear?.some((c) => Math.hypot(px - c.pos[0], pz - c.pos[2]) < c.radius)) continue;
       const style = rand();
       people.push({
-        pos: [px, 0, pz],
+        pos: [px, ground(px, pz), pz],
         yaw: Math.atan2(center[0] - px, center[2] - 6 - pz) + (rand() - 0.5) * 0.5,
         scale: 0.94 + rand() * 0.12,
         character: characters[Math.floor(rand() * characters.length)],

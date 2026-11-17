@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import type { StageCameras, Vec3 } from '../stage/Director';
 import type { DeckInfo } from './materials';
+import type { TerrainParams } from './terrain';
 
 /** What tools/stage/aurora/build_venue.py writes next to venue.glb (three.js coordinates). */
 export interface VenueData {
@@ -75,7 +76,21 @@ export interface FigureSet {
   anim: Uint16Array;
 }
 
+/** What tools/stage/aurora/build_scenery.py writes next to scenery.glb. */
+export interface SceneryData {
+  version: number;
+  terrain: TerrainParams;
+  /** The big wheel's axle, for turning it. */
+  wheel: { center: Vec3; radius: number };
+  /** Lights on the far shore that the lake mirrors. */
+  shore: { pos: Vec3; color: string }[];
+  /** Direction to the moon. */
+  moon: Vec3;
+}
+
 export interface VenueAssets {
+  /** The land, lake and festival grounds; missing if they have not been built. */
+  scenery: { scene: THREE.Group; data: SceneryData } | null;
   scene: THREE.Group;
   data: VenueData;
   band: FigureSet;
@@ -104,10 +119,14 @@ export function loadVenue(): Promise<VenueAssets> {
   // Characters built on this machine from downloaded files (build_people.py, kept out of the
   // repository) take the place of the project's own figures when they are there.
   const people = (name: string): Promise<FigureSet> => loadSet(`local/${name}`).catch(() => loadSet(name));
-  cache = Promise.all([loader.loadAsync(`${base}venue.glb`), get('venue.json').then((r) => r.json() as Promise<VenueData>), people('band'), people('crowd')]).then(
-    ([venue, data, band, crowd]) => {
+  const scenery = get('scenery.json')
+    .then((r) => r.json() as Promise<SceneryData>)
+    .then(async (data) => ({ scene: (await loader.loadAsync(`${base}scenery.glb`)).scene, data }))
+    .catch(() => null);
+  cache = Promise.all([loader.loadAsync(`${base}venue.glb`), get('venue.json').then((r) => r.json() as Promise<VenueData>), people('band'), people('crowd'), scenery]).then(
+    ([venue, data, band, crowd, land]) => {
       draco.dispose();
-      return { scene: venue.scene, data, band, crowd };
+      return { scene: venue.scene, data, band, crowd, scenery: land };
     },
   );
   cache.catch(() => {

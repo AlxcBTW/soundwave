@@ -25,6 +25,9 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import terrain  # noqa: E402  (the land itself is built by build_scenery.py)
+
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 ap = argparse.ArgumentParser()
 ap.add_argument('--out', default='')
@@ -589,7 +592,7 @@ box(black, (0.4, 0.6, 0.32), arm_b + Vector((0, 0.1, -0.3)))
 dots(led, [arm_b + Vector((0, 0.42, -0.2))], 0.05)
 
 # ---------------------------------------------------------------- the mix position and two delay towers in the crowd
-FOH = Vector((0, -84, 0))
+FOH = Vector((0, -84, terrain.height(0, -84)))
 for sx in (-1, 1):
     for sy in (-1, 1):
         base = FOH + Vector((sx * 4.2, sy * 3.0, 0))
@@ -604,7 +607,7 @@ for sx in (-1, 1):
     fixture(black, lens, FOH + Vector((sx * 3.4, 3.2, 6.7)), (-sx * 0.04, 1, 0.16), 'Foh', mount=(0, 0, -1))
 CLEAR.append((FOH, 7.5))
 for side in (1, -1):
-    base = Vector((52 * side, -40, 0))
+    base = Vector((52 * side, -40, terrain.height(52 * side, -40)))
     truss(black, [(base + Vector((0, 0, z)), Vector((1, 0, 0)), Vector((0, 1, 0))) for z in [k * 1.2 for k in range(13)]], s=0.3)
     box(black, (2.2, 0.8, 0.4), base + Vector((0, -0.9, 14.2)))
     pos, ang = base + Vector((0, -1.5, 13.9)), 0.0
@@ -629,15 +632,6 @@ new_obj('Rigging', black, 'Black', sharp=35)
 new_obj('Grilles', grille, 'Grille', smooth=False)
 new_obj('Lenses', lens, 'Lens', smooth=False)
 
-# ---------------------------------------------------------------- ground
-ground = bmesh.new()
-bmesh.ops.create_circle(ground, cap_ends=True, segments=64, radius=520, matrix=Matrix.Translation((0, -40, -0.02)))
-uvl = ground.loops.layers.uv.verify()
-for f in ground.faces:
-    for loop in f.loops:
-        loop[uvl].uv = (loop.vert.co.x, loop.vert.co.y)
-new_obj('Ground', ground, 'Ground', smooth=False)
-
 # =================================================================== CAMERAS AND MARKS
 VIEWS = {
     'hero': ((84, -104, 27), (-8, 10, 17), 58.0),
@@ -648,6 +642,11 @@ VIEWS = {
 }
 # Extra viewpoints for the clay preview only (not sent to the game).
 CHECKS = {'check-band': ((5.5, -9, 6.5), (0, 4, 3.2), 62.0), 'check-gear': ((3.5, -5.5, 4.2), (1.5, 0, 2.7), 60.0), 'check-heads': ((6, -9, 4), (4, -2, 3.2), 50.0), 'check-side': ((46, -30, 14), (22, 2, 14), 60.0), 'check-stage': ((0, -14, 5), (0, 14, 13), 86.0), 'check-wing': ((44, -22, 6), (48, 2, 5), 60.0)}
+# Cameras that stand in the audience rise with the ground.
+for _name in ('front', 'crowd'):
+    (_x, _y, _z), _target, _fov = VIEWS[_name]
+    VIEWS[_name] = ((_x, _y, round(_z + terrain.height(_x, _y), 2)), _target, _fov)
+
 # Pyro: fans of sparks from behind the skyline (origin, rays, spread and lean in degrees, ray length)
 # and CO2 jets along the front of the deck.
 FIREWORKS = [

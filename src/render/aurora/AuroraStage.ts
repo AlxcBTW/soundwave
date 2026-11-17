@@ -15,6 +15,7 @@ import { Figures, makeBand, makeCrowd } from './figures';
 import { applyVenueMaterials } from './materials';
 import { shared } from './shared';
 import { buildSky } from './sky';
+import { terrainHeight } from './terrain';
 
 export interface StageOptions {
   mode: 'play' | 'menu';
@@ -79,6 +80,8 @@ export class AuroraStage {
   private readonly beams: Beams;
   private readonly crowd: Figures;
   private readonly band: Figures;
+  /** The big wheel on the festival grounds, turning slowly. */
+  private wheel: THREE.Object3D | null = null;
   private readonly sparks: Particles;
   private readonly smoke: Particles;
   private readonly data: VenueData;
@@ -131,9 +134,29 @@ export class AuroraStage {
     this.owned.push(...applyVenueMaterials(venue, this.data.deck, g.lights === 'medium' || g.lights === 'high'));
     this.scene.add(venue);
 
+    // The land, the lake and the festival grounds around the stage.
+    const land = assets.scenery;
+    if (land) {
+      const scenery = land.scene.clone(true);
+      this.owned.push(...applyVenueMaterials(scenery, this.data.deck, false));
+      const wheel = new THREE.Group();
+      wheel.position.set(...land.data.wheel.center);
+      scenery.add(wheel);
+      wheel.updateMatrixWorld();
+      for (const part of scenery.children.filter((o) => o.name.startsWith('Wheel_'))) wheel.attach(part);
+      this.wheel = wheel;
+      this.scene.add(scenery);
+      shared.uMoonDir.value.set(...land.data.moon).normalize();
+      land.data.shore.slice(0, 8).forEach((s, i) => {
+        shared.uShore.value[i].set(...s.pos);
+        shared.uShoreCol.value[i].set(s.color);
+      });
+    }
+    const ground = (x: number, z: number) => terrainHeight(land?.data.terrain, x, z);
+
     this.crowd = new Figures(assets.crowd);
     const low = [...Object.values(this.data.cameras).map((c) => c.pos).filter((p) => p[1] < 10), ...EXTRA_CAMERAS];
-    this.crowd.add(makeCrowd(this.data, this.crowd.characters, LEVEL_SHARE[g.crowd], low, assets.crowd.data.sync));
+    this.crowd.add(makeCrowd(this.data, this.crowd.characters, LEVEL_SHARE[g.crowd], low, assets.crowd.data.sync, ground));
     this.band = new Figures(assets.band);
     // The part being played is picked out: more light on that player and under their feet.
     const focus = opts.part === 'vocals' ? 'vox' : opts.part;
@@ -242,6 +265,8 @@ export class AuroraStage {
     }
     this.sparks.update(dt, -9);
     this.smoke.update(dt, 0.4);
+    if (this.wheel) this.wheel.rotation.z += dt * 0.045;
+    shared.uBurst.value.w *= Math.exp(-dt * 1.6);
     this.director.update(dt, beat === 'downbeat', this.show.state.level, f.barSeconds);
     this.energy += (f.intensity - this.energy) * Math.min(1, dt * 1.2);
     this.applyShow(this.show.state, bands, dt);
@@ -378,6 +403,7 @@ export class AuroraStage {
     const origin = new THREE.Vector3();
     const dir = new THREE.Vector3();
     this.data.fireworks.forEach((f, index) => {
+      if (index === 0 || which === 'sides') shared.uBurst.value.set(f.origin[0], f.origin[1] + 14, f.origin[2], 1);
       const x = Math.abs(f.origin[0]);
       if (which === 'center' && x > 35) return;
       if (which === 'sides' && x < 40) return;

@@ -32,6 +32,14 @@ export const shared = {
   /** Where the four players stand, and how strongly each is picked out (the part being played most). */
   uBand: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] },
   uFeature: { value: [0.6, 0.6, 0.6, 0.6] },
+  /** The moon: direction to it and the light it gives. */
+  uMoonDir: { value: new THREE.Vector3(-0.51, 0.26, -0.82).normalize() },
+  uMoonCol: { value: new THREE.Color(0.5, 0.62, 1.0) },
+  /** Lights on the far shore, mirrored by the lake. */
+  uShore: { value: Array.from({ length: 8 }, () => new THREE.Vector3(0, -1000, 0)) },
+  uShoreCol: { value: Array.from({ length: 8 }, () => new THREE.Color(0, 0, 0)) },
+  /** The last firework: where it burst and how bright it still is. */
+  uBurst: { value: new THREE.Vector4(0, 60, -40, 0) },
   /** Overall brightness of the screens. */
   uScreenLevel: { value: 1 },
 };
@@ -57,6 +65,11 @@ uniform float uScreenLevel;
 uniform vec4 uIsland;
 uniform vec3 uBand[4];
 uniform float uFeature[4];
+uniform vec3 uMoonDir;
+uniform vec3 uMoonCol;
+uniform vec3 uShore[8];
+uniform vec3 uShoreCol[8];
+uniform vec4 uBurst;
 
 float hash11(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
 float hash21(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }

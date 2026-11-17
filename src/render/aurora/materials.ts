@@ -136,13 +136,90 @@ void main() {
   ${OUTPUT}
 }`;
 
+/** The land: trodden grass under moonlight, warmed by the stage where it is near. */
 const GROUND_FRAGMENT = /* glsl */ `
 ${COMMON}
 varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
 void main() {
+  vec3 n = normalize(vWNorm);
   float gd = distance(vWPos, vec3(uGlowPos.x, 0.0, uGlowPos.z + 20.0));
-  vec3 col = vec3(0.003, 0.005, 0.016) + mix(uWash, uKey, 0.3) * 0.05 / (1.0 + gd * gd * 0.0016);
-  col *= 0.8 + 0.4 * vnoise(vWPos.xz * 0.35);
+  vec3 grass = mix(vec3(0.012, 0.022, 0.026), vec3(0.022, 0.04, 0.03), vnoise(vWPos.xz * 0.07)) * (0.7 + 0.6 * vnoise(vWPos.xz * 0.8));
+  vec3 light = vec3(0.3, 0.42, 0.85) * 0.55 + uMoonCol * max(0.0, dot(n, uMoonDir)) * 1.6;
+  vec3 col = grass * light + mix(uWash, uKey, 0.3) * 0.05 / (1.0 + gd * gd * 0.0016);
+  gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
+  ${OUTPUT}
+}`;
+
+/**
+ * The lake: dark water with a moving surface. It mirrors the sky, lays the moon down as a path of
+ * glitter, streaks the far shore's lights toward the viewer and flashes with every firework.
+ */
+const WATER_FRAGMENT = /* glsl */ `
+${COMMON}
+varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
+void main() {
+  vec3 toCam = cameraPosition - vWPos;
+  float dist = length(toCam);
+  vec3 v = toCam / dist;
+  vec2 p = vWPos.xz;
+  float t = uTime;
+  vec2 big = vec2(vnoise(p * 0.11 + vec2(t * 0.05, t * 0.02)), vnoise(p * 0.11 + vec2(-t * 0.03, t * 0.045) + 31.7)) - 0.5;
+  vec2 small = vec2(vnoise(p * 0.7 + t * 0.22), vnoise(p * 0.7 - t * 0.19 + 11.1)) - 0.5;
+  // Ripples flatten into one sheen far away, where they would only shimmer.
+  vec2 g = big * 0.3 + small * 0.2 / (1.0 + dist * 0.01);
+  vec3 n = normalize(vec3(g.x, 1.0, g.y));
+  vec3 r = reflect(-v, n);
+  r.y = abs(r.y);
+  float fres = 0.03 + 0.97 * pow(clamp(1.0 - dot(n, v), 0.0, 1.0), 5.0);
+  vec3 col = vec3(0.002, 0.005, 0.016) + skyGradient(r) * fres * 1.4;
+  float toMoon = max(0.0, dot(r, uMoonDir));
+  col += uMoonCol * (pow(toMoon, 420.0) * 2.6 + pow(toMoon, 60.0) * 0.3);
+  for (int i = 0; i < 8; i++) {
+    vec3 l = uShore[i] - vWPos;
+    float d = length(l);
+    col += uShoreCol[i] * pow(max(0.0, dot(r, l / d)), 900.0) * 3.2;
+  }
+  vec3 b = uBurst.xyz - vWPos;
+  col += mix(uKey, vec3(1.0), 0.5) * pow(max(0.0, dot(r, normalize(b))), 60.0) * uBurst.w * 1.2;
+  gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
+  ${OUTPUT}
+}`;
+
+/** Steady lamps: stalls, strings, the campsite, the far shore. They glow through the haze. */
+const LAMP_FRAGMENT = /* glsl */ `
+${COMMON}
+uniform vec3 uTint; uniform float uTwinkle;
+varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
+void main() {
+  float h = hash31(floor(vWPos * 0.9));
+  float twinkle = 1.0 - uTwinkle * (0.5 + 0.5 * sin(uTime * (1.2 + h * 3.0) + h * 60.0));
+  vec3 col = uTint * 1.5 * twinkle;
+  gl_FragColor = vec4(mix(col, applyHaze(col, vWPos), 0.55), 1.0);
+  ${OUTPUT}
+}`;
+
+/** Cloth lit from inside: stalls, the arch, flags, the wheel's cabins. */
+const CANVAS_FRAGMENT = /* glsl */ `
+${COMMON}
+uniform vec3 uTint;
+varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
+void main() {
+  vec3 n = normalize(vWNorm);
+  vec3 v = normalize(cameraPosition - vWPos);
+  if (dot(n, v) < 0.0) n = -n;
+  vec3 col = uTint * (0.34 + 0.16 * n.y) + uTint * uMoonCol * max(0.0, dot(n, uMoonDir)) * 0.3;
+  gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
+  ${OUTPUT}
+}`;
+
+/** Trees: dark shapes against the sky, edged by the moon. */
+const FOLIAGE_FRAGMENT = /* glsl */ `
+${COMMON}
+varying vec3 vWPos; varying vec3 vWNorm; varying vec2 vUv; varying float vAo;
+void main() {
+  vec3 n = normalize(vWNorm);
+  vec3 base = vec3(0.01, 0.026, 0.022) * (0.7 + 0.6 * hash31(floor(vWPos * 0.25)));
+  vec3 col = base * (vec3(0.3, 0.42, 0.85) * (0.5 + 0.3 * n.y) + uMoonCol * max(0.0, dot(n, uMoonDir)) * 2.2);
   gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);
   ${OUTPUT}
 }`;
@@ -232,6 +309,10 @@ const FRAGMENTS: Record<string, string> = {
   grille: GEAR_FRAGMENT,
   led: LED_FRAGMENT,
   lens: LENS_FRAGMENT,
+  water: WATER_FRAGMENT,
+  lamp: LAMP_FRAGMENT,
+  canvas: CANVAS_FRAGMENT,
+  foliage: FOLIAGE_FRAGMENT,
   screen: SCREEN_FRAGMENT,
 };
 
@@ -247,7 +328,7 @@ export function applyVenueMaterials(root: THREE.Object3D, deck: DeckInfo, glitte
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;
     const src = mesh.material as THREE.Material;
-    const info = src.userData as { kind?: string; a?: string; b?: string; c?: string; rim?: string; glitter?: number; glow?: number; panels?: number; veins?: number };
+    const info = src.userData as { kind?: string; a?: string; b?: string; c?: string; rim?: string; glitter?: number; glow?: number; panels?: number; veins?: number; tint?: string; twinkle?: number };
     const kind = info.kind && FRAGMENTS[info.kind] ? info.kind : 'black';
     const moon = kind === 'screen' && /Moon/.test(mesh.name);
     const key = kind === 'screen' ? `screen-${moon}` : src.name;
@@ -268,6 +349,9 @@ export function applyVenueMaterials(root: THREE.Object3D, deck: DeckInfo, glitte
         uniforms.uDeckShape = { value: new THREE.Vector3(deck.a, deck.b, deck.power) };
       } else if (kind === 'screen') {
         uniforms.uCells = { value: moon ? 150 : 60 };
+      } else if (kind === 'lamp' || kind === 'canvas') {
+        uniforms.uTint = { value: new THREE.Color(info.tint ?? '#ffffff') };
+        uniforms.uTwinkle = { value: info.twinkle ?? 0 };
       }
       mat = new THREE.ShaderMaterial({
         name: key,
@@ -276,7 +360,7 @@ export function applyVenueMaterials(root: THREE.Object3D, deck: DeckInfo, glitte
         fragmentShader: FRAGMENTS[kind],
         vertexColors: !!mesh.geometry.getAttribute('color'),
         defines: moon ? { MOON: '' } : kind === 'paint' && glitter ? { GLITTER: '' } : kind === 'grille' ? { GRILLE: '' } : {},
-        side: kind === 'screen' || kind === 'lens' ? THREE.DoubleSide : THREE.FrontSide,
+        side: kind === 'screen' || kind === 'lens' || kind === 'canvas' ? THREE.DoubleSide : THREE.FrontSide,
       });
       byName.set(key, mat);
       made.push(mat);
