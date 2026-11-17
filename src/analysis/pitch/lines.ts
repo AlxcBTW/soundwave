@@ -177,7 +177,7 @@ export function separateParts(notes: PitchedNote[], duration: number): { bass: P
     const cands = upper.filter(
       (n) => n.midi >= 48 && n.midi <= 84 && !chordMember.has(n) && (!onChord(n) || (n.bend ?? 0) >= VOCAL_BEND * 2),
     );
-    vocals = melodicPath(cands, vocalScore, 0.18, 0.5).filter((n) => vocalScore(n) >= 0.12);
+    vocals = dropStrayVocals(melodicPath(cands, vocalScore, 0.18, 0.5).filter((n) => vocalScore(n) >= 0.12));
   }
   const vocalKey = new Set(vocals.map((n) => `${n.t}:${n.midi}`));
 
@@ -251,4 +251,46 @@ export function splitLines(notes: PitchedNote[], minStrength = 0.15): { bass: Pi
   const bass = bassLine(strong);
   const lead = monophonic(high, (n) => n.strength * (1 + (n.midi - 60) * 0.015) * Math.min(1.5, 0.6 + n.dur * 2));
   return { bass, lead };
+}
+
+/** Silence (s) around a cluster of sung notes that makes it stand alone. */
+const STRAY_GAP = 1.5;
+/** Clusters this small (or smaller) in a break need to prove they are singing. */
+const STRAY_MAX_NOTES = 3;
+/** Notes in runs at least this long count as phrases. */
+const PHRASE_NOTES = 4;
+
+/**
+ * Removes stray notes from a vocal line: a note or two in a long break without singing is usually
+ * an instrument bleeding into the vocal track (or, without stems, an instrument taken for a voice).
+ * A small cluster with silence around it stays only when it sounds like the singing elsewhere in
+ * the song: not clearly weaker than the song's typical sung note, not completely flat in pitch,
+ * and, when the vocal stem's loudness is known (`level`, relative to its loud parts), not quiet.
+ * A "vocal line" that is nearly all such fragments has no singing at all and is dropped.
+ */
+export function dropStrayVocals(notes: PitchedNote[], level?: (n: PitchedNote) => number): PitchedNote[] {
+  if (!notes.length) return notes;
+  const sorted = [...notes].sort((a, b) => a.t - b.t);
+  const groups: PitchedNote[][] = [];
+  for (const n of sorted) {
+    const g = groups[groups.length - 1];
+    const prev = g?.[g.length - 1];
+    if (prev && n.t - (prev.t + prev.dur) < STRAY_GAP) g.push(n);
+    else groups.push([n]);
+  }
+  const inPhrases = groups.filter((g) => g.length >= PHRASE_NOTES).reduce((sum, g) => sum + g.length, 0);
+  if (inPhrases < sorted.length * 0.25) return [];
+
+  const strengths = sorted.map((n) => n.strength).sort((a, b) => a - b);
+  const typical = strengths[strengths.length >> 1];
+  const sung = (g: PitchedNote[]) => {
+    const mean = g.reduce((s, n) => s + n.strength, 0) / g.length;
+    const flat = g.every((n) => (n.bend ?? 0) < 0.05);
+    if (level) {
+      const loudest = Math.max(...g.map(level));
+      return !(loudest < 0.35 && mean < typical) && !flat;
+    }
+    return mean >= typical * 0.8 && !flat;
+  };
+  return groups.flatMap((g) => (g.length > STRAY_MAX_NOTES || sung(g) ? g : []));
 }

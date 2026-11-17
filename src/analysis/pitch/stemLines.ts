@@ -2,7 +2,7 @@ import { bandFlux, normalize, percentile, pickPeaks } from '../dsp/onsets';
 import { highpass, lowpass, refineOnset } from '../dsp/refine';
 import { stft } from '../dsp/stft';
 import type { PitchedNote } from '../types';
-import { BASS_SPLIT } from './lines';
+import { BASS_SPLIT, dropStrayVocals } from './lines';
 
 /**
  * Lines from separated stems, timed by what you can hear.
@@ -188,7 +188,8 @@ export function vocalLineFromStem({ signal, sr, notes }: StemInput): PitchedNote
     if (end - e.t < MIN_SYLLABLE) continue;
     out.push({ t: e.t, dur: end - e.t, midi: pitch.midi, strength: Math.min(1, 0.4 + e.strength * 0.6), bend: pitch.bend, fine: pitch.fine });
   }
-  return stabilizePitches(out);
+  // A note or two alone in a long break is usually bleed from an instrument.
+  return dropStrayVocals(stabilizePitches(out), (n) => level(env, n.t, n.t + Math.min(0.3, Math.max(0.1, n.dur))));
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bassLine, clusters, separateParts } from '../src/analysis/pitch/lines';
+import { bassLine, clusters, dropStrayVocals, separateParts } from '../src/analysis/pitch/lines';
 import type { PitchedNote } from '../src/analysis/types';
 
 const note = (t: number, midi: number, extra: Partial<PitchedNote> = {}): PitchedNote => ({ t, dur: 0.3, midi, strength: 0.7, ...extra });
@@ -51,5 +51,36 @@ describe('separateParts', () => {
     const { lead, vocals } = separateParts(sungOnly, 32);
     expect(vocals.length).toBeGreaterThan(30);
     expect(lead.length).toBe(vocals.length);
+  });
+});
+
+describe('dropStrayVocals', () => {
+  // A sung phrase every few seconds, with the given notes added in between.
+  const phrase = (t0: number) => [0, 0.3, 0.6, 0.9, 1.2].map((d) => ({ t: t0 + d, dur: 0.25, midi: 64, strength: 0.8, bend: 0.2 }));
+  const song = (...extra: { t: number; dur: number; midi: number; strength: number; bend?: number }[]) => [...phrase(0), ...phrase(10), ...extra, ...phrase(20)];
+
+  it('drops a weak note or two alone in a break', () => {
+    const out = dropStrayVocals(song({ t: 5, dur: 0.2, midi: 48, strength: 0.3, bend: 0.2 }, { t: 5.4, dur: 0.2, midi: 48, strength: 0.35, bend: 0.2 }));
+    expect(out.some((n) => n.t === 5 || n.t === 5.4)).toBe(false);
+    expect(out).toHaveLength(15);
+  });
+
+  it('drops a flat-pitched fragment even when it is strong', () => {
+    expect(dropStrayVocals(song({ t: 5, dur: 0.3, midi: 60, strength: 0.9, bend: 0 })).some((n) => n.t === 5)).toBe(false);
+  });
+
+  it('keeps a lone sung note that sounds like the rest of the singing', () => {
+    expect(dropStrayVocals(song({ t: 5, dur: 0.5, midi: 67, strength: 0.85, bend: 0.25 })).some((n) => n.t === 5)).toBe(true);
+  });
+
+  it('with the stem, drops fragments quieter than the singing', () => {
+    const quiet = { t: 5, dur: 0.3, midi: 60, strength: 0.6, bend: 0.2 };
+    const out = dropStrayVocals(song(quiet), (n) => (n === quiet ? 0.15 : 0.8));
+    expect(out.includes(quiet)).toBe(false);
+  });
+
+  it('a line made only of fragments has no singing at all', () => {
+    const blips = [0, 4, 8, 12, 16].map((t) => ({ t, dur: 0.3, midi: 51, strength: 0.7, bend: 0.15 }));
+    expect(dropStrayVocals(blips)).toEqual([]);
   });
 });
