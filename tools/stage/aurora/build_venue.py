@@ -46,6 +46,12 @@ DECK_A, DECK_B, DECK_H, DECK_P = 24.0, 12.0, 2.4, 2.6
 SCREEN_W, SCREEN_H, SCREEN_POWER = 13.2 - 0.5, 17.8 - 0.9, 2.25
 MOON_C = Vector((0, 23.6, 8.4))
 MOON_R = SCREEN_W
+# The band plays on an island at the front of the deck: a low platform with the singer front
+# centre, guitar and bass either side a step back and turned in, the drums on a riser behind.
+ISLAND_C, ISLAND_A, ISLAND_B = Vector((0, 4.6, 0)), 8.2, 5.6
+ISLAND_H = DECK_H + 0.25
+RISER_C, RISER_R, RISER_H = Vector((0, 7.5, 0)), 3.2, 0.6
+BAND = {'lead': (-4.5, 3.4, ISLAND_H), 'vox': (0.0, 1.5, ISLAND_H), 'bass': (4.5, 3.4, ISLAND_H), 'drums': (0.0, 7.5, ISLAND_H + RISER_H)}
 
 # ---------------------------------------------------------------- materials
 MATS = {}
@@ -333,16 +339,21 @@ deck = bmesh.new()
 for scale, top in ((1.0, DECK_H), (1.09, 1.8), (1.18, 1.2), (1.27, 0.6)):
     slab(deck, scale, 0.0, top)
     tube(led, deck_outline(scale + 0.004, top - 0.14, 128, front_only=True), 0.045)
-# drum riser
-riser = bmesh.new()
-bmesh.ops.create_cone(riser, cap_ends=True, segments=48, radius1=4.4, radius2=4.3, depth=0.8,
-                      matrix=Matrix.Translation((0, 14.5, DECK_H + 0.4)) @ Matrix.Diagonal((1, 0.62, 1, 1)))
-uvl = riser.loops.layers.uv.verify()
-for f in riser.faces:
-    for loop in f.loops:
-        loop[uvl].uv = (loop.vert.co.x, loop.vert.co.y)
-new_obj('DrumRiser', riser, 'Deck')
-tube(led, [Vector((math.cos(a) * 4.42, 14.5 + math.sin(a) * 4.42 * 0.62, DECK_H + 0.74)) for a in [math.pi + math.pi * i / 40 for i in range(41)]], 0.04)
+# the band's island and, on it, the drum riser: two low round platforms with lit edges
+def platform(name, centre, rx, ry, z0, z1):
+    plate = bmesh.new()
+    bmesh.ops.create_cone(plate, cap_ends=True, segments=64, radius1=1.0, radius2=0.985, depth=z1 - z0,
+                          matrix=Matrix.Translation((centre.x, centre.y, (z0 + z1) / 2)) @ Matrix.Diagonal((rx, ry, 1, 1)))
+    layer = plate.loops.layers.uv.verify()
+    for f in plate.faces:
+        for loop in f.loops:
+            loop[layer].uv = (loop.vert.co.x, loop.vert.co.y)
+    new_obj(name, plate, 'Deck')
+    tube(led, [Vector((centre.x + math.cos(a) * (rx + 0.02), centre.y + math.sin(a) * (ry + 0.02), z1 - 0.07)) for a in [2 * math.pi * i / 96 for i in range(97)]], 0.035)
+
+
+platform('Island', ISLAND_C, ISLAND_A, ISLAND_B, DECK_H - 0.02, ISLAND_H)
+platform('DrumRiser', RISER_C, RISER_R, RISER_R * 0.72, ISLAND_H - 0.02, ISLAND_H + RISER_H)
 new_obj('Deck', deck, 'Deck')
 
 # ---------------------------------------------------------------- the shell: five nested arches leaning to the crowd
@@ -407,7 +418,7 @@ new_obj('ScreenMoon', moon, 'Screen', smooth=False)
 
 # ---------------------------------------------------------------- the halo: a ring truss flown over the band
 # Small and low enough to clear the underside of every ridge above it.
-HALO_C, HALO_R = Vector((0, 7.5, 18.2)), 6.5
+HALO_C, HALO_R = Vector((0, 5.0, 18.2)), 6.5
 halo_tilt = Matrix.Rotation(math.radians(-10), 3, 'X')
 halo_up = (halo_tilt @ Z).normalized()
 halo = []
@@ -420,7 +431,10 @@ truss(black, halo, closed=True)
 tube(led, [c - up * 0.3 for (c, n_, up) in halo] + [halo[0][0] - halo_up * 0.3], 0.05)
 for k in range(0, 48, 4):
     c, radial, up = halo[k]
-    fixture(black, lens, c - up * 0.95, radial * 0.38 - Y * 0.3 - Z, 'Halo', mount=up)
+    # three heads per player, each aimed at its player's chest
+    lamp = c - up * 0.95
+    player = min(BAND.values(), key=lambda b: (Vector((b[0], b[1], 0)) - Vector((lamp.x, lamp.y, 0))).length)
+    fixture(black, lens, lamp, Vector((player[0], player[1], player[2] + 1.2)) - lamp, 'Halo', mount=up)
 for k in (6, 18, 30, 42):
     c = halo[k][0]
     cyl(black, c, c + Vector((0, 0, 7.5)), 0.02, 4)
@@ -525,14 +539,34 @@ barrier = deck_outline(1.44, 0.6, 96, front_only=True)
 loft('', barrier, lambda t: 0.12, lambda t: 1.2, None, depth_axis=Z, sides=6, power=6, bm=black)
 
 # ---------------------------------------------------------------- backline and what stands around the deck
-for x in (-8.5, -5.0, -1.6, 1.6, 5.0, 8.5):
-    wedge(Vector((x, -0.75, DECK_H)), math.radians(-x * 2.2))
-for side in (1, -1):
+def mic_stand(pos, lean):
+    """A boom stand: tripod, pole, a short boom toward the player and the microphone on it."""
+    top = pos + Vector((0, 0, 1.42))
+    for a in (0.4, 2.5, 4.6):
+        cyl(black, pos + Vector((math.cos(a) * 0.3, math.sin(a) * 0.3, 0.02)), pos + Vector((0, 0, 0.3)), 0.012, 5)
+    cyl(black, pos + Vector((0, 0, 0.02)), top, 0.013, 6)
+    tip = top + Vector((lean[0], lean[1], 0.12))
+    cyl(black, top - Vector((lean[0], lean[1], 0.12)) * 0.3, tip, 0.01, 5)
+    cyl(black, tip, tip + Vector((lean[0], lean[1], 0)).normalized() * 0.17, 0.024, 8)
+
+
+# a monitor in front of every player who stands, turned to face them
+for part in ('lead', 'vox', 'bass'):
+    x, y, z = BAND[part]
+    wedge(Vector((x * 1.06, y - 1.85, z)), math.radians(-x * 3.0))
+# guitar and bass: an amp stack behind, a pedalboard at the feet, a stand for backing vocals
+for part in ('lead', 'bass'):
+    x, y, z = BAND[part]
+    side = 1 if x > 0 else -1
     for col in range(2):
         for row in range(2):
-            c = Vector((side * (6.6 + col * 1.35), 16.2, DECK_H + 0.55 + row * 1.08))
+            c = Vector((x + side * (0.5 + col * 1.3), y + 2.5, z + 0.53 + row * 1.06))
             cabinet((1.25, 0.6, 1.02), c)
             dots(led, [c + Vector((-0.4, -0.31, 0.38))], 0.05)
+    stamp(black, cube((0.7, 0.32, 0.05)), Matrix.Translation((x - side * 0.15, y - 0.75, z + 0.03)), 0.01)
+    dots(led, [Vector((x - side * 0.15 + dx, y - 0.75, z + 0.07)) for dx in (-0.24, -0.08, 0.08, 0.24)], 0.035)
+    mic_stand(Vector((x - side * 0.75, y - 0.55, z)), (side * 0.22, 0.2))
+for side in (1, -1):
     # side fills turned toward the band
     turn = Matrix.Rotation(math.radians(-70 * side), 3, 'Z')
     for row in range(2):
@@ -613,7 +647,7 @@ VIEWS = {
     'aerial': ((44, -118, 62), (0, 6, 8), 56.0),
 }
 # Extra viewpoints for the clay preview only (not sent to the game).
-CHECKS = {'check-gear': ((3.5, -5.5, 4.2), (1.5, 0, 2.7), 60.0), 'check-heads': ((6, -9, 4), (4, -2, 3.2), 50.0), 'check-side': ((46, -30, 14), (22, 2, 14), 60.0), 'check-stage': ((0, -14, 5), (0, 14, 13), 86.0), 'check-wing': ((44, -22, 6), (48, 2, 5), 60.0)}
+CHECKS = {'check-band': ((5.5, -9, 6.5), (0, 4, 3.2), 62.0), 'check-gear': ((3.5, -5.5, 4.2), (1.5, 0, 2.7), 60.0), 'check-heads': ((6, -9, 4), (4, -2, 3.2), 50.0), 'check-side': ((46, -30, 14), (22, 2, 14), 60.0), 'check-stage': ((0, -14, 5), (0, 14, 13), 86.0), 'check-wing': ((44, -22, 6), (48, 2, 5), 60.0)}
 # Pyro: fans of sparks from behind the skyline (origin, rays, spread and lean in degrees, ray length)
 # and CO2 jets along the front of the deck.
 FIREWORKS = [
@@ -631,7 +665,6 @@ for j in range(8):
     sx, sy = superpoint(a, DECK_P)
     CO2.append(Vector((DECK_C.x + sx * DECK_A * 1.04, DECK_C.y + sy * DECK_B * 1.04, 1.9)))
 
-BAND = {'lead': (-6.5, 4.0, DECK_H), 'vox': (0.0, 2.2, DECK_H), 'bass': (6.5, 4.0, DECK_H), 'drums': (0.0, 14.5, DECK_H + 0.8)}
 
 
 def to_three(v):
@@ -710,6 +743,7 @@ def export(out_dir):
         'version': 1,
         'cameras': {k: {'pos': to_three(loc), 'target': to_three(tgt), 'hfov': hfov} for k, (loc, tgt, hfov) in VIEWS.items()},
         'band': {k: to_three(v) for k, v in BAND.items()},
+        'island': {'center': to_three(Vector((ISLAND_C.x, ISLAND_C.y, ISLAND_H))), 'a': ISLAND_A, 'b': ISLAND_B},
         'fixtures': [{'group': f['group'], 'pos': to_three(f['pos']), 'dir': to_three(f['dir'])} for f in FIXTURES],
         'moon': {'center': to_three(MOON_C), 'radius': MOON_R, 'arch': {'halfWidth': SCREEN_W, 'height': SCREEN_H, 'power': SCREEN_POWER}},
         'fireworks': [{**f, 'origin': to_three(f['origin'])} for f in FIREWORKS],

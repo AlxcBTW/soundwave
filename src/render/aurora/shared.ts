@@ -27,6 +27,11 @@ export const shared = {
   uMoon: { value: new THREE.Vector4(0, 8.4, -23.6, 12.7) },
   /** The arch outline the main screen fills: half width, height, superellipse power. */
   uArch: { value: new THREE.Vector3(12.7, 16.9, 2.25) },
+  /** The band's island: centre x, z and half axes; the deck's rings of light spread from it. */
+  uIsland: { value: new THREE.Vector4(0, -4.6, 8.2, 6.0) },
+  /** Where the four players stand, and how strongly each is picked out (the part being played most). */
+  uBand: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] },
+  uFeature: { value: [0.6, 0.6, 0.6, 0.6] },
   /** Overall brightness of the screens. */
   uScreenLevel: { value: 1 },
 };
@@ -49,6 +54,9 @@ uniform vec3 uGlowPos;
 uniform vec4 uMoon;
 uniform vec3 uArch;
 uniform float uScreenLevel;
+uniform vec4 uIsland;
+uniform vec3 uBand[4];
+uniform float uFeature[4];
 
 float hash11(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
 float hash21(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }

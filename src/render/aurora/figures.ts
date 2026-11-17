@@ -27,8 +27,8 @@ export interface Person {
   top?: THREE.ColorRepresentation;
   bottom?: THREE.ColorRepresentation;
   recolor?: number;
-  /** Lit by the front spots (the band). */
-  spot?: boolean;
+  /** Lit by the front spots (the band): 1 for a band member, more for the one picked out. */
+  spot?: number;
 }
 
 const VERTEX = /* glsl */ `
@@ -123,7 +123,7 @@ void main() {
   float wrap = max(0.0, dot(n, toGlow) * 0.6 + 0.4);
   vec3 stageCol = mix(uKey, vec3(1.0), 0.35) * uScreenLevel;
   // People standing shoulder to shoulder shade each other below the shoulders.
-  float packed = mix(smoothstep(0.2, 1.7, vWPos.y) * 0.85 + 0.15, 1.0, vLook.y);
+  float packed = mix(smoothstep(0.2, 1.7, vWPos.y) * 0.85 + 0.15, 1.0, min(1.0, vLook.y));
   vec3 light = (vec3(0.02, 0.035, 0.11) * (0.6 + 0.4 * n.y) + stageCol * wrap * stage * 0.95 + uWash * 0.16 * stage) * packed;
   // The band stands in the front spots.
   vec3 spotDir = normalize(vec3(0.25, 0.75, 0.6));
@@ -186,7 +186,7 @@ export class Figures {
         const b: Clip = clips.get(p.hype) ?? a;
         clipA.set([a.start, a.frames, a.beats], i * 3);
         clipB.set([b.start, b.frames, b.beats], i * 3);
-        vary.set([p.phase, p.threshold, p.recolor ?? 0, p.spot ? 1 : 0], i * 4);
+        vary.set([p.phase, p.threshold, p.recolor ?? 0, p.spot ?? 0], i * 4);
         top.set(c.set(p.top ?? '#ffffff').toArray(), i * 3);
         bottom.set(c.set(p.bottom ?? '#ffffff').toArray(), i * 3);
         matrices.push(m.compose(pos.set(...p.pos), q.setFromAxisAngle(UP, p.yaw), scl.setScalar(p.scale)).clone());
@@ -328,12 +328,12 @@ export function makeCrowd(data: VenueData, characters: string[], share: number, 
   return people;
 }
 
-/** The band on its marks, facing the crowd. */
-export function makeBand(data: VenueData, band: Record<string, { character: string; clip: string }>): Person[] {
-  const turn: Record<string, number> = { lead: 0.3, bass: -0.3 };
+/** The band on its marks: guitar and bass turned in toward the singer, `focus` (a band key) lit a little more. */
+export function makeBand(data: VenueData, band: Record<string, { character: string; clip: string }>, focus?: string): Person[] {
+  const turn: Record<string, number> = { lead: 0.42, bass: -0.42 };
   return Object.entries(band).flatMap(([part, who]) => {
     const pos = data.band[part];
     if (!pos) return [];
-    return [{ pos, yaw: turn[part] ?? 0, scale: 1, character: who.character, calm: who.clip, hype: who.clip, threshold: 2, phase: 0, spot: true }];
+    return [{ pos, yaw: turn[part] ?? 0, scale: 1, character: who.character, calm: who.clip, hype: who.clip, threshold: 2, phase: 0, spot: part === focus ? 1.3 : 1 }];
   });
 }

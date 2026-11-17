@@ -107,12 +107,17 @@ void main() {
   vec3 col = vec3(0.006, 0.008, 0.022);
   float fres = 0.05 + 0.95 * pow(1.0 - ndv, 4.0);
   if (n.y > 0.7) {
-    // Lines of light following the deck's outline, running outward with the music.
-    vec2 d = (vWPos.xz - uDeckC.xz) / uDeckShape.xy;
-    float rr = pow(pow(abs(d.x), uDeckShape.z) + pow(abs(d.y), uDeckShape.z), 1.0 / uDeckShape.z);
-    float ring = abs(fract(rr * 5.0 - uBeat * 0.25) - 0.5);
-    float w = fwidth(rr * 5.0) + 0.012;
-    col += mix(uAccent, uKey, 0.5 + 0.5 * sin(rr * 9.0)) * smoothstep(w, 0.0, ring - 0.006) * (0.3 + 0.4 * uPulse);
+    // Rings of light spreading from the band's island, running outward with the music.
+    float rr = length((vWPos.xz - uIsland.xy) / uIsland.zw) * 2.0;
+    float ring = abs(fract(rr - uBeat * 0.25) - 0.5);
+    float w = fwidth(rr) + 0.012;
+    col += mix(uAccent, uKey, 0.5 + 0.5 * sin(rr * 4.0)) * smoothstep(w, 0.0, ring - 0.006) * (0.26 + 0.36 * uPulse);
+    // A pool of light under each player, strongest under the part being played.
+    for (int i = 0; i < 4; i++) {
+      vec2 q = vWPos.xz - uBand[i].xz;
+      float near = step(abs(vWPos.y - uBand[i].y), 0.4);
+      col += mix(vec3(1.0, 0.92, 0.84), uKey, 0.3) * exp(-dot(q, q) / 2.6) * near * (0.05 + 0.2 * uFeature[i]);
+    }
     // A polished floor: it mirrors the moon and the sky.
     vec3 r = reflect(-v, n);
     if (r.z < -1e-3) {

@@ -49,6 +49,13 @@ export function buildShots(cams: StageCameras, band: Partial<Record<string, Vec3
   add({ name: 'wide-left', pos: [-62, 7, 48], target: [0, 22, -12], hfov: 62, move: 'truck', amount: 8, levels: ['calm', 'groove', 'peak'], weight: 1.2, calm: true });
   add({ name: 'wide-right', pos: [62, 7, 48], target: [0, 22, -12], hfov: 62, move: 'truck', amount: 8, levels: ['calm', 'groove', 'peak'], weight: 1.2, calm: true });
   add({ name: 'low-gate', pos: [0, 1.6, 26], target: [0, 30, -16], hfov: 84, move: 'crane', amount: 3, levels: ['peak'], weight: 1.2 });
+  // The whole band on its island.
+  const all = Object.values(band).filter((p): p is Vec3 => !!p);
+  if (all.length) {
+    const c: Vec3 = [0, 0, 0];
+    for (const p of all) for (let i = 0; i < 3; i++) c[i] += p[i] / all.length;
+    add({ name: 'band', pos: [c[0] - 2, c[1] + 3.4, c[2] + 15], target: [c[0], c[1] + 1.6, c[2]], hfov: 56, move: 'truck', amount: 4, levels: ['groove', 'peak'], weight: 1.4 });
+  }
   // Close-ups on the band; the player's member gets the most.
   const members: [string, Vec3][] = [['lead', [-7, 2.4, -4.5]], ['vocals', [0, 2.4, -3]], ['bass', [7, 2.4, -4.5]], ['drums', [0, 3.8, -13.2]]];
   for (const [part, fallback] of members) {
@@ -58,12 +65,12 @@ export function buildShots(cams: StageCameras, band: Partial<Record<string, Vec3
     const mine = part === focus;
     add({
       name: `band-${part}`,
-      // Wide enough to keep the stage around the player: the band are simple figures.
-      pos: [p[0] + side * 8 - 3, p[1] + 4.5, p[2] + 30],
-      target: [p[0] * 0.6, p[1] + 7, p[2] - 6],
-      hfov: 58,
+      // From just beyond the deck's edge, a little to the player's outer side.
+      pos: [p[0] + (side || 0.6) * 2.6, p[1] + 1.9, p[2] + 7.5],
+      target: [p[0], p[1] + 1.25, p[2]],
+      hfov: 44,
       move: 'truck',
-      amount: 2.5,
+      amount: 1.6,
       levels: ['groove', 'peak'],
       weight: mine ? 3 : 0.6,
     });

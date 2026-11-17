@@ -38,7 +38,9 @@ const SPARKS_PER_RAY: Record<Level, number> = { off: 0, low: 6, medium: 12, high
 const SMOKE: Record<Level, number> = { off: 0, low: 250, medium: 700, high: 1400 };
 const CO2_PER_JET: Record<Level, number> = { off: 0, low: 6, medium: 14, high: 24 };
 /** Camera spots the director adds itself (see buildShots), for placing detailed crowd figures. */
-const EXTRA_CAMERAS: [number, number, number][] = [[-62, 7, 48], [62, 7, 48], [0, 1.6, 26], [-8, 7, 26], [8, 7, 26], [0, 7, 27]];
+const EXTRA_CAMERAS: [number, number, number][] = [[-62, 7, 48], [62, 7, 48], [0, 1.6, 26], [-7, 5, 5], [7, 5, 5], [0, 6, 13]];
+/** The order the shaders know the players in. */
+const PLAYERS = ['lead', 'vox', 'bass', 'drums'];
 
 /** The looks the show moves through; they stand in for the light show's own palettes one to one. */
 const LOOKS: { key: Rgb; accent: Rgb; wash: Rgb }[] = [
@@ -124,7 +126,16 @@ export class AuroraStage {
     const low = [...Object.values(this.data.cameras).map((c) => c.pos).filter((p) => p[1] < 10), ...EXTRA_CAMERAS];
     this.crowd.add(makeCrowd(this.data, this.crowd.characters, LEVEL_SHARE[g.crowd], low, assets.crowd.data.sync));
     this.band = new Figures(assets.band);
-    this.band.add(makeBand(this.data, assets.band.data.band ?? {}));
+    // The part being played is picked out: more light on that player and under their feet.
+    const focus = opts.part === 'vocals' ? 'vox' : opts.part;
+    this.band.add(makeBand(this.data, assets.band.data.band ?? {}, focus));
+    PLAYERS.forEach((key, i) => {
+      const p = this.data.band[key];
+      if (p) shared.uBand.value[i].set(...p);
+      shared.uFeature.value[i] = !focus ? 0.6 : key === focus ? 1 : 0.4;
+    });
+    const island = this.data.island;
+    if (island) shared.uIsland.value.set(island.center[0], island.center[2], island.a, island.b);
     this.scene.add(this.crowd.group, this.band.group);
     this.owned.push(this.crowd, this.band);
 
@@ -287,9 +298,9 @@ export class AuroraStage {
           level = 0.25 + 0.2 * s.barPulse;
           break;
         case 'Halo':
-          // The ring over the band breathes with the bar and opens on the beat.
-          b.tilt = 0.12 * s.pulse + Math.sin(t * 0.4 + i) * 0.05;
-          level *= 0.3 + 0.35 * s.barPulse;
+          // The ring over the band: every head stays on its player and breathes with the bar.
+          b.tilt = Math.sin(t * 0.4 + i) * 0.012;
+          level = 0.34 + 0.22 * s.barPulse + 0.2 * s.beamLevel;
           break;
         case 'Delay':
         case 'Foh':

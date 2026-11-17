@@ -9,6 +9,8 @@ export interface VenueData {
   version: number;
   cameras: StageCameras;
   band: Record<string, Vec3>;
+  /** The low platform the band plays on: centre (at its top) and half axes. */
+  island?: { center: Vec3; a: number; b: number };
   fixtures: Fixture[];
   /** The main screen: centre and radius of the moon drawn on it, and the arch outline it fills. */
   moon: { center: Vec3; radius: number; arch?: { halfWidth: number; height: number; power: number } };

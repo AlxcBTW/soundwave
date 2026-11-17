@@ -50,7 +50,8 @@ args = ap.parse_args(argv)
 BAND = {
     'lead': {'key': 'aj', 'file': 'aj_guitar.fbx', 'clip': 'guitar', 'prop': 'guitar', 'height': 1.72},
     'bass': {'key': 'amy', 'file': 'amy_bass.fbx', 'clip': 'bass', 'prop': 'bass', 'height': 1.62},
-    'vox': {'key': 'michelle', 'file': 'michelle_singing.fbx', 'clip': 'sing', 'prop': 'mic', 'height': 1.74},
+    # roam: how much of her walk about the stage she keeps (her loop strolls several metres)
+    'vox': {'key': 'michelle', 'file': 'michelle_singing.fbx', 'clip': 'sing', 'prop': 'mic', 'height': 1.74, 'roam': 0.3},
     'drums': {'key': 'abe', 'file': 'abe_drums.fbx', 'clip': 'drums', 'prop': 'drums', 'height': 1.7},
 }
 # The crowd: rest-pose characters with their heights, and the loops every one of them gets.
@@ -350,11 +351,12 @@ def triangles(obj):
     return sum(len(p.vertices) - 2 for p in obj.data.polygons)
 
 
-def bake_clip(arm, joints, frames, hips_ratio=1.0, scale=1.0):
+def bake_clip(arm, joints, frames, hips_ratio=1.0, scale=1.0, roam=1.0):
     """
     Rows of skinning matrices (rest pose to pose, world space, three.js axes) for the loop.
     `hips_ratio` rescales how far the hips travel (a loop made for a taller skeleton moves them
-    further); `scale` is the size the character is brought to.
+    further); `scale` is the size the character is brought to; `roam` below 1 pulls the character
+    back toward its mark by that share of however far the loop walks it away.
     """
     world = arm.matrix_world
     bind_inv = {j: (world @ arm.data.bones[j].matrix_local).inverted() for j in joints if j}
@@ -373,7 +375,9 @@ def bake_clip(arm, joints, frames, hips_ratio=1.0, scale=1.0):
     centre = sum((h - drift * (i / max(1, n - 1)) for i, h in enumerate(hips)), Vector()) / n
     rows = []
     for i in range(n):
-        shift = -drift * (i / max(1, n - 1)) - Vector((centre.x - rest.x, centre.y - rest.y, 0))
+        away = hips[i] - drift * (i / max(1, n - 1)) - centre
+        away.z = 0
+        shift = -drift * (i / max(1, n - 1)) - Vector((centre.x - rest.x, centre.y - rest.y, 0)) - away * (1.0 - roam)
         fix = Matrix.Translation(shift)
         rows.append([C @ ((fix @ poses[i][j] @ bind_inv[j]) if j else Matrix.Identity(4)) @ CI for j in joints])
     # Ease the last frames into the first so the loop closes without a pop.
@@ -414,7 +418,7 @@ def process_band(role, spec):
     # Joint 0 stays at rest: it carries anything that does not move with the skeleton.
     joints = [None] + [b.name for b in arm.data.bones if b.name in used]
     joint_of = {n: i for i, n in enumerate(joints)}
-    rows = bake_clip(arm, joints, frames, scale=scale)
+    rows = bake_clip(arm, joints, frames, scale=scale, roam=spec.get('roam', 1.0))
     arm.data.pose_position = 'REST'
     bpy.context.view_layer.update()
     for o in meshes:
