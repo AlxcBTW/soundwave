@@ -92,24 +92,25 @@ function radialTexture() {
 }
 
 /**
- * A sustain trail's profile across its width: a clean band of the lane's colour with crisp
- * (anti-aliased) edges and a slightly lighter line down its middle. No halo: light spilling off a
- * trail reads as a smear on the deck.
+ * A sustain trail is a beam of light: a tight glow in the lane's colour round a thin white-hot
+ * core. Both are drawn as light (additively), each with its own profile across the beam's width:
+ * the glow falls away quickly and reaches nothing well inside its strip, so no light smears over
+ * the deck; the core is a narrow line with soft edges.
  */
-function trailTexture(): THREE.CanvasTexture {
+function beamTexture(kind: 'glow' | 'core'): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 64;
   c.height = 4;
   const g = c.getContext('2d')!;
   const grad = g.createLinearGradient(0, 0, 64, 0);
-  grad.addColorStop(0, 'rgba(205,205,205,0)');
-  grad.addColorStop(0.07, 'rgba(205,205,205,1)');
-  grad.addColorStop(0.36, 'rgba(205,205,205,1)');
-  grad.addColorStop(0.45, 'rgba(255,255,255,1)');
-  grad.addColorStop(0.55, 'rgba(255,255,255,1)');
-  grad.addColorStop(0.64, 'rgba(205,205,205,1)');
-  grad.addColorStop(0.93, 'rgba(205,205,205,1)');
-  grad.addColorStop(1, 'rgba(205,205,205,0)');
+  const stops: [number, number][] =
+    kind === 'glow'
+      ? [[0, 0], [0.14, 0], [0.28, 26], [0.39, 110], [0.46, 215], [0.5, 255]]
+      : [[0, 0], [0.2, 0], [0.38, 150], [0.5, 255]];
+  for (const [at, v] of stops) {
+    grad.addColorStop(at, `rgb(${v},${v},${v})`);
+    if (at < 0.5) grad.addColorStop(1 - at, `rgb(${v},${v},${v})`);
+  }
   g.fillStyle = grad;
   g.fillRect(0, 0, 64, 4);
   const tex = new THREE.CanvasTexture(c);
@@ -291,7 +292,9 @@ export class Highway {
   /** The darker top face of each tile, inside its bright rim. */
   private readonly cores: THREE.InstancedMesh;
   private readonly shines: THREE.InstancedMesh;
+  /** Sustain trails: the beam's glow, and the white-hot line down its middle. */
   private readonly tails: THREE.InstancedMesh;
+  private readonly tailCores: THREE.InstancedMesh;
   /** Release markers: a light tile at the end of the hold with an upright pointer standing on it. */
   private readonly capTiles: THREE.InstancedMesh;
   private readonly capPointers: THREE.InstancedMesh;
@@ -494,13 +497,20 @@ export class Highway {
     tailGeo.translate(0, 0, -0.5); // extends from z=0 to z=-1 before scaling
     this.tails = new THREE.InstancedMesh(
       tailGeo,
-      new THREE.MeshBasicMaterial({ map: trailTexture(), transparent: true, opacity: 0.95, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ map: beamTexture('glow'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
       MAX_TAILS,
     );
-    this.tails.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TAILS * 3), 3);
-    this.tails.frustumCulled = false;
-    this.tails.renderOrder = 0;
-    this.root.add(this.tails);
+    this.tailCores = new THREE.InstancedMesh(
+      tailGeo,
+      new THREE.MeshBasicMaterial({ map: beamTexture('core'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+      MAX_TAILS,
+    );
+    for (const mesh of [this.tails, this.tailCores]) {
+      mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TAILS * 3), 3);
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 0;
+      this.root.add(mesh);
+    }
 
     // Release markers at the end of hold-and-release tails: a light tile (the gem shape) with an
     // upright translucent pointer standing on it, a brighter rim around a softer core.
@@ -897,12 +907,20 @@ export class Highway {
         const len = startZ - endZ;
         if (len > 0.01 && (!hit || held)) {
           this.v.set(x, 0.01, startZ);
-          this.s.set(held ? 0.32 : 0.26, 1, len);
+          // The glow in the lane's colour, then the core, near white. A held beam burns brighter
+          // and a touch wider, and breathes; a missed one is all but out.
+          const burn = missed ? MISSED_TINT * 0.6 : held ? 1.15 + 0.15 * Math.sin(now / 90) : 0.8;
+          this.s.set(held ? 0.5 : 0.4, 1, len);
           this.m.compose(this.v, this.q, this.s);
           this.tails.setMatrixAt(ti, this.m);
-          // In the lane's colour, lighter while it is held, dim once missed.
-          this.c.copy(color).lerp(WHITE, held ? 0.35 : 0).multiplyScalar(missed ? MISSED_TINT : 1);
+          this.c.copy(color).multiplyScalar(burn);
           this.tails.setColorAt(ti, this.c);
+          this.v.y = 0.012;
+          this.s.set(held ? 0.2 : 0.15, 1, len);
+          this.m.compose(this.v, this.q, this.s);
+          this.tailCores.setMatrixAt(ti, this.m);
+          this.c.copy(color).lerp(WHITE, 0.72).multiplyScalar(burn * (missed ? 0.5 : 0.9));
+          this.tailCores.setColorAt(ti, this.c);
           ti++;
         }
         if (held) this.padLight[n.lane] = Math.max(this.padLight[n.lane], 0.8);
@@ -963,6 +981,7 @@ export class Highway {
     this.cores.count = gi;
     this.shines.count = gi;
     this.tails.count = ti;
+    this.tailCores.count = ti;
     for (const mesh of [this.capTiles, this.capPointers, this.capCores]) {
       mesh.count = ci;
       mesh.instanceMatrix.needsUpdate = true;
@@ -973,8 +992,10 @@ export class Highway {
     if (this.cores.instanceColor) this.cores.instanceColor.needsUpdate = true;
     this.shines.instanceMatrix.needsUpdate = true;
     if (this.gems.instanceColor) this.gems.instanceColor.needsUpdate = true;
-    this.tails.instanceMatrix.needsUpdate = true;
-    if (this.tails.instanceColor) this.tails.instanceColor.needsUpdate = true;
+    for (const mesh of [this.tails, this.tailCores]) {
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    }
 
     // Pads and flashes
     for (let i = 0; i < this.lanes; i++) {

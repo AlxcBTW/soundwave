@@ -1,17 +1,12 @@
 """
-Renders the app icon: the stage as a tunnel of three glowing arches with the moon rising inside,
-mirrored in a wet deck.
+Renders the app icon: a mirror ball catching the five lane colours, hanging in the night.
 
     blender -b --factory-startup -P tools/icon/build_icon.py -- --out src-tauri/icons/icon.png
 
-The scene is built here, rendered with Cycles, and finished here as well (glow, tone, the rounded
-tile and its rim), so the icon comes out of this one file. `--out` gets a 1024 px PNG with a
-transparent margin round the tile, the layout the platform icon tools expect; run
-`npx tauri icon src-tauri/icons/icon.png` afterwards to make every size from it.
-
-The picture is laid out in fractions of the tile (0 at the left and bottom, 1 at the right and
-top) and each thing is then put at its own depth and sized to match, so the arches nest the same
-way whatever the lens.
+The ball is built here and rendered with Cycles; the night behind it, the glow, the glints, the
+rounded tile and its rim are painted here as well, so the icon comes out of this one file. `--out`
+gets a 1024 px PNG with a transparent margin round the tile, the layout the platform icon tools
+expect; run `npx tauri icon src-tauri/icons/icon.png` afterwards to make every size from it.
 """
 import argparse
 import math
@@ -30,39 +25,37 @@ argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 ap = argparse.ArgumentParser()
 ap.add_argument('--out', default='src-tauri/icons/icon.png')
 ap.add_argument('--size', type=int, default=1024, help='the PNG is this many pixels square')
-ap.add_argument('--samples', type=int, default=320)
+ap.add_argument('--samples', type=int, default=400)
 ap.add_argument('--over', type=int, default=2, help='render this many times larger and scale down')
+ap.add_argument('--seed', type=int, default=11)
 args = ap.parse_args(argv)
 
 # ---------------------------------------------------------------- layout, in fractions of the tile
-HORIZON = 0.27                      # where the deck meets the sky
-CENTRE = (0.5, 0.455)               # the middle of the moon and of every arch's curve
-MOON = 0.142                        # radius
-# colour, radius of the middle of the band, how wide the band is, how far away its front is
-ARCHES = [((1.0, 0.07, 0.36), 0.398, 0.064, 19.0),
-          ((0.42, 0.16, 1.0), 0.302, 0.060, 21.2),
-          ((0.03, 0.72, 1.0), 0.208, 0.056, 23.4)]
-ARCH_DEPTH = 1.5
-MOON_AWAY = 28.5
-FOV = math.radians(30)
-EYE = 0.9                           # how high the camera is above the deck
+CENTRE = (0.5, 0.455)               # the middle of the ball (0 at the left and bottom)
+RADIUS = 0.325
+FOV = math.radians(18)
 TILE = 896 / 1024                   # the tile's share of the picture, the rest is margin
 CORNER = 200 / 896                  # its corner radius, as a share of the tile
 
+# The lights round the ball, by where they stand as seen from the camera (0 = to the right, turning
+# over the top): the game's five lane colours, closed into a ring with violet and cyan.
+WHEEL = [(0, (1.0, 0.05, 0.1)), (50, (1.0, 0.25, 0.02)), (95, (1.0, 0.62, 0.04)), (150, (0.1, 0.72, 0.14)),
+         (200, (0.02, 0.75, 1.0)), (245, (0.05, 0.22, 1.0)), (300, (0.45, 0.1, 1.0)), (335, (1.0, 0.04, 0.5)), (360, (1.0, 0.05, 0.1))]
 
-def width_at(distance):
-    return 2 * distance * math.tan(FOV / 2)
 
-
-def place(u, v, distance):
-    """The point that shows at (u, v) of the tile when it is `distance` in front of the camera."""
-    w = width_at(distance)
-    return Vector(((u - 0.5) * w, distance, EYE + (v - HORIZON) * w))
+def wheel(angle):
+    angle %= 360
+    for (a0, c0), (a1, c1) in zip(WHEEL, WHEEL[1:]):
+        if a0 <= angle <= a1:
+            t = (angle - a0) / (a1 - a0)
+            return tuple(c0[i] + (c1[i] - c0[i]) * t for i in range(3))
+    return WHEEL[0][1]
 
 
 # ---------------------------------------------------------------- scene
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
+rand = np.random.default_rng(args.seed)
 
 
 def material(name):
@@ -78,9 +71,20 @@ def principled(nodes):
     return next(n for n in nodes if n.type == 'BSDF_PRINCIPLED')
 
 
+def glowing(name, color, strength):
+    m, nodes, links = material(name)
+    for node in list(nodes):
+        nodes.remove(node)
+    out = nodes.new('ShaderNodeOutputMaterial')
+    emit = nodes.new('ShaderNodeEmission')
+    emit.inputs['Color'].default_value = (*color, 1)
+    emit.inputs['Strength'].default_value = strength
+    links.new(emit.outputs[0], out.inputs['Surface'])
+    return m
+
+
 def obj(name, bm, mats, smooth=False):
     me = bpy.data.meshes.new(name)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     for f in bm.faces:
         f.smooth = smooth
     bm.to_mesh(me)
@@ -92,205 +96,94 @@ def obj(name, bm, mats, smooth=False):
     return o
 
 
-def arch(color, radius, band, away, index):
-    """One arch: a band on two legs, its face glowing, its inside a dark gloss that takes the light of the rest."""
-    w = width_at(away)
-    r, t = radius * w, band * w
-    c = place(CENTRE[0], CENTRE[1], away)
-    # the middle line of the band: up the left leg, over, down the right
-    line = [(Vector((-r, 0, 0)), Vector((-1, 0, 0)))]
-    n = 72
-    line += [(Vector((-r * math.cos(math.pi * i / n), 0, c.z + r * math.sin(math.pi * i / n))),
-              Vector((-math.cos(math.pi * i / n), 0, math.sin(math.pi * i / n)))) for i in range(n + 1)]
-    line += [(Vector((r, 0, 0)), Vector((1, 0, 0)))]
-    bm = bmesh.new()
-    uv = bm.loops.layers.uv.verify()
-    rings = []
-    for p, out in line:
-        rings.append([bm.verts.new((p.x + out.x * s * t / 2, y, p.z + out.z * s * t / 2)) for s, y in ((1, away), (1, away + ARCH_DEPTH), (-1, away + ARCH_DEPTH), (-1, away))])
-    for a, b in zip(rings, rings[1:]):
-        for k in range(4):
-            f = bm.faces.new((a[k], a[(k + 1) % 4], b[(k + 1) % 4], b[k]))
-            f.material_index = 0 if k == 3 else 1
-            if k == 3:
-                # across the face: 0 at the inner edge, 1 at the outer
-                for loop, v in zip(f.loops, (0.0, 1.0, 1.0, 0.0)):
-                    loop[uv].uv = (0.5, v)
-    bm.faces.new(rings[0])
-    bm.faces.new(rings[-1])
-
-    glow, nodes, links = material('Glow%d' % index)
-    for node in list(nodes):
-        nodes.remove(node)
-    out = nodes.new('ShaderNodeOutputMaterial')
-    emit = nodes.new('ShaderNodeEmission')
-    coord = nodes.new('ShaderNodeUVMap')
-    split = nodes.new('ShaderNodeSeparateXYZ')
-    arc = nodes.new('ShaderNodeMath')
-    arc.operation = 'MULTIPLY'
-    arc.inputs[1].default_value = math.pi
-    sine = nodes.new('ShaderNodeMath')
-    sine.operation = 'SINE'
-    level = nodes.new('ShaderNodeMapRange')
-    level.inputs['To Min'].default_value = 0.32
-    level.inputs['To Max'].default_value = 1.7
-    # a hot core that goes toward white, as a tube of light does
-    core = nodes.new('ShaderNodeMixRGB')
-    core.inputs['Color1'].default_value = (*color, 1)
-    core.inputs['Color2'].default_value = (*[c * 0.62 + 0.38 for c in color], 1)
-    sharp = nodes.new('ShaderNodeMath')
-    sharp.operation = 'POWER'
-    sharp.inputs[1].default_value = 9.0
-    links.new(coord.outputs['UV'], split.inputs[0])
-    links.new(split.outputs['Y'], arc.inputs[0])
-    links.new(arc.outputs[0], sine.inputs[0])
-    links.new(sine.outputs[0], level.inputs['Value'])
-    links.new(sine.outputs[0], sharp.inputs[0])
-    links.new(sharp.outputs[0], core.inputs['Fac'])
-    links.new(core.outputs[0], emit.inputs['Color'])
-    links.new(level.outputs[0], emit.inputs['Strength'])
-    links.new(emit.outputs[0], out.inputs['Surface'])
-
-    shell, nodes, _ = material('Shell%d' % index)
-    pr = principled(nodes)
-    pr.inputs['Base Color'].default_value = (*[c * 0.05 for c in color], 1)
-    pr.inputs['Metallic'].default_value = 0.25
-    pr.inputs['Roughness'].default_value = 0.42
-    pr.inputs['Emission Color'].default_value = (*color, 1)
-    pr.inputs['Emission Strength'].default_value = 0.075
-    o = obj('Arch%d' % index, bm, [glow, shell])
-    return o
-
-
-for i, (color, radius, band, away) in enumerate(ARCHES):
-    arch(color, radius, band, away, i)
-
-# the moon: its own light, mottled like the real one, a little darker toward the limb
-bm = bmesh.new()
-bmesh.ops.create_uvsphere(bm, u_segments=96, v_segments=48, radius=MOON * width_at(MOON_AWAY))
-moon = obj('Moon', bm, [], smooth=True)
-moon.location = place(CENTRE[0], CENTRE[1], MOON_AWAY)
-moon.rotation_euler = (math.radians(20), math.radians(-12), math.radians(35))
-mat, nodes, links = material('Moon')
-for node in list(nodes):
-    nodes.remove(node)
-out = nodes.new('ShaderNodeOutputMaterial')
-emit = nodes.new('ShaderNodeEmission')
-coord = nodes.new('ShaderNodeTexCoord')
-seas = nodes.new('ShaderNodeTexNoise')
-seas.inputs['Scale'].default_value = 1.9
-seas.inputs['Detail'].default_value = 7.0
-seas.inputs['Roughness'].default_value = 0.62
-shade = nodes.new('ShaderNodeValToRGB')
-shade.color_ramp.elements[0].position = 0.36
-shade.color_ramp.elements[0].color = (0.58, 0.7, 0.94, 1)
-shade.color_ramp.elements[1].position = 0.7
-shade.color_ramp.elements[1].color = (0.93, 0.97, 1.0, 1)
-pits = nodes.new('ShaderNodeTexVoronoi')
-pits.inputs['Scale'].default_value = 5.5
-rim = nodes.new('ShaderNodeValToRGB')
-rim.color_ramp.elements[0].position = 0.0
-rim.color_ramp.elements[0].color = (0.8, 0.8, 0.8, 1)
-rim.color_ramp.elements[1].position = 0.22
-rim.color_ramp.elements[1].color = (1, 1, 1, 1)
-mix = nodes.new('ShaderNodeMixRGB')
-mix.blend_type = 'MULTIPLY'
-mix.inputs['Fac'].default_value = 1.0
-limb = nodes.new('ShaderNodeLayerWeight')
-limb.inputs['Blend'].default_value = 0.35
-fall = nodes.new('ShaderNodeMapRange')
-fall.inputs['To Min'].default_value = 2.1
-fall.inputs['To Max'].default_value = 1.15
-links.new(coord.outputs['Object'], seas.inputs['Vector'])
-links.new(coord.outputs['Object'], pits.inputs['Vector'])
-links.new(seas.outputs[0], shade.inputs['Fac'])
-links.new(pits.outputs['Distance'], rim.inputs['Fac'])
-links.new(shade.outputs['Color'], mix.inputs['Color1'])
-links.new(rim.outputs['Color'], mix.inputs['Color2'])
-links.new(limb.outputs['Facing'], fall.inputs['Value'])
-links.new(mix.outputs[0], emit.inputs['Color'])
-links.new(fall.outputs[0], emit.inputs['Strength'])
-links.new(emit.outputs[0], out.inputs['Surface'])
-moon.data.materials.append(mat)
-
-# the deck: dark and wet, so everything above it shows in it, drawn out toward the camera
-bm = bmesh.new()
-bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=1.0)
-deck = obj('Deck', bm, [])
-deck.scale = (400, 400, 1)
-deck.location = (0, 150, 0)
-mat, nodes, links = material('Deck')
+# the ball: rows of little mirrors, each set a touch differently, dark grout between them
+mirror, nodes, _ = material('Mirror')
 pr = principled(nodes)
-pr.inputs['Base Color'].default_value = (0.003, 0.003, 0.012, 1)
-pr.inputs['Metallic'].default_value = 0.0
-pr.inputs['Roughness'].default_value = 0.09
-ripple = nodes.new('ShaderNodeTexNoise')
-ripple.inputs['Scale'].default_value = 5.0
-ripple.inputs['Detail'].default_value = 3.0
-coord = nodes.new('ShaderNodeTexCoord')
-stretch = nodes.new('ShaderNodeMapping')
-stretch.inputs['Scale'].default_value = (1.0, 0.16, 1.0)
-bump = nodes.new('ShaderNodeBump')
-bump.inputs['Strength'].default_value = 0.05
-bump.inputs['Distance'].default_value = 0.05
-links.new(coord.outputs['Object'], stretch.inputs['Vector'])
-links.new(stretch.outputs[0], ripple.inputs['Vector'])
-links.new(ripple.outputs[0], bump.inputs['Height'])
-links.new(bump.outputs[0], pr.inputs['Normal'])
-deck.data.materials.append(mat)
+pr.inputs['Base Color'].default_value = (0.94, 0.95, 1.0, 1)
+pr.inputs['Metallic'].default_value = 1.0
+pr.inputs['Roughness'].default_value = 0.035
+grout, nodes, _ = material('Grout')
+pr = principled(nodes)
+pr.inputs['Base Color'].default_value = (0.004, 0.004, 0.01, 1)
+pr.inputs['Roughness'].default_value = 0.6
+chrome, nodes, _ = material('Chrome')
+pr = principled(nodes)
+pr.inputs['Base Color'].default_value = (0.8, 0.82, 0.9, 1)
+pr.inputs['Metallic'].default_value = 1.0
+pr.inputs['Roughness'].default_value = 0.16
 
-# the night: deep blue overhead, a violet glow along the horizon, and stars
+bm = bmesh.new()
+bmesh.ops.create_uvsphere(bm, u_segments=38, v_segments=20, radius=1.0)
+rims = bmesh.ops.inset_individual(bm, faces=bm.faces[:], thickness=0.011, depth=0.0, use_even_offset=True)['faces']
+for f in rims:
+    f.material_index = 1
+bm.normal_update()
+for f in bm.faces:
+    if f.material_index == 0:
+        # no two mirrors look quite the same way
+        centre = f.calc_center_median()
+        normal = f.normal.copy()
+        axis = normal.orthogonal().normalized()
+        axis.rotate(Matrix.Rotation(rand.uniform(0, 2 * math.pi), 3, normal))
+        turn = Matrix.Rotation(math.radians(rand.normal(0, 2.4)), 3, axis)
+        for v in f.verts:
+            v.co = centre + turn @ (v.co - centre) + normal * 0.004
+ball = obj('Ball', bm, [mirror, grout])
+ball.rotation_euler = (math.radians(-14), math.radians(9), math.radians(6))
+
+# what it hangs from: a collar on top and a rod up out of the picture
+bm = bmesh.new()
+tilt = ball.rotation_euler.to_matrix()
+top = tilt @ Vector((0, 0, 1))
+bmesh.ops.create_cone(bm, cap_ends=True, segments=32, radius1=0.17, radius2=0.11, depth=0.09, matrix=Matrix.Translation(top * 0.985) @ tilt.to_4x4() @ Matrix.Translation((0, 0, 0.03)))
+bmesh.ops.create_cone(bm, cap_ends=True, segments=24, radius1=0.05, radius2=0.05, depth=0.1, matrix=Matrix.Translation(top * 1.09) @ tilt.to_4x4())
+bmesh.ops.create_cone(bm, cap_ends=True, segments=16, radius1=0.016, radius2=0.016, depth=3.0, matrix=Matrix.Translation(top * 1.1 + Vector((0, 0, 1.5))))
+obj('Hanger', bm, [chrome], smooth=True)
+
+# the lights the mirrors pick up: panels all round, coloured by where they stand, some left dark,
+# and a few small hard ones for the glints. None of them shows in the picture itself.
+count = 90
+for i in range(count):
+    z = 1 - 2 * (i + 0.5) / count
+    r = math.sqrt(1 - z * z)
+    a = i * math.pi * (3 - math.sqrt(5))
+    d = Vector((r * math.cos(a), z, r * math.sin(a)))          # y: toward (-) or away from (+) the camera
+    if rand.uniform() < 0.3:
+        continue
+    seen = math.degrees(math.atan2(d.z, d.x))
+    color = wheel(seen + rand.normal(0, 14))
+    hard = rand.uniform() < 0.14
+    size = rand.uniform(0.5, 0.9) if hard else rand.uniform(1.6, 3.4)
+    strength = rand.uniform(26, 60) if hard else rand.uniform(0.5, 3.6)
+    if hard:
+        color = tuple(0.75 + 0.25 * c for c in color)
+    bm = bmesh.new()
+    bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=size / 2)
+    p = obj('Light%d' % i, bm, [glowing('Light%d' % i, color, strength)])
+    p.location = d * 10
+    p.rotation_euler = (-d).to_track_quat('Z', 'Y').to_euler()
+    p.visible_camera = False
+
 world = bpy.data.worlds.new('Night')
 scene.world = world
 try:
     world.use_nodes = True
 except Exception:
     pass
-nodes, links = world.node_tree.nodes, world.node_tree.links
-bg = next(n for n in nodes if n.type == 'BACKGROUND')
-coord = nodes.new('ShaderNodeTexCoord')
-split = nodes.new('ShaderNodeSeparateXYZ')
-ramp = nodes.new('ShaderNodeValToRGB')
-ramp.color_ramp.elements[0].position = 0.0
-ramp.color_ramp.elements[0].color = (0.085, 0.02, 0.2, 1)
-ramp.color_ramp.elements[1].position = 0.42
-ramp.color_ramp.elements[1].color = (0.002, 0.004, 0.026, 1)
-mid = ramp.color_ramp.elements.new(0.12)
-mid.color = (0.014, 0.008, 0.075, 1)
-links.new(coord.outputs['Generated'], split.inputs[0])
-links.new(split.outputs['Z'], ramp.inputs['Fac'])
-links.new(ramp.outputs['Color'], bg.inputs['Color'])
+bg = next(n for n in world.node_tree.nodes if n.type == 'BACKGROUND')
+bg.inputs['Color'].default_value = (0.012, 0.01, 0.05, 1)
 bg.inputs['Strength'].default_value = 1.0
 
-rand = np.random.default_rng(7)
-bm = bmesh.new()
-far = 90.0
-for _ in range(170):
-    u, v = rand.uniform(-0.1, 1.1), rand.uniform(HORIZON + 0.04, 1.1)
-    if math.hypot(u - CENTRE[0], v - CENTRE[1]) < MOON * 1.5:
-        continue
-    size = width_at(far) * rand.choice([0.0011, 0.0016, 0.0024, 0.0036], p=[0.5, 0.3, 0.15, 0.05])
-    bmesh.ops.create_icosphere(bm, subdivisions=1, radius=size, matrix=Matrix.Translation(place(u, v, far)))
-stars = obj('Stars', bm, [])
-mat, nodes, links = material('Stars')
-for node in list(nodes):
-    nodes.remove(node)
-out = nodes.new('ShaderNodeOutputMaterial')
-emit = nodes.new('ShaderNodeEmission')
-emit.inputs['Color'].default_value = (0.85, 0.92, 1.0, 1)
-emit.inputs['Strength'].default_value = 5.0
-links.new(emit.outputs[0], out.inputs['Surface'])
-stars.data.materials.append(mat)
-
-# the camera: level, a long lens, the picture shifted up so the horizon sits low in it
+# the camera: a long lens straight on, the ball a little below the middle to leave room for the rod
+width = 1.0 / RADIUS                 # how wide the picture is where the ball hangs, in ball radii
+away = width / 2 / math.tan(FOV / 2)
 cam = bpy.data.cameras.new('Camera')
 cam.sensor_fit = 'HORIZONTAL'
 cam.sensor_width = 36
 cam.lens = 18 / math.tan(FOV / 2)
-cam.shift_y = 0.5 - HORIZON
-cam.clip_end = 1000
+cam.shift_y = 0.5 - CENTRE[1]
 eye = bpy.data.objects.new('Camera', cam)
-eye.location = (0, 0, EYE)
+eye.location = (0, -away, 0)
 eye.rotation_euler = (math.pi / 2, 0, 0)
 scene.collection.objects.link(eye)
 scene.camera = eye
@@ -300,10 +193,10 @@ side = tile * args.over
 scene.render.engine = 'CYCLES'
 scene.render.resolution_x = scene.render.resolution_y = side
 scene.render.resolution_percentage = 100
+scene.render.film_transparent = True
 scene.cycles.samples = args.samples
 scene.cycles.use_denoising = True
 scene.cycles.max_bounces = 6
-scene.cycles.sample_clamp_indirect = 8.0
 prefs = bpy.context.preferences.addons['cycles'].preferences
 for kind in ('OPTIX', 'CUDA', 'HIP', 'ONEAPI'):
     try:
@@ -319,6 +212,7 @@ for kind in ('OPTIX', 'CUDA', 'HIP', 'ONEAPI'):
     except Exception:
         continue
 scene.render.image_settings.file_format = 'OPEN_EXR'
+scene.render.image_settings.color_mode = 'RGBA'
 scene.render.image_settings.color_depth = '32'
 raw = os.path.join(tempfile.gettempdir(), 'festival-icon.exr')
 scene.render.filepath = raw
@@ -328,36 +222,63 @@ bpy.ops.render.render(write_still=True)
 img = bpy.data.images.load(raw)
 px = np.empty(side * side * 4, dtype=np.float32)
 img.pixels.foreach_get(px)
-rgb = px.reshape(side, side, 4)[::-1, :, :3].astype(np.float64)       # top row first
+px = px.reshape(side, side, 4)[::-1].astype(np.float64)               # top row first
+front, cover = px[:, :, :3], px[:, :, 3:4]
 
 
-def blur(a, sigma):
+def blur(a, sx, sy=None):
     """A Gaussian blur, done in frequency space so wide ones cost the same as narrow ones."""
-    pad = int(sigma * 3)
-    b = np.pad(a, ((pad, pad), (pad, pad), (0, 0)), mode='reflect')
+    sy = sx if sy is None else sy
+    px_, py_ = int(sx * 3), int(sy * 3)
+    b = np.pad(a, ((py_, py_), (px_, px_), (0, 0)), mode='reflect')
     fy = np.fft.fftfreq(b.shape[0])[:, None]
     fx = np.fft.rfftfreq(b.shape[1])[None, :]
-    kernel = np.exp(-2 * (math.pi * sigma) ** 2 * (fx * fx + fy * fy))
+    kernel = np.exp(-2 * math.pi ** 2 * (sx * sx * fx * fx + sy * sy * fy * fy))
     out = np.empty_like(b)
-    for ch in range(3):
+    for ch in range(a.shape[2]):
         out[:, :, ch] = np.fft.irfft2(np.fft.rfft2(b[:, :, ch]) * kernel, s=b.shape[:2])
-    return out[pad:pad + a.shape[0], pad:pad + a.shape[1]]
+    return out[py_:py_ + a.shape[0], px_:px_ + a.shape[1]]
 
 
-# glow: the bright parts spill light round themselves, tightly and widely
-hot = np.maximum(rgb - 0.75, 0.0)
 k = side / 1792
-rgb = rgb + 0.42 * blur(hot, 5 * k) + 0.3 * blur(hot, 22 * k) + 0.2 * blur(hot, 80 * k)
+yy, xx = np.mgrid[0:side, 0:side]
+u, v = (xx + 0.5) / side, 1 - (yy + 0.5) / side                       # v: 0 at the bottom
+du, dv = u - CENTRE[0], v - CENTRE[1]
+dist = np.hypot(du, dv)
+seen = np.degrees(np.arctan2(dv, du))
+
+# the night behind the ball: near black at the edges, the ball's own colours thrown faintly round it
+back = np.empty((side, side, 3))
+back[:] = np.array([0.006, 0.004, 0.028]) + np.array([0.02, 0.006, 0.05])[None, None, :] * (1 - v)[:, :, None]
+ring = np.zeros((side, side, 3))
+for a0 in range(0, 360, 3):
+    c = np.array(wheel(a0))
+    near = np.exp(-(((seen - a0 + 180) % 360 - 180) / 22.0) ** 2)
+    ring += near[:, :, None] * c[None, None, :] * (3 / 22.0 / math.sqrt(math.pi))
+back += ring * (0.5 * np.exp(-((dist - RADIUS * 1.02) / 0.13) ** 2) + 0.07 * np.exp(-(dist / 0.55) ** 2))[:, :, None]
+# the spots a mirror ball throws about: soft dots, larger and fainter the farther out they land
+spots = np.zeros((side, side, 3))
+for _ in range(46):
+    a, r = rand.uniform(0, 360), rand.uniform(RADIUS * 1.12, 0.78)
+    su, sv = CENTRE[0] + r * math.cos(math.radians(a)), CENTRE[1] + r * math.sin(math.radians(a))
+    size = 0.006 + 0.016 * (r - RADIUS) / 0.4 * rand.uniform(0.6, 1.3)
+    dot = np.clip(1.3 - np.hypot(u - su, v - sv) / size, 0, 1) ** 2
+    spots += dot[:, :, None] * np.array(wheel(a + rand.normal(0, 20)))[None, None, :] * rand.uniform(0.25, 1.0) * (0.02 / size) ** 0.7
+back += blur(spots, 2.5 * k) * 0.55
+
+rgb = front + back * (1 - cover)
+
+# glow round the bright mirrors, and a four-pointed glint on the brightest
+hot = np.maximum(rgb - 0.9, 0.0)
+rgb = rgb + 0.35 * blur(hot, 4 * k) + 0.22 * blur(hot, 18 * k) + 0.12 * blur(hot, 70 * k)
+flare = np.minimum(np.maximum(front - 4.0, 0.0), 40.0)
+rgb = rgb + 0.9 * (blur(flare, 60 * k, 1.1 * k) + blur(flare, 1.1 * k, 60 * k)) + 0.25 * (blur(flare, 150 * k, 1.3 * k) + blur(flare, 1.3 * k, 150 * k))
 
 # tone: a soft shoulder, so bright colour stays colour instead of clipping to white
-rgb = 1.0 - np.exp(-1.1 * rgb)
+rgb = 1.0 - np.exp(-1.15 * np.maximum(rgb, 0))
 grey = rgb @ np.array([0.2126, 0.7152, 0.0722])
-rgb = np.clip(grey[:, :, None] + (rgb - grey[:, :, None]) * 1.18, 0, 1)
-
-yy, xx = np.mgrid[0:side, 0:side]
-u, v = (xx + 0.5) / side, (yy + 0.5) / side
-# a little darker toward the corners, to hold the eye in the middle
-rgb *= (1.0 - 0.3 * np.clip(((u - 0.5) ** 2 + (v - 0.48) ** 2) / 0.5, 0, 1) ** 1.3)[:, :, None]
+rgb = np.clip(grey[:, :, None] + (rgb - grey[:, :, None]) * 1.15, 0, 1)
+rgb *= (1.0 - 0.35 * np.clip((du ** 2 + dv ** 2) / 0.5, 0, 1) ** 1.2)[:, :, None]
 
 # the tile: a rounded square; how far inside its edge each pixel is, in pixels
 rad = CORNER * side
@@ -366,8 +287,8 @@ inside = rad - (np.sqrt(np.maximum(qx, 0) ** 2 + np.maximum(qy, 0) ** 2) + np.mi
 alpha = np.clip(inside + 0.5, 0, 1)
 # its rim: a hairline of light along the top edge, and a touch of shade along the bottom
 edge = np.clip(1 - inside / (5.0 * args.over), 0, 1) ** 2
-rgb += (edge * np.clip(1.15 - 1.9 * v, 0, 1) * 0.3)[:, :, None]
-rgb *= (1 - edge * np.clip(1.6 * v - 0.9, 0, 1) * 0.35)[:, :, None]
+rgb += (edge * np.clip(1.9 * v - 0.75, 0, 1) * 0.28)[:, :, None]
+rgb *= (1 - edge * np.clip(0.7 - 1.6 * v, 0, 1) * 0.4)[:, :, None]
 rgb = np.clip(rgb, 0, 1)
 
 # down to size (in linear light, colour weighted by coverage), then onto the margin
