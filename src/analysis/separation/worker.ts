@@ -92,8 +92,18 @@ self.onmessage = async (e: MessageEvent<SeparationRequest>) => {
   const req = e.data;
   if (req.type !== 'separate') return;
   try {
-    // The runtime's script and WebAssembly file are served next to the app (public/ort).
-    ort.env.wasm.wasmPaths = new URL(`${import.meta.env.BASE_URL}ort/`, self.location.href).href;
+    // The runtime's script and WebAssembly file are served next to the app (public/ort). The script
+    // is handed over as a blob, because the runtime starts its threads from the script's own address:
+    // from a blob that needs no request, and a request for an app file made by a thread of a worker
+    // is never answered in the desktop app's window.
+    const base = new URL(`${import.meta.env.BASE_URL}ort/`, self.location.href).href;
+    const script = await (await fetch(`${base}ort-wasm-simd-threaded.asyncify.mjs`)).text();
+    ort.env.wasm.wasmPaths = {
+      mjs: URL.createObjectURL(new Blob([script], { type: 'text/javascript' })),
+      wasm: `${base}ort-wasm-simd-threaded.asyncify.wasm`,
+    };
+    // A graphics card does the arithmetic itself; threads are for the processor path.
+    if (req.device === 'gpu') ort.env.wasm.numThreads = 1;
     ort.env.logLevel = 'error';
     post({ type: 'progress', progress: 0, step: 'Loading the stem model' });
     let device = req.device;

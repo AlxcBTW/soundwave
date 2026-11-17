@@ -60,7 +60,7 @@ Analysis runs in Web Workers in both the browser and the desktop app. Every song
 
 The stem model is not part of the game's files. It is downloaded once (171 MB), the first time the game opens, checked against a known hash and kept in the browser's storage; Settings → Analysis shows its state. For now it comes from the copy Intel publishes for its Audacity plugins ([Intel/demucs-openvino](https://huggingface.co/Intel/demucs-openvino) on Hugging Face). This repository holds its own, smaller export of the same model (`models/htdemucs/htdemucs-v1.onnx`, 90 MB, made by `tools/analysis/export_stem_model.py`), and the download will move there once the repository can be read without signing in (`src/analysis/separation/model.ts` has both).
 
-Separating a song needs about 2.5 GB of memory, which phones and tablets do not give a web page: there the game plays the demo track and songs analyzed earlier, and does not analyze new ones. On the processor the model wants threads, which a browser only allows on pages served with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`; the dev and preview servers send both, and a host for the built game should too.
+Separating a song needs about 2.5 GB of memory, which phones and tablets do not give a web page: there the game plays the demo track and songs analyzed earlier, and does not analyze new ones. On the processor the model wants threads, which a browser only allows on pages served with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`; the dev and preview servers and the desktop app send both, and a host for the built game should too.
 
 The pipeline then works on the mix and the stems:
 

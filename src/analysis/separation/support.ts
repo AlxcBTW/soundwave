@@ -17,7 +17,7 @@ async function detect(): Promise<AnalysisDevice> {
     }
   }
   const nav = navigator as Navigator & {
-    gpu?: { requestAdapter(): Promise<unknown> };
+    gpu?: { requestAdapter(): Promise<{ isFallbackAdapter?: boolean; info?: { isFallbackAdapter?: boolean } } | null> };
     deviceMemory?: number;
     userAgentData?: { mobile?: boolean };
   };
@@ -25,7 +25,9 @@ async function detect(): Promise<AnalysisDevice> {
   // A segment needs about 2.5 GB while it runs.
   if (handheld || (nav.deviceMemory !== undefined && nav.deviceMemory < 4)) return 'none';
   try {
-    if (nav.gpu && (await nav.gpu.requestAdapter())) return 'gpu';
+    // A software stand-in for a graphics card would be far slower than the processor path.
+    const adapter = await nav.gpu?.requestAdapter();
+    if (adapter && !(adapter.isFallbackAdapter ?? adapter.info?.isFallbackAdapter)) return 'gpu';
   } catch {
     /* no adapter */
   }
