@@ -4,6 +4,8 @@ import type { GameEvent, GameSession } from '../game/GameSession';
 
 export const LANE_COLORS = [0x3ddc5a, 0xff3b4e, 0xffd23d, 0x3a8bff, 0xff8a1f];
 const OVERDRIVE_COLOR = new THREE.Color(0xeaf6ff);
+/** While overdrive lasts every tile on the lane is this light blue, and glows. */
+const OVERDRIVE_TILE = new THREE.Color(0x7fd2ff);
 const MISSED_TINT = 0.28;
 const WHITE = new THREE.Color(0xffffff);
 
@@ -86,36 +88,42 @@ const highwayFragment = /* glsl */ `
     vec3 od = vec3(0.35, 0.65, 1.0);
     vec3 edgeCol = mix(vec3(0.55, 0.35, 1.0), od, uOverdrive);
     vec3 col = base + divider * vec3(0.22, 0.2, 0.4) + edge * edgeCol * (1.2 + uPulse);
+    // In overdrive the edges light up light blue from inside too, in swells that run toward the player.
+    float inner = smoothstep(0.16, 0.0, min(vUv.x, 1.0 - vUv.x));
+    col += vec3(0.32, 0.7, 1.0) * inner * inner * uOverdrive * (0.45 + 0.4 * (0.5 + 0.5 * sin((vUv.y * 6.0 + uScroll) * 3.14159)));
     col += od * uOverdrive * 0.12 * (0.6 + 0.4 * stripes);
     float alpha = (0.88 + edge * 0.12) * far * near;
     gl_FragColor = vec4(col, alpha);
   }
 `;
 
-/** Blue fire standing along both edges of the lane while overdrive lasts. */
-const fireFragment = /* glsl */ `
+/**
+ * Overdrive's light: a soft light-blue glow lying along the outside of both edges of the lane,
+ * brightest at the edge, with slow swells running down it toward the player and a fine shimmer.
+ */
+const glowFragment = /* glsl */ `
   uniform float uTime;
   uniform float uLevel;
   uniform float uFlare;
+  uniform float uSide;
   varying vec2 vUv;
   float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
   float noise(vec2 p) {
     vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
     return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
   }
-  float fbm(vec2 p) { return 0.5 * noise(p) + 0.25 * noise(p * 2.03 + 17.3) + 0.125 * noise(p * 4.1 + 9.1) + 0.0625 * noise(p * 8.3 + 3.7); }
   void main() {
-    // vUv.x runs from the strike line to the far end, vUv.y up from the lane.
-    float u = vUv.x * 30.0;
-    float v = vUv.y;
-    float roll = fbm(vec2(u * 1.3, v * 2.4 - uTime * 2.8));
-    // tongues of different heights along the lane, taller for a moment when overdrive starts
-    float tall = 0.5 + 0.5 * fbm(vec2(u * 0.55 + 3.0, uTime * 0.9)) + 0.5 * uFlare;
-    float body = smoothstep(0.0, 0.45, roll * 0.9 + 0.5 - v / tall);
-    float core = smoothstep(0.0, 0.4, roll * 0.8 + 0.22 - v / (tall * 0.55));
-    vec3 col = vec3(0.03, 0.16, 1.0) * body + vec3(0.1, 0.55, 1.0) * body * body + vec3(0.75, 0.92, 1.0) * core;
-    float ends = smoothstep(1.0, 0.6, vUv.x) * smoothstep(0.0, 0.05, vUv.x);
-    gl_FragColor = vec4(col * (1.0 + uFlare), body * uLevel * ends);
+    // out: 0 at the lane's edge, 1 at the strip's outer rim; along: 0 at the strike line, 1 at the far end.
+    float out_ = uSide > 0.0 ? vUv.x : 1.0 - vUv.x;
+    float along = vUv.y;
+    float swell = 0.5 + 0.5 * sin(along * 16.0 + uTime * 4.2);
+    float shimmer = noise(vec2(along * 46.0 + uTime * 5.0, out_ * 3.0 - uTime * 1.3));
+    float reach = 5.5 - 2.6 * swell - 1.5 * uFlare;
+    float glow = exp(-out_ * reach) * (1.0 - out_) * (0.55 + 0.3 * swell + 0.3 * shimmer);
+    float line = exp(-out_ * 40.0);
+    vec3 col = mix(vec3(0.22, 0.6, 1.0), vec3(0.55, 0.86, 1.0), line + 0.35 * swell * (1.0 - out_));
+    float ends = smoothstep(1.0, 0.55, along) * smoothstep(0.0, 0.04, along);
+    gl_FragColor = vec4(col * (1.0 + 0.8 * uFlare), (glow * 1.25 + 0.4 * line) * uLevel * ends);
   }
 `;
 
@@ -129,11 +137,13 @@ export class Highway {
   private readonly camera = new THREE.PerspectiveCamera(46, 1, 0.1, 100);
   private readonly root = new THREE.Group();
   private readonly trackMat: THREE.ShaderMaterial;
-  private readonly fireMat: THREE.ShaderMaterial;
-  private readonly fire = new THREE.Group();
+  private readonly glowMats: THREE.ShaderMaterial[] = [];
+  private readonly glow = new THREE.Group();
   private flare = 0;
   private readonly gems: THREE.InstancedMesh;
   private readonly shines: THREE.InstancedMesh;
+  /** A soft halo under every tile while overdrive lasts. */
+  private readonly auras: THREE.InstancedMesh;
   private readonly tails: THREE.InstancedMesh;
   /** Release markers: a light tile at the end of the hold with an upright pointer standing on it. */
   private readonly capTiles: THREE.InstancedMesh;
@@ -157,6 +167,7 @@ export class Highway {
   private readonly v = new THREE.Vector3();
   private readonly s = new THREE.Vector3();
   private readonly c = new THREE.Color();
+  private readonly tint = new THREE.Color();
   private readonly flat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
   private firstNote = 0;
   private firstBeat = 0;
@@ -215,29 +226,27 @@ export class Highway {
     track.renderOrder = -2;
     this.root.add(track);
 
-    // Overdrive's fire: a sheet standing along each edge, leaning out so it shows from behind the lane.
-    this.fireMat = new THREE.ShaderMaterial({
-      vertexShader: highwayVertex,
-      fragmentShader: fireFragment,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-      uniforms: { uTime: { value: 0 }, uLevel: { value: 0 }, uFlare: { value: 0 } },
-    });
-    const fireHeight = 1.5;
+    // Overdrive's light: a strip of glow lying flat along the outside of each edge.
+    const glowWidth = 1.1;
     for (const side of [-1, 1]) {
-      const lean = new THREE.Group();
-      lean.position.set(side * (this.width / 2 + 0.1), -0.02, 0);
-      lean.rotation.z = -side * 0.4;
-      const sheet = new THREE.Mesh(new THREE.PlaneGeometry(trackLen, fireHeight), this.fireMat);
-      sheet.rotation.y = Math.PI / 2;
-      sheet.position.set(0, fireHeight / 2, -trackLen / 2 + 1.5);
-      lean.add(sheet);
-      this.fire.add(lean);
+      const mat = new THREE.ShaderMaterial({
+        vertexShader: highwayVertex,
+        fragmentShader: glowFragment,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: { uTime: { value: 0 }, uLevel: { value: 0 }, uFlare: { value: 0 }, uSide: { value: side } },
+      });
+      const strip = new THREE.Mesh(new THREE.PlaneGeometry(glowWidth, trackLen), mat);
+      strip.rotation.x = -Math.PI / 2;
+      // it starts just inside the edge, so no dark line shows between the lane and its glow
+      strip.position.set(side * (this.width / 2 + 0.03 + glowWidth / 2), -0.015, -trackLen / 2 + 1.5);
+      strip.renderOrder = -1.5;
+      this.glowMats.push(mat);
+      this.glow.add(strip);
     }
-    this.fire.visible = false;
-    this.root.add(this.fire);
+    this.glow.visible = false;
+    this.root.add(this.glow);
 
     // Beat / bar lines
     this.lines = new THREE.InstancedMesh(
@@ -301,6 +310,19 @@ export class Highway {
     );
     this.shines.frustumCulled = false;
     this.root.add(this.shines);
+
+    const auraGeo = new THREE.PlaneGeometry(1, 1);
+    auraGeo.rotateX(-Math.PI / 2);
+    this.auras = new THREE.InstancedMesh(
+      auraGeo,
+      new THREE.MeshBasicMaterial({ map: radialTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+      MAX_GEMS,
+    );
+    this.auras.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_GEMS * 3), 3);
+    this.auras.frustumCulled = false;
+    this.auras.renderOrder = -0.5;
+    this.auras.count = 0;
+    this.root.add(this.auras);
 
     // Sustain tails
     const tailGeo = new THREE.PlaneGeometry(1, 1);
@@ -476,11 +498,12 @@ export class Highway {
     this.pulse = Math.max(0, this.pulse - dt * 2);
     u.uPulse.value = this.pulse + beatPulse * 0.6;
     this.flare = Math.max(0, this.flare - dt * 1.1);
-    const fire = this.fireMat.uniforms;
-    fire.uTime.value = now / 1000;
-    fire.uLevel.value = u.uOverdrive.value;
-    fire.uFlare.value = this.flare;
-    this.fire.visible = u.uOverdrive.value > 0.01;
+    for (const mat of this.glowMats) {
+      mat.uniforms.uTime.value = now / 1000;
+      mat.uniforms.uLevel.value = u.uOverdrive.value;
+      mat.uniforms.uFlare.value = this.flare;
+    }
+    this.glow.visible = u.uOverdrive.value > 0.01;
 
     // Camera shake on misses
     this.shake = Math.max(0, this.shake - dt * 2.5);
@@ -516,6 +539,8 @@ export class Highway {
     let gi = 0;
     let ti = 0;
     let ci = 0;
+    // How far overdrive has come on (it eases in and out with the lane's own glow).
+    const drive = this.trackMat.uniforms.uOverdrive.value as number;
     // Pending release pointers breathe, so they read as an instruction rather than a note to hit.
     const breathe = 1 + 0.06 * Math.sin(now / 140);
     this.q.identity();
@@ -527,7 +552,9 @@ export class Highway {
       const missed = session.isMissed(i);
       const held = hit && session.holding[n.lane] === i;
       const od = n.phrase >= 0 && !session.isPhraseFailed(n.phrase);
-      const color = od ? OVERDRIVE_COLOR : this.laneColors[n.lane];
+      const own = od ? OVERDRIVE_COLOR : this.laneColors[n.lane];
+      // In overdrive every tile turns light blue.
+      const color = drive > 0.01 ? this.tint.copy(own).lerp(OVERDRIVE_TILE, drive) : own;
 
       if (n.dur > 0 && ti < MAX_TAILS) {
         const startZ = held ? 0 : -(n.t - t) * speed;
@@ -576,13 +603,27 @@ export class Highway {
       this.m.compose(this.v, this.q, this.s);
       this.gems.setMatrixAt(gi, this.m);
       this.shines.setMatrixAt(gi, this.m);
+      // Their light swells and ebbs, a wave running down the lane toward the player.
+      const swell = 0.5 + 0.5 * Math.sin(now / 150 + z * 0.8);
       this.c.copy(color);
       if (missed) this.c.multiplyScalar(MISSED_TINT);
+      else if (drive > 0.01) this.c.multiplyScalar(1 + drive * (0.15 + 0.35 * swell));
       this.gems.setColorAt(gi, this.c);
+      if (drive > 0.01) {
+        this.v.set(x, 0.03, z - 0.05);
+        this.s.set(1.9 + 0.3 * swell, 1, 1.5 + 0.25 * swell);
+        this.m.compose(this.v, this.q, this.s);
+        this.auras.setMatrixAt(gi, this.m);
+        this.c.copy(OVERDRIVE_TILE).multiplyScalar(drive * (missed ? 0.12 : 0.45 + 0.4 * swell));
+        this.auras.setColorAt(gi, this.c);
+      }
       gi++;
     }
     this.gems.count = gi;
     this.shines.count = gi;
+    this.auras.count = drive > 0.01 ? gi : 0;
+    this.auras.instanceMatrix.needsUpdate = true;
+    if (this.auras.instanceColor) this.auras.instanceColor.needsUpdate = true;
     this.tails.count = ti;
     for (const mesh of [this.capTiles, this.capPointers, this.capCores]) {
       mesh.count = ci;
