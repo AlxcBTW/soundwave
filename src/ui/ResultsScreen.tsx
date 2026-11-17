@@ -58,11 +58,7 @@ interface Props {
 export function ResultsScreen({ song, subtitle, results: r, best, position, total, next, onRetry, onNext, onEnd }: Props) {
   const newBest = r.score > 0 && (best === undefined || r.score > best);
   const score = useCountUp(r.score);
-  // The crowd has its say first: a cheer for a good run, applause for the rest.
-  useEffect(() => {
-    const timer = window.setTimeout(() => playSfx(r.stars >= 3 ? 'cheer' : 'applause'), 60);
-    return () => clearTimeout(timer);
-  }, [r.stars]);
+  // (The crowd has already had its say: it claps through the finale before this screen comes up.)
   // The stars land one by one (see .results-stars in styles.css); each rings a little higher.
   useEffect(() => {
     const timers = Array.from({ length: shownStars(r.stars) }, (_, k) =>

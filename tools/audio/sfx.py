@@ -39,6 +39,7 @@ LEVELS = {
     "best": -11.0,
     "applause": -15.5,
     "cheer": -12.5,
+    "finale": -13.5,
 }
 
 CENTRE = Seat(0.0, wet=0.22, width=0.5)
@@ -371,6 +372,15 @@ def results_crowd(big: bool) -> np.ndarray:
     return highpass(crowd.arena(x), 120)
 
 
+def finale_crowd() -> np.ndarray:
+    """
+    The end of a song, while the stage fires off its finale: the whole crowd clapping and cheering
+    for about four seconds, up at once and held, then down quickly as the result comes up.
+    """
+    x = crowd.cheer(4.9, peak_at=0.3, hold=3.3, decay=1.2, seed=23, people=260, whistles=6, clapping=1.9, excitement=0.85)
+    return highpass(crowd.arena(x), 120)
+
+
 SOUNDS = {
     "move-1": lambda: move(0),
     "move-2": lambda: move(1),
@@ -391,6 +401,7 @@ SOUNDS = {
     "launch": launch,
     "cheer": lambda: results_crowd(True),
     "applause": lambda: results_crowd(False),
+    "finale": finale_crowd,
 }
 
 
@@ -401,7 +412,7 @@ def main():
             continue
         x = make()
         family = name.rsplit("-", 1)[0] if name[-1].isdigit() else name
-        finish(name, x, LEVELS.get(family), fade_out=0.6 if family in ("launch", "cheer", "applause") else 0.04)
+        finish(name, x, LEVELS.get(family), fade_out=0.6 if family in ("launch", "cheer", "applause", "finale") else 0.04)
         if "--wav" in sys.argv:
             import soundfile as sf
 

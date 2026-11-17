@@ -99,6 +99,10 @@ export class AuroraStage {
   private wheel: THREE.Object3D | null = null;
   /** Flame jets along the front of the deck; they fire with the fireworks and through overdrive. */
   private flames: Flames | null = null;
+  /** Seconds of finale left, the time to its next salvo, and how many it has fired. */
+  private finaleLeft = 0;
+  private finaleNext = 0;
+  private finaleShot = 0;
   private readonly sparks: Particles;
   private readonly smoke: Particles;
   private readonly data: VenueData;
@@ -268,8 +272,15 @@ export class AuroraStage {
     this.show.overdriveStart();
   }
 
-  finale() {
+  /**
+   * The song is over: for `seconds` the stage keeps firing its flame jets and fireworks, one
+   * salvo after another, and the crowd applauds.
+   */
+  finale(seconds = 4) {
     this.show.finale();
+    this.finaleLeft = seconds;
+    this.finaleNext = 0.35;
+    this.finaleShot = 0;
   }
 
   private readonly onContextLost = (e: Event) => e.preventDefault();
@@ -333,6 +344,18 @@ export class AuroraStage {
       if (beat === 'downbeat') this.flames.fire(this.show.state.time, undefined, 0.9);
       else this.flames.fire(this.show.state.time, (i) => (i + turn) % 2 === 0, 0.55);
     }
+    // The finale: salvos in turn (the middle, the sides, the lot), with smoke on every third.
+    if (this.finaleLeft > 0) {
+      this.finaleLeft -= dt;
+      this.finaleNext -= dt;
+      if (this.finaleNext <= 0) {
+        this.finaleNext = 0.42;
+        this.fireworks((['center', 'sides', 'all'] as const)[this.finaleShot % 3]);
+        if (this.finaleShot % 3 === 2) this.co2(0.8);
+        this.finaleShot++;
+      }
+    }
+    this.crowd.clap.value = this.finaleLeft > 0 ? 1 : 0;
     shared.uFire.value = this.flames?.glow(this.show.state.time) ?? 0;
     this.sparks.update(dt, -9);
     this.smoke.update(dt, 0.4);

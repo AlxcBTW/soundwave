@@ -23,7 +23,8 @@ export type Sfx =
   | 'add'
   | 'hold'
   | 'cheer'
-  | 'applause';
+  | 'applause'
+  | 'finale';
 
 /**
  * How many takes each effect has on disk (`name-1.ogg` …; a single take is just `name.ogg`).
@@ -47,6 +48,7 @@ const TAKES: Record<Sfx, number> = {
   hold: 1,
   cheer: 1,
   applause: 1,
+  finale: 1,
 };
 
 /** The files are levelled against each other when rendered; this sits them against the music. */

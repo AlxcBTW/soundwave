@@ -4,7 +4,7 @@ import { getEngine } from '../audio/engine';
 import { playSfx } from '../audio/sfx';
 import type { Chart } from '../chart/types';
 import type { Results } from '../game/GameSession';
-import { PlayController, type PlayPhase } from '../game/PlayController';
+import { FINALE_SECONDS, PlayController, type PlayPhase } from '../game/PlayController';
 import { keyLabel, type Settings } from '../game/settings';
 import { PadGlyph } from '../input/glyphs';
 import { useInputMode } from '../input/inputMode';
@@ -101,9 +101,13 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
       setPhase(p);
       if (n !== undefined) setCount(n);
     };
-    // The last chord rings out before the result; leaving in that moment cancels it.
+    // The song is over: the crowd claps and the stage fires off its finale for a few seconds
+    // before the result comes up. Leaving in that time cancels it.
     let finishTimer = 0;
-    ctrl.onFinish = (r) => (finishTimer = window.setTimeout(() => finishRef.current(r), 900));
+    ctrl.onFinish = (r) => {
+      playSfx('finale');
+      finishTimer = window.setTimeout(() => finishRef.current(r), FINALE_SECONDS * 1000);
+    };
     ctrlRef.current = ctrl;
     void ctrl.start();
     // A song that loses the window (a call, another app) pauses instead of running on unseen.

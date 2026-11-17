@@ -38,10 +38,12 @@ uniform sampler2D uAnim;
 uniform float uBeat;
 uniform float uEnergy;
 uniform float uTime;
+uniform float uClap;
 attribute vec2 uv1;
 attribute vec2 uv2;
 attribute vec3 aClipA;
 attribute vec3 aClipB;
+attribute vec3 aClipC;
 attribute vec4 aVar;
 attribute vec3 aTop;
 attribute vec3 aBottom;
@@ -56,8 +58,12 @@ mat4 jointAt(int joint, int row) {
 }
 
 void main() {
-  vec3 clip = uEnergy > aVar.y ? aClipB : aClipA;
-  float f = fract(uBeat / clip.z + aVar.x) * clip.y;
+  float own = fract(sin(dot(instanceMatrix[3].xz, vec2(12.9898, 78.233))) * 43758.5453);
+  // Applause: everyone turns to their clapping loop, each in a time of their own and a little
+  // faster than the beat, the way a crowd claps once the music has stopped.
+  bool clapping = uClap > 0.5;
+  vec3 clip = clapping ? aClipC : (uEnergy > aVar.y ? aClipB : aClipA);
+  float f = fract((clapping ? uBeat * (1.5 + 0.5 * own) + own : uBeat) / clip.z + aVar.x) * clip.y;
   float f0 = floor(f);
   int row0 = int(clip.x + f0);
   int row1 = int(clip.x + mod(f0 + 1.0, clip.y));
@@ -81,7 +87,6 @@ void main() {
   // On top of the loop, everyone in the audience shifts their weight and bobs with the beat, each
   // in a time of their own, however quiet the music is: feet stay planted, the rest leans. People
   // in a livelier loop need less of it.
-  float own = fract(sin(dot(instanceMatrix[3].xz, vec2(12.9898, 78.233))) * 43758.5453);
   float loose = (1.0 - min(1.0, aVar.w)) * (uEnergy > aVar.y ? 0.55 : 1.0);
   float tall = smoothstep(0.0, 0.9, local.y) * loose;
   float side = sin(uBeat * 3.14159265 + own * 6.2831853) + 0.35 * sin(uTime * (0.5 + own) + own * 40.0);
@@ -166,6 +171,8 @@ void main() {
 }`;
 
 export class Figures {
+  /** 1 while these figures applaud (see the vertex shader), 0 otherwise. */
+  readonly clap = { value: 0 };
   readonly group = new THREE.Group();
   private readonly texture: THREE.DataTexture;
   private readonly materials = new Map<string, THREE.ShaderMaterial>();
@@ -207,6 +214,7 @@ export class Figures {
       const n = list.length;
       const clipA = new Float32Array(n * 3);
       const clipB = new Float32Array(n * 3);
+      const clipC = new Float32Array(n * 3);
       const vary = new Float32Array(n * 4);
       const top = new Float32Array(n * 3);
       const bottom = new Float32Array(n * 3);
@@ -216,6 +224,10 @@ export class Figures {
         const b: Clip = clips.get(p.hype) ?? a;
         clipA.set([a.start, a.frames, a.beats], i * 3);
         clipB.set([b.start, b.frames, b.beats], i * 3);
+        // What they do when the whole crowd celebrates: most clap, the rest cheer with their arms up
+        // (and whoever lacks one of the two loops does the other).
+        const c3: Clip = (i % 5 < 3 ? clips.get('clap') : clips.get('cheer')) ?? clips.get('clap') ?? clips.get('cheer') ?? b;
+        clipC.set([c3.start, c3.frames, c3.beats], i * 3);
         vary.set([p.phase, p.threshold, p.recolor ?? 0, p.spot ?? 0], i * 4);
         top.set(c.set(p.top ?? '#ffffff').toArray(), i * 3);
         bottom.set(c.set(p.bottom ?? '#ffffff').toArray(), i * 3);
@@ -228,6 +240,7 @@ export class Figures {
         const inst = (arr: Float32Array, size: number) => new THREE.InstancedBufferAttribute(arr, size);
         geo.setAttribute('aClipA', inst(clipA, 3));
         geo.setAttribute('aClipB', inst(clipB, 3));
+        geo.setAttribute('aClipC', inst(clipC, 3));
         geo.setAttribute('aVar', inst(vary, 4));
         geo.setAttribute('aTop', inst(top, 3));
         geo.setAttribute('aBottom', inst(bottom, 3));
@@ -271,6 +284,7 @@ export class Figures {
       uniforms: {
         ...shared,
         uAnim: { value: this.texture },
+        uClap: this.clap,
         uMap: { value: src.map ?? null },
         uBase: { value: textured ? new THREE.Color(1, 1, 1) : src.color.clone() },
         uGloss: { value: /^Prop(Body|Paint|Metal|Glow)/.test(src.name) ? 1 : 0 },

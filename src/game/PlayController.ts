@@ -41,6 +41,8 @@ export interface HudRefs {
 export type PlayPhase = 'countdown' | 'playing' | 'paused' | 'finished';
 
 const LEAD_IN = 3;
+/** How long the stage celebrates after the last note before the result comes up, seconds. */
+export const FINALE_SECONDS = 4;
 
 /**
  * Drives one play-through: audio, input, session and both renderers. Lives outside React
@@ -302,7 +304,7 @@ export class PlayController {
     if (this.phase === 'finished') return;
     this.session.update(Number.POSITIVE_INFINITY);
     this.setPhase('finished');
-    this.stage?.finale();
+    this.stage?.finale(FINALE_SECONDS);
     this.onFinish(this.session.results());
   }
 
