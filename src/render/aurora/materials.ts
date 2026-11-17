@@ -84,7 +84,7 @@ void main() {
   vec3 col = base * light * ao;
   col += base * uGlow * mix(0.55, 1.0, ao) * (0.5 + 0.22 * uBarPulse);
 
-  float fres = pow(1.0 - ndv, 3.0);
+  float fres = pow(max(0.0, 1.0 - ndv), 3.0);
   col += uRim * fres * (0.22 + 0.26 * uEnergy) * ao;
   col += uRim * pipe * (0.2 + 0.3 * (0.5 + 0.5 * sin(vUv.x * 14.0 - uTime * 1.6)) + 0.22 * uPulse) * mix(0.5, 1.0, ao);
   col += skyGradient(reflect(-v, n)) * (0.04 + fres) * 1.6;
@@ -105,7 +105,7 @@ void main() {
   vec3 v = normalize(cameraPosition - vWPos);
   float ndv = max(0.0, dot(n, v));
   vec3 col = vec3(0.006, 0.008, 0.022);
-  float fres = 0.05 + 0.95 * pow(1.0 - ndv, 4.0);
+  float fres = 0.05 + 0.95 * pow(max(0.0, 1.0 - ndv), 4.0);
   if (n.y > 0.7) {
     // Rings of light spreading from the band's island, running outward with the music.
     float rr = length((vWPos.xz - uIsland.xy) / uIsland.zw) * 2.0;
@@ -178,7 +178,7 @@ void main() {
   vec3 stageCol = mix(uKey, vec3(1.0), 0.4) * uScreenLevel;
   vec3 light = vec3(0.05, 0.07, 0.16) * (0.55 + 0.45 * n.y) + stageCol * (max(0.0, dot(n, toGlow)) * 0.7 + 0.3) * stage * 1.5 + uWash * 0.3 * stage;
   vec3 col = base * light;
-  float fres = pow(1.0 - max(0.0, dot(n, v)), 3.0);
+  float fres = pow(clamp(1.0 - dot(n, v), 0.0, 1.0), 3.0);
   col += stageCol * pow(max(0.0, dot(n, normalize(toGlow + v))), 36.0) * gloss * stage * 0.5;
   col += (uWash * 0.2 + skyGradient(reflect(-v, n))) * fres * gloss;
   gl_FragColor = vec4(applyHaze(col, vWPos), 1.0);

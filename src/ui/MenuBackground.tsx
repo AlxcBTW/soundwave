@@ -2,11 +2,13 @@ import { useEffect, useRef } from 'react';
 import { getEngine } from '../audio/engine';
 import { resolveGraphics, type GraphicsSettings } from '../game/graphics';
 import { Background2D } from '../render/Background2D';
-import { AuroraStage } from '../render/aurora/AuroraStage';
+import type { AuroraStage } from '../render/aurora/AuroraStage';
+import { acquireMenuStage, releaseMenuStage } from '../render/aurora/menuStage';
 
 /**
  * The backdrop behind menus: the 3D stage idling with slow camera moves (or the 2D backdrop when
- * it is off or still loading), reacting to whatever the engine plays (e.g. previews).
+ * it is off or still loading), reacting to whatever the engine plays (e.g. previews). The stage is
+ * shared between mounts (see menuStage), so remounting this never shows a black frame.
  */
 export function MenuBackground({ graphics }: { graphics: GraphicsSettings }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -19,9 +21,9 @@ export function MenuBackground({ graphics }: { graphics: GraphicsSettings }) {
     const g = resolveGraphics(graphics);
     if (g.stage3d) {
       // Menus never need the full show: cap the frame rate so the UI stays light.
-      AuroraStage.create(stageRef.current!, { ...g, fpsCap: g.fpsCap && g.fpsCap < 60 ? g.fpsCap : 60, effects: 'off' }, { mode: 'menu' })
+      acquireMenuStage(stageRef.current!, { ...g, fpsCap: g.fpsCap && g.fpsCap < 60 ? g.fpsCap : 60, effects: 'off' })
         .then((s) => {
-          if (!live) return s.dispose();
+          if (!live) return;
           s.setAnalyser(getEngine().analyser);
           stage = s;
           if (import.meta.env.DEV) (window as unknown as { __stage?: AuroraStage }).__stage = s;
@@ -46,7 +48,8 @@ export function MenuBackground({ graphics }: { graphics: GraphicsSettings }) {
       live = false;
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', onResize);
-      stage?.dispose();
+      stage = null;
+      if (g.stage3d) releaseMenuStage();
     };
   }, [graphics]);
   return (

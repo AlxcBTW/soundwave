@@ -82,7 +82,7 @@ export function buildShots(cams: StageCameras, band: Partial<Record<string, Vec3
 const HOLD: Record<ShowLevel, number> = { calm: 8, groove: 8, peak: 4 };
 const CALM_HOLD = 16;
 /** Without bars (menus) shots last this long, in seconds. */
-const MENU_SHOT = 14;
+const MENU_SHOT = 20;
 
 export class Director {
   private current: Shot;

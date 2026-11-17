@@ -102,8 +102,8 @@ float onScreen(vec2 p) {
 vec3 moonContent(vec2 q) {
   vec2 p = (q - 0.5) * 2.0;
   float r = length(p);
-  float a = atan(p.y, p.x);
-  float rip = pow(0.5 + 0.5 * sin(r * 16.0 - uBeat * 6.2831853), 5.0) * smoothstep(1.0, 0.25, r);
+  float a = atan(p.y, p.x + 1e-5);
+  float rip = pow(max(0.0, 0.5 + 0.5 * sin(r * 16.0 - uBeat * 6.2831853)), 5.0) * smoothstep(1.0, 0.25, r);
   float swirl = 0.5 + 0.5 * sin(a * 3.0 + r * 6.0 - uTime * 0.5);
   vec3 col = mix(uWash * 0.9, uKey, swirl * 0.7);
   col = mix(col, uAccent * 1.3, rip * 0.85);
@@ -126,7 +126,7 @@ vec3 wingContent(vec2 q) {
   col += uAccent * smoothstep(0.9, 1.0, f) * 1.5;
   float dots = step(0.55, fract(q.x * 40.0 + t * (k - 0.5) * 6.0)) * smoothstep(0.06, 0.0, abs(f - 0.45));
   col += uAccent * dots * 1.2;
-  col *= 0.7 + 0.5 * uPulse * step(0.5, k);
+  col *= 0.8 + 0.3 * uPulse * step(0.5, k);
   return col * uScreenLevel;
 }
 `;
@@ -152,7 +152,16 @@ void main() {
 }
 `;
 
+/**
+ * The end of every fragment shader. First it drops any value that is not a finite, non-negative
+ * number: a single such pixel (a power of a base that rounded to just below zero, say) would be
+ * spread over the whole frame by the bloom and turn it black for that frame.
+ */
 export const OUTPUT = /* glsl */ `
+  gl_FragColor.rgb = vec3(
+    (gl_FragColor.r >= 0.0 && gl_FragColor.r < 1e4) ? gl_FragColor.r : 0.0,
+    (gl_FragColor.g >= 0.0 && gl_FragColor.g < 1e4) ? gl_FragColor.g : 0.0,
+    (gl_FragColor.b >= 0.0 && gl_FragColor.b < 1e4) ? gl_FragColor.b : 0.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 `;

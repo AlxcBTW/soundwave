@@ -95,6 +95,11 @@ export class AuroraStage {
   private lastBeatAt = 0;
   private beats = 0;
   private energy = 0.3;
+  /** Beat and bar pulses, bass and beats as the scene sees them: eased, never stepping. */
+  private pulse = 0;
+  private barPulse = 0;
+  private low = 0;
+  private beatClock = 0;
   private pendingBeat: StageFrame['beat'] = 'none';
   private shown = false;
   private disposed = false;
@@ -105,6 +110,10 @@ export class AuroraStage {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = EXPOSURE;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // A graphics context can be taken away (driver reset, GPU under pressure). Asking to keep it
+    // lets the browser hand it back, and the renderer rebuilds what it needs.
+    canvas.addEventListener('webglcontextlost', this.onContextLost);
+    canvas.addEventListener('webglcontextrestored', this.onContextRestored);
     const menu = opts.mode === 'menu';
     this.show = new LightShow(menu);
     this.director = new Director(buildShots(this.data.cameras, this.data.band, opts.part), menu ? 'calm' : g.camera, 7, menu);
@@ -175,6 +184,15 @@ export class AuroraStage {
     this.show.finale();
   }
 
+  private readonly onContextLost = (e: Event) => e.preventDefault();
+  private readonly onContextRestored = () => this.resize();
+
+  /** Moves the stage's canvas into another host (the stage keeps running as it is). */
+  attach(host: HTMLElement) {
+    if (this.canvas.parentElement !== host) host.appendChild(this.canvas);
+    this.resize();
+  }
+
   resize() {
     const w = this.canvas.clientWidth || window.innerWidth;
     const h = this.canvas.clientHeight || window.innerHeight;
@@ -205,6 +223,16 @@ export class AuroraStage {
     const dt = Math.min(0.1, (now - (this.lastRender || now)) / 1000) || 1 / 60;
     this.lastRender = now;
     this.adaptResolution(dt);
+    const sinceBeat = now / 1000 - this.lastBeatAt;
+    const period = Math.max(0.2, this.beatPeriod);
+    if (this.lastBeatAt && sinceBeat < period * 2) {
+      // In time with the music: the beat count plus the way through the current beat.
+      this.beatClock = Math.max(this.beatClock, this.beats + Math.min(1, sinceBeat / period));
+    } else {
+      // No beats arriving (menus, silence): keep time at the last tempo so nothing stands still.
+      this.beatClock += dt / period;
+      this.beats = Math.floor(this.beatClock);
+    }
     const beat = this.pendingBeat;
     this.pendingBeat = 'none';
     const bands = this.meter.update(dt);
@@ -245,7 +273,10 @@ export class AuroraStage {
   }
 
   dispose() {
+    if (this.disposed) return;
     this.disposed = true;
+    this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
+    this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
     for (const o of this.owned) o.dispose();
     this.composer?.dispose();
     this.renderer.dispose();
@@ -264,30 +295,36 @@ export class AuroraStage {
     const t = s.time;
     const index = PALETTES.indexOf(s.palette);
     // Overdrive hands over a rainbow palette of its own: take its colours as they are.
-    this.setLook(index >= 0 ? LOOKS[index] : { key: s.palette.key, accent: LOOKS[0].accent, wash: s.palette.wash }, Math.min(1, dt * 2.5));
-    const sinceBeat = performance.now() / 1000 - this.lastBeatAt;
+    const ease = (rate: number) => Math.min(1, dt * rate);
+    this.setLook(index >= 0 ? LOOKS[index] : { key: s.palette.key, accent: LOOKS[0].accent, wash: s.palette.wash }, ease(1.1));
+    // Nothing reaches the scene as a step: pulses swell in over a few frames and fade out slowly,
+    // the bass is followed loosely, and (below) every beam eases to its level, colour and angle.
+    this.pulse += (s.pulse - this.pulse) * ease(s.pulse > this.pulse ? 14 : 5);
+    this.barPulse += (s.barPulse - this.barPulse) * ease(s.barPulse > this.barPulse ? 8 : 3.5);
+    this.low += (bands.low - this.low) * ease(3);
+    const washLevel = 0.55 + 0.25 * this.low + 0.12 * this.barPulse + 0.2 * s.overdrive;
     shared.uTime.value = t;
-    shared.uBeat.value = this.beats + Math.min(1, sinceBeat / Math.max(0.2, this.beatPeriod));
-    shared.uPulse.value = s.pulse;
-    shared.uBarPulse.value = s.barPulse;
+    shared.uBeat.value = this.beatClock;
+    shared.uPulse.value = this.pulse * 0.7;
+    shared.uBarPulse.value = this.barPulse * 0.7;
     shared.uEnergy.value = Math.min(1, this.energy + 0.4 * s.overdrive);
-    shared.uLow.value = bands.low;
+    shared.uLow.value = this.low;
     shared.uKey.value.copy(this.key);
     shared.uAccent.value.copy(this.accent);
     shared.uWash.value.copy(this.wash);
-    shared.uScreenLevel.value = 0.62 + 0.16 * s.washLevel + 0.18 * s.barPulse;
+    shared.uScreenLevel.value = 0.62 + 0.16 * washLevel + 0.06 * this.barPulse;
     shared.uHazeNear.value.setRGB(0.03, 0.035, 0.15).lerp(this.wash, 0.14).multiplyScalar(0.6 + 0.35 * s.beamLevel);
 
     for (let i = 0; i < this.beams.states.length; i++) {
       const b = this.beams.states[i];
       const group = this.beams.fixtures[i].group;
       let level = s.beamLevel;
-      b.pan = 0;
-      b.tilt = 0;
+      let pan = 0;
+      let tilt = 0;
       switch (group) {
         case 'Sky':
-          b.pan = Math.sin(t * 0.22 + i) * 0.16;
-          b.tilt = Math.sin(t * 0.17 + i * 1.7) * 0.1;
+          pan = Math.sin(t * 0.22 + i) * 0.16;
+          tilt = Math.sin(t * 0.17 + i * 1.7) * 0.1;
           level *= i % 2 ? 0.7 : 0;
           break;
         case 'Ribbon':
@@ -295,38 +332,42 @@ export class AuroraStage {
           level *= 0.12;
           break;
         case 'Truss':
-          level = 0.25 + 0.2 * s.barPulse;
+          level = 0.25 + 0.2 * this.barPulse;
           break;
         case 'Halo':
           // The ring over the band: every head stays on its player and breathes with the bar.
-          b.tilt = Math.sin(t * 0.4 + i) * 0.012;
-          level = 0.34 + 0.22 * s.barPulse + 0.2 * s.beamLevel;
+          tilt = Math.sin(t * 0.4 + i) * 0.012;
+          level = 0.34 + 0.18 * this.barPulse + 0.2 * s.beamLevel;
           break;
         case 'Delay':
         case 'Foh':
           level = 0.14;
           break;
         case 'Floor':
-          b.pan = Math.sin(t * 0.5 + i * 0.6) * 0.25;
-          level *= 0.35 + 0.4 * s.pulse;
+          pan = Math.sin(t * 0.5 + i * 0.6) * 0.25;
+          level *= 0.4 + 0.3 * this.pulse;
           break;
         default:
           if (s.beamMode === 'sweep') {
-            b.pan = Math.sin(t * 0.6 + i * 0.45) * 0.36;
-            b.tilt = Math.sin(t * 0.45 + i) * 0.14;
+            pan = Math.sin(t * 0.6 + i * 0.45) * 0.36;
+            tilt = Math.sin(t * 0.45 + i) * 0.14;
           } else if (s.beamMode === 'fan') {
-            b.pan = (i % 2 ? 1 : -1) * (0.1 + 0.22 * Math.sin(t * 1.0)) * (1 + s.pulse * 0.4);
-            b.tilt = Math.cos(t * 0.8) * 0.08;
+            pan = (i % 2 ? 1 : -1) * (0.1 + 0.22 * Math.sin(t * 1.0)) * (1 + this.pulse * 0.3);
+            tilt = Math.cos(t * 0.8) * 0.08;
           } else if (s.beamMode === 'chase') {
-            level *= (this.beats + i) % 4 === 0 ? 1 : 0.12;
-            b.pan = Math.sin(t * 0.4 + i) * 0.1;
+            // A swell that travels along the row with the beat, not lamps switching on and off.
+            level *= (this.beats + i) % 4 === 0 ? 1 : 0.32;
+            pan = Math.sin(t * 0.4 + i) * 0.1;
           } else {
-            b.tilt = Math.sin(t * 0.3 + i) * 0.04;
+            tilt = Math.sin(t * 0.3 + i) * 0.04;
           }
-          level *= 0.7 + 0.3 * s.pulse;
+          level *= 0.78 + 0.22 * this.pulse;
       }
-      b.color.copy(group === 'Sky' || i % 3 === 0 ? this.accent : this.key);
-      b.level = level * (i % 2 ? 1 : 0.55);
+      level *= i % 2 ? 1 : 0.55;
+      b.pan += (pan - b.pan) * ease(4);
+      b.tilt += (tilt - b.tilt) * ease(4);
+      b.level += (level - b.level) * ease(level > b.level ? 7 : 3);
+      b.color.lerp(group === 'Sky' || i % 3 === 0 ? this.accent : this.key, ease(3));
     }
   }
 
@@ -342,7 +383,7 @@ export class AuroraStage {
       if (which === 'sides' && x < 40) return;
       origin.set(...f.origin);
       const c = (index % 2 ? this.accent : this.key).clone().lerp(WHITE, 0.45);
-      this.sparks.spawn(origin, ZERO, [1, 0.95, 1], 9, 0.35, 0, 0);
+      this.sparks.spawn(origin, ZERO, [1, 0.95, 1], 4.5, 0.4, 0, 0, 0.6);
       for (let k = 0; k < f.n; k++) {
         const ang = ((-f.spread + (2 * f.spread * k) / Math.max(1, f.n - 1) + (Math.random() - 0.5) * 8 + f.lean) * Math.PI) / 180;
         dir.set(Math.sin(ang), Math.cos(ang), 0.25).normalize();

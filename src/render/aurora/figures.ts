@@ -129,7 +129,7 @@ void main() {
   vec3 spotDir = normalize(vec3(0.25, 0.75, 0.6));
   light += vLook.y * vec3(1.0, 0.92, 0.86) * (max(0.0, dot(n, spotDir)) * 0.85 + 0.22);
   vec3 col = base * light;
-  float fres = pow(1.0 - max(0.0, dot(n, v)), 2.5);
+  float fres = pow(clamp(1.0 - dot(n, v), 0.0, 1.0), 2.5);
   col += mix(uKey, uAccent, 0.5) * fres * (stage * 0.55 + vLook.y * 0.45) * max(0.0, dot(n, toGlow) + 0.35);
   col += uGloss * (skyGradient(reflect(-v, n)) * (0.2 + fres) + vLook.y * pow(max(0.0, dot(reflect(-v, n), spotDir)), 30.0));
   col += base * uGlow * (0.25 + 0.5 * uPulse);

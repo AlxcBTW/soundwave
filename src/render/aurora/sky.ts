@@ -46,7 +46,7 @@ export function buildSky(): THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMateria
         }
         col += vec3(0.8, 0.9, 1.0) * stars * smoothstep(0.02, 0.2, d.y);
         // A dark line of trees and hills closes the horizon.
-        float az = atan(d.z, d.x);
+        float az = atan(d.z, d.x + 1e-5);
         float ridge = 0.012 + 0.03 * fbm(vec2(az * 5.0, 1.7)) + 0.008 * vnoise(vec2(az * 90.0, 4.0));
         col = mix(uHazeFar * 0.45, col, smoothstep(ridge - 0.002, ridge + 0.002, d.y));
         gl_FragColor = vec4(col, 1.0);

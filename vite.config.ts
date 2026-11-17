@@ -47,7 +47,9 @@ export default defineConfig({
     strictPort: true,
     // The ML service's virtualenv, the Rust build output and the test audio hold tens of
     // thousands of files the app never imports; watching them slows every dev start.
-    watch: { ignored: ['**/ml-service/.venv/**', '**/src-tauri/target/**', '**/local-audio/**', '**/debug-annotations/**'] },
+    // The built stage files are left out too: a change under public/ reloads the whole page, and
+    // rebuilding the stage rewrites them one after another (refresh by hand to see a new build).
+    watch: { ignored: ['**/ml-service/.venv/**', '**/src-tauri/target/**', '**/local-audio/**', '**/debug-annotations/**', '**/public/stage/**'] },
   },
   // Only index.html is an entry. By default every .html under the project is scanned for
   // dependencies (including stray ones in the virtualenv), and the page waits for that scan.
