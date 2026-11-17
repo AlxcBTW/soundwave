@@ -221,7 +221,7 @@ The menus are the stage a player stands on between songs. The house lights are d
 
 The type does the shouting. Archivo is set condensed, black and leaning italic for everything that is display, a control name or a number, and at normal width and upright for everything a player reads as a sentence. Nothing is rounded except the cover art corners (barely), tiny tags, and the round multiplier disc in the HUD. Density is couch-first: one primary column of decisions, large targets, and type sized in rem off a root that grows with the window so the same layout reads at a desk and from across a room.
 
-Motion and feedback are physical but brief. Screens slide in from the side the player is heading, entrances stagger by tens of milliseconds, starting a song sweeps three stage-light bands across the screen, and every move and press has a synthesized sound and, on a controller, a matching rumble pulse. During play the menu world steps back: the HUD is quiet chrome around the highway, and nothing in it animates for decoration.
+Motion and feedback are physical but brief. Screens slide in from the side the player is heading, entrances stagger by tens of milliseconds, starting a song sweeps three stage-light bands across the screen, and every move and press has a sound and, on a controller, a matching rumble pulse. During play the menu world steps back: the HUD is quiet chrome around the highway, and nothing in it animates for decoration.
 
 **Key Characteristics:**
 - Deep indigo ground with a violet haze field; ink tinted from the ground, never pure grey.
@@ -380,19 +380,24 @@ Quiet chrome around the highway: condensed italic tabular numerals with dark tex
 - **Ease:** `cubic-bezier(0.16, 1, 0.3, 1)` (--ease-out) for almost everything.
 - **Screen direction:** going deeper (setlist to song to results) enters from the right (4rem, 4px blur); going back enters from the left; first entry rises 1.2rem with 6px blur; 0.5s. The background stays put.
 - **Song page entrance:** cover slides in from the left with a slight tilt (0.7s), title clears from a blur (0.6s), then risers step up one by one (40ms apart) and the actions last at 0.48s.
-- **Launch wipe:** pressing Play sweeps three skewed full-screen bands (magenta, lit slab, ground) across in 0.55s, staggered 60ms, holds at least 620ms while the song loads, then sweeps out to the right in 0.5s on a fast-in curve. It plays with the "launch" riser sound and a long sweep pulse.
+- **Launch wipe:** pressing Play sweeps three skewed full-screen bands (magenta, lit slab, ground) across in 0.55s, staggered 60ms, holds at least 620ms while the song loads, then sweeps out to the right in 0.5s on a fast-in curve. It plays with the "launch" sound (a rush into a full-orchestra downbeat, then the crowd) and a long sweep pulse.
 - **Reduced motion:** every entrance, stagger, sheen, bounce and travel is removed; state changes stay. The launch wipe becomes a plain fade of the ground band. The results score appears at its final value.
 
 ### Sound and rumble
-Every interface sound is synthesized (no audio files) and has its own volume, separate from the music. Pulses play only on the controller in use, scaled by the player's rumble setting; a keyboard or mouse player feels nothing.
-- **Move** (focus change or pointer entering a control): a very short high tick; light centred pulse (22ms). Rate-limited so held directions do not pile up.
-- **Select:** a rising two-note chime; medium pulse (45ms).
-- **Back** (Back buttons, Escape, Cancel): a falling two-note chime; pulse leaning left.
-- **Tab:** a noise swish; pulse on the side moved toward.
-- **Toggle on / off:** a short square-wave blip up or down, with the select or back pulse.
-- **Launch:** a rising riser into a low hit and a bell; full-strength sweep (480ms).
-- **Star / count / best / add / pause / resume / error:** bells per star, ticks while the score counts, an arpeggio for a new best, a sparkle on import, a falling tone on pause and a rising one on resume, a low buzz with a thud pulse for errors.
+The menus have an orchestral theme: a 91-second loop in B minor (solo horn, a build, the full orchestra, a major-key second theme, a quiet close that swells back into the opening hit). It plays behind every menu at its own volume, fades out for a song preview, the calibration clicks, the launch and the song, and fades back in where it left off. The menu backdrop moves with it.
+
+Every interface sound is a short recording of the same orchestra in the theme's key (B minor / D major), so a press never clashes with the music underneath. The sounds have their own volume, separate from the music and the songs. Pulses play only on the controller in use, scaled by the player's rumble setting; a keyboard or mouse player feels nothing.
+- **Move** (focus change or pointer entering a control): one soft damped harp note, in three takes that rotate; light centred pulse (22ms). Rate-limited so held directions do not pile up.
+- **Select:** two harp notes rising a fifth with a glockenspiel on top and a plucked cello under them; medium pulse (45ms).
+- **Back** (Back buttons, Escape, Cancel): the same fifth falling, darker; pulse leaning left.
+- **Tab:** four harp strings brushed upwards; pulse on the side moved toward.
+- **Toggle on / off:** two glockenspiel notes up or down, with the select or back pulse.
+- **Launch** (Play, Play again): half a second of everything rushing upward (reversed cymbal, timpani and snare rolls, tremolo strings, a harp run), one full-orchestra downbeat on an open fifth with every drum on the stage, and the crowd erupting as it rings out, about seven seconds in all; full-strength sweep (480ms).
+- **Results:** the crowd answers first, with a cheer for three stars or more and applause otherwise. Each star rings a step higher up the D major chord (glockenspiel, harp, triangle; the fifth adds a bell tree), a wood tick counts the score, and a new best gets a brass fanfare.
+- **Add / pause / resume / error:** a harp run up the chord with bells on import, two plucked steps down onto a soft drum on pause and back up on resume, two dull low knocks a tritone apart with a thud pulse for errors.
 During a song only the pause menu makes menu sounds.
+
+The theme and the sounds are rendered by `tools/audio` (see the README); new sounds belong there, levelled against the others, and not as synthesized tones in the app.
 
 ## Do's and Don'ts
 

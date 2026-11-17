@@ -7,6 +7,8 @@ export interface Settings {
   /** Audio/visual offset in milliseconds (positive = notes later). */
   offsetMs: number;
   volume: number;
+  /** The orchestral theme behind the menus, 0..1. */
+  musicVolume: number;
   /** Menu and interface sound effects, 0..1 (separate from the music). */
   sfxVolume: number;
   keys4: string[];
@@ -35,6 +37,7 @@ export const DEFAULT_SETTINGS: Settings = {
   noteSpeed: 9,
   offsetMs: 0,
   volume: 0.9,
+  musicVolume: 0.6,
   sfxVolume: 0.7,
   keys4: ['KeyD', 'KeyF', 'KeyJ', 'KeyK'],
   keys5: ['KeyD', 'KeyF', 'KeyJ', 'KeyK', 'KeyL'],

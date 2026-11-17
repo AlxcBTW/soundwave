@@ -9,7 +9,8 @@ import type { Results } from '../game/GameSession';
 import { demoChart } from '../game/demo';
 import { loadSettings, saveSettings, type Settings } from '../game/settings';
 import { installMenuNav } from '../input/menuNav';
-import { playSfx, setSfxVolume } from '../audio/sfx';
+import { loadSfx, playSfx, setSfxVolume, sfxStatus } from '../audio/sfx';
+import { menuMusicStatus, setMenuMusic, setMusicVolume } from '../audio/menuMusic';
 import { installUiSounds } from './uiSounds';
 import { setMenuRumble } from '../input/rumble';
 import { pads, resolveStyle } from '../input/pads';
@@ -63,12 +64,15 @@ export function App() {
     pads.start();
     const stopNav = installMenuNav(() => resolveStyle(settingsRef.current.glyphs, pads.snapshot().family));
     const stopSounds = installUiSounds();
+    void loadSfx();
+    if (import.meta.env.DEV) Object.assign(window, { __audio: { sfx: sfxStatus, music: menuMusicStatus } });
     return () => {
       stopNav();
       stopSounds();
     };
   }, []);
   useEffect(() => setSfxVolume(settings.sfxVolume), [settings.sfxVolume]);
+  useEffect(() => setMusicVolume(settings.musicVolume), [settings.musicVolume]);
   useEffect(() => setMenuRumble(settings.rumble), [settings.rumble]);
 
   const refresh = useCallback(async () => {
@@ -209,6 +213,10 @@ export function App() {
     }
     setView({ name: 'results', song: v.song, buffer: v.buffer, chart: v.chart, results, best });
   };
+
+  // The theme plays behind the menus and makes way for a preview, the launch and the song.
+  const menuMusic = view.name !== 'play' && view.name !== 'debug' && previewing === null && launch === null;
+  useEffect(() => setMenuMusic(menuMusic, 0.45), [menuMusic]);
 
   const detailId = view.name === 'detail' ? view.song.id : null;
   const detailReady = detailId ? status[detailId]?.state === 'ready' : false;

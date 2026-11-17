@@ -116,9 +116,25 @@ The script reduces the crowd characters to a few hundred triangles, bakes their 
 
 Both scripts write the same format: plain meshes whose vertices carry up to four joints and weights, and a small texture of joint matrices per animation frame, which the game uses to animate thousands of instances in a vertex shader.
 
+## Music and sound
+
+The menu theme and every interface sound are the project's own. `tools/audio` holds a small offline orchestra (a sampler, a concert hall and a mastering chain in `orchestra.py`), the score of the theme (`theme.py`), the recipes for the interface sounds (`sfx.py`) and a synthesized festival crowd (`crowd.py`). Two commands regenerate everything in `public/audio`:
+
+```
+python tools/audio/theme.py
+python tools/audio/sfx.py
+```
+
+They need Python 3 with `numpy`, `scipy` and `soundfile`, and the instrument samples, which are not part of this repository:
+
+1. Check out the strings, brass and percussion folders of the [Versilian Studios Chamber Orchestra 2 Community Edition](https://github.com/sgossner/VSCO-2-CE) (CC0) into `local-audio/samples/vsco2ce/`. The folders used are listed at the top of `tools/audio/orchestra.py`; about 1.3 GB.
+2. Optional: save the public-domain recording [Festival concert people crowd](https://commons.wikimedia.org/wiki/File:Festival_concert_people_crowd.ogg) as `local-audio/samples/crowd/crowd.wav`. It is layered under the synthesized crowd for texture; without it the crowd is synthesized alone.
+
+The first run measures the pitch of every sample (file names disagree about octaves) and caches the result next to the library. `theme.py --stems` prints how loud each instrument group is in each section. The theme is one seamless loop; each sound is levelled to its place in `LEVELS` in `sfx.py`, so the game plays them all at the same gain.
+
 ## Licence
 
-Copyright 2026 DavidNiessen. The source code and the project's own art (stage model, figures, animation loops, app icon) are licensed under the [Apache License 2.0](LICENSE); see [NOTICE](NOTICE).
+Copyright 2026 DavidNiessen. The source code and the project's own art and audio (stage model, figures, animation loops, app icon, menu theme, interface sounds) are licensed under the [Apache License 2.0](LICENSE); see [NOTICE](NOTICE).
 
 Third-party parts keep their own licences:
 

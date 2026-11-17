@@ -2,8 +2,14 @@ Festival
 Copyright 2026 DavidNiessen
 
 Licensed under the Apache License, Version 2.0 (see LICENSE). The licence covers the
-source code and the project's own art: the stage model, the figures and their
-animation loops in public/stage/aurora, the app icon, and the build scripts in tools/.
+source code and the project's own art and audio: the stage model, the figures and their
+animation loops in public/stage/aurora, the menu theme and interface sounds in
+public/audio, the app icon, and the build scripts in tools/.
 
 Third-party software and fonts are used under their own licences; the README lists them.
 No third-party characters, animations, music or charts are part of this repository.
+
+The audio in public/audio was composed for this project and rendered by tools/audio from
+instrument samples of the Versilian Studios Chamber Orchestra 2 Community Edition (CC0)
+and, for the crowd, a public-domain recording ("Festival concert people crowd",
+Wikimedia Commons). Neither source is redistributed here.

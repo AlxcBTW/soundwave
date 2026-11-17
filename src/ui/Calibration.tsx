@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getEngine } from '../audio/engine';
+import { holdMenuMusic } from '../audio/menuMusic';
 import { pads, PAUSE_INPUT } from '../input/pads';
 
 const BPM = 100;
@@ -32,6 +33,7 @@ export function Calibration({ onDone }: { onDone(offsetMs: number | null): void 
 
   useEffect(() => {
     const engine = getEngine();
+    const releaseMusic = holdMenuMusic();
     const spb = 60 / BPM;
     const prevOffset = engine.offset;
     engine.offset = 0;
@@ -80,6 +82,7 @@ export function Calibration({ onDone }: { onDone(offsetMs: number | null): void 
     window.addEventListener('keydown', onKey, true);
     return () => {
       releasePad();
+      releaseMusic();
       window.removeEventListener('keydown', onKey, true);
       cancelAnimationFrame(raf);
       engine.stop();

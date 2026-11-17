@@ -39,6 +39,11 @@ function useCountUp(target: number, ms = 1300): number {
 export function ResultsScreen({ title, subtitle, results: r, best, onRetry, onDone }: Props) {
   const newBest = r.score > 0 && (best === undefined || r.score > best);
   const score = useCountUp(r.score);
+  // The crowd has its say first: a cheer for a good run, applause for the rest.
+  useEffect(() => {
+    const timer = window.setTimeout(() => playSfx(r.stars >= 3 ? 'cheer' : 'applause'), 60);
+    return () => clearTimeout(timer);
+  }, [r.stars]);
   // The stars land one by one (see .results-stars in styles.css); each rings a little higher.
   useEffect(() => {
     const timers = Array.from({ length: r.stars }, (_, k) =>
@@ -91,7 +96,7 @@ export function ResultsScreen({ title, subtitle, results: r, best, onRetry, onDo
           <div><dt>Notes</dt><dd>{r.totalNotes}</dd></div>
         </dl>
         <div className="results-actions">
-          <button className="btn" onClick={onRetry}>
+          <button className="btn" data-sfx="launch" onClick={onRetry}>
             <Repeat strokeWidth={ICON_STROKE} aria-hidden />
             Play again
           </button>

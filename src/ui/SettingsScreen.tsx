@@ -43,7 +43,7 @@ const RUMBLE_LEVELS: [RumbleLevel, string][] = [
   ['weak', 'Weak'],
   ['strong', 'Strong'],
 ];
-const GENERAL_FIELDS = ['noteSpeed', 'volume', 'sfxVolume', 'offsetMs'] as const;
+const GENERAL_FIELDS = ['noteSpeed', 'volume', 'musicVolume', 'sfxVolume', 'offsetMs'] as const;
 const ANALYSIS_FIELDS = ['mlEnabled', 'mlUrl'] as const;
 const GRAPHICS_FIELDS = ['graphics'] as const;
 const FIELDS: Record<Tab, readonly (keyof Settings)[]> = { general: GENERAL_FIELDS, graphics: GRAPHICS_FIELDS, keyboard: KEYBOARD_FIELDS, controller: CONTROLLER_FIELDS, analysis: ANALYSIS_FIELDS };
@@ -218,9 +218,14 @@ function GeneralTab({ settings, set, onCalibrate }: { settings: Settings; set: S
         <span className="value">{settings.noteSpeed.toFixed(1)}</span>
       </div>
       <div className="setting">
-        <label htmlFor="volume">Volume</label>
+        <label htmlFor="volume">Song volume</label>
         <input id="volume" type="range" min={0} max={1} step={0.05} value={settings.volume} onChange={(e) => set({ volume: +e.target.value })} />
         <span className="value">{Math.round(settings.volume * 100)}%</span>
+      </div>
+      <div className="setting">
+        <label htmlFor="music">Menu music</label>
+        <input id="music" type="range" min={0} max={1} step={0.05} value={settings.musicVolume} onChange={(e) => set({ musicVolume: +e.target.value })} />
+        <span className="value">{Math.round(settings.musicVolume * 100)}%</span>
       </div>
       <div className="setting">
         <label htmlFor="sfx">Effects volume</label>
