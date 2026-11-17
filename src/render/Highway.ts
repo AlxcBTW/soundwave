@@ -28,6 +28,27 @@ const LENGTH = 24;
 /** How far the deck runs on past the strike line, toward the player. */
 const FRONT = 0.72;
 const MAX_GEMS = 512;
+/** The stretch at the far end of the deck over which a note fades in and grows to full size. */
+const APPEAR = 5;
+/** How far a thing ar units in from the deck's far edge has arrived, 0..1, eased at both ends. */
+const arrived = (far: number) => {
+  const p = Math.min(1, Math.max(0, far / APPEAR));
+  return p * p * (3 - 2 * p);
+};
+
+/** Lets every instance of a material fade on its own: the geometry's Fade attribute scales its alpha. */
+function fadePerInstance<M extends THREE.Material>(mat: M): M {
+  mat.transparent = true;
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aFade;\nvarying float vFade;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFade = aFade;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vFade;')
+      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.a *= vFade;');
+  };
+  return mat;
+}
 const MAX_TAILS = 128;
 const MAX_LINES = 96;
 const MAX_PARTICLES = 600;
@@ -225,6 +246,8 @@ export class Highway {
   private moteDebt = 0;
   private flare = 0;
   private readonly gems: THREE.InstancedMesh;
+  /** How far each note has faded in, 0..1 (see APPEAR). */
+  private readonly gemFade: THREE.InstancedBufferAttribute;
   /** The darker top face of each tile, inside its bright rim. */
   private readonly cores: THREE.InstancedMesh;
   private readonly shines: THREE.InstancedMesh;
@@ -397,9 +420,13 @@ export class Highway {
     gemGeo.translate(0, 0.02, 0);
     this.gems = new THREE.InstancedMesh(
       gemGeo,
-      new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.1, emissive: 0x141414 }),
+      fadePerInstance(new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.1, emissive: 0x141414 })),
       MAX_GEMS,
     );
+    // One fade per note, shared by the tile, its top face and its highlight.
+    this.gemFade = new THREE.InstancedBufferAttribute(new Float32Array(MAX_GEMS).fill(1), 1);
+    this.gemFade.setUsage(THREE.DynamicDrawUsage);
+    gemGeo.setAttribute('aFade', this.gemFade);
     this.gems.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_GEMS * 3), 3);
     this.gems.frustumCulled = false;
     this.root.add(this.gems);
@@ -407,7 +434,8 @@ export class Highway {
     const coreGeo2 = new THREE.ShapeGeometry(roundedRect(0.72, 0.22, 0.11), 10);
     coreGeo2.rotateX(-Math.PI / 2);
     coreGeo2.translate(0, 0.148, 0);
-    this.cores = new THREE.InstancedMesh(coreGeo2, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.92, depthWrite: false }), MAX_GEMS);
+    coreGeo2.setAttribute('aFade', this.gemFade);
+    this.cores = new THREE.InstancedMesh(coreGeo2, fadePerInstance(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.92, depthWrite: false })), MAX_GEMS);
     this.cores.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_GEMS * 3), 3);
     this.cores.frustumCulled = false;
     this.root.add(this.cores);
@@ -415,9 +443,10 @@ export class Highway {
     const shineGeo = new THREE.ShapeGeometry(roundedRect(0.5, 0.05, 0.025), 6);
     shineGeo.rotateX(-Math.PI / 2);
     shineGeo.translate(0, 0.15, -0.055);
+    shineGeo.setAttribute('aFade', this.gemFade);
     this.shines = new THREE.InstancedMesh(
       shineGeo,
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, depthWrite: false }),
+      fadePerInstance(new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, depthWrite: false })),
       MAX_GEMS,
     );
     this.shines.frustumCulled = false;
@@ -451,8 +480,10 @@ export class Highway {
 
     // Release markers at the end of hold-and-release tails: a light tile (the gem shape) with an
     // upright translucent pointer standing on it, a brighter rim around a softer core.
+    const capGeo = gemGeo.clone();
+    capGeo.deleteAttribute('aFade');
     this.capTiles = new THREE.InstancedMesh(
-      gemGeo,
+      capGeo,
       new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.1, emissive: 0x3a3a3a, transparent: true, opacity: 0.92 }),
       MAX_TAILS,
     );
@@ -783,7 +814,8 @@ export class Highway {
       if (isBar) di++;
       this.q.copy(this.flat);
       this.v.set(0, 0, -dz);
-      this.s.set(this.width, isBar ? 0.05 : 0.02, 1);
+      // A line draws itself in at the far end instead of snapping onto the deck.
+      this.s.set(this.width, (isBar ? 0.05 : 0.02) * arrived(LENGTH - dz), 1);
       this.m.compose(this.v, this.q, this.s);
       this.lines.setMatrixAt(li++, this.m);
     }
@@ -835,15 +867,17 @@ export class Highway {
         const capZ = -(n.t + n.dur - t) * speed;
         if (n.release && !session.isReleased(i) && capZ > -LENGTH && capZ < 1.5 && ci < MAX_TAILS) {
           const dim = session.isReleaseMissed(i) || missed ? MISSED_TINT : 1;
+          // Like the notes, the marker grows in at the far end.
+          const grown = arrived(capZ + LENGTH);
           this.v.set(x, 0, capZ);
-          this.s.set(1, 1, 1);
+          this.s.set(grown, grown, grown);
           this.m.compose(this.v, this.q, this.s);
           this.capTiles.setMatrixAt(ci, this.m);
           this.c.copy(color).lerp(WHITE, 0.35).multiplyScalar(dim);
           this.capTiles.setColorAt(ci, this.c);
           // The pointer stands on the tile and breathes; its rim is brighter than its core.
-          const k = dim < 1 ? 1 : breathe;
-          this.s.set(k, k, 1);
+          const k = (dim < 1 ? 1 : breathe) * grown;
+          this.s.set(k, k, grown);
           this.m.compose(this.v, this.q, this.s);
           this.capPointers.setMatrixAt(ci, this.m);
           this.capCores.setMatrixAt(ci, this.m);
@@ -859,7 +893,11 @@ export class Highway {
       const z = -(n.t - t) * speed;
       if (z > FRONT) continue;
       // A tile that got past the strike line shrinks away before the deck ends.
-      const k = z > 0.2 ? Math.max(0, 1 - (z - 0.2) / (FRONT - 0.25)) : 1;
+      const gone = z > 0.2 ? Math.max(0, 1 - (z - 0.2) / (FRONT - 0.25)) : 1;
+      // At the far end it fades in and grows to its size, so it arrives instead of popping up.
+      const here = arrived(z + LENGTH);
+      const k = gone * (0.6 + 0.4 * here);
+      this.gemFade.setX(gi, here);
       this.v.set(x, 0, z);
       this.s.set(k, k, k);
       this.m.compose(this.v, this.q, this.s);
@@ -881,11 +919,12 @@ export class Highway {
         this.s.set(2.0, 1.1, 1);
         this.m.compose(this.v, this.camera.quaternion, this.s);
         this.auras.setMatrixAt(gi, this.m);
-        this.c.copy(OVERDRIVE_TILE).multiplyScalar(drive * (missed ? 0.08 : 0.3 + 0.22 * swell));
+        this.c.copy(OVERDRIVE_TILE).multiplyScalar(here * drive * (missed ? 0.08 : 0.3 + 0.22 * swell));
         this.auras.setColorAt(gi, this.c);
       }
       gi++;
     }
+    this.gemFade.needsUpdate = true;
     this.gems.count = gi;
     this.cores.count = gi;
     this.shines.count = gi;
