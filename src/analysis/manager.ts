@@ -102,6 +102,18 @@ export class AnalysisManager {
   snapshot = () => this.status;
 
   private set(id: string, s: AnalysisStatus) {
+    // Progress within a step is told in whole per cent: every change redraws the menus, and the
+    // separation reports far more often than a bar can show.
+    const was = this.status[id];
+    if (
+      was &&
+      s.state === 'analyzing' &&
+      was.state === 'analyzing' &&
+      s.step === was.step &&
+      s.error === was.error &&
+      Math.abs((s.progress ?? 0) - (was.progress ?? 0)) < 0.01
+    )
+      return;
     // What the editor made for the song rides along with whatever the analysis is doing.
     const e = this.edits.get(id) ?? undefined;
     const edited = editedCount(e);
