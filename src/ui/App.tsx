@@ -692,15 +692,17 @@ export function App() {
   }
   const fromBoot = bootScene.current?.done === false;
 
-  // A new screen starts with focus on its first control for keyboard and controller players, once
-  // that control has come in (see focusStartSettled).
+  // A new screen starts with focus on its first control for keyboard and controller players. The
+  // first screen after the loading screen waits until that control has come in (see
+  // focusStartSettled): its entrance is long, and a tile focused while rising would snap at the end.
   useEffect(() => {
     if (view.name === 'play') return;
     let cancelFocus = () => {};
     const raf = requestAnimationFrame(() => {
       if (document.querySelector('[data-modal]')) return;
       if (usesFocus(getInputMode())) {
-        cancelFocus = focusStartSettled();
+        if (fromBoot) cancelFocus = focusStartSettled();
+        else focusStart();
         return;
       }
       // Mouse and touch players get no ring, but a screen reader still hears where it is now.
@@ -714,7 +716,7 @@ export function App() {
       cancelAnimationFrame(raf);
       cancelFocus();
     };
-  }, [sceneKey, view.name, booted]);
+  }, [sceneKey, view.name, booted, fromBoot]);
 
   // The settings over a paused song take focus as they open (the pause menu takes it back, see PlayScreen).
   useEffect(() => {
