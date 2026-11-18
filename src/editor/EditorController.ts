@@ -1294,8 +1294,11 @@ export class EditorController {
     const now = this.fixedNow();
     const bpm = Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round((patch.bpm ?? now.bpm) * 100) / 100));
     const beatsPerBar = Math.min(12, Math.max(1, Math.round(patch.beatsPerBar ?? now.beatsPerBar)));
-    const offset = Math.round((patch.offset ?? now.offset) * 1000) / 1000;
-    this.applyGrid({ kind: 'fixed', bpm, offset: Math.min(this.duration, Math.max(0, offset)), beatsPerBar });
+    // The grid repeats every bar: the first beat is kept as the first bar line of the song.
+    const bar = (60 / bpm) * beatsPerBar;
+    const raw = patch.offset ?? now.offset;
+    const offset = Math.round((raw - Math.floor(raw / bar + 1e-9) * bar) * 1000) / 1000;
+    this.applyGrid({ kind: 'fixed', bpm, offset: Math.max(0, offset), beatsPerBar });
   }
 
   /** Lets the grid follow the beats heard in the song again. */

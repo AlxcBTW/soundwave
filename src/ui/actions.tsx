@@ -52,7 +52,8 @@ const top = (): Action[] => layers[layers.length - 1]?.actions ?? [];
 
 /**
  * An action with this id is not an action: its label says what the controller's confirm button does
- * on this screen, for the hint beside Back (which otherwise reads "Select").
+ * on this screen, for the hint beside Back (which otherwise reads "Select"). With an empty label the
+ * hint is left out: confirm does nothing here.
  */
 export const CONFIRM_HINT = 'confirm-hint';
 const signature = (a: Action[]) => a.map((x) => `${x.id}|${x.label}|${x.kbd}|${x.pad}|${x.primary ? 1 : 0}|${x.disabled ? 1 : 0}|${x.bar === false ? 0 : 1}`).join(';');
@@ -151,7 +152,7 @@ export function ActionBar({ settings }: { settings: Settings }) {
     <footer className="action-bar" data-nav-skip aria-label="Actions">
       <div className="act-group">
         {back.map(button)}
-        {mode === 'pad' && !actions.some((a) => a.kbd === 'Enter') && (
+        {mode === 'pad' && confirmLabel && !actions.some((a) => a.kbd === 'Enter') && (
           <span className="act-passive">
             <PadGlyph input={confirmInput(style)} style={style} className="hint-glyph" /> {confirmLabel}
           </span>

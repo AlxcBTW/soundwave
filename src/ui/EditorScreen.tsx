@@ -210,7 +210,11 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
 
   useActions(
     recording
-      ? [{ id: 'stop', label: 'Stop recording', icon: Square, kbd: 'Escape', sfx: 'none', run: () => ctrl?.stopRecording() }]
+      ? [
+          // On a controller every other button is a lane: Options stops, as it pauses a song.
+          { id: 'stop', label: 'Stop recording', icon: Square, ...(mode === 'pad' ? { pad: 'b9' } : { kbd: 'Escape' }), sfx: 'none', run: () => ctrl?.stopRecording() },
+          { id: CONFIRM_HINT, label: '', icon: Circle, bar: false, run: () => {} },
+        ]
       : [
           {
             id: 'back',
