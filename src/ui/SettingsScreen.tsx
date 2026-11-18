@@ -858,7 +858,6 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
                 {c.snap.pads.map((p) => (
                   <li key={p.index}>
                     <span className="pad-name">{p.name}</span>
-                    <span className="pill">{p.family === 'generic' ? 'Other controller' : STYLE_LABEL[styleFor(p.family)]}</span>
                     {!p.standard && <span className="dim">Unusual layout: bind its buttons below.</span>}
                   </li>
                 ))}
