@@ -1,7 +1,7 @@
 /**
  * Chart quality metrics for a saved analysis (default: local-audio/<SONG>.hybrid.json).
  *
- *   SONG=rivers FILE=hybrid pnpm vitest run --config vitest.dev.config.ts metrics
+ *   SONG=my-song FILE=hybrid pnpm vitest run --config vitest.dev.config.ts metrics
  *
  * Reports, per pitched part: onset timing against the beat grid, how many source notes survive into
  * the expert chart, whether lanes follow the pitch contour, and whether repeated bars chart the same.
@@ -13,7 +13,7 @@ import type { AnalysisResult, PitchedNote } from '../../src/analysis/types';
 import { generateAll, Grid } from '../../src/chart/generator';
 import type { Part } from '../../src/chart/types';
 
-const song = process.env.SONG ?? 'rivers';
+const song = process.env.SONG ?? 'my-song';
 const file = process.env.FILE ?? 'hybrid';
 const dir = join(process.cwd(), 'local-audio');
 

@@ -2,7 +2,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { StemName } from '../analysis/types';
 import type { Difficulty, Part } from '../chart/types';
 import type { SongEdits } from '../editor/edits';
-import { soundwaveAudio, isSoundwave } from './soundwaveFile';
+import { soundwaveAudio } from './soundwaveFile';
 
 export interface SongMeta {
   id: string;
@@ -130,7 +130,7 @@ export async function putSong(meta: SongMeta, file: Blob) {
   await Promise.all([tx.objectStore('songs').put(meta), tx.objectStore('audio').put({ id: meta.id, blob: file }), tx.done]);
 }
 
-/** What is stored for a song: its .soundwave file, or the bare audio file of a library not yet converted. */
+/** What is stored for a song: its .soundwave file. */
 export async function getStoredFile(id: string): Promise<Blob | undefined> {
   return (await (await db()).get('audio', id))?.blob;
 }
@@ -143,7 +143,7 @@ export async function putStoredFile(id: string, file: Blob) {
 export async function getAudio(id: string): Promise<Blob | undefined> {
   const stored = await getStoredFile(id);
   if (!stored) return undefined;
-  return (await isSoundwave(stored)) ? soundwaveAudio(stored) : stored;
+  return soundwaveAudio(stored);
 }
 
 export async function deleteSong(id: string) {

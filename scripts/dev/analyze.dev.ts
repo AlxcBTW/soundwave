@@ -1,7 +1,7 @@
 /**
  * Offline analysis harness for tuning, run with `pnpm dev:analyze`.
  *
- *   SONG=rivers pnpm dev:analyze
+ *   SONG=my-song pnpm dev:analyze
  *
  * Expects `local-audio/<SONG>.f32`: mono float32 at 22050 Hz. One way to make it:
  *   ml-service/.venv/Scripts/python -c "import librosa,numpy as np; y,_=librosa.load('in.flac',sr=22050,mono=True); y.astype(np.float32).tofile('local-audio/x.f32')"
@@ -18,7 +18,7 @@ import type { AnalysisResult, PitchedNote, StemNotes } from '../../src/analysis/
 import { generateChart } from '../../src/chart/generator';
 import { DIFFICULTIES, PARTS } from '../../src/chart/types';
 
-const song = process.env.SONG ?? 'rivers';
+const song = process.env.SONG ?? 'my-song';
 const dir = join(process.cwd(), 'local-audio');
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const nm = (m: number) => NAMES[m % 12] + (Math.floor(m / 12) - 1);

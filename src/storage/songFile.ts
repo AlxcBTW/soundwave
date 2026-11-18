@@ -5,11 +5,11 @@
  */
 import { ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult } from '../analysis/types';
 import { EDITS_VERSION, sanitizeEdits, type SongEdits } from '../editor/edits';
-import { analysisKey, getAnalysis, getEdits, getSong, getStoredFile, listSongs, putAnalysis, putEdits, putSong, putStoredFile, type SongMeta } from './db';
-import { isSoundwave, readSoundwave, writeSoundwave, type SoundwaveAnalysis } from './soundwaveFile';
+import { analysisKey, getAnalysis, getEdits, getSong, getStoredFile, putAnalysis, putEdits, putSong, putStoredFile, type SongMeta } from './db';
+import { readSoundwave, soundwaveAudio, writeSoundwave, type SoundwaveAnalysis } from './soundwaveFile';
 import { hashBytes } from './hash';
 
-/** One write of a song's file at a time, so a conversion and a finished analysis cannot cross. */
+/** One write of a song's file at a time, so an export and a finished analysis cannot cross. */
 let writes: Promise<unknown> = Promise.resolve();
 function serial<T>(job: () => Promise<T>): Promise<T> {
   const next = writes.then(job, job);
@@ -39,12 +39,6 @@ function build(meta: SongMeta, audio: Blob, analysis?: AnalysisResult, edits?: S
   });
 }
 
-/** The bare audio of what is stored, whichever form it is in. */
-async function audioOf(stored: Blob, meta: SongMeta): Promise<Blob> {
-  if (!(await isSoundwave(stored))) return stored.type ? stored : new Blob([stored], { type: meta.mime });
-  return (await readSoundwave(stored)).audio;
-}
-
 /**
  * Adds a song from an audio file: it is stored as a .soundwave file. `edits` come with a song that is
  * started from scratch in the track editor (its beat grid), and are stored before the song is.
@@ -59,7 +53,7 @@ export function writeAnalysisToFile(id: string, analysis: AnalysisResult): Promi
   return serial(async () => {
     const [meta, stored] = await Promise.all([getSong(id), getStoredFile(id)]);
     if (!meta || !stored) return;
-    await putStoredFile(id, await build(meta, await audioOf(stored, meta), analysis, await storedEdits(id)));
+    await putStoredFile(id, await build(meta, await soundwaveAudio(stored), analysis, await storedEdits(id)));
   });
 }
 
@@ -72,40 +66,15 @@ export function songFile(id: string): Promise<Blob> {
     const [meta, stored] = await Promise.all([getSong(id), getStoredFile(id)]);
     if (!meta || !stored) throw new Error('This song is no longer in your library.');
     const [analysis, edits] = await Promise.all([cachedAnalysis(id), storedEdits(id)]);
-    if (await isSoundwave(stored)) {
-      // The stored file is current unless the analysis or the edited charts changed since it was written.
-      const has = await readSoundwave(stored);
-      const sameAnalysis = !analysis || (has.analysis?.version === ANALYSIS_VERSION && JSON.stringify(has.analysis.data) === JSON.stringify(analysis));
-      const sameEdits = JSON.stringify(has.edits?.data ?? null) === JSON.stringify(edits ?? null);
-      if (sameAnalysis && sameEdits) return stored;
-    }
-    const file = await build(meta, await audioOf(stored, meta), analysis, edits);
+    // The stored file is current unless the analysis or the edited charts changed since it was written.
+    const has = await readSoundwave(stored);
+    const sameAnalysis = !analysis || (has.analysis?.version === ANALYSIS_VERSION && JSON.stringify(has.analysis.data) === JSON.stringify(analysis));
+    const sameEdits = JSON.stringify(has.edits?.data ?? null) === JSON.stringify(edits ?? null);
+    if (sameAnalysis && sameEdits) return stored;
+    const file = await build(meta, has.audio, analysis, edits);
     await putStoredFile(id, file);
     return file;
   });
-}
-
-/**
- * Converts a library from before the .soundwave format: each song stored as a bare audio file is
- * rewritten as a .soundwave file carrying its details, cover and analysis. Songs already converted
- * are left as they are, so this is cheap to run on every start.
- */
-export async function convertLibrary(): Promise<number> {
-  let converted = 0;
-  for (const meta of await listSongs()) {
-    try {
-      const done = await serial(async () => {
-        const stored = await getStoredFile(meta.id);
-        if (!stored || (await isSoundwave(stored))) return false;
-        await putStoredFile(meta.id, await build(meta, await audioOf(stored, meta), await cachedAnalysis(meta.id), await storedEdits(meta.id)));
-        return true;
-      });
-      if (done) converted++;
-    } catch (e) {
-      console.warn(`could not convert "${meta.title}" to a song file`, e);
-    }
-  }
-  return converted;
 }
 
 function usableAnalysis(a: SoundwaveAnalysis | undefined): AnalysisResult | undefined {

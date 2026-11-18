@@ -2,14 +2,14 @@
  * Where does the vocal line put notes? Per window: vocal stem loudness, how much pitched singing
  * the transcriber found, and our vocal notes (dev tooling for spotting notes without singing).
  *
- *   SONG=givenchy pnpm vitest run --config vitest.dev.config.ts vocalWindows
+ *   SONG=my-song pnpm vitest run --config vitest.dev.config.ts vocalWindows
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { it } from 'vitest';
 import type { AnalysisResult, StemNotes } from '../../src/analysis/types';
 
-const song = process.env.SONG ?? 'givenchy';
+const song = process.env.SONG ?? 'my-song';
 const dir = join(process.cwd(), 'local-audio');
 const WIN = Number(process.env.WIN ?? 2);
 

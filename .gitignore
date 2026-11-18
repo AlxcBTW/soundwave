@@ -24,3 +24,14 @@ debug-annotations/
 
 # Characters built from downloaded files (tools/stage/aurora/build_people.py): not redistributable
 public/stage/aurora/local/
+
+# Private tuning tools that compare charts with recordings and charts from elsewhere: kept on the
+# machine they were made on, not published.
+scripts/dev/compare.dev.ts
+scripts/dev/compareVideo.dev.ts
+scripts/dev/beatPos.dev.ts
+scripts/dev/isolatedVocals.dev.ts
+scripts/dev/laneStats.dev.ts
+scripts/dev/reference.ts
+scripts/dev/align.py
+scripts/dev/video_notes.py

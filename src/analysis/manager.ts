@@ -75,11 +75,6 @@ export class AnalysisManager {
   private queue: string[] = [];
   private running = false;
   private listeners = new Set<Listener>();
-  /**
-   * Also accept analyses made before songs were separated into stems. Only for devices that cannot
-   * separate: everywhere else such a song is analyzed again.
-   */
-  legacy = false;
 
   /**
    * `separator` splits the song into stems first; every analysis in the game goes through it, and a
@@ -137,7 +132,7 @@ export class AnalysisManager {
   private async loadCached(id: string): Promise<AnalysisResult | undefined> {
     const mem = this.results.get(id);
     if (mem) return mem;
-    for (const source of this.legacy ? ['ml', 'local'] : ['ml']) {
+    for (const source of ['ml']) {
       try {
         const r = await getAnalysis<AnalysisResult>(analysisKey(id, ANALYSIS_VERSION, source));
         if (r && isAnalysisResult(r)) {

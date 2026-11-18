@@ -23,7 +23,7 @@ import { menuPulse, setMenuRumble } from '../input/rumble';
 import { deleteSong, getSong, listAllScores, listSongs, StorageBlockedError, submitScore, type BestScore, type SongMeta } from '../storage/db';
 import { soundwaveFileName, isSoundwaveFile } from '../storage/soundwaveFile';
 import { saveSongFile, watchOpenedFiles } from '../storage/share';
-import { convertLibrary, readSongPackage, songFile, storeNewSong, storeSongPackage } from '../storage/songFile';
+import { readSongPackage, songFile, storeNewSong, storeSongPackage } from '../storage/songFile';
 import { ActionBar, useActions } from './actions';
 import { Dialog } from './Dialog';
 import type { PickedSong } from './TrackPicker';
@@ -199,8 +199,6 @@ export function App() {
     let live = true;
     void analysisDevice().then(async (d) => {
       if (!live) return;
-      // A device that cannot separate keeps the charts it already has.
-      analysisManager.legacy = d === 'none';
       setDevice(d);
       if (d !== 'none' && (await stemModel.check()) === 'absent') void stemModel.ensure().catch(() => {});
     });
@@ -303,10 +301,6 @@ export function App() {
     },
     [refresh, toast],
   );
-  // Songs stored before the .soundwave format are rewritten as song files, once, in the background.
-  useEffect(() => {
-    void convertLibrary().catch(() => {});
-  }, []);
   // Song files the desktop app is opened with (double-clicked in Explorer) are added, and a single
   // one opens on its page.
   const openedRef = useRef<(files: File[]) => void>(() => {});
