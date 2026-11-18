@@ -9,10 +9,7 @@ export type DrumKind = 'kick' | 'snare' | 'hat';
 export interface DrumHit {
   t: number;
   kind: DrumKind;
-  /**
-   * 0..1: the band's flux at the hit over its 99th-percentile frame. Kicks found on a drum stem are
-   * spread again over 0.15..1 against the kicks around them (see standOutKicks in pipeline.ts).
-   */
+  /** 0..1: the band's flux at the hit over its 99th-percentile frame in the song (clipped at 1). */
   strength: number;
 }
 

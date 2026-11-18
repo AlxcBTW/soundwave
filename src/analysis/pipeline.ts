@@ -249,27 +249,34 @@ const BAND = Object.fromEntries(BANDS.map((b) => [b.kind, b])) as Record<DrumKin
  * left of the bass. Against kicks marked by hand (MDB Drums, 23 recordings, on the stem) only 55%
  * of what it finds down to 0.15 is a kick; from 0.55 of the strongest kicks up 81% is, for 88% of
  * the kicks instead of 94% (measured with the floor taken of the whole song's strongest kicks).
- * Here it is taken of the kicks around each one (KICK_NEAR seconds either side), so a quiet verse
- * keeps its kicks: only what is far weaker than the kicks nearby goes. On the full mix (no stem) the floor was not measured, and kicks keep the plain `min`.
+ *
+ * Here it is taken of the strongest kick nearby (KICK_NEAR seconds either side), so a quiet verse
+ * keeps its kicks: only what is far weaker than the kicks around it goes. A kick with no other kick
+ * that near (a lone low thump in a break) has nothing to be compared with there, so it is judged
+ * against the song's median kick instead. On the full mix (no stem) the floor was not measured,
+ * and kicks keep the plain `min`.
  */
 const KICK_FLOOR = 0.55;
 const KICK_NEAR = 3;
 
 /**
- * The kicks that stand out from what is around them on a drum stem (see KICK_FLOOR), with their
- * strengths spread again over the range the chart generator expects (0.15 to 1, the strongest kick
- * nearby at 1): above the floor they would all be at least 0.55, and its chord rules (a weaker
- * second hit of 0.45 or 0.5 and up) would let every kick through.
+ * The kicks that stand out from what is around them on a drum stem (see KICK_FLOOR). Their
+ * strengths stay as measured, on the same scale as the snare's and the hi-hat's: the chart
+ * generator weighs them against each other.
  */
-function standOutKicks(kicks: DrumHit[]): DrumHit[] {
-  const min = BAND.kick.min;
-  return kicks.flatMap((k) => {
-    let ref = 0;
-    for (const o of kicks) if (Math.abs(o.t - k.t) <= KICK_NEAR) ref = Math.max(ref, o.strength);
-    const floor = Math.max(min, KICK_FLOOR * ref);
-    if (k.strength < floor) return [];
-    const strength = ref > floor ? min + (1 - min) * ((k.strength - floor) / (ref - floor)) : 1;
-    return [{ ...k, strength: Math.min(1, strength) }];
+export function standOutKicks(kicks: DrumHit[]): DrumHit[] {
+  const sorted = kicks.map((k) => k.strength).sort((a, b) => a - b);
+  const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+  return kicks.filter((k) => {
+    let ref = k.strength;
+    let alone = true;
+    for (const o of kicks) {
+      if (o === k || Math.abs(o.t - k.t) > KICK_NEAR) continue;
+      alone = false;
+      ref = Math.max(ref, o.strength);
+    }
+    if (alone) ref = Math.max(ref, median);
+    return k.strength >= Math.max(BAND.kick.min, KICK_FLOOR * ref);
   });
 }
 

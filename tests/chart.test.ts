@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AnalysisResult } from '../src/analysis/types';
-import { detectFeel, generateChart, thumbOf } from '../src/chart/generator';
+import { CHORD_SHARE, detectFeel, generateChart, thumbOf } from '../src/chart/generator';
 import { PROFILES } from '../src/chart/profiles';
 import { DIFFICULTIES, PARTS, lanesFor } from '../src/chart/types';
 
@@ -245,6 +245,32 @@ describe('one thumb, one button', () => {
           expect(busy).toEqual([]);
         }
       }
+    }
+  });
+});
+
+describe('drum chords below expert', () => {
+  /** A kick on every beat at `kick`, and a snare at full strength on 2 and 4 with it. */
+  const backbeats = (kick: number): AnalysisResult => {
+    const a = fakeAnalysis();
+    a.drums = a.beats.flatMap((t, i) => [
+      { t, kind: 'kick' as const, strength: kick },
+      ...(i % 2 ? [{ t, kind: 'snare' as const, strength: 1 }] : []),
+    ]);
+    return a;
+  };
+  const chords = (a: AnalysisResult, d: 'medium' | 'hard') => {
+    const at = new Map<number, number>();
+    for (const n of generateChart(a, 'drums', d, 's').notes) at.set(n.t, (at.get(n.t) ?? 0) + 1);
+    return [...at.values()].filter((n) => n > 1).length;
+  };
+
+  it('keeps a kick well under a loud snare a single note, and chords one close to it', () => {
+    // A kick that is strong by itself (over the old 0.45 and 0.5) but well under the snare.
+    expect(0.6).toBeLessThan(CHORD_SHARE);
+    for (const d of ['medium', 'hard'] as const) {
+      expect(chords(backbeats(0.6), d)).toBe(0);
+      expect(chords(backbeats(0.9), d)).toBeGreaterThan(40);
     }
   });
 });

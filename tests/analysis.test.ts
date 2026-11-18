@@ -3,7 +3,7 @@ import { estimateTempo, trackBeats } from '../src/analysis/dsp/beats';
 import { onsetEnvelope } from '../src/analysis/dsp/onsets';
 import { stft } from '../src/analysis/dsp/stft';
 import { hpss } from '../src/analysis/dsp/hpss';
-import { analyzeSignal } from '../src/analysis/pipeline';
+import { analyzeSignal, standOutKicks } from '../src/analysis/pipeline';
 import { ANALYSIS_SAMPLE_RATE as SR } from '../src/analysis/types';
 
 const midiHz = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
@@ -152,14 +152,45 @@ describe('drum detection', () => {
     expect(offBeat.length).toBeLessThanOrEqual(2);
   }, 60_000);
 
-  it('spreads the kicks it keeps over the strengths the chart expects', async () => {
-    // Every other kick softer: the softer ones stay below the generator's chord threshold.
-    const x = kicks((b) => (b % 2 ? 0.6 : 1));
+  it('judges a lone low thump in a break against the song’s kicks, not against itself alone', async () => {
+    // Kicks, then a break of eight seconds with one quiet tom thump in the middle of it.
+    const x = kicks(
+      (b) => (b >= 10 && b < 26 ? 0 : 1),
+      (add, t, b) => {
+        if (b === 18) add(t, 0.3, (s) => Math.sin(2 * Math.PI * (85 + 25 * Math.exp(-s * 20)) * s) * Math.exp(-s * 9) * 0.1);
+      },
+    );
     const { all } = found((await analyzeSignal(x, { drumSignal: x })).drums);
-    expect(all.length).toBeGreaterThan(24);
-    expect(Math.min(...all.map((k) => k.strength))).toBeLessThan(0.45);
-    expect(Math.max(...all.map((k) => k.strength))).toBe(1);
+    expect(all.filter((k) => k.t > 6 && k.t < 13)).toEqual([]);
+    expect(all.length).toBeGreaterThan(10);
   }, 60_000);
+
+  it('keeps the strengths kicks were measured with, on the scale of the snare and hi-hat', () => {
+    const k = (t: number, strength: number) => ({ t, kind: 'kick' as const, strength });
+    // A loud bar, a quiet verse, a lone thump in a break and a weak thump among loud kicks.
+    const kept = standOutKicks([
+      k(1, 1),
+      k(1.5, 0.9),
+      k(2, 0.95),
+      k(10, 0.3),
+      k(10.5, 0.28),
+      k(11, 0.31),
+      k(20, 0.43),
+      k(30, 1),
+      k(30.25, 0.4),
+      k(30.5, 1),
+    ]);
+    expect(kept.map((h) => [h.t, h.strength])).toEqual([
+      [1, 1],
+      [1.5, 0.9],
+      [2, 0.95],
+      [10, 0.3],
+      [10.5, 0.28],
+      [11, 0.31],
+      [30, 1],
+      [30.5, 1],
+    ]);
+  });
 });
 
 describe('pipeline', () => {

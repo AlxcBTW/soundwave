@@ -70,11 +70,15 @@ interface Ev {
   kind?: DrumKind;
 }
 
+/** Below Expert, the weaker of two drum hits on one beat makes a chord only from this share of the stronger. */
+export const CHORD_SHARE = 0.75;
+
 /**
  * Snaps a beat position to the part's rhythmic grid. Straight parts use sixteenths (a clearly
  * triplet note keeps its triplet); triplet-feel parts (shuffles, triplet rap flows) use triplets,
  * plus eighths and quarters, keeping a sixteenth only when it is clearly one.
  */
+
 function snap(pos: number, feel: Feel): number {
   const q16 = Math.round(pos * 4) / 4;
   const q12 = Math.round(pos * 3) / 3;
@@ -698,9 +702,12 @@ function drumNotes(evs: Ev[], p: DifficultyProfile, d: Difficulty): Note[] {
       hits = [(backbeat || !kick ? snare : kick) ?? hits[0]];
     }
     // Chords on lower difficulties: only strong kick+snare backbeats, so the kit doesn't turn into
-    // constant two-hand hits.
+    // constant two-hand hits. The weaker hit must be strong by itself and also close to the
+    // stronger one: a kick that only just made it in beside a loud snare stays a single note.
     const backbeat = isMultiple(group[0].pos, 1) && Math.round(group[0].pos) % 2 === 1;
-    const allowChord = d === 'expert' || (d === 'hard' ? hits[1]?.strength >= 0.45 : backbeat && hits[1]?.strength >= 0.5);
+    const second = hits[1]?.strength ?? 0;
+    const close = second >= CHORD_SHARE * hits[0].strength;
+    const allowChord = d === 'expert' || (close && (d === 'hard' ? second >= 0.45 : backbeat && second >= 0.5));
     hits = hits.slice(0, allowChord ? p.maxChord : 1);
     // One hit per thumb: a hit whose thumb is busy takes its other lane if that is under the free
     // thumb, otherwise it drops (hits are in order of strength).
