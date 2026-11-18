@@ -205,8 +205,8 @@ const glowFragment = /* glsl */ `
 `;
 
 /**
- * Neon pills: tiles and strike targets drawn from each point's distance to the pill's edge, so the
- * rim, the light inside it and the glow around it are all smooth at any size. The plane is larger
+ * Pills of light: the strike targets, drawn from each point's distance to the pill's edge, so the
+ * ring, the light inside it and the glow around it are all smooth at any size. The plane is larger
  * than the pill by the glow's reach; `uExtent` is its size, `uHalf` the pill's half size, `uRad` the
  * radius of its ends.
  */
