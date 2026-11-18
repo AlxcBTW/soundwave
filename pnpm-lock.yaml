@@ -206,6 +206,9 @@ importers:
       '@tauri-apps/cli':
         specifier: ^2.12.5
         version: 2.12.5
+      '@tensorflow/tfjs':
+        specifier: ^3.21.0
+        version: 3.21.0(seedrandom@3.0.5)
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
