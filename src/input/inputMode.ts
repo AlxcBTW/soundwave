@@ -41,6 +41,19 @@ const listeners = new Set<() => void>();
 
 export const getInputMode = (): InputMode => mode;
 
+const inputListeners = new Set<() => void>();
+
+/** A controller was used (keys and pointers are seen as events). Tells those who watch for it. */
+export function noteInput() {
+  for (const l of inputListeners) l();
+}
+
+/** Calls `fn` whenever a controller is used. */
+export const onPadInput = (fn: () => void) => {
+  inputListeners.add(fn);
+  return () => inputListeners.delete(fn);
+};
+
 export function setInputMode(next: InputMode) {
   if (next === mode) return;
   mode = next;

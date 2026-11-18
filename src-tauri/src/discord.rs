@@ -26,6 +26,9 @@ const BUILT_CLIENT_ID: Option<&str> = option_env!("SOUNDWAVE_DISCORD_CLIENT_ID")
 /// release.
 const ICON_URL: &str =
     "https://raw.githubusercontent.com/DavidNiessen/soundwave/main/src-tauri/icons/128x128@2x.png";
+/// The part badges: the same pictures for each part, in the repository (src-tauri/icons/discord/).
+const BADGE_URL: &str =
+    "https://raw.githubusercontent.com/DavidNiessen/soundwave/main/src-tauri/icons/discord";
 /// Where the button under the status leads: the game's site, to play it or download it.
 const SITE_URL: &str = "https://soundwave.niessen.dev";
 /// How often a closed Discord is looked for, and the status sent again (so a restarted Discord shows it).
@@ -49,6 +52,18 @@ pub struct Presence {
     start: Option<i64>,
     #[serde(default)]
     end: Option<i64>,
+    /// The part being played (lead, bass, drums, vocals): a small badge on the icon, with its hover text.
+    #[serde(default)]
+    part: Option<String>,
+    #[serde(default)]
+    part_text: Option<String>,
+}
+
+/// The badge picture for a part (src-tauri/icons/discord/), for the parts there are.
+fn part_badge(part: &str) -> Option<String> {
+    ["lead", "bass", "drums", "vocals"]
+        .contains(&part)
+        .then(|| format!("{BADGE_URL}/{part}.png"))
 }
 
 #[derive(Default)]
@@ -95,10 +110,19 @@ fn send(
         Some(p) => {
             let details = fit(&p.details);
             let state = p.state.as_deref().map(fit);
+            let badge = p.part.as_deref().and_then(part_badge);
+            let badge_text = p.part_text.as_deref().map(fit);
+            let mut assets = Assets::new().large_image(ICON_URL).large_text("Soundwave");
+            if let Some(badge) = &badge {
+                assets = assets.small_image(badge.as_str());
+                if let Some(text) = &badge_text {
+                    assets = assets.small_text(text.as_str());
+                }
+            }
             let mut activity = Activity::new()
                 .activity_type(ActivityType::Playing)
                 .details(details.as_str())
-                .assets(Assets::new().large_image(ICON_URL).large_text("Soundwave"))
+                .assets(assets)
                 .buttons(vec![Button::new("Play now", SITE_URL)]);
             if let Some(state) = &state {
                 activity = activity.state(state.as_str());
@@ -244,5 +268,16 @@ mod tests {
         assert_eq!(p.state.as_deref(), Some("Lead · Hard"));
         assert_eq!(p.start, None);
         assert_eq!(p.end, Some(1_700_000_000_000));
+        assert_eq!(p.part, None);
+    }
+
+    #[test]
+    fn only_known_parts_have_a_badge() {
+        assert!(
+            part_badge("drums")
+                .unwrap()
+                .ends_with("/icons/discord/drums.png")
+        );
+        assert_eq!(part_badge("../evil"), None);
     }
 }

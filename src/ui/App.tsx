@@ -805,9 +805,10 @@ export function App() {
         return showScene({ details: named(view.song), state: 'Editing the chart' });
       case 'play': {
         const { run } = view;
-        const what = `${PART_LABEL[run.charts[run.index].part]} · ${DIFFICULTY_LABEL[run.pick.difficulty]}`;
+        const part = run.charts[run.index].part;
+        const what = `${PART_LABEL[part]} · ${DIFFICULTY_LABEL[run.pick.difficulty]}`;
         const where = run.test ? 'Test play' : run.songs.length > 1 ? `Song ${run.index + 1} of ${run.songs.length}` : '';
-        return showScene({ details: named(run.songs[run.index]), state: where ? `${what} · ${where}` : what });
+        return showScene({ details: named(run.songs[run.index]), state: where ? `${what} · ${where}` : what, part, partText: what });
       }
       case 'results': {
         const { song, results } = view.run.results[view.run.index] ?? { song: view.run.songs[view.run.index], results: null };

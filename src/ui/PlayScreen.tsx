@@ -113,12 +113,13 @@ export function PlayScreen({
       stageRef.current!,
     );
     let prev: PlayPhase = 'countdown';
-    // Discord shows the time left, or that the song is paused (src/app/discord.ts).
+    // Discord shows the time left, or that the song is paused or over (src/app/discord.ts). The
+    // countdown and the song count down alike; the time left is taken once the song plays again.
     let shown: PlayPhase | null = null;
     ctrl.onPhase = (p, n) => {
-      if (p !== shown && p !== 'finished') {
+      if (p !== shown) {
         shown = p;
-        showSong({ paused: p === 'paused', left: ctrl.songLeft });
+        showSong({ phase: p === 'countdown' ? 'playing' : p, left: ctrl.songLeft });
       }
       if (p === 'paused' && prev !== 'paused') {
         playSfx('pause');
