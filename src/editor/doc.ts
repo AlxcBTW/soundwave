@@ -231,11 +231,32 @@ export class ChartDoc {
 
   /* Changes ------------------------------------------------------------------------------- */
 
-  /** Adds a note; one already there is kept. Returns the note at that place. */
-  add(pos: number, lane: number, len = 0): DocNote | undefined {
+  /**
+   * Adds a note; one already there is kept. Returns the note at that place.
+   *
+   * A tile set down on a long note is not a note of its own: it is where that note is let go. The
+   * long note ends there and becomes a hold-and-release note (the tile at the end of a hold, as the
+   * game draws it). Set on the end of one that already is, it takes the release away again. With
+   * `plain`, a tile is always a note, and a long note under it is cut short to make room.
+   */
+  add(pos: number, lane: number, len = 0, plain = false): DocNote | undefined {
     const there = this.at(pos, lane);
     if (there) return there;
     if (lane < 0 || lane >= this.lanes) return undefined;
+    const held = plain ? undefined : this.list.find((n) => n.lane === lane && n.len > 0 && pos > n.pos + 1e-4 && pos < n.pos + n.len + 1e-4);
+    if (held) {
+      const atEnd = samePos(pos, held.pos + held.len);
+      const to = quantize(pos - held.pos);
+      if (to < MIN_LONG) return held;
+      this.apply(
+        this.list.map((n) => {
+          if (n.id !== held.id) return n;
+          const { release: _, ...rest } = n;
+          return atEnd && n.release ? rest : { ...rest, len: to, release: true };
+        }),
+      );
+      return this.byId(held.id);
+    }
     // A note set down inside a phrase belongs to it.
     const phrase = this.phraseAt(pos);
     const note: DocNote = { id: this.nextId++, pos: quantize(pos), lane, len: Math.max(0, len), phrase };
@@ -264,6 +285,12 @@ export class ChartDoc {
     const n = this.byId(id);
     if (!n) return false;
     const next = this.list.find((m) => m.lane === n.lane && m.pos > n.pos + 1e-4);
+    // Stretched right up to a tile in its lane, the long note takes that tile as its end: it is let
+    // go there, and the tile is no longer a note of its own.
+    if (next && next.len === 0 && len > next.pos - n.pos - 1e-4 && next.pos - n.pos >= MIN_LONG) {
+      const to = quantize(next.pos - n.pos);
+      return this.apply(this.list.filter((m) => m.id !== next.id).map((m) => (m.id === id ? { ...m, len: to, release: true } : m)));
+    }
     const room = next ? Math.max(0, next.pos - TAIL_GAP - n.pos) : Infinity;
     let want = Math.max(0, Math.min(len, room));
     if (want < MIN_LONG) want = 0;

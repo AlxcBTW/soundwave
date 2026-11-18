@@ -61,7 +61,9 @@ The editor shows the lanes from above, as they run in a song: later is higher, a
 | Undo, redo | `Ctrl`+`Z`, `Ctrl`+`Shift`+`Z` | View / Create; redo in the menu | the arrows in the toolbar |
 | Everything else | `M` | Options / Menu | Menu |
 
-A marked stretch can be copied, cut, repeated after itself (the quick way to write a bar four times), mirrored, deleted, or made an overdrive phrase; long notes in it can be made hold-and-release notes (with the cursor on a single long note: `H`, or **Let go on time** in the menu). What is copied can be pasted into another part or difficulty (a fifth lane folds onto the fourth).
+A marked stretch can be copied, cut, repeated after itself (the quick way to write a bar four times), mirrored, deleted, or made an overdrive phrase; long notes in it can be made hold-and-release notes.
+
+**Hold-and-release notes** are made the way the game draws them, as a hold with a tile at its end: set a tile down on a long note and the note ends there and must be let go there; or stretch a long note until it reaches a tile in its lane and that tile becomes its end. A tile set on the end of such a note takes the release away again. (`H`, or **Let go on time** in the menu, switches it for the long note under the cursor without changing its length.) Notes played in while recording are always notes of their own. What is copied can be pasted into another part or difficulty (a fifth lane folds onto the fourth).
 
 **Snapping.** Notes snap to the grid (quarters down to thirty-seconds, with triplets), to the sounds heard in the song, or to nothing:
 

@@ -89,6 +89,7 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
       [<>{G('b12')}{G('b15')}</>, 'Move along the song and across the lanes'],
       [G(ok), 'Set a note down, or take it away'],
       [<>{G(ok)}<span className="legend-plus">+</span>{G('b12')}</>, 'Hold and move up for a long note'],
+      [G(ok), 'On a long note, or stretched into a tile: it must be let go there'],
       [G('b2'), 'Mark a stretch, then press confirm to copy, repeat or delete it'],
       [G('b3'), 'Play from here'],
       [<>{G('b4')}{G('b5')}</>, 'Coarser or finer grid'],
@@ -105,6 +106,7 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
       [<><Key>↑</Key><Key>↓</Key><Key>←</Key><Key>→</Key></>, 'Move along the song and across the lanes'],
       [<><Key>Enter</Key><Key>1</Key>–<Key>{lanes}</Key></>, 'Set a note down, or take it away'],
       [<><Key>Enter</Key><span className="legend-plus">+</span><Key>↑</Key></>, 'Hold and move up for a long note'],
+      [<><Key>Enter</Key></>, 'On a long note, or stretched into a tile: it must be let go there'],
       [<><Key>Shift</Key><span className="legend-plus">+</span><Key>↑</Key></>, 'Mark a stretch; Enter for what to do with it'],
       [<><Key>Q</Key><Key>E</Key><Key>S</Key></>, 'Coarser or finer grid; what notes snap to'],
       [<><Key>PgUp</Key><Key>PgDn</Key></>, 'A bar on, a bar back'],
@@ -119,6 +121,7 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
     return [
       ['Tap', 'a lane to set a note down; tap a note to take it away'],
       ['Hold', 'then drag up for a long note'],
+      ['Tap', 'a long note, or drag one into a tile: it must be let go there'],
       ['Drag', 'to move through the song; pinch to zoom'],
       ['Select', 'tool: drag a box round notes, then move, copy or delete them'],
       ['Record', `plays the song; tap the lanes in time and every tap becomes a note`],
@@ -128,6 +131,7 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
   return [
     ['Click', 'a lane to set a note down; click a note to take it away'],
     ['Drag', 'up from a note for a long note'],
+    ['Click', 'a long note, or drag one into a tile: it must be let go there'],
     ['Right-click', 'takes a note away'],
     ['Wheel', 'moves through the song; with Ctrl it zooms'],
     [<><Key>Shift</Key><span className="legend-plus">+</span>drag</>, 'or the Select tool: box notes in, then drag them'],
@@ -422,7 +426,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
                   <dd>{snap.stats.phrases}</dd>
                 </div>
               </dl>
-              {snap.stats.peak > 0 && <p className="editor-fact">Up to {snap.stats.peak} notes in a second.</p>}
+              {snap.stats.peak > 0 && <p className="editor-fact">Up to {snap.stats.peak} {snap.stats.peak === 1 ? 'note' : 'notes'} in a second.</p>}
               {snap.issues > 0 && (
                 <button type="button" className="btn small" data-nav-skip onClick={() => setOpen('check')}>
                   <ListChecks strokeWidth={ICON_STROKE} aria-hidden />

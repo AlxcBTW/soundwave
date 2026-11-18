@@ -1287,7 +1287,7 @@ export class EditorController {
   fill() {
     if (!this.range || this.range[1] - this.range[0] < 1e-3) return this.onNotice('Mark a stretch first: it is filled with a note on every grid line.');
     this.doc.begin();
-    for (let p = this.grid.snap(this.range[0], this.snap); p < this.range[1] - 1e-4; p = quantize(p + 1 / this.snap)) this.doc.add(p, this.lane);
+    for (let p = this.grid.snap(this.range[0], this.snap); p < this.range[1] - 1e-4; p = quantize(p + 1 / this.snap)) this.doc.add(p, this.lane, 0, true);
     this.doc.commit();
     this.updateRangeNotes();
     this.feedback('toggle-on', 'select');
@@ -1542,7 +1542,8 @@ export class EditorController {
     if (lane < 0 || lane >= this.doc.lanes || this.recHeld.has(lane)) return;
     const t = this.engine.time(stamp);
     const pos = this.place(this.grid.pos(t));
-    const note = this.doc.at(pos, lane) ?? this.doc.add(pos, lane);
+    // Played in, a press is always a note of its own.
+    const note = this.doc.at(pos, lane) ?? this.doc.add(pos, lane, 0, true);
     this.struck[lane] = performance.now();
     if (!note) return;
     this.recIds.add(note.id);

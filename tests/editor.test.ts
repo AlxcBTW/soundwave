@@ -139,10 +139,12 @@ describe('the chart document', () => {
   it('keeps a long note clear of the next note in its lane', () => {
     const d = doc([note(0.5, 1, 1.5)]);
     expect(d.notes[0].len).toBe(3);
-    // A note set down inside the long one cuts it short.
-    d.add(3, 1);
+    // A note played in inside the long one cuts it short.
+    d.add(3, 1, 0, true);
     expect(d.notes[0].len).toBeCloseTo(1.875);
-    // Stretching stops short of the next note; another lane is no obstacle.
+    expect(d.notes[0].release).toBeUndefined();
+    // Stretching stops short of a long note further on; another lane is no obstacle.
+    d.setLength(d.byId(d.notes[1].id)!.id, 1);
     d.setLength(d.notes[0].id, 8);
     expect(d.notes[0].len).toBeCloseTo(1.875);
     d.add(2, 3);
@@ -150,6 +152,38 @@ describe('the chart document', () => {
     // Too short to hold is a tap.
     d.setLength(d.notes[0].id, 0.1);
     expect(d.notes[0].len).toBe(0);
+  });
+
+  it('makes a hold-and-release note of a long note that meets a tile', () => {
+    // A tile set down on a long note is where it is let go.
+    const d = doc([note(0.5, 1, 2)]);
+    const long = d.notes[0];
+    expect(d.add(3, 1)!.id).toBe(long.id);
+    expect(d.notes).toHaveLength(1);
+    expect(d.notes[0]).toMatchObject({ pos: 1, len: 2, release: true });
+    // On the end of one, it takes the release away again; the length stays.
+    d.add(3, 1);
+    expect(d.notes[0].release).toBeUndefined();
+    expect(d.notes[0].len).toBe(2);
+    d.undo();
+    d.undo();
+    expect(d.notes[0]).toMatchObject({ len: 4 });
+    expect(d.notes[0].release).toBeUndefined();
+
+    // A long note stretched into a tile in its lane takes the tile as its end.
+    const e = doc([note(0.5, 0), note(1.5, 0), note(2.5, 0), note(1.5, 2)]);
+    const [head] = e.notes;
+    e.setLength(head.id, 1.5);
+    expect(e.notes.find((n) => n.id === head.id)!.release).toBeUndefined();
+    e.setLength(head.id, 2);
+    expect(e.notes.filter((n) => n.lane === 0).map((n) => [n.pos, n.len, !!n.release])).toEqual([
+      [1, 2, true],
+      [5, 0, false],
+    ]);
+    // The tile in another lane is untouched, and shortened to a tap the note asks for no release.
+    expect(e.notes.some((n) => n.lane === 2 && n.pos === 3)).toBe(true);
+    e.setLength(head.id, 0);
+    expect(e.byId(head.id)!.release).toBeUndefined();
   });
 
   it('moves a selection as one, or not at all', () => {
