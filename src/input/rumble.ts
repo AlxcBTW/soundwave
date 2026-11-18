@@ -48,30 +48,68 @@ const actuator = (index: number): Actuator | undefined =>
   (pads.gamepad(index) as (Gamepad & { vibrationActuator?: Actuator }) | null)?.vibrationActuator;
 
 /**
- * Rumble one controller. The heavy motor sits in the left grip and the light one in the right,
- * so the side away from the lane is turned down; the middle lanes get both at full.
+ * Plain rumble motors (every controller but a DualSense driven natively) are spinning weights: below
+ * about a third of full strength they do not start turning at all, and they need tens of
+ * milliseconds to get up to speed. An effect is therefore told in what they can do: its strength
+ * between the point where they start and full, and never shorter than they take to be felt.
  */
+const MOTOR_START = 0.32;
+/** The shortest pulse each kind of effect is felt in, ms. */
+const MOTOR_MIN_MS: Record<Kind, number> = { click: 60, thud: 110, buzz: 140, sweep: 300 };
+/** How each kind shares out between the heavy motor (left grip, low and strong) and the light one (right grip, quick). */
+const MOTOR_MIX: Record<Kind, { strong: number; weak: number }> = {
+  click: { strong: 0.55, weak: 1 },
+  thud: { strong: 1, weak: 0.45 },
+  buzz: { strong: 0.7, weak: 0.9 },
+  sweep: { strong: 1, weak: 0.8 },
+};
+
+/** What the two motors play for an effect at output scale `k`, or null for nothing. */
+export function motorPulse(e: Effect, k: number): { strong: number; weak: number; ms: number } | null {
+  const a = Math.min(1, e.amp * k);
+  if (a <= 0) return null;
+  const level = MOTOR_START + (1 - MOTOR_START) * a;
+  const mix = MOTOR_MIX[e.kind];
+  // The lane's side: the grip away from it is eased off, never stopped (a lane in the middle gets both).
+  const away = (1 - (e.floor ?? 0.6)) * Math.abs(e.pan);
+  const lift = (m: number) => Math.max(MOTOR_START, Math.min(1, m));
+  return {
+    strong: lift(level * mix.strong * (e.pan > 0 ? 1 - away : 1)),
+    weak: lift(level * mix.weak * (e.pan < 0 ? 1 - away : 1)),
+    ms: Math.max(e.ms, MOTOR_MIN_MS[e.kind]),
+  };
+}
+
+/** Rumble one controller (see motorPulse). A rising sweep is played as three steps up. */
 function rumblePad(index: number, e: Effect, k: number) {
+  if (e.kind === 'sweep') {
+    const step = Math.round(Math.max(e.ms, MOTOR_MIN_MS.sweep) / 3);
+    [0.45, 0.72, 1].forEach((share, i) =>
+      window.setTimeout(() => playMotors(index, { ...e, kind: 'buzz', amp: e.amp * share, ms: step + 40 }, k), i * step),
+    );
+    return;
+  }
+  playMotors(index, e, k);
+}
+
+function playMotors(index: number, e: Effect, k: number) {
   const act = actuator(index);
-  if (!act?.playEffect) return;
-  const amp = Math.min(1, e.amp * k);
-  const floor = e.floor ?? 0.35;
-  const strong = amp * Math.max(floor, Math.min(1, 1 - e.pan));
-  const weak = amp * Math.max(floor, Math.min(1, 1 + e.pan));
+  const m = act?.playEffect ? motorPulse(e, k) : null;
+  if (!act?.playEffect || !m) return;
   const trigger = e.input === 'b6' ? 'left' : e.input === 'b7' ? 'right' : undefined;
   if (trigger && act.effects?.includes('trigger-rumble')) {
     void act
       .playEffect('trigger-rumble', {
-        duration: e.ms,
-        strongMagnitude: strong * 0.6,
-        weakMagnitude: weak * 0.6,
-        leftTrigger: trigger === 'left' ? amp : 0,
-        rightTrigger: trigger === 'right' ? amp : 0,
+        duration: m.ms,
+        strongMagnitude: m.strong * 0.6,
+        weakMagnitude: m.weak * 0.6,
+        leftTrigger: trigger === 'left' ? Math.max(m.strong, m.weak) : 0,
+        rightTrigger: trigger === 'right' ? Math.max(m.strong, m.weak) : 0,
       })
       .catch(() => {});
     return;
   }
-  void act.playEffect('dual-rumble', { startDelay: 0, duration: e.ms, strongMagnitude: strong, weakMagnitude: weak }).catch(() => {});
+  void act.playEffect('dual-rumble', { startDelay: 0, duration: m.ms, strongMagnitude: m.strong, weakMagnitude: m.weak }).catch(() => {});
 }
 
 const inDesktopApp = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -113,7 +151,9 @@ export class Rumbler {
   ) {
     const ps5 = pads.snapshot().pads.some((p) => p.family === 'ps5');
     this.checked =
-      ps5 && s.rumble !== 'off' ? dualSenseHaptics().then((ok) => (this.native = ok && !this.disposed)) : Promise.resolve(false);
+      ps5 && s.rumble !== 'off' && s.ps5Haptics
+        ? dualSenseHaptics().then((ok) => (this.native = ok && !this.disposed))
+        : Promise.resolve(false);
   }
 
   private get k() {
@@ -271,10 +311,12 @@ const MENU_PULSES: Record<MenuPulse, Effect> = {
 
 let nativeChecked: { at: number; ok: Promise<boolean> } | null = null;
 let menuLevel: RumbleLevel = 'strong';
+let menuHaptics = true;
 
-/** The rumble level menu pulses use (the player's setting). */
-export function setMenuRumble(level: RumbleLevel) {
+/** The rumble level menu pulses use, and whether a PS5 controller plays them on its haptics (the player's settings). */
+export function setMenuRumble(level: RumbleLevel, ps5Haptics = true) {
   menuLevel = level;
+  menuHaptics = ps5Haptics;
 }
 
 /**
@@ -288,7 +330,7 @@ export function menuPulse(kind: MenuPulse) {
   const pad = snap.pads.find((p) => p.index === snap.lastPad);
   if (!pad) return;
   const e = MENU_PULSES[kind];
-  if (pad.family === 'ps5') {
+  if (pad.family === 'ps5' && menuHaptics) {
     // Re-check now and then: the controller may have been plugged in by cable since.
     if (!nativeChecked || performance.now() - nativeChecked.at > 5000) nativeChecked = { at: performance.now(), ok: dualSenseHaptics() };
     void nativeChecked.ok.then((ok) => (ok ? nativePlay(e, k) : rumblePad(pad.index, e, k)));
