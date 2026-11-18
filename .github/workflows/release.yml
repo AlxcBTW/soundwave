@@ -3,6 +3,12 @@
 # release with the updater's latest.json (installed apps update to it), and deploys the website to
 # GitHub Pages. The website is only ever deployed from a release.
 #
+# The raised version reaches main only once every build has passed: until then it lives on the
+# release's tag alone. If a build fails (or the run is cancelled), the draft release and its tag are
+# taken away again, so main keeps its version and the next run makes the same one. Should bringing
+# main up to the release fail (main changed the version lines meanwhile), fix main and use
+# "Re-run failed jobs": the builds are kept.
+#
 # Needs the repository secret TAURI_SIGNING_PRIVATE_KEY (and TAURI_SIGNING_PRIVATE_KEY_PASSWORD if
 # the key has one): the private half of the key whose public half is in src-tauri/tauri.conf.json.
 name: Release
@@ -54,6 +60,7 @@ jobs:
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "::error::$version is not a release version (x.y.z)"; exit 1; fi
           if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then echo "::error::v$version exists already"; exit 1; fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      # The version commit goes to the tag only; main gets it once the builds have passed (publish).
       - name: Commit the version and tag it
         run: |
           node scripts/set-version.mjs "${{ steps.v.outputs.version }}"
@@ -61,7 +68,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "chore(release): v${{ steps.v.outputs.version }} [skip ci]"
           git tag "v${{ steps.v.outputs.version }}"
-          git push origin HEAD:main "v${{ steps.v.outputs.version }}"
+          git push origin "v${{ steps.v.outputs.version }}"
       - id: draft
         name: Draft the release
         env:
@@ -113,11 +120,37 @@ jobs:
     name: Publish the release
     needs: [prepare, build]
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      # Every build passed: main takes the version. Straight onto the tag when main has not moved
+      # since; otherwise the tag's version commit is merged in.
+      - name: Bring main up to the release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "refs/tags/v$VERSION:refs/tags/v$VERSION"
+          git merge --ff-only "v$VERSION" || git merge --no-ff --no-edit -m "chore(release): v$VERSION into main [skip ci]" "v$VERSION"
+          git push origin HEAD:main
+      - run: gh release edit "v$VERSION" --draft=false --latest
+
+  cleanup:
+    name: Take back a release whose build failed
+    needs: [prepare, build]
+    # Only after the tag and draft were made, and only when a build failed or the run was stopped.
+    if: (failure() || cancelled()) && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
     steps:
       - env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-        run: gh release edit "v${{ needs.prepare.outputs.version }}" --draft=false --latest
+        run: gh release delete "v${{ needs.prepare.outputs.version }}" --yes --cleanup-tag
 
   website:
     name: Deploy the website
