@@ -109,6 +109,28 @@ describe('drum detection', () => {
     expect(kicks.length).toBeGreaterThan(20);
     expect(offBeat.length).toBeLessThanOrEqual(2);
   }, 60_000);
+
+  it('does not take quiet low thumps between the kicks for kicks', async () => {
+    // Four-on-the-floor kick, and on every off-beat a floor tom left ringing at an eighth of its level.
+    const x = new Float32Array(16 * SR);
+    const add = (t0: number, dur: number, fn: (t: number) => number) => {
+      const a = Math.floor(t0 * SR);
+      for (let i = 0; i < dur * SR && a + i < x.length; i++) x[a + i] += fn(i / SR);
+    };
+    for (let b = 0; b < 30; b++) {
+      const t = 0.5 + b * 0.5;
+      add(t, 0.2, (s) => Math.sin(2 * Math.PI * (50 + 80 * Math.exp(-s * 30)) * s) * Math.exp(-s * 15) * 0.8);
+      add(t + 0.25, 0.3, (s) => Math.sin(2 * Math.PI * (85 + 25 * Math.exp(-s * 20)) * s) * Math.exp(-s * 9) * 0.1);
+    }
+    const a = await analyzeSignal(x);
+    const kicks = a.drums.filter((d) => d.kind === 'kick' && d.t > 1 && d.t < 15);
+    const offBeat = kicks.filter((k) => {
+      const o = (((k.t - 0.5) % 0.5) + 0.5) % 0.5;
+      return Math.min(o, 0.5 - o) > 0.08;
+    });
+    expect(kicks.length - offBeat.length).toBeGreaterThan(20);
+    expect(offBeat.length).toBeLessThanOrEqual(2);
+  }, 60_000);
 });
 
 describe('pipeline', () => {

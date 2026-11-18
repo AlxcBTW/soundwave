@@ -233,11 +233,17 @@ const roundNote = (n: PitchedNote): PitchedNote => ({
   ...(n.chord ? { chord: n.chord } : {}),
 });
 
-const BANDS: { kind: DrumKind; lo: number; hi: number; wait: number }[] = [
-  { kind: 'kick', lo: 30, hi: 150, wait: 0.1 },
-  { kind: 'snare', lo: 180, hi: 2500, wait: 0.08 },
-  { kind: 'hat', lo: 5000, hi: 10500, wait: 0.06 },
+/** `min`: the weakest hit that counts, as a share of the strongest hits of its kind in the song. */
+const BANDS: { kind: DrumKind; lo: number; hi: number; wait: number; min: number }[] = [
+  // The low band also moves with toms, the body of the snare and what is left of the bass in the
+  // stem. Against kicks marked by hand (MDB Drums, 23 recordings, on the separated drum stem) only
+  // 55% of what it finds down to 0.15 is a kick; from 0.55 up 81% is, for 88% of the kicks
+  // instead of 94%. Snare and hi-hat are best left at 0.15 on the same recordings.
+  { kind: 'kick', lo: 30, hi: 150, wait: 0.1, min: 0.55 },
+  { kind: 'snare', lo: 180, hi: 2500, wait: 0.08, min: 0.15 },
+  { kind: 'hat', lo: 5000, hi: 10500, wait: 0.06, min: 0.15 },
 ];
+const MIN_STRENGTH = Object.fromEntries(BANDS.map((b) => [b.kind, b.min])) as Record<DrumKind, number>;
 
 /** Kick / snare / hat hits from band-limited flux of the percussive component. */
 export function detectDrums(percussive: Float32Array, s: Spectrogram, fps: number, signal?: Float32Array, mag?: Float32Array): DrumHit[] {
@@ -264,7 +270,7 @@ export function detectDrums(percussive: Float32Array, s: Spectrogram, fps: numbe
     if (near(peaks[1], f) && hatC[f] < snareC[f] * 1.1) continue;
     hits.push({ t: f / fps, kind: 'hat', strength: Math.min(1, hatC[f]) });
   }
-  let kept = hits.filter((h) => h.strength >= 0.15);
+  let kept = hits.filter((h) => h.strength >= MIN_STRENGTH[h.kind]);
   if (signal) {
     // Move each hit to the attack in a band-filtered copy of the signal.
     const sr = s.sr;
