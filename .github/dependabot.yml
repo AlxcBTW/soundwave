@@ -20,6 +20,11 @@ updates:
     groups:
       cargo:
         patterns: ['*']
+    ignore:
+      # cpal is still 0.x, where a minor version breaks the API (0.18 changed sample rates, device
+      # names and timestamps). It drives the app's sound and the PS5 haptics: moved by hand, and tested.
+      - dependency-name: cpal
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
   - package-ecosystem: github-actions
     directory: /
     schedule:
