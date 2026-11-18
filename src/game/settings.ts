@@ -33,6 +33,8 @@ export interface Settings {
   rumbleMisses: boolean;
   rumbleSustains: boolean;
   rumbleOverdrive: boolean;
+  /** A PS5 controller's own haptics (desktop app, by cable) instead of its plain rumble. */
+  ps5Haptics: boolean;
   /** The 3D stage behind the highway. */
   graphics: GraphicsSettings;
   /** How the desktop app's window fills the screen. */
@@ -89,6 +91,7 @@ export const DEFAULT_SETTINGS: Settings = {
   rumbleMisses: true,
   rumbleSustains: true,
   rumbleOverdrive: true,
+  ps5Haptics: true,
   graphics: DEFAULT_GRAPHICS,
   displayMode: 'borderless',
   uiScale: 1,
@@ -126,6 +129,7 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
   s.uiScale = Math.min(1.3, Math.max(0.85, Number(s.uiScale) || 1));
   if (!['system', 'reduced', 'full'].includes(s.motion)) s.motion = 'system';
   s.touchHaptics = Boolean(s.touchHaptics);
+  s.ps5Haptics = Boolean(s.ps5Haptics);
   s.muteUnfocused = Boolean(s.muteUnfocused);
   s.songPreviews = Boolean(s.songPreviews);
   s.checkUpdates = Boolean(s.checkUpdates);

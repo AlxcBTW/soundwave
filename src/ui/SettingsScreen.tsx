@@ -89,7 +89,18 @@ const FIELDS: Record<Tab, readonly (keyof Settings)[]> = {
   audio: ['volume', 'musicVolume', 'sfxVolume', 'songPreviews', 'muteUnfocused', 'outputDevice', 'outputDeviceName'],
   game: ['noteSpeed', 'offsetMs'],
   keyboard: ['keys4', 'keys5', 'overdriveKey'],
-  controller: ['pad4', 'pad5', 'padOverdrive', 'glyphs', 'rumble', 'rumbleHits', 'rumbleMisses', 'rumbleSustains', 'rumbleOverdrive'],
+  controller: [
+    'pad4',
+    'pad5',
+    'padOverdrive',
+    'glyphs',
+    'rumble',
+    'rumbleHits',
+    'rumbleMisses',
+    'rumbleSustains',
+    'rumbleOverdrive',
+    'ps5Haptics',
+  ],
   touch: ['touchHaptics', 'touchOverdriveSide'],
   advanced: ['checkUpdates'],
 };
@@ -945,20 +956,22 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
           },
           ...(ps5
             ? [
-                {
-                  kind: 'info' as const,
-                  id: 'haptics',
-                  label: 'PS5 haptics',
-                  help: 'With 3D haptics, hits play on the left or right motor following the lane, with a different feel for hits, misses, held notes and overdrive.',
-                  body:
+                toggle(
+                  'ps5Haptics',
+                  'PS5 3D haptics',
+                  `With 3D haptics, hits play on the left or right side following the lane, with a different feel for hits, misses, held notes and overdrive. Off, the controller rumbles like any other. ${
                     c.haptics === null
                       ? 'Checking the controller…'
                       : c.haptics
-                        ? '3D haptics on.'
+                        ? ''
                         : inDesktopApp()
-                          ? 'Connect the controller with a USB cable for 3D haptics. Over Bluetooth it uses standard rumble.'
-                          : '3D haptics work in the desktop app with a USB cable. Here it uses standard rumble.',
-                },
+                          ? 'They need a USB cable: over Bluetooth the controller uses standard rumble.'
+                          : 'They work in the desktop app with a USB cable: here the controller uses standard rumble.'
+                  }`.trim(),
+                  s.ps5Haptics,
+                  (v) => set({ ps5Haptics: v }),
+                  s.rumble === 'off',
+                ),
               ]
             : []),
         ],

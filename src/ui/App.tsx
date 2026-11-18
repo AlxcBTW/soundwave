@@ -197,7 +197,7 @@ export function App() {
   useEffect(() => setMusicVolume(settings.musicVolume), [settings.musicVolume]);
   useEffect(() => (settings.muteUnfocused ? muteWhileUnfocused() : undefined), [settings.muteUnfocused]);
   useEffect(() => followOutputDevice(settings.outputDevice), [settings.outputDevice]);
-  useEffect(() => setMenuRumble(settings.rumble), [settings.rumble]);
+  useEffect(() => setMenuRumble(settings.rumble, settings.ps5Haptics), [settings.rumble, settings.ps5Haptics]);
   useEffect(() => void applyDisplayMode(settings.displayMode), [settings.displayMode]);
   // Alt+Enter, and F11 in the desktop app, switch between a window and the way of filling the screen
   // used last (fullscreen or windowed fullscreen), as the Window mode setting (so the settings show it). In a browser tab Alt+Enter asks the browser
