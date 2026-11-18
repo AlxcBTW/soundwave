@@ -172,6 +172,17 @@ export function PlayScreen({
   }, [mode]);
 
   const paused = phase === 'paused';
+  // The pause menu stays a moment after resuming, to fade out rather than vanish in one frame.
+  const [pauseLeaving, setPauseLeaving] = useState(false);
+  const wasPaused = useRef(paused);
+  useEffect(() => {
+    const was = wasPaused.current;
+    wasPaused.current = paused;
+    if (paused || !was) return setPauseLeaving(false);
+    setPauseLeaving(true);
+    const timer = window.setTimeout(() => setPauseLeaving(false), 200);
+    return () => clearTimeout(timer);
+  }, [paused]);
   // The pause menu takes focus as it opens, so the keyboard and a controller land on Resume, and
   // Tab stays inside it.
   useEffect(() => {
@@ -362,8 +373,14 @@ export function PlayScreen({
           {count}
         </div>
       )}
-      {paused && (
-        <div className="overlay card" data-modal ref={pauseRef}>
+      {/* wasPaused: the render that resumes keeps it too, before the effect above has run. */}
+      {(paused || pauseLeaving || wasPaused.current) && (
+        <div
+          className={`overlay card ${paused ? '' : 'leaving'}`}
+          data-modal={paused ? '' : undefined}
+          inert={!paused}
+          ref={pauseRef}
+        >
           <div className="dialog pause-card" role="dialog" aria-modal="true" aria-label="Paused">
             <h2 className="display pause-title">Paused</h2>
             <p className="pause-song">

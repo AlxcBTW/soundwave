@@ -1633,6 +1633,10 @@ img.cover {
 /* ------------------------------------------------------------------------------------------- */
 /* Dialogs                                                                                      */
 
+/* The shade and its blur come and go by themselves, not by fading the overlay: an overlay that is
+   see-through (opacity under 1) blurs nothing behind it or its cards until it is opaque, so the
+   blur would snap in at the end of the fade, and out at the start of leaving. Each card or sheet
+   fades in and out on its own. */
 .overlay {
   position: absolute;
   inset: 0;
@@ -1641,10 +1645,22 @@ img.cover {
   padding-bottom: calc(var(--bar-h) + var(--safe-b));
   background: rgb(8 5 26 / 0.74);
   backdrop-filter: blur(8px);
-  animation: fade-in 0.22s var(--ease);
+  animation: overlay-in 0.22s var(--ease);
 }
 .overlay.leaving {
-  animation: fade-out 0.18s var(--ease-in) forwards;
+  animation: overlay-out 0.18s var(--ease-in) forwards;
+}
+@keyframes overlay-in {
+  from {
+    background-color: transparent;
+    backdrop-filter: blur(0);
+  }
+}
+@keyframes overlay-out {
+  to {
+    background-color: transparent;
+    backdrop-filter: blur(0);
+  }
 }
 .dialog {
   position: relative;
