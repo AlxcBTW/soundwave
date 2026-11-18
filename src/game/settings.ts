@@ -3,8 +3,8 @@ import type { GlyphStyle, PadInput } from '../input/pads';
 import { DEFAULT_GRAPHICS, normalizeGraphics, type GraphicsSettings } from './graphics';
 
 export interface Settings {
-  /** Highway units per second. */
-  noteSpeed: number;
+  /** How fast the track scrolls, as a multiple of the usual speed (see TRACK_SPEED). */
+  trackSpeed: number;
   /** Audio/visual offset in milliseconds (positive = notes later). */
   offsetMs: number;
   volume: number;
@@ -58,6 +58,23 @@ export interface Settings {
   volumeDefaults: number;
 }
 
+/**
+ * The track speed's range and steps. 1x moves notes at BASE_SPEED highway units per second (the
+ * speed the game always had by default).
+ */
+export const TRACK_SPEED = { min: 0.5, max: 3, step: 0.05 } as const;
+const BASE_SPEED = 9;
+
+/** Highway units per second at a track speed. */
+export const highwaySpeed = (trackSpeed: number) => trackSpeed * BASE_SPEED;
+
+/** A track speed on the slider's steps and within its range. */
+export function clampTrackSpeed(v: number): number {
+  if (!Number.isFinite(v)) return 1;
+  const stepped = Math.round(v / TRACK_SPEED.step) * TRACK_SPEED.step;
+  return Math.min(TRACK_SPEED.max, Math.max(TRACK_SPEED.min, Number(stepped.toFixed(2))));
+}
+
 export type MotionPref = 'system' | 'reduced' | 'full';
 
 export type RumbleLevel = 'off' | 'weak' | 'strong';
@@ -72,7 +89,7 @@ export const DISPLAY_MODES: readonly DisplayMode[] = ['fullscreen', 'borderless'
 const VOLUME_DEFAULTS = 2;
 
 export const DEFAULT_SETTINGS: Settings = {
-  noteSpeed: 9,
+  trackSpeed: 1,
   offsetMs: 0,
   volume: 0.9,
   musicVolume: 0.3,
@@ -123,8 +140,12 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
   if (r === true) s.rumble = 'strong';
   else if (r === false) s.rumble = 'off';
   else if (r !== 'off' && r !== 'weak' && r !== 'strong') s.rumble = DEFAULT_SETTINGS.rumble;
+  // Note speed (highway units per second) became the track speed, a multiple of the old default.
+  const noteSpeed = (raw as { noteSpeed?: unknown }).noteSpeed;
+  if (raw.trackSpeed === undefined && typeof noteSpeed === 'number') s.trackSpeed = noteSpeed / BASE_SPEED;
+  s.trackSpeed = clampTrackSpeed(Number(s.trackSpeed));
   // The analysis service's switch and address went when the analysis moved into the game.
-  for (const old of ['rumbleStrength', 'dualSenseHaptics', 'mlEnabled', 'mlUrl']) delete (s as Record<string, unknown>)[old];
+  for (const old of ['noteSpeed', 'rumbleStrength', 'dualSenseHaptics', 'mlEnabled', 'mlUrl']) delete (s as Record<string, unknown>)[old];
   // Volumes still at the first defaults move to the current ones, once; a choice made after that stays.
   if (!(Number(raw.volumeDefaults) >= 2) && s.musicVolume === 0.6 && s.sfxVolume === 0.7) {
     s.musicVolume = DEFAULT_SETTINGS.musicVolume;

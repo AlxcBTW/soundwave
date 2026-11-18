@@ -11,7 +11,7 @@ import { barsLeft, findBreaks, type Break } from './breaks';
 import { GamepadInput, KeyboardInput, TouchInput, type InputHandlers } from './input';
 import { WINDOWS } from './judge';
 import { GOLD_STARS, MAX_MULTIPLIER, multiplierFor, STREAK_PER_MULTIPLIER } from './scoring';
-import type { Settings } from './settings';
+import { highwaySpeed, type Settings } from './settings';
 
 export interface HudRefs {
   score: HTMLElement;
@@ -135,7 +135,7 @@ export class PlayController {
     // In development the running game can be reached from the console (to start overdrive, say).
     if (import.meta.env.DEV) (window as unknown as { __play?: PlayController }).__play = this;
     this.highway = new Highway(highwayCanvas, chart);
-    this.highway.speed = settings.noteSpeed;
+    this.highway.speed = highwaySpeed(settings.trackSpeed);
     this.breaks = findBreaks(chart);
     this.barTimes = chart.downbeats.map((i) => chart.beats[i]).filter((x) => x !== undefined);
     this.highway.attach(this.session);
@@ -297,7 +297,7 @@ export class PlayController {
   applySettings(s: Settings) {
     this.engine.offset = s.offsetMs / 1000;
     this.engine.volume = s.volume;
-    this.highway.speed = s.noteSpeed;
+    this.highway.speed = highwaySpeed(s.trackSpeed);
     this.rumble.update(s);
     const key = JSON.stringify(resolveGraphics(s.graphics));
     if (key === this.graphicsKey) return;

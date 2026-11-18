@@ -82,10 +82,22 @@ describe('menu navigation', () => {
 
 describe('settings', () => {
   it('repairs bindings stored by older versions', () => {
-    const s = normalizeSettings({ keys4: ['KeyA'], noteSpeed: 12 } as never);
+    const s = normalizeSettings({ keys4: ['KeyA'], trackSpeed: 1.5 });
     expect(s.keys4).toEqual(DEFAULT_SETTINGS.keys4);
     expect(s.pad5).toHaveLength(5);
-    expect(s.noteSpeed).toBe(12);
+    expect(s.trackSpeed).toBe(1.5);
+  });
+
+  it('turns a stored note speed into the track speed, within its range', () => {
+    expect(DEFAULT_SETTINGS.trackSpeed).toBe(1);
+    expect(normalizeSettings({ noteSpeed: 9 } as never).trackSpeed).toBe(1);
+    const old = normalizeSettings({ noteSpeed: 12 } as never);
+    expect(old.trackSpeed).toBe(1.35);
+    expect('noteSpeed' in old).toBe(false);
+    expect(normalizeSettings({ noteSpeed: 16, trackSpeed: 2 } as never).trackSpeed).toBe(2);
+    expect(normalizeSettings({ trackSpeed: 7 }).trackSpeed).toBe(3);
+    expect(normalizeSettings({ trackSpeed: 0.1 }).trackSpeed).toBe(0.5);
+    expect(normalizeSettings({ trackSpeed: Number.NaN }).trackSpeed).toBe(1);
   });
 
   it('moves unchanged old controller defaults to the current ones, keeping custom bindings', () => {
