@@ -174,23 +174,52 @@ export class Rumbler {
   /** A USB DualSense is reachable natively: PS5 controllers are played there, not through the web view. */
   private native = false;
   /** On the DualSense, plain rumble instead of 3D haptics (the player turned those off). */
-  private readonly plain: boolean;
+  private plain: boolean;
   private held = new Map<number, number>();
   private holdTimer = 0;
   private disposed = false;
-  private readonly checked: Promise<boolean>;
+  private checked: Promise<boolean>;
   /** Overdrive rumble: when it started, the last gamepad renewal, the native bed voice. */
   private od = { active: false, start: 0, last: 0, hold: 0, amp: -1, sent: 0 };
 
   constructor(
-    private readonly s: Settings,
+    private s: Settings,
     private readonly lanes: number,
     private readonly bindings: PadInput[] = [],
   ) {
-    const ps5 = pads.snapshot().pads.some((p) => p.family === 'ps5');
     this.plain = !s.ps5Haptics;
-    this.checked =
-      ps5 && s.rumble !== 'off' ? dualSenseHaptics().then((ok) => (this.native = ok && !this.disposed)) : Promise.resolve(false);
+    this.checked = this.check();
+  }
+
+  /** Whether a PS5 controller's haptics can be reached natively (only looked for while rumble is on). */
+  private check(): Promise<boolean> {
+    const ps5 = pads.snapshot().pads.some((p) => p.family === 'ps5');
+    return ps5 && this.s.rumble !== 'off' ? dualSenseHaptics().then((ok) => (this.native = ok && !this.disposed)) : Promise.resolve(false);
+  }
+
+  /**
+   * The settings changed in the middle of a song (from the pause menu): they apply at once. What
+   * was turned off stops now, held rumble included, rather than playing on until the song ends.
+   */
+  update(s: Settings) {
+    const was = this.s;
+    this.s = s;
+    if (s === was) return;
+    const haptics = s.ps5Haptics !== was.ps5Haptics;
+    this.plain = !s.ps5Haptics;
+    if (s.rumble === 'off' || !s.rumbleSustains || haptics) for (const lane of Array.from(this.held.keys())) this.sustainEnd(lane);
+    // Overdrive keeps running: its rumble takes up again on the next tick if it is still wanted.
+    if (s.rumble === 'off' || !s.rumbleOverdrive || haptics) this.overdriveEnd(true);
+    if (s.rumble === 'off') this.stopMotors();
+    else if (was.rumble === 'off') this.checked = this.check();
+  }
+
+  /** Stops whatever the controllers' own motors are playing. */
+  private stopMotors() {
+    for (const p of pads.snapshot().pads)
+      void actuator(p.index)
+        ?.reset?.()
+        .catch(() => {});
   }
 
   /** One effect on the DualSense: as itself on 3D haptics, as the motors would play it otherwise. */
@@ -338,10 +367,7 @@ export class Rumbler {
     for (const lane of Array.from(this.held.keys())) this.sustainEnd(lane);
     this.overdriveEnd();
     clearTimeout(this.holdTimer);
-    for (const p of pads.snapshot().pads)
-      void actuator(p.index)
-        ?.reset?.()
-        .catch(() => {});
+    this.stopMotors();
   }
 }
 

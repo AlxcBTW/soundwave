@@ -287,12 +287,13 @@ export class PlayController {
 
   /**
    * Takes over the settings that can change in the middle of a song: volume, audio offset, note
-   * speed and the stage's graphics. Bindings and rumble are read when a song starts.
+   * speed, rumble and the stage's graphics. Bindings are read when a song starts.
    */
   applySettings(s: Settings) {
     this.engine.offset = s.offsetMs / 1000;
     this.engine.volume = s.volume;
     this.highway.speed = s.noteSpeed;
+    this.rumble.update(s);
     const key = JSON.stringify(resolveGraphics(s.graphics));
     if (key === this.graphicsKey) return;
     this.graphicsKey = key;
