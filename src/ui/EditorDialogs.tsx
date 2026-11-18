@@ -243,6 +243,8 @@ interface MenuProps {
 export function EditorMenu({ ctrl, snap, mode, legend, onTest, onRecord, onAsk, onClose }: MenuProps) {
   const touch = mode === 'touch';
   const snapModes = (['grid', 'sounds', 'off'] as SnapMode[]).filter((m) => m !== 'sounds' || snap.hasSounds);
+  // With nothing selected, the note the cursor is on can be changed from here (a selection has its own card).
+  const here = snap.selected ? null : ctrl.cursorNote();
   return (
     <Dialog title="Editor menu" onClose={onClose}>
       {(close) => {
@@ -266,6 +268,24 @@ export function EditorMenu({ ctrl, snap, mode, legend, onTest, onRecord, onAsk, 
                 Record
               </MenuButton>
             </div>
+
+            {here && (
+              <section className="menu-section" aria-label="The note under the cursor">
+                <h3 className="label">The note under the cursor</h3>
+                <MenuButton
+                  icon={Hand}
+                  help={!here.long ? 'Only a long note can be a hold-and-release note. Stretch it first: hold confirm on it and move up.' : here.release ? 'It is a hold-and-release note: it must be let go when it ends. Press to make it a plain long note.' : 'Makes it a hold-and-release note: it must also be let go on time, when it ends.'}
+                  aria-pressed={here.release}
+                  disabled={!here.long}
+                  onClick={() => ctrl.toggleRelease()}
+                >
+                  {here.release ? 'Let go on time: on' : 'Let go on time: off'}
+                </MenuButton>
+                <MenuButton icon={Zap} help={here.phrase ? 'It is part of an overdrive phrase. Press to take it out.' : 'Makes it an overdrive note. Mark a stretch to make a whole phrase.'} aria-pressed={here.phrase} onClick={() => ctrl.togglePhrase()}>
+                  {here.phrase ? 'Overdrive: on' : 'Overdrive: off'}
+                </MenuButton>
+              </section>
+            )}
 
             <section className="menu-section set-list" aria-label="Chart">
               <h3 className="label">Chart</h3>

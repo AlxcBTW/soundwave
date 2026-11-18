@@ -97,7 +97,7 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
       [G('b10'), 'Notes snap to the grid, to sounds, or to nothing'],
       [G('b11'), 'Loop the marked stretch'],
       [G('b8'), 'Undo'],
-      [G('b9'), 'Menu: record, test play, tools, tempo, and all of the above'],
+      [G('b9'), 'Menu: record, test play, tools, tempo, hold-and-release, and all of the above'],
     ];
   }
   if (mode === 'keyboard') {

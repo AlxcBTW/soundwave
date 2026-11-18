@@ -1181,6 +1181,13 @@ export class EditorController {
     this.changed();
   }
 
+  /** The note under the cursor, as far as the menu needs to know it. */
+  cursorNote(): { long: boolean; release: boolean; phrase: boolean } | null {
+    if (this.phase !== 'ready') return null;
+    const n = this.doc.covering(this.cursor, this.lane);
+    return n ? { long: n.len > 0, release: !!n.release, phrase: n.phrase >= 0 } : null;
+  }
+
   private targetIds(): number[] {
     if (this.sel.size) return [...this.sel];
     const n = this.doc.covering(this.cursor, this.lane);

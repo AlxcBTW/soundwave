@@ -61,7 +61,7 @@ The editor shows the lanes from above, as they run in a song: later is higher, a
 | Undo, redo | `Ctrl`+`Z`, `Ctrl`+`Shift`+`Z` | View / Create; redo in the menu | the arrows in the toolbar |
 | Everything else | `M` | Options / Menu | Menu |
 
-A marked stretch can be copied, cut, repeated after itself (the quick way to write a bar four times), mirrored, deleted, or made an overdrive phrase; long notes in it can be made hold-and-release notes. What is copied can be pasted into another part or difficulty (a fifth lane folds onto the fourth).
+A marked stretch can be copied, cut, repeated after itself (the quick way to write a bar four times), mirrored, deleted, or made an overdrive phrase; long notes in it can be made hold-and-release notes (with the cursor on a single long note: `H`, or **Let go on time** in the menu). What is copied can be pasted into another part or difficulty (a fifth lane folds onto the fourth).
 
 **Snapping.** Notes snap to the grid (quarters down to thirty-seconds, with triplets), to the sounds heard in the song, or to nothing:
 
