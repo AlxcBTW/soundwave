@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { getEngine } from '../audio/engine';
 import { holdMenuMusic } from '../audio/menuMusic';
 import { useInputMode } from '../input/inputMode';
-import { pads, PAUSE_INPUT } from '../input/pads';
-import { useActions } from './actions';
+import { backInput, pads, PAUSE_INPUT, styleFor } from '../input/pads';
+import { useGlyphStyle } from '../input/usePads';
+import { Hint, useActions } from './actions';
 
 const BPM = 100;
 const CLICKS = 20;
@@ -77,9 +78,10 @@ export function Calibration({ onDone }: { onDone(offsetMs: number | null): void 
       e.preventDefault();
       tap(e.timeStamp);
     };
+    // A controller's back button (or its menu button) cancels; every other button is a tap.
     const releasePad = pads.capture((e) => {
       if (!e.down) return true;
-      if (e.input === PAUSE_INPUT) finish(false);
+      if (e.input === PAUSE_INPUT || e.input === backInput(styleFor(pads.snapshot().family))) finish(false);
       else tap(e.t);
       return true;
     });
@@ -105,9 +107,20 @@ export function Calibration({ onDone }: { onDone(offsetMs: number | null): void 
         : 'Press any key exactly on each click, or click the pad.';
   // No bar actions while the clicks run: every key and button is a tap.
   useActions([]);
+  const style = useGlyphStyle('auto');
+  // The card takes the focus while it is open (the button that opened it is not left lit behind
+  // it), and gives it back after.
+  const card = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    card.current?.focus({ preventScroll: true });
+    return () => {
+      if (before?.isConnected) before.focus({ preventScroll: true });
+    };
+  }, []);
   return (
     <div className="overlay card" data-modal>
-      <div className="dialog calib-card" role="dialog" aria-modal="true" aria-label="Calibration">
+      <div ref={card} className="dialog calib-card" role="dialog" aria-modal="true" aria-label="Calibration" tabIndex={-1} data-ring="none">
         <h2 className="display">Calibrate</h2>
         <p className="calib-how" role="status">
           {beat < 0 ? `Get ready… ${-beat}` : how}
@@ -126,7 +139,15 @@ export function Calibration({ onDone }: { onDone(offsetMs: number | null): void 
         <p className="calib-count num">
           {taps.length} of {CLICKS} taps{median !== null ? ` · ${median} ms` : ''}
         </p>
-        <button type="button" className="btn wide" data-sfx="back" onPointerDown={(e) => e.stopPropagation()} onClick={() => onDone(null)}>
+        <button
+          type="button"
+          className="btn wide"
+          data-sfx="back"
+          tabIndex={-1}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => onDone(null)}
+        >
+          <Hint kbd="Escape" pad={backInput(style)} mode={mode} style={style} />
           Cancel
         </button>
       </div>
