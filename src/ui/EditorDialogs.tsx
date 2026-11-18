@@ -422,6 +422,8 @@ export function TempoSheet({ ctrl, snap, mode, onClose }: { ctrl: EditorControll
 export interface SelectionAction {
   id: string;
   label: string;
+  /** One word for it, where there is room for no more. */
+  short: string;
   icon: LucideIcon;
   /** Stays open after it ran (it can be pressed again). */
   stay?: boolean;
@@ -432,13 +434,13 @@ export interface SelectionAction {
 /** What can be done with the selected notes, the same list wherever it is shown. */
 export function selectionActions(ctrl: EditorController, snap: EditorSnapshot): SelectionAction[] {
   return [
-    { id: 'repeat', label: 'Repeat after itself', icon: CopyPlus, stay: true, run: () => ctrl.repeat() },
-    { id: 'copy', label: 'Copy', icon: Copy, run: () => void ctrl.copy() },
-    { id: 'cut', label: 'Cut', icon: Scissors, run: () => ctrl.cut() },
-    { id: 'phrase', label: snap.selPhrase ? 'Take out of overdrive' : 'Make an overdrive phrase', icon: Zap, run: () => ctrl.togglePhrase() },
-    { id: 'release', label: snap.selRelease ? 'No need to let go on time' : 'Let go on time', icon: Hand, disabled: !snap.selLong, run: () => ctrl.toggleRelease() },
-    { id: 'mirror', label: 'Mirror left and right', icon: FlipHorizontal2, stay: true, run: () => ctrl.mirror() },
-    { id: 'delete', label: 'Delete', icon: Trash2, run: () => ctrl.remove() },
+    { id: 'repeat', label: 'Repeat after itself', short: 'Repeat', icon: CopyPlus, stay: true, run: () => ctrl.repeat() },
+    { id: 'copy', label: 'Copy', short: 'Copy', icon: Copy, run: () => void ctrl.copy() },
+    { id: 'cut', label: 'Cut', short: 'Cut', icon: Scissors, run: () => ctrl.cut() },
+    { id: 'phrase', label: snap.selPhrase ? 'Take out of overdrive' : 'Make an overdrive phrase', short: 'Overdrive', icon: Zap, run: () => ctrl.togglePhrase() },
+    { id: 'release', label: snap.selRelease ? 'No need to let go on time' : 'Let go on time', short: 'Let go', icon: Hand, disabled: !snap.selLong, run: () => ctrl.toggleRelease() },
+    { id: 'mirror', label: 'Mirror left and right', short: 'Mirror', icon: FlipHorizontal2, stay: true, run: () => ctrl.mirror() },
+    { id: 'delete', label: 'Delete', short: 'Delete', icon: Trash2, run: () => ctrl.remove() },
   ];
 }
 

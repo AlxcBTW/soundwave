@@ -481,7 +481,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
                 {selectionActions(ctrl!, snap).map((a) => (
                   <button key={a.id} type="button" className="btn small" data-sfx={a.id === 'delete' ? 'back' : undefined} aria-label={a.label} title={a.label} disabled={a.disabled} onClick={a.run}>
                     <a.icon strokeWidth={ICON_STROKE} aria-hidden />
-                    <span className="btn-label">{a.label.split(' ')[0]}</span>
+                    <span className="btn-label">{a.short}</span>
                   </button>
                 ))}
               </div>

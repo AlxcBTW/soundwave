@@ -177,6 +177,8 @@ export class EditorController {
   private docs = new Map<ChartKey, ChartDoc>();
   /** Per open chart: the revision at which it was put back to the game's own chart. */
   private reverted = new Map<ChartKey, number>();
+  /** Open charts that were the player's own when they were opened. */
+  private own = new Set<ChartKey>();
   doc = new ChartDoc(5);
   private guide?: GuideMark[];
 
@@ -306,8 +308,9 @@ export class EditorController {
 
   private isEdited(key: ChartKey) {
     const doc = this.docs.get(key);
-    if (doc && this.reverted.get(key) === doc.revision) return false;
-    return key in this.edits.charts || !!doc?.changed;
+    if (!doc) return key in this.edits.charts;
+    if (this.reverted.get(key) === doc.revision) return false;
+    return this.own.has(key) || doc.changed;
   }
 
   private savePrefs() {
@@ -393,6 +396,7 @@ export class EditorController {
       doc = new ChartDoc(lanesFor(difficulty));
       doc.load(notes, this.grid);
       this.docs.set(key, doc);
+      if (stored) this.own.add(key);
     }
     this.doc = doc;
     this.part = part;
@@ -1269,7 +1273,7 @@ export class EditorController {
     for (const [key, doc] of this.docs) {
       if (shift) doc.rebase(shift);
       // Their times changed with the grid, so the edited ones are written again.
-      if (key in charts) doc.changed = true;
+      if (key in charts) doc.touch();
     }
     this.viewPos = next.clamp(this.viewPos + shift);
     this.target = null;
@@ -1349,8 +1353,10 @@ export class EditorController {
     if (!this.disposed) this.emit();
     const charts = { ...this.edits.charts };
     for (const [key, doc] of this.docs) {
-      if (this.reverted.get(key) === doc.revision) delete charts[key];
-      else if (doc.changed) charts[key] = cleanNotes(doc.toNotes(this.grid), doc.lanes, this.grid.secondsPerBeat, this.duration);
+      // A chart is the player's own if it was when it was opened or differs from how it was opened;
+      // one put back to the game's, or changed and changed back, is the game's again.
+      if (this.isEdited(key)) charts[key] = cleanNotes(doc.toNotes(this.grid), doc.lanes, this.grid.secondsPerBeat, this.duration);
+      else delete charts[key];
     }
     this.edits = { ...this.edits, charts, duration: this.duration, updatedAt: Date.now() };
     const anything = !!this.edits.grid || Object.keys(charts).length > 0;

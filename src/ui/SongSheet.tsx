@@ -214,7 +214,7 @@ export function SongSheet({ song, builtin, status, scores, slot, setFull, volume
               {!busy && (
                 <button type="button" className="btn quiet small" onClick={onAnalyze}>
                   <RotateCcw strokeWidth={ICON_STROKE} aria-hidden />
-                  {ready ? 'Analyze again' : 'Analyze'}
+                  {ready && !status.manual ? 'Analyze again' : 'Analyze'}
                 </button>
               )}
               <button type="button" className="btn quiet small" disabled={!ready} onClick={onEdit} title="Change the song's charts note by note in the track editor">

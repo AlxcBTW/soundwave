@@ -44,8 +44,10 @@ export class ChartDoc {
   private nextId = 1;
   /** Counts every change, for anything that caches what it drew or saved. */
   revision = 0;
-  /** Whether the chart differs from what it was loaded as. */
-  changed = false;
+  /** The notes as they were loaded. */
+  private base: DocNote[] = [];
+  /** Set when the chart has to be written again although its notes are the same (its grid moved). */
+  private stale = false;
 
   constructor(readonly lanes: number) {}
 
@@ -59,11 +61,22 @@ export class ChartDoc {
         return { id: this.nextId++, pos, lane: n.lane, len: Math.max(0, len), phrase: n.phrase ?? -1, ...(n.release && n.dur > 0 ? { release: true } : {}) };
       })
       .sort(byPlace);
+    this.base = this.list;
+    this.stale = false;
     this.undoStack = [];
     this.redoStack = [];
     this.pending = null;
-    this.changed = false;
     this.revision++;
+  }
+
+  /** Whether the chart differs from what it was loaded as. Undoing every change makes it the same again. */
+  get changed() {
+    return this.stale || !same(this.list, this.base, false);
+  }
+
+  /** Marks the chart as needing to be saved again. */
+  touch() {
+    this.stale = true;
   }
 
   /** The chart in seconds, as it is stored and played. */
@@ -153,7 +166,6 @@ export class ChartDoc {
     if (same(tidy, this.list)) return false;
     if (!this.pending) this.remember(this.list);
     this.list = tidy;
-    this.changed = true;
     this.revision++;
     return true;
   }
@@ -164,7 +176,6 @@ export class ChartDoc {
     if (!prev) return false;
     this.redoStack.push(this.list);
     this.list = prev;
-    this.changed = true;
     this.revision++;
     return true;
   }
@@ -175,7 +186,6 @@ export class ChartDoc {
     if (!next) return false;
     this.undoStack.push(this.list);
     this.list = next;
-    this.changed = true;
     this.revision++;
     return true;
   }
@@ -210,7 +220,9 @@ export class ChartDoc {
   rebase(beats: number) {
     if (!beats) return;
     const shift = (list: DocNote[]) => list.map((n) => ({ ...n, pos: quantize(n.pos + beats) }));
+    const pristine = this.list === this.base;
     this.list = shift(this.list);
+    this.base = pristine ? this.list : shift(this.base);
     this.undoStack = this.undoStack.map(shift);
     this.redoStack = this.redoStack.map(shift);
     if (this.pending) this.pending = shift(this.pending);
@@ -436,13 +448,15 @@ function trimmed(n: DocNote, len: number): DocNote {
   return { ...rest, len: 0 };
 }
 
-function same(a: DocNote[], b: DocNote[]) {
+/** Whether two lists hold the same notes; with `ids`, also the very same ones. */
+function same(a: DocNote[], b: DocNote[], ids = true) {
+  if (a === b) return true;
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
     const x = a[i];
     const y = b[i];
     if (x === y) continue;
-    if (x.id !== y.id || x.lane !== y.lane || x.phrase !== y.phrase || !!x.release !== !!y.release || !samePos(x.pos, y.pos) || !samePos(x.len, y.len)) return false;
+    if ((ids && x.id !== y.id) || x.lane !== y.lane || x.phrase !== y.phrase || !!x.release !== !!y.release || !samePos(x.pos, y.pos) || !samePos(x.len, y.len)) return false;
   }
   return true;
 }

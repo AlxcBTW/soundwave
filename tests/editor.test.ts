@@ -106,6 +106,24 @@ describe('the chart document', () => {
     expect(d.canRedo).toBe(false);
   });
 
+  it('counts as changed only while it differs from what was loaded', () => {
+    const d = doc([note(1, 0)]);
+    expect(d.changed).toBe(false);
+    d.toggle(4, 2);
+    expect(d.changed).toBe(true);
+    d.undo();
+    expect(d.changed).toBe(false);
+    // The same notes set down again are the same chart, and a grid renumbered under it changes nothing.
+    d.toggle(1, 0);
+    d.toggle(1, 0);
+    expect(d.changed).toBe(false);
+    d.rebase(4);
+    expect(d.notes[0].pos).toBe(6);
+    expect(d.changed).toBe(false);
+    d.touch();
+    expect(d.changed).toBe(true);
+  });
+
   it('treats a gesture as one step', () => {
     const d = doc();
     d.begin();
