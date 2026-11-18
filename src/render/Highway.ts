@@ -47,22 +47,6 @@ const MAX_TAILS = 128;
 const MAX_LINES = 96;
 const MAX_PARTICLES = 600;
 
-function roundedRect(w: number, h: number, r: number) {
-  const s = new THREE.Shape();
-  const x = -w / 2;
-  const y = -h / 2;
-  s.moveTo(x + r, y);
-  s.lineTo(x + w - r, y);
-  s.quadraticCurveTo(x + w, y, x + w, y + r);
-  s.lineTo(x + w, y + h - r);
-  s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  s.lineTo(x + r, y + h);
-  s.quadraticCurveTo(x, y + h, x, y + h - r);
-  s.lineTo(x, y + r);
-  s.quadraticCurveTo(x, y, x + r, y);
-  return s;
-}
-
 function radialTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
@@ -73,45 +57,6 @@ function radialTexture() {
   grad.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = grad;
   g.fillRect(0, 0, 64, 64);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-/**
- * A sustain trail is a beam of light: a tight glow in the lane's colour round a thin white-hot
- * core. Both are drawn as light (additively), each with its own profile across the beam's width:
- * the glow falls away quickly and reaches nothing well inside its strip, so no light smears over
- * the deck; the core is a narrow line with soft edges.
- */
-function beamTexture(kind: 'glow' | 'core'): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = 64;
-  c.height = 4;
-  const g = c.getContext('2d')!;
-  const grad = g.createLinearGradient(0, 0, 64, 0);
-  const stops: [number, number][] =
-    kind === 'glow'
-      ? [
-          [0, 0],
-          [0.14, 0],
-          [0.28, 26],
-          [0.39, 110],
-          [0.46, 215],
-          [0.5, 255],
-        ]
-      : [
-          [0, 0],
-          [0.2, 0],
-          [0.38, 150],
-          [0.5, 255],
-        ];
-  for (const [at, v] of stops) {
-    grad.addColorStop(at, `rgb(${v},${v},${v})`);
-    if (at < 0.5) grad.addColorStop(1 - at, `rgb(${v},${v},${v})`);
-  }
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 64, 4);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -292,61 +237,109 @@ float pill(vec2 p) {
 }
 `;
 /**
- * A tile: a bar of coloured glass lit from within, seen from above and in front. Its top face has
- * a bright rim in its colour with a white-hot line just inside it, a body deepening toward its
- * middle and a reflection running along its far side; below it, the bar's front face, darker; and
- * its light spills out around both. Premultiplied: the glow adds light, the bar covers.
+ * The colours of a tile, as they show on screen (sRGB: the tile, rod and island shaders write them
+ * as they are), in the order of TILE_BANDS: from the top of the bar down, its dark top edge, the
+ * line of light just inside it, its upper band, a darker dip, its middle, its deep lower band, the
+ * light rising from its base and the pale base plate; then the white of the light it reflects, the
+ * streak down its left end, the light and the shade of its sustain rod, and the glow round it.
  */
-const tileFragment = /* glsl */ `
-${neonPill}
-uniform float uSide;
-varying vec2 vP;
-varying vec3 vCol;
-void main() {
-  vec3 c = vCol;
-  float d = pill(vP);
-  float ds = pill(vP + vec2(0.0, uSide));
-  float du = min(d, ds);
-  float aa = fwidth(d);
-  float top = 1.0 - smoothstep(-aa, aa, d);
-  float bar = 1.0 - smoothstep(-aa, aa, du);
-  float side = bar * (1.0 - top);
-  float depth = clamp(-d / uHalf.y, 0.0, 1.0);
-  vec3 face = c * mix(1.05, 0.62, sqrt(depth));
-  // The front face: lit along its top where the light comes over the edge, darker below.
-  float down = clamp((-vP.y - uHalf.y + uSide) / uSide, 0.0, 1.0);
-  vec3 front = c * mix(0.55, 0.28, down);
-  float rimTop = exp(-pow(d / 0.02, 2.0));
-  float rimOut = exp(-pow(du / 0.022, 2.0));
-  float hot = exp(-pow((d + 0.032) / 0.015, 2.0)) * top;
-  float along = 1.0 - smoothstep(uHalf.x - uRad * 1.2, uHalf.x - uRad * 0.55, abs(vP.x));
-  float streak = exp(-pow((vP.y - uHalf.y * 0.4) / 0.016, 2.0)) * along * top;
-  float halo = du > 0.0 ? exp(-du / 0.075) * (1.0 - smoothstep(0.1, 0.2, du)) : 0.0;
-  vec3 white = mix(c, vec3(1.0), 0.8);
-  vec3 col = face * top + front * side + c * (rimOut * 1.3 + rimTop * 0.9) + white * (hot * 0.9 + streak * 0.55) + c * halo * 0.85;
-  float a = clamp(max(bar * 0.97, rimOut * 0.6 + halo * 0.22), 0.0, 1.0);
-  gl_FragColor = vec4(col, a);
-  #include <colorspace_fragment>
+const TILE_BANDS = ['edge', 'hi', 'up', 'dip', 'mid', 'low', 'rise', 'base', 'glare', 'streak', 'rodHi', 'rodLo', 'halo'] as const;
+/** One palette per lane, then the tiles that hold overdrive (silver) and every tile while overdrive lasts (light blue). */
+const TILE_PALETTES = [
+  // green
+  [0x107100, 0xa5f6c4, 0x12a200, 0x0f7000, 0x0a7500, 0x005002, 0x086a00, 0xb8f1ba, 0xc1e5c2, 0x94f5c4, 0x4ba750, 0x176c1a, 0x03ab00],
+  // red
+  [0x9a0800, 0xffb08c, 0xd81c06, 0x990900, 0x9e1002, 0x6c0a00, 0x900b00, 0xfbaf9d, 0xffccbf, 0xffac7e, 0xc8553e, 0x8a2414, 0xe02810],
+  // yellow
+  [0x9a7008, 0xffef65, 0xe5b115, 0xa05e00, 0xb06a00, 0x703000, 0x8a5300, 0xffecb8, 0xfffbc9, 0xfff9a3, 0xc4a157, 0x8a6a1c, 0xe8a812],
+  // blue
+  [0x00548c, 0xa8c6ff, 0x0079c9, 0x00538c, 0x005792, 0x003a65, 0x004e85, 0x99c9ff, 0xbfddff, 0xa8c1ff, 0x2581d4, 0x00508a, 0x007fd4],
+  // orange
+  [0xa14b19, 0xffd195, 0xe97a26, 0xa23d1c, 0xad461e, 0x711c13, 0x923519, 0xffceb3, 0xffe4cd, 0xffd5a6, 0xcd7d53, 0x904b21, 0xed742c],
+  // holds overdrive
+  [0x94a1be, 0xf4fcff, 0xc2cde5, 0x8392b1, 0xa0afd0, 0x6c7b9f, 0x94a0b1, 0xe9f4ff, 0xf5ffff, 0xecf7ff, 0xb2b6c8, 0x74798a, 0xdceaff],
+  // overdrive
+  [0x56acdb, 0xecfffe, 0x95d7fd, 0x359dcf, 0x56bbf1, 0x0085bc, 0x70a8c0, 0xdff8ff, 0xf7fffb, 0xe1fbff, 0x96bcdd, 0x577f9d, 0xcdefff],
+];
+const PHRASE_KIND = 5;
+const DRIVE_KIND = 6;
+const band = (kind: number, name: (typeof TILE_BANDS)[number]) => {
+  const h = TILE_PALETTES[kind][TILE_BANDS.indexOf(name)];
+  return new THREE.Vector3(((h >> 16) & 255) / 255, ((h >> 8) & 255) / 255, (h & 255) / 255);
+};
+const glslFloat = (x: number) => x.toFixed(5);
+
+/** A tile: its full width (base plate included) and its height as painted, in highway units. */
+const TILE_W = 0.84;
+const TILE_H = 0.325;
+/** How far the card a tile is painted on reaches beyond the bar: room for its glow and its shadow. */
+const TILE_MARGIN = 0.12;
+/**
+ * How far a tile's card leans back from upright, radians: about as far as the deck falls away under
+ * the camera's gaze, so a tile keeps its shape all the way down the lane.
+ */
+const TILE_LEAN = 0.44;
+/** A release marker's pointer, above the bar's top: the height of its shoulders and of its tip; its width at its foot and at its shoulders. */
+const POINTER = { shoulder: 0.5, tip: 0.69, foot: 0.54, top: 0.42 } as const;
+
+const tileCommon = /* glsl */ `
+#define NB ${TILE_BANDS.length}
+#define DRIVE ${DRIVE_KIND}
+${TILE_BANDS.map((b, i) => `#define B_${b.toUpperCase()} ${i}`).join('\n')}
+uniform vec3 uPal[${TILE_PALETTES.length * TILE_BANDS.length}];
+float sdBox(vec2 p, vec2 b, float r) {
+  vec2 q = abs(p) - b + r;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+/** The palette of the tile kind \`k\`, turned \`drive\` of the way to overdrive's. */
+vec3 pal(float k, float drive, int b) {
+  return mix(uPal[int(k + 0.5) * NB + b], uPal[DRIVE * NB + b], drive);
+}
+float between(float x, float a, float b, float soft) {
+  return smoothstep(a - soft, a + soft, x) * (1.0 - smoothstep(b - soft, b + soft, x));
 }
 `;
+
 /**
- * A release marker's pointer: an upright crystal in its lane's colour, see-through, lighter toward
- * its tip, with bright edges and a faint inner facet line, glowing a little around it.
+ * Tiles (and release markers) are painted, not modelled: each is a card standing on the deck and
+ * leaning back, with a glossy bar of coloured glass drawn on it. `aTile` is the tile's kind (a
+ * palette), how far it has turned to overdrive's colours, its brightness, and for a release marker
+ * the scale of its pointer (0 for a plain tile). `vP` is a point on the card in highway units: x
+ * across the bar, y up from the deck.
  */
-const pointerFragment = /* glsl */ `
-uniform vec2 uSize;
-uniform float uPeak;
+const tileVertex = /* glsl */ `
+attribute vec4 aTile;
 varying vec2 vP;
-varying vec3 vCol;
-float shape(vec2 p) {
+varying vec4 vTile;
+void main() {
+  vTile = aTile;
+  float top = ${glslFloat(TILE_H + TILE_MARGIN)} + (aTile.w > 0.0 ? ${glslFloat(POINTER.tip)} * aTile.w : 0.0);
+  vec2 p = vec2((uv.x - 0.5) * ${glslFloat(TILE_W + 2 * TILE_MARGIN)}, mix(${glslFloat(-TILE_MARGIN)}, top, uv.y));
+  vP = p;
+  // Leant back, with the bar's middle over the note's place on the deck.
+  float c = cos(${glslFloat(TILE_LEAN)});
+  float s = sin(${glslFloat(TILE_LEAN)});
+  vec4 pos = vec4(p.x, p.y * c, (${glslFloat(TILE_H / 2)} - p.y) * s, 1.0);
+  gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * pos;
+}
+`;
+
+const tileFragment = /* glsl */ `
+${tileCommon}
+varying vec2 vP;
+varying vec4 vTile;
+#define W ${glslFloat(TILE_W / 2)}
+#define H ${glslFloat(TILE_H)}
+vec3 band(int b) { return pal(vTile.x, vTile.y, b); }
+
+/** Signed distance to the pointer: a tapering column with a pitched roof. */
+float pointerShape(vec2 p) {
   vec2 v[5];
-  float hw = uSize.x * 0.5;
-  float hh = uSize.y * 0.5;
-  v[0] = vec2(-hw, -hh);
-  v[1] = vec2(hw, -hh);
-  v[2] = vec2(hw, hh - uPeak);
-  v[3] = vec2(0.0, hh);
-  v[4] = vec2(-hw, hh - uPeak);
+  v[0] = vec2(-${glslFloat(POINTER.foot / 2)}, H * 0.6);
+  v[1] = vec2(${glslFloat(POINTER.foot / 2)}, H * 0.6);
+  v[2] = vec2(${glslFloat(POINTER.top / 2)}, H + ${glslFloat(POINTER.shoulder)});
+  v[3] = vec2(0.0, H + ${glslFloat(POINTER.tip)});
+  v[4] = vec2(-${glslFloat(POINTER.top / 2)}, H + ${glslFloat(POINTER.shoulder)});
   float d = dot(p - v[0], p - v[0]);
   float s = 1.0;
   for (int i = 0; i < 5; i++) {
@@ -360,61 +353,259 @@ float shape(vec2 p) {
   }
   return s * sqrt(d);
 }
+
 void main() {
-  vec3 c = vCol;
-  float d = shape(vP);
-  float aa = fwidth(d);
-  float inside = 1.0 - smoothstep(-aa, aa, d);
-  float up = clamp(vP.y / uSize.y + 0.5, 0.0, 1.0);
-  vec3 fill = c * mix(0.35, 0.75, up);
-  float rim = exp(-pow(d / 0.016, 2.0));
-  float facet = exp(-pow((d + 0.055) / 0.01, 2.0)) * inside;
-  float halo = d > 0.0 ? exp(-d / 0.06) * (1.0 - smoothstep(0.06, 0.11, d)) : 0.0;
-  vec3 white = mix(c, vec3(1.0), 0.75);
-  vec3 col = fill * inside * 0.75 + white * (rim * 1.1 + facet * 0.35) + c * halo * 0.5;
-  float a = clamp(inside * 0.5 + rim * 0.7 + halo * 0.12, 0.0, 1.0);
-  gl_FragColor = vec4(col, a);
-  #include <colorspace_fragment>
+  vec2 p = vP;
+  // The bar: a box with well rounded corners, its foot flaring out a little into the pale rim it
+  // stands on.
+  float flare = ${glslFloat(TILE_W * 0.022)} * (1.0 - smoothstep(0.0, H * 0.4, p.y));
+  float bx = W - ${glslFloat(TILE_W * 0.022)};
+  vec2 bc = vec2(0.0, H * 0.5);
+  vec2 bb = vec2(bx, H * 0.5);
+  vec2 pb = vec2(p.x * bx / (bx + flare), p.y);
+  float r = pb.y > bc.y ? H * 0.42 : H * 0.3;
+  vec2 q = abs(pb - bc) - bb + r;
+  float dB = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+  float d = dB;
+  float aa = fwidth(d) * 1.3;
+  float bar = 1.0 - smoothstep(-aa, aa, d);
+  float v = p.y / H;
+  float u = pb.x / bx;
+
+  // Its face, in bands from the top down: the upper band darkening a little toward the dip.
+  vec3 c = band(B_UP) * mix(1.06, 0.9, smoothstep(0.8, 0.64, v));
+  c = mix(c, band(B_DIP), smoothstep(0.66, 0.6, v));
+  c = mix(c, band(B_MID), smoothstep(0.56, 0.51, v));
+  c = mix(c, band(B_LOW), smoothstep(0.47, 0.37, v));
+  c = mix(c, band(B_RISE), smoothstep(0.26, 0.17, v));
+  // A window of reflected light over its upper right, reaching lower toward its right end.
+  float reach = 0.6 - 0.14 * u;
+  float g = smoothstep(-0.25, 0.85, u) * smoothstep(reach - 0.06, reach + 0.1, v);
+  vec3 shine = mix(band(B_UP) * 1.3 + 0.08, band(B_GLARE), smoothstep(0.56, 0.74, v));
+  c = mix(c, shine, g);
+
+  // Its rim, all round: the top edge a shade darker with a line of light just inside it, which runs
+  // round the left corner into a streak down the middle of the left end; the right end lit.
+  float depth = -dB;
+  vec2 n = max(q.x, q.y) > 0.0 ? normalize(max(q, 0.0) + 1e-6) : (q.x > q.y ? vec2(1.0, 0.0) : vec2(0.0, 1.0));
+  n *= sign(pb - bc + 1e-6);
+  float top = smoothstep(0.1, 0.7, n.y);
+  float bottom = smoothstep(0.1, 0.7, -n.y);
+  float left = smoothstep(0.2, 0.8, -n.x);
+  float right = smoothstep(0.2, 0.8, n.x);
+  vec3 hi = mix(band(B_HI), band(B_GLARE), smoothstep(-0.6, 1.0, u) * 0.65);
+  c = mix(c, hi, top * between(depth, H * 0.075, H * 0.16, H * 0.025));
+  c = mix(c, band(B_STREAK), left * (1.0 - top) * smoothstep(0.24, 0.4, v) * between(depth, H * 0.1, H * 0.24, H * 0.03));
+  c = mix(c, band(B_EDGE), left * (1.0 - top) * (1.0 - smoothstep(H * 0.04, H * 0.08, depth)) * 0.65);
+  c = mix(c, band(B_UP) * 1.2, right * smoothstep(0.2, 0.32, v) * smoothstep(0.62, 0.45, v) * between(depth, H * 0.03, H * 0.15, H * 0.02));
+  c = mix(c, band(B_EDGE), top * (1.0 - smoothstep(H * 0.02, H * 0.06, depth)) * 0.6);
+  // The foot: a pale rim along the bottom, thick in the middle and thinning as it curls up round
+  // both ends; its lowest edge a shade darker.
+  float thick = H * mix(0.05, 0.13, bottom);
+  float foot = smoothstep(0.4, 0.2, v) * (1.0 - smoothstep(thick - H * 0.02, thick + H * 0.02, depth));
+  c = mix(c, mix(band(B_BASE) * 0.8, band(B_BASE), smoothstep(0.0, H * 0.05, p.y)), foot);
+
+  // A release marker is lighter glass with pale edges, with a crystal pointer standing on its far
+  // side: pale edges, a pitched roof lighter round its rim, a body deepening upward in soft bands.
+  float k = vTile.w;
+  vec4 ptr = vec4(0.0);
+  if (k > 0.0) {
+    c = mix(c, band(B_BASE) * 0.72, 0.22);
+    c = mix(c, mix(band(B_BASE), vec3(1.0), 0.2), (1.0 - smoothstep(H * 0.04, H * 0.09, depth)) * (1.0 - foot) * 0.85);
+    vec2 pp = vec2(p.x, p.y - H) / k + vec2(0.0, H);
+    float dq = pointerShape(pp);
+    float qa = fwidth(dq) * 1.3;
+    float body = 1.0 - smoothstep(-qa, qa, dq);
+    float shoulder = H + ${glslFloat(POINTER.shoulder)};
+    float hgt = clamp((pp.y - H) / ${glslFloat(POINTER.shoulder)}, 0.0, 1.0);
+    vec3 deep = mix(band(B_LOW), band(B_BASE), 0.3) * 0.95;
+    vec3 warm = mix(band(B_UP), band(B_BASE), 0.3) * 0.74;
+    vec3 col = mix(warm, deep, smoothstep(0.1, 0.75, hgt));
+    col *= 1.0 + 0.1 * sin(hgt * 17.0);
+    col = mix(col, mix(band(B_UP), band(B_BASE), 0.5), between(-dq, 0.03, 0.06, 0.012) * step(pp.x, 0.0) * 0.6);
+    float roof = smoothstep(shoulder - 0.004, shoulder + 0.004, pp.y);
+    col = mix(col, mix(mix(band(B_LOW), band(B_BASE), 0.4), band(B_BASE), smoothstep(0.075, 0.02, -dq)), roof);
+    col = mix(col, band(B_BASE), exp(-pow((pp.y - shoulder) / 0.014, 2.0)));
+    col = mix(col, mix(band(B_BASE), vec3(1.0), 0.35), 1.0 - smoothstep(0.016, 0.03, -dq));
+    ptr = vec4(col, 1.0) * body;
+  }
+
+  // Outside the bar: its shadow on the deck in front of it, and a little of its light round it
+  // (more above it than beside it). A tile that holds overdrive glows white, and further.
+  float phrase = step(${PHRASE_KIND - 0.5}, vTile.x) * step(vTile.x, ${PHRASE_KIND + 0.5});
+  float out_ = max(d, 0.0);
+  float above = mix(0.3, 1.0, smoothstep(H * 0.3, H * 1.1, p.y));
+  float halo = exp(-out_ / mix(0.024, 0.03, phrase)) * mix(0.5, 0.42, phrase) * above * (1.0 - smoothstep(${glslFloat(TILE_MARGIN * 0.6)}, ${glslFloat(TILE_MARGIN)}, out_));
+  float shadow = (1.0 - smoothstep(0.0, H * 0.14, -p.y)) * step(p.y, 0.0) * (1.0 - smoothstep(W - 0.04, W + 0.01, abs(p.x)));
+
+  float dim = vTile.z;
+  vec3 col = c * bar;
+  float a = bar;
+  col += (1.0 - a) * ptr.rgb;
+  a += (1.0 - a) * ptr.a;
+  float sh = (1.0 - a) * shadow * 0.75;
+  vec3 lightCol = band(B_HALO) * halo * (1.0 - a);
+  gl_FragColor = vec4((col + lightCol) * dim, a + sh + halo * 0.2 * (1.0 - a));
 }
 `;
+
+/** A sustain's rod: its width, and how far its glow reaches beside it (in rod widths). */
+const ROD_W = 0.08;
+const ROD_SPAN = 3;
+/** A sustain is a rod lying along the lane: lit along both sides, shaded down its middle. */
+const rodVertex = /* glsl */ `
+attribute vec4 aRod;
+varying vec2 vUv;
+varying vec4 vRod;
+void main() {
+  vUv = uv;
+  vRod = aRod;
+  gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+}
+`;
+const rodFragment = /* glsl */ `
+${tileCommon}
+varying vec2 vUv;
+varying vec4 vRod;
+void main() {
+  // aRod: kind, overdrive, brightness, glow. The rod is |s| < 1; its glow reaches to ROD_SPAN.
+  float s = (vUv.x - 0.5) * ${glslFloat(2 * ROD_SPAN)};
+  float t = abs(s);
+  float aa = fwidth(s);
+  float body = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, t);
+  vec3 hi = pal(vRod.x, vRod.y, B_RODHI);
+  vec3 lo = pal(vRod.x, vRod.y, B_RODLO);
+  vec3 c = mix(lo, hi, exp(-pow((t - 0.5) / 0.26, 2.0)));
+  c *= mix(1.0, 0.5, smoothstep(0.7, 1.0, t));
+  float glow = vRod.w * exp(-max(t - 1.0, 0.0) * 1.6) * (1.0 - smoothstep(${glslFloat(ROD_SPAN * 0.6)}, ${glslFloat(ROD_SPAN)}, t));
+  vec3 light = pal(vRod.x, vRod.y, B_HALO) * glow * (1.0 - body);
+  gl_FragColor = vec4((c * body + mix(c, vec3(1.0), 0.35) * body * vRod.w * 0.4) * vRod.z + light, body + glow * 0.12 * (1.0 - body));
+}
+`;
+
 /**
- * A strike target: a neon outline in its lane's colour, glowing inside and out, its inside dark.
- * Struck (`uLight`, 0..1), it floods white-hot.
+ * A strike target, an island on the deck: a thin ring of its lane's light round dark glass. Pressed
+ * (`uPress`), it fills with light, a second, wider ring lights round it and its middle glows white;
+ * struck (`uFlash`), the white flares. The light rising from the ring is drawn by islandWallFragment.
+ * The plane lies on the deck, with y toward the far end.
  */
-const targetFragment = /* glsl */ `
+const islandFragment = /* glsl */ `
 ${neonPill}
-uniform vec3 uBase;
-uniform vec3 uLane;
-uniform float uLight;
+float sdBox(vec2 p, vec2 b, float r) {
+  vec2 q = abs(p) - b + r;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+uniform vec3 uNeon;
+uniform vec3 uCore;
+uniform vec3 uFill;
+uniform vec3 uOuter;
+uniform vec3 uGap;
+uniform float uPress;
+uniform float uFlash;
+/** The outer ring: its half size, its corner radius and how far its middle sits toward the player. */
+uniform vec4 uRing;
 varying vec2 vP;
 void main() {
   float d = pill(vP);
   float aa = fwidth(d);
   float inside = 1.0 - smoothstep(-aa, aa, d);
-  float rim = exp(-pow(d / 0.02, 2.0));
-  float glowIn = inside * exp(d / 0.07);
-  float halo = d > 0.0 ? exp(-d / 0.06) * (1.0 - smoothstep(0.08, 0.16, d)) : 0.0;
-  vec3 lit = mix(uLane, vec3(1.0), 0.6);
-  vec3 rimCol = mix(uBase * 1.3, vec3(1.0), uLight * 0.8);
-  vec3 col = rimCol * rim * 1.25 + uBase * (glowIn * 0.5 + halo * 0.6 + inside * 0.05);
-  col += lit * uLight * (inside * 1.25 + rim * 0.6 + halo * 1.4);
-  float a = clamp(inside * (0.6 + 0.35 * uLight) + rim * 0.65 + halo * 0.18, 0.0, 1.0);
-  gl_FragColor = vec4(col, a);
-  #include <colorspace_fragment>
+  float lit = clamp(uPress, 0.0, 1.0);
+  float line = exp(-pow(d / mix(0.015, 0.018, lit), 2.0));
+  float core = exp(-pow(d / mix(0.006, 0.009, lit), 2.0));
+  // Inside: dark glass with a tint of the lane, a little lighter toward the ring.
+  float near = inside * exp(d / 0.05);
+  vec3 col = uNeon * (0.2 + 0.45 * near) * inside;
+  float a = inside * 0.62;
+  // Pressed, it fills with light, white-hot in the middle.
+  vec3 fill = uFill * (0.8 + 0.3 * near);
+  col = mix(col, fill, inside * lit);
+  a = mix(a, 1.0, inside * lit);
+  vec2 f = vP / vec2(uHalf.x * 0.55, uHalf.y * 0.9);
+  float flare = exp(-dot(f, f) * 1.6);
+  col += vec3(1.0) * flare * inside * clamp(lit * 0.75 + uFlash, 0.0, 1.0);
+  // The ring.
+  vec3 ringCol = mix(uNeon, uCore, clamp(core * 0.75 + lit * 0.45, 0.0, 1.0));
+  col += ringCol * line * (1.1 + 0.4 * lit);
+  a = max(a, line * 0.9);
+  // Pressed, the outer ring, with a band of darker glass between the two.
+  float d2 = sdBox(vP + vec2(0.0, uRing.w), uRing.xy, uRing.z);
+  float within = 1.0 - smoothstep(-aa, aa, d2);
+  float gap = within * (1.0 - inside) * (1.0 - line);
+  float line2 = exp(-pow(d2 / 0.013, 2.0)) * (1.0 - inside);
+  col += uGap * gap * 0.55 * lit + uOuter * line2 * lit * 1.15;
+  a = max(a, max(gap * 0.55, line2) * lit);
+  gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
 }
 `;
-/** How far beyond a pill its plane reaches: room for its glow, which fades out before the plane's edge. */
-const GLOW_REACH = 0.24;
-/** How far a tile leans back from lying flat, radians. */
-const TILE_LEAN = 0.7;
-/** Tile and target sizes (half width, half depth, end radius); a tile's front face shows this deep. */
-const TILE = { half: [0.43, 0.14], rad: 0.14, side: 0.075 } as const;
-/** A release marker's pointer: width, height and the height of its tip. */
-const POINTER = { w: 0.5, h: 0.78, peak: 0.22 } as const;
+/** The light rising from an island's ring: strongest at the deck, gone a little way up. */
+const islandWallFragment = /* glsl */ `
+uniform vec3 uNeon;
+uniform float uLevel;
+varying vec2 vUv;
+void main() {
+  float up = vUv.y;
+  float l = pow(1.0 - up, 2.2) * uLevel;
+  gl_FragColor = vec4(uNeon * l, 1.0);
+}
+`;
+/** A pressed lane's column of light, standing over its island and fading as it rises. */
+const pillarFragment = /* glsl */ `
+uniform vec3 uColor;
+uniform float uLevel;
+varying vec2 vUv;
+void main() {
+  float across = smoothstep(0.0, 0.16, vUv.x) * smoothstep(1.0, 0.84, vUv.x);
+  float up = pow(1.0 - vUv.y, 1.4) * smoothstep(0.0, 0.05, vUv.y);
+  gl_FragColor = vec4(uColor * across * up * uLevel, 1.0);
+}
+`;
+/** How far beyond an island its plane reaches: room for its outer ring and the ring's light. */
+const ISLAND_REACH = 0.19;
+/** How high the light rising from an island's ring reaches, and a pressed lane's column of light. */
+const WALL_H = 0.09;
+const PILLAR = { w: 0.82, h: 0.7 } as const;
 const TARGETS = {
-  pill: { half: [0.43, 0.14], rad: 0.14 },
+  pill: { half: [0.42, 0.13], rad: 0.13 },
   square: { half: [0.45, 0.42], rad: 0.16 },
 } as const;
+/** The outer ring of a pressed island: how much wider and deeper than the island, and how far toward the player. */
+const OUTER = { grow: [0.09, 0.09], rad: 0.17, toward: 0.06 } as const;
+
+/** A strip of wall standing on the outline of a rounded box (half size `hx`, `hy`, corner radius `r`), `h` high, with `uv.y` going up. */
+function outlineWall(hx: number, hy: number, r: number, h: number): THREE.BufferGeometry {
+  const pts: [number, number][] = [];
+  const corner = 12;
+  const centres: [number, number, number][] = [
+    [hx - r, hy - r, 0],
+    [-(hx - r), hy - r, Math.PI / 2],
+    [-(hx - r), -(hy - r), Math.PI],
+    [hx - r, -(hy - r), (3 * Math.PI) / 2],
+  ];
+  for (const [cx, cy, a0] of centres) {
+    for (let i = 0; i <= corner; i++) {
+      const a = a0 + (i / corner) * (Math.PI / 2);
+      pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+    }
+  }
+  pts.push(pts[0]);
+  const pos: number[] = [];
+  const uv: number[] = [];
+  const index: number[] = [];
+  pts.forEach(([x, y], i) => {
+    // The outline lies on the deck: its y runs toward the far end (-z).
+    pos.push(x, 0, -y, x, h, -y);
+    uv.push(i / (pts.length - 1), 0, i / (pts.length - 1), 1);
+    if (i > 0) {
+      const a = (i - 1) * 2;
+      index.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+    }
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(index);
+  return g;
+}
 
 const moteVertex = /* glsl */ `
   attribute float aSize;
@@ -480,19 +671,25 @@ export class Highway {
   /** Motes owed since the last frame (a fraction carries over). */
   private moteDebt = 0;
   private flare = 0;
-  /** The tiles: neon glass capsules (see tileFragment). */
+  /**
+   * The tiles and the release markers (a lighter tile with a pointer standing on it), painted on
+   * cards (see tileFragment). One mesh, drawn from the far end in, so a nearer tile covers a further one.
+   */
   private readonly gems: THREE.InstancedMesh;
-  /** Sustain trails: the beam's glow, and the white-hot line down its middle. */
+  private readonly gemData = new Float32Array(MAX_GEMS * 4);
+  /** The tiles of this frame before they are sorted: z, x, scale, kind, overdrive, brightness, pointer. */
+  private readonly gemList = new Float32Array(MAX_GEMS * 7);
+  private readonly gemOrder: number[] = [];
+  /** Sustain rods (see rodFragment). */
   private readonly tails: THREE.InstancedMesh;
-  private readonly tailCores: THREE.InstancedMesh;
-  /** Release markers: a light tile at the end of the hold with an upright pointer standing on it. */
-  private readonly capTiles: THREE.InstancedMesh;
-  private readonly capPointers: THREE.InstancedMesh;
+  private readonly tailData = new Float32Array(MAX_TAILS * 4);
   private readonly lines: THREE.InstancedMesh;
-  /** The strike targets: neon outlines in their lanes' colours (see targetFragment). */
+  /** The strike targets: islands of glass ringed with their lanes' light (see islandFragment). */
   private readonly pads: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>[] = [];
+  /** The light rising from each island's ring, and a pressed lane's column of light. */
+  private readonly walls: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>[] = [];
+  private readonly pillars: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>[] = [];
   private padStyle: 'pill' | 'square' = 'pill';
-  private readonly flashes: THREE.Mesh[] = [];
   private readonly flashLife: Float32Array;
   private readonly padLight: Float32Array;
   private readonly particles: THREE.Points;
@@ -506,8 +703,6 @@ export class Highway {
   private readonly q = new THREE.Quaternion();
   private readonly v = new THREE.Vector3();
   private readonly s = new THREE.Vector3();
-  private readonly c = new THREE.Color();
-  private readonly tint = new THREE.Color();
   private readonly flat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
   private firstNote = 0;
   private firstBeat = 0;
@@ -619,14 +814,18 @@ export class Highway {
     this.lines.frustumCulled = false;
     this.root.add(this.lines);
 
-    // Strike targets: a neon outline per lane in its colour, dark inside until the lane is played. On a
-    // touchscreen the targets are the buttons, so there they are squares a finger fits on.
+    // Strike targets: an island per lane, ringed with its colour's light and dark until the lane is
+    // played. On a touchscreen the targets are the buttons, so there they are squares a finger fits on.
     for (let i = 0; i < this.lanes; i++) {
+      const kind = i;
+      const up = band(kind, 'up');
+      const base = band(kind, 'base');
+      const halo = band(kind, 'halo');
       const pad = new THREE.Mesh(
         new THREE.PlaneGeometry(1, 1),
         new THREE.ShaderMaterial({
           vertexShader: neonVertex,
-          fragmentShader: targetFragment,
+          fragmentShader: islandFragment,
           transparent: true,
           premultipliedAlpha: true,
           depthWrite: false,
@@ -634,9 +833,14 @@ export class Highway {
             uExtent: { value: new THREE.Vector2() },
             uHalf: { value: new THREE.Vector2() },
             uRad: { value: 0 },
-            uBase: { value: this.laneColors[i] },
-            uLane: { value: this.laneColors[i] },
-            uLight: { value: 0 },
+            uRing: { value: new THREE.Vector4() },
+            uNeon: { value: halo.clone().lerp(up, 0.3) },
+            uCore: { value: band(kind, 'hi').lerp(new THREE.Vector3(1, 1, 1), 0.35) },
+            uFill: { value: up.clone().lerp(base, 0.55) },
+            uOuter: { value: up.clone().lerp(base, 0.4) },
+            uGap: { value: band(kind, 'low').lerp(up, 0.3).multiplyScalar(0.7) },
+            uPress: { value: 0 },
+            uFlash: { value: 0 },
           },
         }),
       );
@@ -645,107 +849,80 @@ export class Highway {
       pad.renderOrder = -0.5;
       this.root.add(pad);
       this.pads.push(pad);
+      const wall = new THREE.Mesh(
+        new THREE.BufferGeometry(),
+        new THREE.ShaderMaterial({
+          vertexShader: highwayVertex,
+          fragmentShader: islandWallFragment,
+          ...LIGHT,
+          side: THREE.DoubleSide,
+          uniforms: { uNeon: { value: halo.clone().lerp(up, 0.3) }, uLevel: { value: 1 } },
+        }),
+      );
+      wall.position.set(this.laneX(i), 0.004, 0);
+      wall.renderOrder = -0.4;
+      this.root.add(wall);
+      this.walls.push(wall);
+      const pillar = new THREE.Mesh(
+        new THREE.PlaneGeometry(PILLAR.w, PILLAR.h),
+        new THREE.ShaderMaterial({
+          vertexShader: highwayVertex,
+          fragmentShader: pillarFragment,
+          ...LIGHT,
+          uniforms: { uColor: { value: up.clone().lerp(new THREE.Vector3(1, 1, 1), 0.6) }, uLevel: { value: 0 } },
+        }),
+      );
+      pillar.geometry.translate(0, PILLAR.h / 2, 0);
+      pillar.position.set(this.laneX(i), 0.004, 0);
+      pillar.renderOrder = 0.5;
+      pillar.visible = false;
+      this.root.add(pillar);
+      this.pillars.push(pillar);
     }
     this.shapePads('pill');
 
-    // Release markers keep a solid tile under their pointer.
-    const gemGeo = new THREE.ExtrudeGeometry(roundedRect(0.84, 0.34, 0.12), {
-      depth: 0.09,
-      bevelEnabled: true,
-      bevelThickness: 0.035,
-      bevelSize: 0.03,
-      bevelSegments: 3,
-      curveSegments: 10,
-    });
-    gemGeo.rotateX(-Math.PI / 2);
-    gemGeo.translate(0, 0.02, 0);
-    // Tiles: neon glass capsules lying just above the deck, over the start of their tails.
-    const tileExtent = new THREE.Vector2(TILE.half[0] * 2 + GLOW_REACH * 2, TILE.half[1] * 2 + TILE.side * 2 + GLOW_REACH * 2);
-    const tileGeo = new THREE.PlaneGeometry(tileExtent.x, tileExtent.y);
-    // Leaning back toward the player, so a tile reads as a bar of light rather than a line on the deck.
-    tileGeo.rotateX(-Math.PI / 2 + TILE_LEAN);
-    tileGeo.translate(0, TILE.half[1] * Math.cos(-Math.PI / 2 + TILE_LEAN) + 0.02, 0);
+    // Tiles, and the release markers at the end of hold-and-release tails, painted on cards (one
+    // unit square each: the shader sizes it and leans it back).
+    const palette = TILE_PALETTES.flatMap((_, k) => TILE_BANDS.map((b) => band(k, b)));
+    const tileGeo = new THREE.PlaneGeometry(1, 1);
+    tileGeo.setAttribute('aTile', new THREE.InstancedBufferAttribute(this.gemData, 4));
     this.gems = new THREE.InstancedMesh(
       tileGeo,
       new THREE.ShaderMaterial({
-        vertexShader: neonVertex,
+        vertexShader: tileVertex,
         fragmentShader: tileFragment,
         transparent: true,
         premultipliedAlpha: true,
         depthWrite: false,
-        uniforms: {
-          uExtent: { value: tileExtent },
-          uHalf: { value: new THREE.Vector2(TILE.half[0], TILE.half[1]) },
-          uRad: { value: TILE.rad },
-          uSide: { value: TILE.side },
-        },
+        uniforms: { uPal: { value: palette } },
       }),
       MAX_GEMS,
     );
-    this.gems.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_GEMS * 3), 3);
     this.gems.frustumCulled = false;
     this.gems.renderOrder = 1;
     this.root.add(this.gems);
-    // Sustain tails
+    // Sustain rods: lying along the lane from the tile to the end of the hold.
     const tailGeo = new THREE.PlaneGeometry(1, 1);
     tailGeo.rotateX(-Math.PI / 2);
     tailGeo.translate(0, 0, -0.5); // extends from z=0 to z=-1 before scaling
-    this.tails = new THREE.InstancedMesh(tailGeo, new THREE.MeshBasicMaterial({ map: beamTexture('glow'), ...LIGHT }), MAX_TAILS);
-    this.tailCores = new THREE.InstancedMesh(tailGeo, new THREE.MeshBasicMaterial({ map: beamTexture('core'), ...LIGHT }), MAX_TAILS);
-    for (const mesh of [this.tails, this.tailCores]) {
-      mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TAILS * 3), 3);
-      mesh.frustumCulled = false;
-      mesh.renderOrder = 0;
-      this.root.add(mesh);
-    }
-
-    // Release markers at the end of hold-and-release tails: a tile of light glass (the tiles' own
-    // shader) with an upright crystal pointer standing on it.
-    this.capTiles = new THREE.InstancedMesh(tileGeo, this.gems.material, MAX_TAILS);
-    const pointerGeo = new THREE.PlaneGeometry(POINTER.w + GLOW_REACH, POINTER.h + GLOW_REACH);
-    pointerGeo.translate(0, 0.1 + POINTER.h / 2, -0.02);
-    this.capPointers = new THREE.InstancedMesh(
-      pointerGeo,
+    tailGeo.setAttribute('aRod', new THREE.InstancedBufferAttribute(this.tailData, 4));
+    this.tails = new THREE.InstancedMesh(
+      tailGeo,
       new THREE.ShaderMaterial({
-        vertexShader: neonVertex,
-        fragmentShader: pointerFragment,
+        vertexShader: rodVertex,
+        fragmentShader: rodFragment,
         transparent: true,
         premultipliedAlpha: true,
         depthWrite: false,
-        uniforms: {
-          uExtent: { value: new THREE.Vector2(POINTER.w + GLOW_REACH, POINTER.h + GLOW_REACH) },
-          uSize: { value: new THREE.Vector2(POINTER.w, POINTER.h) },
-          uPeak: { value: POINTER.peak },
-        },
+        uniforms: { uPal: { value: palette } },
       }),
       MAX_TAILS,
     );
-    for (const mesh of [this.capTiles, this.capPointers]) {
-      mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TAILS * 3), 3);
-      mesh.frustumCulled = false;
-      mesh.renderOrder = 1;
-      this.root.add(mesh);
-    }
+    this.tails.frustumCulled = false;
+    this.tails.renderOrder = 0;
+    this.root.add(this.tails);
 
-    // Hit flashes
     const tex = radialTexture();
-    const flashGeo = new THREE.PlaneGeometry(1.6, 1.6);
-    for (let i = 0; i < this.lanes; i++) {
-      const f = new THREE.Mesh(
-        flashGeo,
-        new THREE.MeshBasicMaterial({
-          map: tex,
-          color: this.laneColors[i],
-          transparent: true,
-          opacity: 0,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        }),
-      );
-      f.position.set(this.laneX(i), 0.35, 0.05);
-      this.root.add(f);
-      this.flashes.push(f);
-    }
 
     // Particles
     this.pPos = new Float32Array(MAX_PARTICLES * 3);
@@ -869,16 +1046,24 @@ export class Highway {
 
   private shapePads(style: 'pill' | 'square') {
     const { half, rad } = TARGETS[style];
-    const w = half[0] * 2 + GLOW_REACH * 2;
-    const h = half[1] * 2 + GLOW_REACH * 2;
+    const w = (half[0] + ISLAND_REACH) * 2;
+    const h = (half[1] + ISLAND_REACH) * 2;
+    const z = style === 'square' ? 0.2 : 0;
     for (const pad of this.pads) {
       pad.scale.set(w, h, 1);
-      pad.position.z = style === 'square' ? 0.2 : 0;
+      pad.position.z = z;
       const u = pad.material.uniforms;
       (u.uExtent.value as THREE.Vector2).set(w, h);
       (u.uHalf.value as THREE.Vector2).set(half[0], half[1]);
       u.uRad.value = rad;
+      (u.uRing.value as THREE.Vector4).set(half[0] + OUTER.grow[0], half[1] + OUTER.grow[1], Math.max(rad, OUTER.rad), OUTER.toward);
     }
+    for (const wall of this.walls) {
+      wall.geometry.dispose();
+      wall.geometry = outlineWall(half[0], half[1], rad, WALL_H);
+      wall.position.z = z;
+    }
+    for (const pillar of this.pillars) pillar.position.z = z;
   }
 
   /**
@@ -1123,11 +1308,11 @@ export class Highway {
     }
     let gi = 0;
     let ti = 0;
-    let ci = 0;
     // How far overdrive has come on (it eases in and out with the lane's own glow).
     const drive = this.trackMat.uniforms.uOverdrive.value as number;
     // Pending release pointers breathe, so they read as an instruction rather than a note to hit.
     const breathe = 1 + 0.06 * Math.sin(now / 140);
+    const list = this.gemList;
     this.q.identity();
     for (let i = this.firstNote; i < notes.length; i++) {
       const n = notes[i];
@@ -1136,58 +1321,42 @@ export class Highway {
       const hit = session.isHit(i);
       const missed = session.isMissed(i);
       const held = hit && session.holding[n.lane] === i;
-      const od = n.phrase >= 0 && !session.isPhraseFailed(n.phrase);
-      const own = od ? OVERDRIVE_COLOR : this.laneColors[n.lane];
-      // In overdrive every tile turns light blue.
-      const color = drive > 0.01 ? this.tint.copy(own).lerp(OVERDRIVE_TILE, drive) : own;
+      // A tile that holds overdrive is silver; in overdrive every tile turns light blue.
+      const kind = n.phrase >= 0 && !session.isPhraseFailed(n.phrase) ? PHRASE_KIND : n.lane;
 
       if (n.dur > 0 && ti < MAX_TAILS) {
         const startZ = held ? 0 : -(n.t - t) * speed;
         const endZ = Math.max(-LENGTH, -(n.t + n.dur - t) * speed);
         const len = startZ - endZ;
         if (len > 0.01 && (!hit || held)) {
-          this.v.set(x, 0.01, startZ);
-          // The glow in the lane's colour, then the core, near white. A held beam burns brighter
-          // and a touch wider, and breathes; a missed one is all but out.
-          const burn = missed ? MISSED_TINT * 0.6 : held ? 1.15 + 0.15 * Math.sin(now / 90) : 0.8;
-          this.s.set(held ? 0.24 : 0.18, 1, len);
+          this.v.set(x, 0.012, startZ);
+          this.s.set(ROD_W * ROD_SPAN, 1, len);
           this.m.compose(this.v, this.q, this.s);
           this.tails.setMatrixAt(ti, this.m);
-          this.c.copy(color).multiplyScalar(burn);
-          this.tails.setColorAt(ti, this.c);
-          this.v.y = 0.012;
-          this.s.set(held ? 0.075 : 0.055, 1, len);
-          this.m.compose(this.v, this.q, this.s);
-          this.tailCores.setMatrixAt(ti, this.m);
-          this.c
-            .copy(color)
-            .lerp(WHITE, 0.72)
-            .multiplyScalar(burn * (missed ? 0.5 : 0.9));
-          this.tailCores.setColorAt(ti, this.c);
+          // A held rod burns brighter, glows and breathes; a missed one is all but out.
+          const k = ti * 4;
+          this.tailData[k] = kind;
+          this.tailData[k + 1] = drive;
+          this.tailData[k + 2] = missed ? MISSED_TINT : held ? 1.2 + 0.12 * Math.sin(now / 90) : 1;
+          this.tailData[k + 3] = held ? 1 : kind === PHRASE_KIND ? 0.45 : 0;
           ti++;
         }
         if (held) this.padLight[n.lane] = Math.max(this.padLight[n.lane], 0.8);
 
         // The release marker sits at the tail's end until the release is judged.
         const capZ = -(n.t + n.dur - t) * speed;
-        if (n.release && !session.isReleased(i) && capZ > -LENGTH && capZ < 1.5 && ci < MAX_TAILS) {
-          const dim = session.isReleaseMissed(i) || missed ? MISSED_TINT : 1;
+        if (n.release && !session.isReleased(i) && capZ > -LENGTH && capZ < 1.5 && gi < MAX_GEMS) {
+          const dimmed = session.isReleaseMissed(i) || missed;
+          const k = gi * 7;
+          list[k] = capZ;
+          list[k + 1] = x;
           // Like the notes, the marker grows in at the far end.
-          const grown = arrived(capZ + LENGTH);
-          this.v.set(x, 0, capZ);
-          this.s.set(grown, grown, grown);
-          this.m.compose(this.v, this.q, this.s);
-          this.capTiles.setMatrixAt(ci, this.m);
-          this.c.copy(color).lerp(WHITE, 0.35).multiplyScalar(dim);
-          this.capTiles.setColorAt(ci, this.c);
-          // The pointer stands on the tile and breathes.
-          const k = (dim < 1 ? 1 : breathe) * grown;
-          this.s.set(k, k, grown);
-          this.m.compose(this.v, this.q, this.s);
-          this.capPointers.setMatrixAt(ci, this.m);
-          this.c.copy(color).lerp(WHITE, 0.15).multiplyScalar(dim);
-          this.capPointers.setColorAt(ci, this.c);
-          ci++;
+          list[k + 2] = arrived(capZ + LENGTH);
+          list[k + 3] = kind;
+          list[k + 4] = drive;
+          list[k + 5] = dimmed ? MISSED_TINT : 1;
+          list[k + 6] = dimmed ? 1 : breathe;
+          gi++;
         }
       }
 
@@ -1198,47 +1367,53 @@ export class Highway {
       const gone = z > 0.2 ? Math.max(0, 1 - (z - 0.2) / (PAST - 0.25)) : 1;
       // At the far end it grows from nothing to its size, solid all the way, so it arrives instead
       // of popping up (and never lies half see-through over the stage behind).
-      const here = arrived(z + LENGTH);
-      const k = gone * here;
-      this.v.set(x, 0, z);
-      this.s.set(k, k, k);
-      this.m.compose(this.v, this.q, this.s);
-      this.gems.setMatrixAt(gi, this.m);
-      // Their light swells and ebbs, a wave running down the lane toward the player.
-      const swell = 0.5 + 0.5 * Math.sin(now / 150 + z * 0.8);
-      this.c.copy(color);
-      if (missed) this.c.multiplyScalar(MISSED_TINT);
-      else if (drive > 0.01) this.c.multiplyScalar(1 + drive * (0.08 + 0.2 * swell));
-      this.gems.setColorAt(gi, this.c);
+      const k = gi * 7;
+      list[k] = z;
+      list[k + 1] = x;
+      list[k + 2] = gone * arrived(z + LENGTH);
+      list[k + 3] = kind;
+      list[k + 4] = drive;
+      // In overdrive their light swells and ebbs, a wave running down the lane toward the player.
+      list[k + 5] = missed ? MISSED_TINT : 1 + drive * (0.05 + 0.12 * (0.5 + 0.5 * Math.sin(now / 150 + z * 0.8)));
+      list[k + 6] = 0;
       gi++;
+    }
+    // The far ones first, so a nearer tile (or the pointer of a release marker) covers a further one.
+    const order = this.gemOrder;
+    order.length = gi;
+    for (let j = 0; j < gi; j++) order[j] = j;
+    order.sort((a, b) => list[a * 7] - list[b * 7]);
+    for (let j = 0; j < gi; j++) {
+      const k = order[j] * 7;
+      const scale = list[k + 2];
+      this.v.set(list[k + 1], 0, list[k]);
+      this.s.set(scale, scale, scale);
+      this.m.compose(this.v, this.q, this.s);
+      this.gems.setMatrixAt(j, this.m);
+      this.gemData.set([list[k + 3], list[k + 4], list[k + 5], list[k + 6]], j * 4);
     }
     this.gems.count = gi;
     this.tails.count = ti;
-    this.tailCores.count = ti;
-    for (const mesh of [this.capTiles, this.capPointers]) {
-      mesh.count = ci;
-      mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    }
     this.gems.instanceMatrix.needsUpdate = true;
-    if (this.gems.instanceColor) this.gems.instanceColor.needsUpdate = true;
-    for (const mesh of [this.tails, this.tailCores]) {
-      mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    }
+    this.gems.geometry.getAttribute('aTile').needsUpdate = true;
+    this.tails.instanceMatrix.needsUpdate = true;
+    this.tails.geometry.getAttribute('aRod').needsUpdate = true;
 
-    // Pads and flashes
+    // The islands: pressed, they fill with light and stand in a column of it; struck, they flare.
     for (let i = 0; i < this.lanes; i++) {
       if (session.laneDown[i]) this.padLight[i] = Math.max(this.padLight[i], 0.55);
       this.padLight[i] = Math.max(0, this.padLight[i] - dt * 5);
-      this.pads[i].material.uniforms.uLight.value = this.padLight[i];
-      (u.uLight.value as number[])[i] = this.padLight[i];
       this.flashLife[i] = Math.max(0, this.flashLife[i] - dt * 4.5);
-      const f = this.flashes[i];
-      const fl = this.flashLife[i];
-      (f.material as THREE.MeshBasicMaterial).opacity = fl;
-      f.scale.setScalar(0.6 + (1 - fl) * 0.9);
-      f.quaternion.copy(this.camera.quaternion);
+      const pressed = Math.min(1, this.padLight[i] / 0.5);
+      const flash = this.flashLife[i];
+      const pu = this.pads[i].material.uniforms;
+      pu.uPress.value = pressed;
+      pu.uFlash.value = flash;
+      (u.uLight.value as number[])[i] = this.padLight[i];
+      this.walls[i].material.uniforms.uLevel.value = 1.5 + 0.8 * pressed + flash;
+      const column = pressed * 0.7 + flash * 0.6;
+      this.pillars[i].material.uniforms.uLevel.value = column;
+      this.pillars[i].visible = column > 0.005;
     }
 
     // Particles
