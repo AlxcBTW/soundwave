@@ -386,12 +386,14 @@ export class EditorView {
     const notes = s.doc.notes;
     const from = s.doc.firstFrom(bottom - 64);
     const now = performance.now();
+    // The chevrons in a neck run toward its tip while the song plays (unless motion is reduced).
+    const chevrons = s.playing && document.documentElement.dataset.motion !== 'reduced' ? now / 1000 : 0;
     for (let i = from; i < notes.length && notes[i].pos <= top + 1; i++) {
       const n = notes[i];
       const held = s.held[n.lane] === n.id;
       const len = held ? Math.max(n.len, s.viewPos - n.pos) : n.len;
       if (len <= 0 || n.pos + len < bottom - 1) continue;
-      this.drawTail(n, len, y(n.pos), y(n.pos + len), s.selection.has(n.id));
+      this.drawTail(n, len, y(n.pos), y(n.pos + len), s.selection.has(n.id), chevrons);
     }
     for (let i = from; i < notes.length && notes[i].pos <= top + 1; i++) {
       const n = notes[i];
@@ -472,10 +474,11 @@ export class EditorView {
 
   /**
    * A hold, as on the highway: a rod lit along both sides, glowing a little; or, for a hold that
-   * must be let go on time, a wide neck of crystal with pale edges, deepening toward the arrow it
-   * ends in where it is let go.
+   * must be let go on time, a neck: a wide channel of tinted glass framed in pale glass, chevrons
+   * inside it pointing to the pale crystal tip it ends in where it is let go. `time` (seconds) moves
+   * the chevrons toward the tip, as they run on the highway.
    */
-  private drawTail(n: DocNote, len: number, yHead: number, yEnd: number, selected: boolean) {
+  private drawTail(n: DocNote, len: number, yHead: number, yEnd: number, selected: boolean, time: number) {
     const { g } = this;
     const L = this.lay;
     const cx = L.deckX + (n.lane + 0.5) * L.laneW;
@@ -504,12 +507,13 @@ export class EditorView {
       }
       return;
     }
-    const hw = L.noteW / 3;
-    const tip = Math.min(hw * 1.2, (yHead - yEnd) * 0.6);
+    const hw = L.noteW * 0.31;
+    const tip = Math.min(hw * 1.3, (yHead - yEnd) * 0.6);
     const shoulder = yEnd + tip;
     const up = tile(n, 'up');
     const low = tile(n, 'low');
     const base = tile(n, 'base');
+    const tint = blend(scale(low, 0.75), up, 0.08);
     const neck = () => {
       g.beginPath();
       g.moveTo(cx - hw, yHead);
@@ -519,30 +523,62 @@ export class EditorView {
       g.lineTo(cx + hw, yHead);
       g.closePath();
     };
-    const along = g.createLinearGradient(0, shoulder + hw * 4, 0, shoulder);
-    along.addColorStop(0, css(scale(blend(up, base, 0.3), 0.7)));
-    along.addColorStop(1, css(scale(blend(low, base, 0.32), 0.88)));
+    // The glass, a little lighter down its middle.
+    const across = g.createLinearGradient(cx - hw, 0, cx + hw, 0);
+    across.addColorStop(0, css(scale(tint, 0.8)));
+    across.addColorStop(0.5, css(scale(tint, 1.1)));
+    across.addColorStop(1, css(scale(tint, 0.8)));
     neck();
-    g.fillStyle = along;
-    g.globalAlpha = 0.95;
+    g.fillStyle = across;
+    g.globalAlpha = 0.92;
     g.fill();
     g.globalAlpha = 1;
-    // A lighter strip inside its left edge.
-    g.fillStyle = css(blend(up, base, 0.5), 0.6);
-    g.fillRect(cx - hw + 3, shoulder, 1.5, Math.max(0, yHead - shoulder));
-    // The arrow: darker inside, a pale line across its foot.
+    // Chevrons pointing to the tip, a little over a neck's width apart.
+    g.save();
+    g.beginPath();
+    g.rect(cx - hw, shoulder, hw * 2, Math.max(0, yHead - shoulder));
+    g.clip();
+    const gap = hw * 2.4;
+    const fall = hw * 0.85;
+    g.strokeStyle = css(blend(scale(tint, 1.6), blend(up, base, 0.45), 0.5), 0.24);
+    g.lineWidth = gap * 0.24;
+    g.lineJoin = 'miter';
+    const shift = (((time * hw * 6) % gap) + gap) % gap;
+    for (let yc = shoulder + gap * 0.4 - shift; yc < yHead + fall; yc += gap) {
+      g.beginPath();
+      g.moveTo(cx - hw - 2, yc + fall);
+      g.lineTo(cx, yc);
+      g.lineTo(cx + hw + 2, yc + fall);
+      g.stroke();
+    }
+    // Light from the tip falls a little way into the glass under it.
+    const glow = g.createLinearGradient(0, shoulder, 0, shoulder + hw * 1.4);
+    glow.addColorStop(0, css(scale(blend(base, tint, 0.55), 0.75), 0.6));
+    glow.addColorStop(1, css(scale(blend(base, tint, 0.55), 0.75), 0));
+    g.fillStyle = glow;
+    g.fillRect(cx - hw, shoulder, hw * 2, hw * 1.4);
+    g.restore();
+    // The tip: pale crystal with a darker facet inside a near-white rim, a bright line across its foot.
     g.beginPath();
     g.moveTo(cx - hw, shoulder);
     g.lineTo(cx, yEnd);
     g.lineTo(cx + hw, shoulder);
     g.closePath();
-    g.fillStyle = css(scale(blend(low, base, 0.35), 0.9));
+    g.fillStyle = css(scale(blend(base, WHITE, 0.6), 0.86));
     g.fill();
-    g.fillStyle = css(base);
-    g.fillRect(cx - hw, shoulder - 1, hw * 2, 2);
+    g.beginPath();
+    g.moveTo(cx - hw * 0.55, shoulder - 1.5);
+    g.lineTo(cx, yEnd + tip * 0.42);
+    g.lineTo(cx + hw * 0.55, shoulder - 1.5);
+    g.closePath();
+    g.fillStyle = css(scale(blend(base, WHITE, 0.45), 0.68));
+    g.fill();
+    g.fillStyle = css(blend(base, WHITE, 0.72));
+    g.fillRect(cx - hw, shoulder - 1.25, hw * 2, 2.5);
+    // The frame: pale glass down both sides and round the tip.
     neck();
-    g.strokeStyle = css(blend(base, WHITE, 0.35));
-    g.lineWidth = 2;
+    g.strokeStyle = css(blend(base, WHITE, 0.4));
+    g.lineWidth = 2.5;
     g.lineJoin = 'round';
     g.stroke();
     if (selected) {

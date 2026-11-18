@@ -254,10 +254,11 @@ const TILE_MARGIN = 0.12;
  */
 const TILE_LEAN = 0.44;
 /**
- * A hold that must be let go on time: its neck, the wide band of crystal running from its tile to
- * where it is let go, and the arrow it ends in (width, and the arrow's length along the lane).
+ * A hold that must be let go on time: its neck, the wide channel of glass running from its tile to
+ * where it is let go, and the crystal tip it ends in (width, and the tip's length along the lane);
+ * the chevrons in the neck (their spacing and how fast they travel toward the tip, units a second).
  */
-const NECK = { w: 0.56, arrow: 0.5 } as const;
+const NECK = { w: 0.52, arrow: 0.7, chevron: 0.62, travel: 1.6 } as const;
 
 const tileCommon = /* glsl */ `
 #define NB ${TILE_BANDS.length}
@@ -417,17 +418,18 @@ void main() {
 `;
 
 /**
- * A hold that must be let go on time runs as a neck: a wide band of crystal lying along the lane
- * from its tile, with pale edges and soft bands across it, deepening toward the arrow it ends in,
- * which is lighter round its rim, with a pale line across its foot. `aNeck` is the kind,
- * overdrive, brightness and the length drawn; `aNeckEnd` how far the arrow's tip is from the start.
+ * A hold that must be let go on time runs as a neck: a wide channel of tinted glass lying along the
+ * lane from its tile, framed in pale glass, with chevrons inside it forever travelling toward the
+ * pale crystal tip it ends in. Dark while it waits; held, it lights up in its lane's colour and its
+ * chevrons run brighter. `aNeck` is the kind, overdrive, brightness and the length drawn; `aNeckEnd`
+ * how far the tip is from the start, and 1 while it is held.
  */
 const neckVertex = /* glsl */ `
 attribute vec4 aNeck;
-attribute float aNeckEnd;
+attribute vec2 aNeckEnd;
 varying vec2 vUv;
 varying vec4 vNeck;
-varying float vEnd;
+varying vec2 vEnd;
 void main() {
   vUv = uv;
   vNeck = aNeck;
@@ -438,15 +440,17 @@ void main() {
 const NECK_QUAD = NECK.w + 0.08;
 const neckFragment = /* glsl */ `
 ${tileCommon}
+uniform float uTime;
 varying vec2 vUv;
 varying vec4 vNeck;
-varying float vEnd;
+varying vec2 vEnd;
 void main() {
   float along = vUv.y * vNeck.w;
   float s = (vUv.x - 0.5) * ${glslFloat(NECK_QUAD)};
   float hw = ${glslFloat(NECK.w / 2)};
-  float shoulder = vEnd - ${glslFloat(NECK.arrow)};
-  // Inside the band, and inside the arrow's two edges.
+  float shoulder = vEnd.x - ${glslFloat(NECK.arrow)};
+  float lit = vEnd.y;
+  // Inside the channel, and inside the tip's two edges.
   float dSide = abs(s) - hw;
   float dTip = dot(vec2(abs(s) - hw, along - shoulder), normalize(vec2(${glslFloat(NECK.arrow)}, hw)));
   float d = max(dSide, dTip);
@@ -455,16 +459,28 @@ void main() {
   vec3 low = pal(vNeck.x, vNeck.y, B_LOW);
   vec3 up = pal(vNeck.x, vNeck.y, B_UP);
   vec3 base = pal(vNeck.x, vNeck.y, B_BASE);
-  vec3 deep = mix(low, base, 0.32) * 0.88;
-  vec3 warm = mix(up, base, 0.3) * 0.7;
-  vec3 col = mix(deep, warm, smoothstep(0.15, 1.1, shoulder - along));
-  col *= 1.0 + 0.07 * sin(along * 5.0);
-  col = mix(col, mix(up, base, 0.5), between(-d, 0.035, 0.07, 0.012) * step(s, 0.0) * step(along, shoulder) * 0.6);
+  vec3 white = vec3(1.0);
+  // The glass: deep and dark while it waits, its lane's own colour once held; a little lighter
+  // down its middle.
+  vec3 tint = mix(mix(low * 0.75, up, 0.08), up * 1.05, lit);
+  float x = s / hw;
+  vec3 col = tint * (0.8 + 0.3 * (1.0 - x * x));
+  // Chevrons pointing to the tip, travelling toward it.
+  float c = (along + abs(s) * 0.85 - uTime * mix(${glslFloat(NECK.travel)}, ${glslFloat(NECK.travel * 1.6)}, lit)) / ${glslFloat(NECK.chevron)};
+  float f = fract(c);
+  float chev = smoothstep(0.0, 0.2, f) * smoothstep(0.55, 0.3, f) * smoothstep(shoulder, shoulder - 0.25, along);
+  col = mix(col, mix(tint * 1.6, mix(up, base, 0.45), 0.5 + 0.3 * lit), chev * mix(0.3, 0.5, lit));
+  // Light from the tip falls a little way into the glass under it.
+  col = mix(col, mix(base, tint, 0.55) * 0.75, smoothstep(0.35, 0.0, shoulder - along) * 0.6);
+  // The frame: pale glass down both sides.
+  float frame = 1.0 - smoothstep(0.028, 0.05, -d);
+  col = mix(col, mix(base, white, 0.25) * mix(0.82, 1.0, lit), frame);
+  // The tip: pale crystal, nearly white at its rim, with a bright line across its foot.
   float tip = smoothstep(shoulder - 0.008, shoulder + 0.008, along);
-  col = mix(col, mix(mix(low, base, 0.35) * 0.9, base, smoothstep(0.05, 0.015, -d)), tip);
-  col = mix(col, base, exp(-pow((along - shoulder) / 0.028, 2.0)));
-  col = mix(col, mix(base, vec3(1.0), 0.35), 1.0 - smoothstep(0.018, 0.034, -d));
-  gl_FragColor = vec4(col * vNeck.z * inside, inside * 0.95);
+  vec3 facet = mix(mix(base, white, 0.45) * 0.68, mix(base, white, 0.6) * 0.86, smoothstep(0.16, 0.08, -d));
+  col = mix(col, mix(facet, mix(base, white, 0.82), smoothstep(0.05, 0.02, -d)), tip);
+  col = mix(col, mix(base, white, 0.72), exp(-pow((along - shoulder) / 0.03, 2.0)));
+  gl_FragColor = vec4(col * vNeck.z * inside, inside * mix(0.9, 0.97, max(lit, tip)));
 }
 `;
 
@@ -650,7 +666,7 @@ export class Highway {
   /** The necks of holds that must be let go on time, each ending in its arrow (see neckFragment). */
   private readonly necks: THREE.InstancedMesh;
   private readonly neckData = new Float32Array(MAX_TAILS * 4);
-  private readonly neckEnd = new Float32Array(MAX_TAILS);
+  private readonly neckEnd = new Float32Array(MAX_TAILS * 2);
   private readonly lines: THREE.InstancedMesh;
   /** The strike targets: islands of glass ringed with their lanes' light (see islandFragment). */
   private readonly pads: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>[] = [];
@@ -890,7 +906,7 @@ export class Highway {
     neckGeo.rotateX(-Math.PI / 2);
     neckGeo.translate(0, 0, -0.5);
     neckGeo.setAttribute('aNeck', new THREE.InstancedBufferAttribute(this.neckData, 4));
-    neckGeo.setAttribute('aNeckEnd', new THREE.InstancedBufferAttribute(this.neckEnd, 1));
+    neckGeo.setAttribute('aNeckEnd', new THREE.InstancedBufferAttribute(this.neckEnd, 2));
     this.necks = new THREE.InstancedMesh(
       neckGeo,
       new THREE.ShaderMaterial({
@@ -899,7 +915,7 @@ export class Highway {
         transparent: true,
         premultipliedAlpha: true,
         depthWrite: false,
-        uniforms: { uPal: { value: palette } },
+        uniforms: { uPal: { value: palette }, uTime: { value: 0 } },
       }),
       MAX_TAILS,
     );
@@ -1322,7 +1338,8 @@ export class Highway {
             this.m.compose(this.v, this.q, this.s);
             this.necks.setMatrixAt(ni, this.m);
             this.neckData.set([kind, drive, bright, len], ni * 4);
-            this.neckEnd[ni] = startZ - end;
+            this.neckEnd[ni * 2] = startZ - end;
+            this.neckEnd[ni * 2 + 1] = held ? 1 : 0;
             ni++;
           } else if (!n.release && ti < MAX_TAILS) {
             this.v.set(x, 0.012, startZ);
@@ -1375,6 +1392,7 @@ export class Highway {
     this.tails.instanceMatrix.needsUpdate = true;
     this.tails.geometry.getAttribute('aRod').needsUpdate = true;
     this.necks.count = ni;
+    (this.necks.material as THREE.ShaderMaterial).uniforms.uTime.value = (now / 1000) % 1000;
     this.necks.instanceMatrix.needsUpdate = true;
     this.necks.geometry.getAttribute('aNeck').needsUpdate = true;
     this.necks.geometry.getAttribute('aNeckEnd').needsUpdate = true;
