@@ -522,16 +522,16 @@ void main() {
   a = mix(a, 1.0, inside * lit);
   vec2 f = vP / vec2(uHalf.x * 0.55, uHalf.y * 0.9);
   float flare = exp(-dot(f, f) * 1.6);
-  col += vec3(1.0) * flare * inside * clamp(lit * 0.75 + uFlash, 0.0, 1.0);
+  col += vec3(1.0) * flare * inside * clamp(lit * 0.62 + uFlash, 0.0, 1.0);
   // The ring.
-  vec3 ringCol = mix(uNeon, uCore, clamp(core * 0.75 + lit * 0.45, 0.0, 1.0));
+  vec3 ringCol = mix(uNeon, uCore, clamp(core * 0.75 + lit * 0.3, 0.0, 1.0));
   col += ringCol * line * (1.1 + 0.4 * lit);
   a = max(a, line * 0.9);
   // Pressed, the outer ring, with a band of darker glass between the two.
   float d2 = sdBox(vP + vec2(0.0, uRing.w), uRing.xy, uRing.z);
   float within = 1.0 - smoothstep(-aa, aa, d2);
   float gap = within * (1.0 - inside) * (1.0 - line);
-  float line2 = exp(-pow(d2 / 0.013, 2.0)) * (1.0 - inside);
+  float line2 = exp(-pow(d2 / 0.016, 2.0)) * (1.0 - inside);
   col += uGap * gap * 0.55 * lit + uOuter * line2 * lit * 1.15;
   a = max(a, max(gap * 0.55, line2) * lit);
   gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
@@ -836,7 +836,7 @@ export class Highway {
             uRing: { value: new THREE.Vector4() },
             uNeon: { value: halo.clone().lerp(up, 0.3) },
             uCore: { value: band(kind, 'hi').lerp(new THREE.Vector3(1, 1, 1), 0.35) },
-            uFill: { value: up.clone().lerp(base, 0.55) },
+            uFill: { value: up.clone().lerp(base, 0.42) },
             uOuter: { value: up.clone().lerp(base, 0.4) },
             uGap: { value: band(kind, 'low').lerp(up, 0.3).multiplyScalar(0.7) },
             uPress: { value: 0 },
