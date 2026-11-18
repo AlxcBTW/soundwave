@@ -5,7 +5,6 @@ import {
   Command as CommandIcon,
   Gamepad2,
   Hand,
-  Keyboard,
   Monitor,
   RotateCcw,
   SlidersHorizontal,
@@ -79,12 +78,11 @@ interface Props {
   inSong?: boolean;
 }
 
-type Tab = 'video' | 'audio' | 'game' | 'keyboard' | 'controller' | 'touch' | 'shortcuts' | 'advanced';
+type Tab = 'video' | 'audio' | 'game' | 'controller' | 'touch' | 'shortcuts' | 'advanced';
 const TABS: [Tab, string, LucideIcon][] = [
   ['video', 'Video', Monitor],
   ['audio', 'Audio', Volume2],
   ['game', 'Gameplay', Target],
-  ['keyboard', 'Keyboard', Keyboard],
   ['controller', 'Controller', Gamepad2],
   ['touch', 'Touch', Hand],
   ['shortcuts', 'Shortcuts', CommandIcon],
@@ -107,21 +105,9 @@ const FIELDS: Record<Tab, readonly (keyof Settings)[]> = {
   video: ['graphics', 'displayMode', 'uiScale', 'motion'],
   audio: ['volume', 'musicVolume', 'sfxVolume', 'songPreviews', 'muteUnfocused', 'outputDevice', 'outputDeviceName'],
   game: ['noteSpeed', 'offsetMs'],
-  keyboard: ['keys4', 'keys5', 'overdriveKey'],
-  controller: [
-    'pad4',
-    'pad5',
-    'padOverdrive',
-    'glyphs',
-    'rumble',
-    'rumbleHits',
-    'rumbleMisses',
-    'rumbleSustains',
-    'rumbleOverdrive',
-    'ps5Haptics',
-  ],
+  controller: ['glyphs', 'rumble', 'rumbleHits', 'rumbleMisses', 'rumbleSustains', 'rumbleOverdrive', 'ps5Haptics'],
   touch: ['touchHaptics', 'touchOverdriveSide'],
-  shortcuts: ['bindings'],
+  shortcuts: ['keys4', 'keys5', 'overdriveKey', 'pad4', 'pad5', 'padOverdrive', 'bindings'],
   advanced: ['checkUpdates'],
 };
 
@@ -148,7 +134,7 @@ type Row =
   | (Base & { kind: 'choice'; value: string; options: Option[]; set(v: string): void })
   | (Base & { kind: 'slider'; value: number; min: number; max: number; step: number; format(v: number): string; set(v: number): void })
   | (Base & { kind: 'action'; button: string; run(): void; note?: ReactNode; danger?: boolean })
-  | (Base & { kind: 'keys'; caps: Cap[] })
+  | (Base & { kind: 'keys'; caps: Cap[]; /** One cap per lane, not a key, a button and a mouse button. */ lanes?: boolean })
   | (Base & { kind: 'text'; value: string; set(v: string): void; note?: ReactNode })
   | (Base & { kind: 'info'; body: ReactNode });
 interface Section {
@@ -869,43 +855,6 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
     ];
   }
 
-  if (tab === 'keyboard') {
-    const cap = (group: KeyGroup, index: number, code: string, lane?: number): Cap => ({
-      id: `${group}${index}`,
-      name: lane !== undefined ? `Lane ${lane + 1}: ${keyLabel(code)}` : `Overdrive: ${keyLabel(code)}`,
-      lane,
-      listening: c.binding?.kind === 'key' && c.binding.group === group && c.binding.index === index,
-      content: keyLabel(code),
-      bind: () => c.setBinding({ kind: 'key', group, index }),
-    });
-    const help =
-      c.binding?.kind === 'key'
-        ? 'Press the key to use. Esc cancels.'
-        : 'Select a key, then press the key to use instead. A key already in the row swaps places.';
-    return [
-      {
-        title: 'Lane keys',
-        rows: [
-          {
-            kind: 'keys',
-            id: 'keys4',
-            label: 'Easy, Medium, Hard',
-            help: `Four lanes. ${help}`,
-            caps: s.keys4.map((k, i) => cap('keys4', i, k, i)),
-          },
-          { kind: 'keys', id: 'keys5', label: 'Expert', help: `Five lanes. ${help}`, caps: s.keys5.map((k, i) => cap('keys5', i, k, i)) },
-          {
-            kind: 'keys',
-            id: 'overdriveKey',
-            label: 'Overdrive',
-            help: `Starts overdrive when the meter is at least a quarter full. ${help} Esc always pauses.`,
-            caps: [cap('overdriveKey', 0, s.overdriveKey)],
-          },
-        ],
-      },
-    ];
-  }
-
   if (tab === 'shortcuts') {
     const style: GlyphStyle = s.glyphs === 'auto' ? styleFor(c.snap.family) : s.glyphs;
     const listening = (id: string, input: 'key' | 'pad' | 'mouse') =>
@@ -961,24 +910,83 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
         ],
       };
     };
-    return AREAS.map((a) => ({ title: a.label, rows: COMMANDS.filter((cmd) => cmd.area === a.id).map(rowFor) }));
-  }
-
-  if (tab === 'controller') {
-    const detected = styleFor(c.snap.family);
-    const style: GlyphStyle = s.glyphs === 'auto' ? detected : s.glyphs;
-    const cap = (group: PadGroup, index: number, input: string, lane?: number): Cap => ({
+    // A song's lanes and overdrive: a key and a controller button for each lane, in its colour.
+    // Bound in their own settings (keys4/5, pad4/5); a key or button already in the row swaps places.
+    const laneHelp =
+      c.binding?.kind === 'key'
+        ? 'Press the key to use. Esc cancels.'
+        : c.binding?.kind === 'pad'
+          ? 'Press a button, trigger or stick direction. The pause button or Esc cancels.'
+          : 'Select a lane, then press the key or button to use instead. One already in the row swaps places.';
+    const laneKey = (group: KeyGroup, index: number, code: string, lane?: number): Cap => ({
       id: `${group}${index}`,
-      name: lane !== undefined ? `Lane ${lane + 1}` : 'Overdrive',
+      name: lane !== undefined ? `Lane ${lane + 1}: ${keyLabel(code)}` : `Overdrive: ${keyLabel(code)}`,
+      lane,
+      listening: c.binding?.kind === 'key' && c.binding.group === group && c.binding.index === index,
+      content: keyLabel(code),
+      bind: () => c.setBinding({ kind: 'key', group, index }),
+    });
+    const lanePad = (group: PadGroup, index: number, input: string, lane?: number): Cap => ({
+      id: `${group}${index}`,
+      name: lane !== undefined ? `Lane ${lane + 1}, controller button` : 'Overdrive, controller button',
       lane,
       listening: c.binding?.kind === 'pad' && c.binding.group === group && c.binding.index === index,
       content: <PadGlyph input={input} style={style} />,
       bind: () => c.setBinding({ kind: 'pad', group, index }),
     });
-    const help =
-      c.binding?.kind === 'pad'
-        ? 'Press a button, trigger or stick direction. The pause button or Esc cancels.'
-        : 'Select a button, then press the one to use instead. Buttons, triggers and stick directions can all be bound.';
+    const lanes: Row[] = [
+      {
+        kind: 'keys',
+        lanes: true,
+        id: 'keys5',
+        label: 'Lane keys, Expert',
+        help: `Five lanes. ${laneHelp}`,
+        caps: s.keys5.map((k, i) => laneKey('keys5', i, k, i)),
+      },
+      {
+        kind: 'keys',
+        lanes: true,
+        id: 'pad5',
+        label: 'Lane buttons, Expert',
+        help: `Five lanes. ${laneHelp}`,
+        caps: s.pad5.map((b, i) => lanePad('pad5', i, b, i)),
+      },
+      {
+        kind: 'keys',
+        lanes: true,
+        id: 'keys4',
+        label: 'Lane keys, Easy to Hard',
+        help: `Four lanes. ${laneHelp}`,
+        caps: s.keys4.map((k, i) => laneKey('keys4', i, k, i)),
+      },
+      {
+        kind: 'keys',
+        lanes: true,
+        id: 'pad4',
+        label: 'Lane buttons, Easy to Hard',
+        help: `Four lanes. ${laneHelp}`,
+        caps: s.pad4.map((b, i) => lanePad('pad4', i, b, i)),
+      },
+      {
+        kind: 'keys',
+        id: 'overdrive',
+        label: 'Overdrive',
+        help: `Starts overdrive when the meter is at least a quarter full. ${laneHelp}`,
+        caps: [
+          laneKey('overdriveKey', 0, s.overdriveKey),
+          lanePad('padOverdrive', 0, s.padOverdrive),
+          { id: 'mouse', name: 'Overdrive: no mouse button', content: none },
+        ],
+      },
+    ];
+    return AREAS.map((a) => ({
+      title: a.label,
+      rows: [...(a.id === 'song' ? lanes : []), ...COMMANDS.filter((cmd) => cmd.area === a.id).map(rowFor)],
+    }));
+  }
+
+  if (tab === 'controller') {
+    const detected = styleFor(c.snap.family);
     const none = !c.snap.pads.length;
     const ps5 = c.snap.pads.some((p) => p.family === 'ps5');
     return [
@@ -1014,29 +1022,6 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
               ...(['xbox', 'ps4', 'ps5', 'switch'] as const).map((v) => ({ value: v, label: STYLE_LABEL[v] })),
             ],
             set: (v) => set({ glyphs: v as Settings['glyphs'] }),
-          },
-        ],
-      },
-      {
-        title: 'Lane buttons',
-        rows: [
-          {
-            kind: 'keys',
-            id: 'pad4',
-            label: 'Easy, Medium, Hard',
-            help: `Four lanes. ${help}`,
-            caps: s.pad4.map((b, i) => cap('pad4', i, b, i)),
-          },
-          { kind: 'keys', id: 'pad5', label: 'Expert', help: `Five lanes. ${help}`, caps: s.pad5.map((b, i) => cap('pad5', i, b, i)) },
-          {
-            kind: 'keys',
-            id: 'padOverdrive',
-            label: 'Overdrive and pause',
-            help: `${help} Pause is always the same button.`,
-            caps: [
-              cap('padOverdrive', 0, s.padOverdrive),
-              { id: 'pause', name: 'Pause (fixed)', content: <PadGlyph input={PAUSE_INPUT} style={style} /> },
-            ],
           },
         ],
       },
@@ -1396,7 +1381,7 @@ function RowView({ row, active, first, touch, onActive }: { row: Row; active: bo
 
   const common = {
     ref,
-    className: `set-row ${row.kind} ${active ? 'active' : ''} ${row.disabled ? 'disabled' : ''}`,
+    className: `set-row ${row.kind} ${row.kind === 'keys' && row.lanes ? 'lanes' : ''} ${active ? 'active' : ''} ${row.disabled ? 'disabled' : ''}`,
     onFocus: onActive,
     onPointerEnter: (e: React.PointerEvent) => e.pointerType === 'mouse' && onActive(),
     onPointerDown: onActive,
