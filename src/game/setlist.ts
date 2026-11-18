@@ -16,11 +16,6 @@ export interface Pick {
 /** Per song, the parts it hardly has (see chart/presence): they are not offered for playing. */
 export type ThinParts = Record<string, readonly Part[] | undefined>;
 
-/** The parts a set can be played on: every part that at least one of its songs really has. */
-export function setParts(ids: readonly string[], thin: ThinParts): Part[] {
-  return PARTS.filter((p) => ids.some((id) => !thin[id]?.includes(p)));
-}
-
 /** The part a set is played on: the chosen one, or the first open one when the set does not have it. */
 export function partFor(pick: Pick, open: readonly Part[]): Part {
   return open.includes(pick.part) ? pick.part : (open[0] ?? pick.part);

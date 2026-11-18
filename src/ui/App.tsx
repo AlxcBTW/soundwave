@@ -18,12 +18,10 @@ import {
   loadPick,
   loadSetlist,
   partAmong,
-  partFor,
   pruneSetlist,
   savePick,
   saveSetlist,
   SET_MAX,
-  setParts,
   songParts,
   toggleSong,
   type Pick,
@@ -578,23 +576,25 @@ export function App() {
     menuPulse('launch');
     setLaunch('in');
     try {
-      // Each song is played on the chosen part, or on the first one it has notes on when it has
-      // none on that one (the next song's part can be changed between songs). A song without a
-      // note on any part sits the set out.
+      // The chosen part is the first song's (the lobby offers only the parts it has notes on). Each
+      // song after it is played on that part, or on the first one it has notes on when it has none
+      // on that one (the next song's part can be changed between songs). A song without a note on
+      // any part sits the set out.
       const ids = lobby.ids.filter((id) => byId.has(id) && canPlay(analysisStatus[id]));
-      const use: Pick = { ...pick, part: partFor(pick, setParts(ids, thin)) };
-      const entries: { song: SongMeta; chart: Chart; parts: Part[] }[] = [];
+      const found: { song: SongMeta; charts: Map<Part, Chart> }[] = [];
       for (const id of ids) {
-        const song = byId.get(id)!;
         const charts = new Map<Part, Chart>();
         for (const p of songParts(id, thin)) {
-          const chart = await analysisManager.chart(id, p, use.difficulty);
+          const chart = await analysisManager.chart(id, p, pick.difficulty);
           if (chart && chart.notes.length > 0) charts.set(p, chart);
         }
-        const parts = [...charts.keys()];
-        const part = partAmong(use.part, parts);
-        if (part) entries.push({ song, chart: charts.get(part)!, parts });
+        if (charts.size) found.push({ song: byId.get(id)!, charts });
       }
+      const use: Pick = { ...pick, part: partAmong(pick.part, [...(found[0]?.charts.keys() ?? [])]) ?? pick.part };
+      const entries = found.map(({ song, charts }) => {
+        const parts = [...charts.keys()];
+        return { song, chart: charts.get(partAmong(use.part, parts)!)!, parts };
+      });
       if (!entries.length) {
         setLaunch(null);
         return toast('No notes were found in these songs at this difficulty.');

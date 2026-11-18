@@ -34,7 +34,6 @@ type Counts = Record<string, Partial<Record<Part, number>> | undefined>;
 
 /** What a song has almost none of, in a sentence. */
 const PART_STUFF: Record<Part, string> = { vocals: 'vocals', lead: 'lead instrument', bass: 'bass', drums: 'drums' };
-const list = (words: string[]) => (words.length <= 1 ? words.join('') : `${words.slice(0, -1).join(', ')} or ${words[words.length - 1]}`);
 
 /** Ready up: the set in order, the part and difficulty to play it on, and the button that starts it. */
 export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onStart, onBack }: Props) {
@@ -43,11 +42,12 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
   // The parts each song has: those it does not hardly have, less any without a note at this
   // difficulty (once counted).
   const own = (s: SongMeta) => songParts(s.id, thin).filter((p) => (counts[s.id]?.[p] ?? 1) > 0);
-  // The parts this set can be played on, and the one it is on: the chosen one, unless no song of
-  // the set has it (the choice itself is kept for the next set).
-  const open = PARTS.filter((p) => songs.some((s) => own(s).includes(p)));
+  // The part chosen here is the first song's: only the parts it has notes on can be chosen, and
+  // the set starts on the chosen one, or on the first song's first part when it lacks that one (the
+  // choice itself is kept for the next set). The songs after it follow the part where they have it
+  // and can be changed between songs.
+  const open = songs.length ? own(songs[0]) : [];
   const part = partFor(pick, open);
-  const closed = PARTS.filter((p) => !open.includes(p));
   // A song without the part is played on one it has instead.
   const partOf = (s: SongMeta) => partAmong(part, own(s));
 
@@ -141,7 +141,6 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
           {songs.map((s, i) => {
             const n = notesOf(s);
             const b = best(s);
-            const on = partOf(s);
             return (
               <li key={s.id} className={`set-card ${n === 0 ? 'skipped' : ''}`} style={{ ['--i' as string]: i }}>
                 <span className="slot-num" aria-hidden>
@@ -161,11 +160,6 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
                       <span className="warn">
                         <TriangleAlert strokeWidth={ICON_STROKE} aria-hidden />
                         No notes found. This song will be skipped.
-                      </span>
-                    ) : on && on !== part ? (
-                      <span className="warn">
-                        <TriangleAlert strokeWidth={ICON_STROKE} aria-hidden />
-                        No {PART_STUFF[part]} in this song: it plays on {PART_LABEL[on].toLowerCase()} ({n.toLocaleString()} notes).
                       </span>
                     ) : (
                       `${n.toLocaleString()} notes`
@@ -204,7 +198,7 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
                 const Icon = PART_ICON[p];
                 const on = part === p;
                 const off = !open.includes(p);
-                const why = `${songs.length === 1 ? 'This song has' : 'These songs have'} almost no ${PART_STUFF[p]}`;
+                const why = `${songs.length === 1 ? 'This song has' : 'The first song has'} no ${PART_STUFF[p]}`;
                 return (
                   <button
                     key={p}
@@ -227,13 +221,6 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
               })}
             </div>
           </div>
-          {closed.length > 0 && (
-            <p className="part-note">
-              {songs.length === 1 ? 'This song has' : 'These songs have'} almost no {list(closed.map((p) => PART_STUFF[p]))}, so{' '}
-              {closed.length === 1 ? 'that part is' : 'those parts are'} off. A chart you write for {closed.length === 1 ? 'it' : 'one'} in
-              the editor turns it on.
-            </p>
-          )}
 
           <h2 className="label" id="diff-label">
             Difficulty

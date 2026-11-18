@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AnalysisResult, PitchedNote } from '../src/analysis/types';
 import { partPresence, thinParts } from '../src/chart/presence';
-import { loadPick, partFor, setParts } from '../src/game/setlist';
+import { loadPick, partFor } from '../src/game/setlist';
 import { PARTS } from '../src/chart/types';
 
 const BARS = 40;
@@ -87,17 +87,6 @@ describe('parts a song hardly has', () => {
 });
 
 describe('the parts a set is played on', () => {
-  it('opens every part some song of the set has', () => {
-    const thin = { a: ['vocals'] as const, b: ['vocals', 'bass'] as const };
-    expect(setParts(['a'], thin)).toEqual(['lead', 'bass', 'drums']);
-    expect(setParts(['a', 'b'], thin)).toEqual(['lead', 'bass', 'drums']);
-    expect(setParts(['a', 'c'], thin)).toEqual(PARTS);
-  });
-
-  it('opens no part for a set of songs without notes', () => {
-    expect(setParts(['a'], { a: PARTS })).toEqual([]);
-  });
-
   it('plays the chosen part, or the first open one when the set hardly has it', () => {
     expect(partFor({ part: 'vocals', difficulty: 'expert' }, ['lead', 'bass', 'drums'])).toBe('lead');
     expect(partFor({ part: 'bass', difficulty: 'expert' }, ['lead', 'bass', 'drums'])).toBe('bass');

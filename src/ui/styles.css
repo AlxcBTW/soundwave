@@ -2248,11 +2248,6 @@ img.cover {
 .choice:disabled:active {
   transform: none;
 }
-.part-note {
-  color: var(--ink-3);
-  font-size: 0.92rem;
-  line-height: 1.4;
-}
 .choice:active {
   transform: scale(0.95);
 }
