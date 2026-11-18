@@ -19,7 +19,8 @@ const BUILT_CLIENT_ID: Option<&str> = option_env!("SOUNDWAVE_DISCORD_CLIENT_ID")
 /// The picture beside the status: the game's icon.
 const ICON_URL: &str =
     "https://raw.githubusercontent.com/DavidNiessen/soundwave/main/src-tauri/icons/128x128@2x.png";
-const DOWNLOAD_URL: &str = "https://github.com/DavidNiessen/soundwave/releases/latest";
+/// Where the button under the status leads: the game's site, to play it or download it.
+const SITE_URL: &str = "https://soundwave.niessen.dev";
 /// How often a closed Discord is looked for, and the status sent again (so a restarted Discord shows it).
 const RETRY: Duration = Duration::from_secs(20);
 /// Discord takes a few updates in a short time; changes closer together than this are sent as one.
@@ -91,7 +92,7 @@ fn send(
                 .activity_type(ActivityType::Playing)
                 .details(details.as_str())
                 .assets(Assets::new().large_image(ICON_URL).large_text("Soundwave"))
-                .buttons(vec![Button::new("Get Soundwave", DOWNLOAD_URL)]);
+                .buttons(vec![Button::new("Play now", SITE_URL)]);
             if let Some(state) = &state {
                 activity = activity.state(state.as_str());
             }
@@ -126,8 +127,13 @@ fn run(wanted: Arc<(Mutex<Wanted>, Condvar)>, id: String) {
         let (presence, version) = {
             let mut w = lock.lock().unwrap();
             // Wait for a change, or until it is time to look for Discord or send the status again.
-            while w.version == sent_version && tried_at.is_some_and(|t| t.elapsed() < RETRY) {
+            // With nothing to show and no connection there is nothing to do until a change.
+            while w.version == sent_version
+                && ((client.is_none() && w.presence.is_none())
+                    || tried_at.is_some_and(|t| t.elapsed() < RETRY))
+            {
                 let left = RETRY.saturating_sub(tried_at.map_or(Duration::ZERO, |t| t.elapsed()));
+                let left = if left.is_zero() { RETRY } else { left };
                 w = changed.wait_timeout(w, left).unwrap().0;
             }
             (w.presence.clone(), w.version)
@@ -138,6 +144,17 @@ fn run(wanted: Arc<(Mutex<Wanted>, Condvar)>, id: String) {
             std::thread::sleep(SPACING - since);
             continue;
         }
+        // Nothing to show (switched off in the settings): the status is cleared and Discord let go.
+        let Some(presence) = presence else {
+            sent_version = version;
+            if let Some(mut c) = client.take() {
+                let _ = send(&mut c, None);
+                let _ = c.close();
+                log::info!("discord: status off, disconnected");
+                sent_at = Instant::now();
+            }
+            continue;
+        };
         tried_at = Some(Instant::now());
         if client.is_none() {
             let mut c = DiscordIpcClient::new(&id);
@@ -152,7 +169,7 @@ fn run(wanted: Arc<(Mutex<Wanted>, Condvar)>, id: String) {
         let c = client.as_mut().unwrap();
         sent_at = Instant::now();
         sent_version = version;
-        if let Err(e) = send(c, presence.as_ref()) {
+        if let Err(e) = send(c, Some(&presence)) {
             log::info!("discord: lost the connection ({e})");
             let _ = c.close();
             client = None;
@@ -167,12 +184,13 @@ impl Discord {
     fn show(&self, presence: Option<Presence>) {
         let (lock, changed) = &*self.wanted;
         let mut w = lock.lock().unwrap();
-        if w.presence == presence && w.started {
+        if w.presence == presence {
             return;
         }
         w.presence = presence;
         w.version += 1;
-        if !w.started {
+        // Discord is first looked for once there is something to show (not while it is switched off).
+        if !w.started && w.presence.is_some() {
             w.started = true;
             let Some(id) = client_id() else {
                 log::info!(
