@@ -82,7 +82,7 @@ interface Base {
 type Row =
   | (Base & { kind: 'choice'; value: string; options: Option[]; set(v: string): void })
   | (Base & { kind: 'slider'; value: number; min: number; max: number; step: number; format(v: number): string; set(v: number): void })
-  | (Base & { kind: 'action'; button: string; run(): void; note?: ReactNode })
+  | (Base & { kind: 'action'; button: string; run(): void; note?: ReactNode; danger?: boolean })
   | (Base & { kind: 'keys'; caps: Cap[] })
   | (Base & { kind: 'text'; value: string; set(v: string): void; note?: ReactNode })
   | (Base & { kind: 'info'; body: ReactNode });
@@ -129,7 +129,7 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
   const [calibrating, setCalibrating] = useState(false);
   /** Asking whether to put the open tab's settings back to their defaults. */
   const [askReset, setAskReset] = useState(false);
-  const library = useLibraryBackup();
+  const library = useLibraryBackup(settings);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [turn, setTurn] = useState<'fwd' | 'back'>('fwd');
   const settingsRef = useRef(settings);
@@ -640,6 +640,12 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
             ? 'Leave the song first: importing restarts the game.'
             : 'Adds the songs from a library backup with their charts, keeps the better of each best score, and takes over the backup’s settings. Songs you already have stay as they are. The game restarts afterwards.',
         },
+        {
+          kind: 'action', id: 'deleteEverything', label: 'Delete everything', button: 'Delete', danger: true, disabled: lib.busy || c.inSong, run: lib.deleteEverything,
+          help: c.inSong
+            ? 'Leave the song first: deleting everything restarts the game.'
+            : 'Deletes every song with its charts, the charts you edited by hand and all best scores, and puts every setting back to how the game came. It asks first, and you hold the button to confirm. The downloaded analysis model stays.',
+        },
       ],
     },
     {
@@ -790,7 +796,7 @@ function RowView({ row, active, first, touch, onActive }: { row: Row; active: bo
       <div {...common}>
         <span className="set-label">{row.label}</span>
         <span className="set-control">
-          <button type="button" className="btn small" disabled={row.disabled} onClick={row.run}>{row.button}</button>
+          <button type="button" className={`btn small ${row.danger ? 'danger' : ''}`} disabled={row.disabled} onClick={row.run}>{row.button}</button>
           {row.note}
         </span>
         {help}

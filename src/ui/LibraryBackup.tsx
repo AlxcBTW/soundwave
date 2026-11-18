@@ -1,7 +1,15 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { backupFileName, BACKUP_EXT, readBackup, restoreBackup, writeBackup, type BackupContents, type RestoreResult } from '../storage/backup';
+import { analysisManager } from '../analysis/manager';
+import { getEngine } from '../audio/engine';
+import type { Settings } from '../game/settings';
+import { PadGlyph } from '../input/glyphs';
+import { confirmInput } from '../input/pads';
+import { backupFileName, BACKUP_EXT, clearPreferences, readBackup, restoreBackup, writeBackup, type BackupContents, type RestoreResult } from '../storage/backup';
+import { deleteLibrary, listSongs } from '../storage/db';
 import { chooseSaveTarget } from '../storage/share';
+import { useHints } from './actions';
 import { Dialog } from './Dialog';
+import { HoldButton } from './HoldButton';
 
 type State =
   | { kind: 'idle' }
@@ -12,11 +20,16 @@ type State =
   | { kind: 'confirm'; backup: BackupContents }
   | { kind: 'importing'; done: number; total: number }
   | { kind: 'imported'; result: RestoreResult }
+  /** Asking to delete everything; `songs` is how many there are (null while counting). */
+  | { kind: 'askDelete'; songs: number | null }
+  | { kind: 'deleting' }
   | { kind: 'error'; message: string };
 
 export interface LibraryBackup {
   exportLibrary(): void;
   importLibrary(): void;
+  /** Asks, with a hold to confirm, before deleting every song, score and setting. */
+  deleteEverything(): void;
   busy: boolean;
   /** How the last export or import went, for beside its button. */
   exportNote?: ReactNode;
@@ -33,13 +46,41 @@ function dateLabel(t: number | undefined) {
   return t ? new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }) : undefined;
 }
 
-/** Exporting the whole library to one backup file and importing one, for the Advanced settings. */
-export function useLibraryBackup(): LibraryBackup {
+/**
+ * The whole library at once, for the Advanced settings: exporting it to one backup file, importing
+ * one, and deleting everything.
+ */
+export function useLibraryBackup(settings: Settings): LibraryBackup {
+  const hints = useHints(settings);
   const [state, setState] = useState<State>({ kind: 'idle' });
-  const [last, setLast] = useState<'export' | 'import' | null>(null);
+  const [last, setLast] = useState<'export' | 'import' | 'delete' | null>(null);
   const [hideProgress, setHideProgress] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const busy = state.kind === 'exporting' || state.kind === 'saving' || state.kind === 'reading' || state.kind === 'importing';
+  const busy = state.kind === 'exporting' || state.kind === 'saving' || state.kind === 'reading' || state.kind === 'importing' || state.kind === 'deleting';
+
+  const askDelete = () => {
+    if (busy) return;
+    setLast('delete');
+    setState({ kind: 'askDelete', songs: null });
+    void listSongs()
+      .then((list) => setState((s) => (s.kind === 'askDelete' ? { kind: 'askDelete', songs: list.length } : s)))
+      .catch(() => {});
+  };
+
+  const wipe = async () => {
+    setState({ kind: 'deleting' });
+    try {
+      getEngine().stop();
+      // Nothing may write to the library while it goes: every analysis is stopped first.
+      for (const id of Object.keys(analysisManager.snapshot())) analysisManager.forget(id);
+      await deleteLibrary();
+      clearPreferences();
+      // The game starts again as it came: no songs, default settings.
+      location.reload();
+    } catch (e) {
+      setState({ kind: 'error', message: `Not everything could be deleted: ${(e as Error).message}` });
+    }
+  };
 
   const exportLibrary = async () => {
     if (busy) return;
@@ -163,11 +204,38 @@ export function useLibraryBackup(): LibraryBackup {
           </div>
         </Dialog>
       )}
-      {state.kind === 'error' && (
-        <Dialog title={last === 'import' ? 'Import library' : 'Export library'} variant="card" closeLabel="OK" onClose={() => setState({ kind: 'idle' })}>
+      {(state.kind === 'askDelete' || state.kind === 'deleting') && (
+        <Dialog title="Delete everything" variant="card" closeLabel="Keep everything" onClose={() => state.kind === 'askDelete' && setState({ kind: 'idle' })}>
           {(close) => (
             <div className="pause-card">
-              <h2 className="display">{last === 'import' ? 'Could not import' : 'Could not export'}</h2>
+              <h2 className="display">Delete everything?</h2>
+              <p className="hint">
+                {state.kind === 'askDelete' && state.songs !== null ? `${capital(songs(state.songs))} ` : 'Every song '}
+                in your library will be deleted, with their charts, the charts you edited by hand, and all best scores. Every setting goes back to how the game came, key and controller bindings included.
+              </p>
+              <p className="hint">This cannot be undone. To keep a copy, export your library first.</p>
+              {/* First, so it has the focus: keeping everything is the safe answer. */}
+              <button type="button" className="btn wide" data-autofocus data-sfx="back" disabled={state.kind === 'deleting'} onClick={close}>
+                Keep everything
+              </button>
+              <HoldButton
+                tone="danger"
+                label={state.kind === 'deleting' ? 'Deleting…' : 'Delete everything'}
+                hint={hints.mode === 'keyboard' ? 'Hold Enter to delete' : 'Hold to delete'}
+                disabled={state.kind === 'deleting'}
+                glyph={hints.mode === 'pad' ? <PadGlyph input={confirmInput(hints.style)} style={hints.style} /> : undefined}
+                glyphStyle={hints.style}
+                onComplete={() => void wipe()}
+              />
+            </div>
+          )}
+        </Dialog>
+      )}
+      {state.kind === 'error' && (
+        <Dialog title={last === 'import' ? 'Import library' : last === 'delete' ? 'Delete everything' : 'Export library'} variant="card" closeLabel="OK" onClose={() => setState({ kind: 'idle' })}>
+          {(close) => (
+            <div className="pause-card">
+              <h2 className="display">{last === 'import' ? 'Could not import' : last === 'delete' ? 'Could not delete everything' : 'Could not export'}</h2>
               <p className="hint">{state.message}</p>
               <button type="button" className="btn primary wide" data-autofocus onClick={close}>
                 OK
@@ -182,6 +250,7 @@ export function useLibraryBackup(): LibraryBackup {
   return {
     exportLibrary: () => void exportLibrary(),
     importLibrary: () => !busy && input.current?.click(),
+    deleteEverything: askDelete,
     busy,
     exportNote,
     importNote,

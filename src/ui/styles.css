@@ -523,6 +523,9 @@ img.cover { animation: fade-in 0.35s var(--ease) backwards; }
 .hold-btn.holding { transform: scale(0.985); }
 .hold-btn.fired { background: #ffc4e0; }
 .hold-btn:disabled { background: var(--pink-off); color: #d3a9c6; }
+/* A hold that destroys something: the danger red, filling paler as it is held. */
+.hold-btn.danger { background: var(--danger); color: #2a0410; }
+.hold-btn.danger .hold-fill, .hold-btn.danger.fired { background: #ffc2cb; }
 
 /* ------------------------------------------------------------------------------------------- */
 /* Settings                                                                                     */

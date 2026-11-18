@@ -108,6 +108,16 @@ function readPreferences(): Record<string, string> {
   return out;
 }
 
+/** Removes the game's stored preferences (the same ones a backup carries), back to how it came. */
+export function clearPreferences() {
+  try {
+    const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).filter((k): k is string => !!k);
+    for (const k of preferenceKeys(keys)) localStorage.removeItem(k);
+  } catch {
+    /* storage unavailable: nothing is stored */
+  }
+}
+
 export interface BackupProgress {
   /** Songs packed (export) or added (import) so far, of `total`. */
   done: number;

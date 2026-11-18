@@ -98,6 +98,22 @@ function db() {
   return dbPromise;
 }
 
+/**
+ * Deletes the whole library: every song and its file, analyses, stems, hand-edited charts and best
+ * scores. The connection here is closed first; another tab or window still holding one blocks it.
+ */
+export async function deleteLibrary(): Promise<void> {
+  const open = dbPromise;
+  dbPromise = null;
+  if (open) (await open.catch(() => undefined))?.close();
+  await new Promise<void>((resolve, reject) => {
+    const req = indexedDB.deleteDatabase('festival');
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error ?? new Error('The library could not be deleted.'));
+    req.onblocked = () => reject(new Error('The game is open in another tab or window. Close it, then try again.'));
+  });
+}
+
 export async function listSongs(): Promise<SongMeta[]> {
   const all = await (await db()).getAllFromIndex('songs', 'addedAt');
   return all.reverse();

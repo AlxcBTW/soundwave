@@ -11,6 +11,8 @@ interface Props {
   /** A large symbol at the button's left end (the controller button to hold). */
   glyph?: ReactNode;
   disabled?: boolean;
+  /** `danger` for a hold that destroys something. */
+  tone?: 'primary' | 'danger';
   glyphStyle: GlyphStyle;
   onComplete(): void;
 }
@@ -20,7 +22,7 @@ interface Props {
  * or Space key, or the controller's confirm button is down, and fires when full. Letting go early
  * drains it. A click that comes without a press (a screen reader, switch access) fires at once.
  */
-export function HoldButton({ label, hint, glyph, disabled, glyphStyle, onComplete }: Props) {
+export function HoldButton({ label, hint, glyph, disabled, tone = 'primary', glyphStyle, onComplete }: Props) {
   const ref = useRef<HTMLButtonElement>(null);
   const done = useRef(onComplete);
   done.current = onComplete;
@@ -142,7 +144,7 @@ export function HoldButton({ label, hint, glyph, disabled, glyphStyle, onComplet
   }, []);
 
   return (
-    <button ref={ref} type="button" className="hold-btn primary" data-sfx="none" data-autofocus disabled={disabled}>
+    <button ref={ref} type="button" className={`hold-btn ${tone}`} data-sfx="none" data-autofocus disabled={disabled}>
       <span className="hold-fill" aria-hidden />
       {glyph && <span className="hold-glyph" aria-hidden>{glyph}</span>}
       <span className="hold-text">
