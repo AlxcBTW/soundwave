@@ -34,6 +34,8 @@ import { HomeScreen } from './HomeScreen';
 import { DIFFICULTY_LABEL, PART_LABEL } from './icons';
 import { LibraryScreen, type SongStatus } from './LibraryScreen';
 import { LobbyScreen } from './LobbyScreen';
+import { watchVenue } from '../render/aurora/assets';
+import { bootDone, bootStep } from './boot';
 import { MenuBackground } from './MenuBackground';
 import { PlayScreen } from './PlayScreen';
 import { ResultsScreen, SummaryScreen, type SetResult } from './ResultsScreen';
@@ -96,6 +98,9 @@ export function App() {
   const [loaded, setLoaded] = useState({ songs: false, scores: false });
   /** The first screen waits for the library, so it arrives whole instead of filling in piece by piece. */
   const [booted, setBooted] = useState(false);
+  /** The stage behind the menus has been built and has drawn (or cannot be built). */
+  const [stageReady, setStageReady] = useState(false);
+  const onStage = useCallback(() => setStageReady(true), []);
   const [importing, setImporting] = useState(0);
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [setlist, setSetlistState] = useState<string[]>(loadSetlist);
@@ -233,15 +238,28 @@ export function App() {
     for (const s of songs) if (s.id !== DEMO_ID && !analysisStatus[s.id]) void analysisManager.check(s.id, true);
   }, [songs, analysisStatus, device]);
 
-  // The game opens once it knows the library, the scores and which songs have charts (or after a
-  // moment, whatever is still missing), and then in a quiet moment, so the entrance plays smoothly.
-  const known = loaded.songs && loaded.scores && !!device && songs.every((s) => s.id === DEMO_ID || analysisStatus[s.id]);
+  // The loading screen stays until everything is there: the library, the scores, which songs have
+  // charts, and the stage behind the menus, built and drawn. Then the game opens in a quiet moment,
+  // so the entrance plays smoothly. Nothing holds it for ever: what has not come after a long wait
+  // is opened without.
+  const [patience, setPatience] = useState(0);
+  useEffect(() => {
+    const a = window.setTimeout(() => setPatience(1), 8000);
+    const b = window.setTimeout(() => setPatience(2), 30000);
+    return () => (clearTimeout(a), clearTimeout(b));
+  }, []);
+  const libraryKnown = loaded.songs && loaded.scores && !!device && songs.every((s) => s.id === DEMO_ID || analysisStatus[s.id]);
+  const libraryReady = libraryKnown || patience >= 1;
+  const known = libraryReady && (stageReady || patience >= 2);
+  useEffect(() => {
+    if (booted) return bootDone();
+    if (!libraryReady) return bootStep(0.2, 'Opening your library');
+    if (!known) return watchVenue((share) => bootStep(0.35 + share * 0.5, share < 1 ? 'Loading the stage' : 'Building the stage'));
+    bootStep(1, 'Ready');
+  }, [booted, libraryReady, known]);
   useEffect(() => {
     if (booted) return;
-    if (!known) {
-      const late = window.setTimeout(() => setBooted(true), 1500);
-      return () => clearTimeout(late);
-    }
+    if (!known) return;
     if (typeof requestIdleCallback !== 'function') {
       const soon = window.setTimeout(() => setBooted(true), 60);
       return () => clearTimeout(soon);
@@ -512,7 +530,7 @@ export function App() {
 
   // The theme plays behind the menus and makes way for a preview, the launch and the song.
   // The editor plays the song itself.
-  const menuMusic = inMenus && view.name !== 'editor' && !previewing && launch === null;
+  const menuMusic = booted && inMenus && view.name !== 'editor' && !previewing && launch === null;
   useEffect(() => setMenuMusic(menuMusic, 0.45), [menuMusic]);
 
   // Going deeper enters from the right; going back, from the left.
@@ -666,7 +684,7 @@ export function App() {
     }
     content = (
       <div className={`menu on-${view.name}`}>
-        <MenuBackground graphics={settings.graphics} />
+        <MenuBackground graphics={settings.graphics} onReady={onStage} />
         <div className="veil" aria-hidden />
         {/* One entrance per screen change; the stage behind it stays. */}
         {booted && (

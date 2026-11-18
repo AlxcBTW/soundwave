@@ -27,6 +27,7 @@ The game charts the player's own music. There is no fixed setlist: every song co
 ## Operating Context
 
 - Import by file picker or drag and drop; analysis runs in the background with progress per song and can take a minute or more per song.
+- The game opens behind an animated loading screen that waits until everything is there: the library, the scores, which songs have charts, and the 3D stage, built and drawn.
 - The main menu has two tabs. Play offers sets: the player's own setlist and sets dealt from the library (a shuffle, the newest songs, songs without a score). Edit is the way into the track editor: the player's tracks as a list (one press opens a track in the editor), the highlighted track's charts beside it, and a new track.
 - The music library lists every song with search and sort; a song is added to or taken out of the setlist (up to four songs) with one press. A song previews by itself while the player is on its row in a list or its details are open, and stops when they move to anything else. A song's details offer best scores on every part and difficulty, re-analysis, editing its charts, export and removal.
 - Ready up: the set in order, one part and one difficulty for the whole set, and a button that is held to start.

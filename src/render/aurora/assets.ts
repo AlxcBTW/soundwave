@@ -101,6 +101,18 @@ export interface VenueAssets {
 
 let cache: Promise<VenueAssets> | null = null;
 
+/** How much of the venue has arrived (0..1), for the loading screen. */
+const PARTS = 5;
+let arrived = 0;
+const watchers = new Set<(share: number) => void>();
+const tell = () => watchers.forEach((w) => w(arrived / PARTS));
+/** Calls back with the share of the venue that has loaded, now and whenever more of it arrives. */
+export function watchVenue(cb: (share: number) => void): () => void {
+  watchers.add(cb);
+  cb(arrived / PARTS);
+  return () => void watchers.delete(cb);
+}
+
 /** Loads the venue once; later callers share the same promise. */
 export function loadVenue(): Promise<VenueAssets> {
   if (cache) return cache;
@@ -125,7 +137,14 @@ export function loadVenue(): Promise<VenueAssets> {
     .then((r) => r.json() as Promise<SceneryData>)
     .then(async (data) => ({ scene: (await loader.loadAsync(`${base}scenery.glb`)).scene, data }))
     .catch(() => null);
-  cache = Promise.all([loader.loadAsync(`${base}venue.glb`), get('venue.json').then((r) => r.json() as Promise<VenueData>), people('band'), people('crowd'), scenery]).then(
+  arrived = 0;
+  const part = <T>(p: Promise<T>): Promise<T> =>
+    p.then((v) => {
+      arrived++;
+      tell();
+      return v;
+    });
+  cache = Promise.all([part(loader.loadAsync(`${base}venue.glb`)), part(get('venue.json').then((r) => r.json() as Promise<VenueData>)), part(people('band')), part(people('crowd')), part(scenery)]).then(
     ([venue, data, band, crowd, land]) => {
       draco.dispose();
       return { scene: venue.scene, data, band, crowd, scenery: land };

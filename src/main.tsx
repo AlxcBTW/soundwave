@@ -3,14 +3,17 @@ import { createRoot } from 'react-dom/client';
 import { applyDisplayMode } from './game/displayMode';
 import { loadSettings } from './game/settings';
 import { App } from './ui/App';
+import { bootDone, bootFonts } from './ui/boot';
 import './ui/fonts/archivo/archivo.css';
 import './ui/styles.css';
 
 // The desktop window starts hidden; this puts it in the stored display mode and shows it.
 void applyDisplayMode(loadSettings().displayMode);
 
+bootFonts();
 const root = document.getElementById('root')!;
 if (import.meta.env.DEV && location.hash.startsWith('#stage')) {
+  bootDone();
   void import('./debug/StagePreview').then((m) => m.runStagePreview(root));
 } else {
   createRoot(root).render(

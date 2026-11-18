@@ -6,8 +6,108 @@
     <meta name="theme-color" content="#0e0828" />
     <meta name="mobile-web-app-capable" content="yes" />
     <title>Festival</title>
+    <!-- The loading screen: drawn by the page itself, before any script or stylesheet has arrived.
+         src/ui/boot.ts moves its progress line and takes it away once the game and its stage are ready. -->
+    <style>
+      html, body { margin: 0; height: 100%; background: #0e0828; }
+      #boot {
+        position: fixed; inset: 0; z-index: 1000; overflow: hidden;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        padding: 1.5rem; box-sizing: border-box;
+        background: radial-gradient(130% 80% at 50% 108%, #3a1d8f 0%, #1a0f4c 34%, #0e0828 70%);
+        color: #f6f3ff; font: 700 16px/1.35 'Archivo Variable', system-ui, sans-serif; text-align: center;
+        user-select: none; -webkit-user-select: none; cursor: progress;
+        transition: opacity 0.55s ease;
+      }
+      #boot.leaving { opacity: 0; pointer-events: none; }
+
+      /* The game in small: a note highway seen from the player's seat. Tiles come down five lanes in
+         a two-bar figure and light the strike line as they land. */
+      .boot-hw { position: relative; width: min(19rem, 78vw); height: clamp(9rem, 30vh, 14rem); perspective: 26rem; perspective-origin: 50% 12%; }
+      .boot-deck {
+        position: absolute; left: 0; right: 0; bottom: 0; height: 300%;
+        transform-origin: 50% 100%; transform: rotateX(66deg);
+        border-inline: 3px solid #bd78ff; border-radius: 4px;
+        background:
+          repeating-linear-gradient(to right, transparent 0 calc(20% - 1px), rgb(196 180 255 / 0.26) calc(20% - 1px) 20%),
+          linear-gradient(to bottom, rgb(34 20 106 / 0.2), rgb(54 34 152 / 0.72));
+        box-shadow: 0 0 2.4rem rgb(189 120 255 / 0.35);
+        -webkit-mask-image: linear-gradient(to bottom, transparent 4%, #000 46%);
+        mask-image: linear-gradient(to bottom, transparent 4%, #000 46%);
+      }
+      /* The strike line, and a ring on it for every lane. */
+      .boot-deck::after { content: ''; position: absolute; left: 0; right: 0; top: 90%; height: 0.32rem; margin-top: -0.16rem; border-radius: 0.16rem; background: #efeaff; box-shadow: 0 0 1.1rem 0.15rem rgb(239 234 255 / 0.75); }
+      .boot-deck s { position: absolute; top: 90%; left: calc(var(--l) * 20% + 2.5%); width: 15%; height: 5.4%; margin-top: -2.7%; box-sizing: border-box; border: 0.2rem solid var(--c); border-radius: 0.6rem; opacity: 0.55; }
+      /* A tile, and the light it leaves on the line when it lands. */
+      .boot-deck b, .boot-deck u {
+        position: absolute; left: calc(var(--l) * 20% + 2.5%); width: 15%;
+        animation: 2.4s linear infinite; animation-delay: calc(var(--t) * -0.3s);
+      }
+      .boot-deck b {
+        top: 0; height: 4.4%; border-radius: 0.5rem;
+        background: linear-gradient(to bottom, rgb(255 255 255 / 0.55) 0 22%, transparent 22%), var(--c);
+        box-shadow: 0 0 1.2rem var(--c);
+        animation-name: boot-fall;
+      }
+      .boot-deck u { top: 90%; height: 5.4%; margin-top: -2.7%; border-radius: 0.6rem; background: color-mix(in srgb, var(--c) 30%, #fff); box-shadow: 0 0 1.6rem 0.5rem var(--c); opacity: 0; animation-name: boot-hit; }
+      /* The line is at 90% of the deck and a tile is 4.4% of it tall: it travels 20 of its own lengths. */
+      @keyframes boot-fall { 0% { transform: translateY(-100%); opacity: 0; } 10% { opacity: 1; } 99% { opacity: 1; } 100% { transform: translateY(1995%); opacity: 0; } }
+      @keyframes boot-hit { 0% { opacity: 0.95; transform: scale(1.08, 1.2); } 8% { opacity: 0; transform: scale(1.45, 2.1); } 100% { opacity: 0; } }
+      [style*='--l:0'] { --c: #3ddc5a; } [style*='--l:1'] { --c: #ff3b4e; } [style*='--l:2'] { --c: #ffd23d; } [style*='--l:3'] { --c: #3a8bff; } [style*='--l:4'] { --c: #ff8a1f; }
+
+      .boot-word {
+        margin: clamp(1.2rem, 4vh, 2.2rem) 0 0; font-size: clamp(2.1rem, 6vw, 3.8rem); font-weight: 900; font-style: italic; font-stretch: 112%;
+        line-height: 1; text-transform: uppercase; text-shadow: 0 0.08em 0.5em rgb(255 77 157 / 0.55);
+      }
+      .boot-line { margin-top: 1.3rem; width: min(17rem, 64vw); height: 6px; border-radius: 3px; background: rgb(12 7 40 / 0.62); overflow: hidden; }
+      .boot-line span {
+        display: block; height: 100%; border-radius: 3px; background: #ff4d9d;
+        transform-origin: 0 50%; transform: scaleX(var(--boot-p, 0.05));
+        transition: transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+      }
+      .boot-step { margin: 0.8rem 0 0; min-height: 1.35em; color: #d2c9fa; }
+      /* The words wait for the game's typeface (see bootFonts). */
+      .boot-word, .boot-step { opacity: 0; transition: opacity 0.4s ease; }
+      .fonts .boot-word, .fonts .boot-step { opacity: 1; }
+
+      /* Calm motion: the tiles stand where they are on the highway, and nothing flashes. */
+      [data-motion='reduced'] .boot-deck b { animation-play-state: paused; }
+      [data-motion='reduced'] .boot-deck u { animation: none; }
+      [data-motion='reduced'] .boot-line span, [data-motion='reduced'] #boot { transition-duration: 0.01s; }
+      @media (prefers-reduced-motion: reduce) {
+        :root:not([data-motion='full']) .boot-deck b { animation-play-state: paused; }
+        :root:not([data-motion='full']) .boot-deck u { animation: none; }
+        :root:not([data-motion='full']) .boot-line span, :root:not([data-motion='full']) #boot { transition-duration: 0.01s; }
+      }
+    </style>
+    <script>
+      // The stored choice for menu motion counts on the loading screen too.
+      try {
+        var m = JSON.parse(localStorage.getItem('festival.settings.v1') || '{}').motion;
+        if (m === 'reduced' || m === 'full') document.documentElement.dataset.motion = m;
+      } catch (e) {}
+    </script>
   </head>
   <body>
+    <div id="boot" role="status" aria-live="polite">
+      <div class="boot-hw" aria-hidden="true">
+        <div class="boot-deck">
+          <s style="--l:0"></s><s style="--l:1"></s><s style="--l:2"></s><s style="--l:3"></s><s style="--l:4"></s>
+          <b style="--l:0;--t:0"></b><u style="--l:0;--t:0"></u>
+          <b style="--l:2;--t:1"></b><u style="--l:2;--t:1"></u>
+          <b style="--l:1;--t:2"></b><u style="--l:1;--t:2"></u>
+          <b style="--l:3;--t:3"></b><u style="--l:3;--t:3"></u>
+          <b style="--l:4;--t:4"></b><u style="--l:4;--t:4"></u>
+          <b style="--l:2;--t:5"></b><u style="--l:2;--t:5"></u>
+          <b style="--l:0;--t:6"></b><u style="--l:0;--t:6"></u>
+          <b style="--l:3;--t:6"></b><u style="--l:3;--t:6"></u>
+          <b style="--l:1;--t:7"></b><u style="--l:1;--t:7"></u>
+        </div>
+      </div>
+      <p class="boot-word">Festival</p>
+      <div class="boot-line" aria-hidden="true"><span></span></div>
+      <p class="boot-step">Loading the game</p>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
