@@ -156,19 +156,21 @@
           opacity: 0;
         }
       }
-      [style*='--l:0'] {
+      /* Each lane's colour, by class (a style attribute's text is no reliable thing to select on: a
+         formatter rewrites it). */
+      .l0 {
         --c: #3ddc5a;
       }
-      [style*='--l:1'] {
+      .l1 {
         --c: #ff3b4e;
       }
-      [style*='--l:2'] {
+      .l2 {
         --c: #ffd23d;
       }
-      [style*='--l:3'] {
+      .l3 {
         --c: #3a8bff;
       }
-      [style*='--l:4'] {
+      .l4 {
         --c: #ff8a1f;
       }
 
@@ -251,12 +253,14 @@
     <div id="boot" role="status" aria-live="polite">
       <div class="boot-hw" aria-hidden="true">
         <div class="boot-deck">
-          <s style="--l: 0"></s><s style="--l: 1"></s><s style="--l: 2"></s><s style="--l: 3"></s><s style="--l: 4"></s>
-          <b style="--l: 0; --t: 0"></b><u style="--l: 0; --t: 0"></u> <b style="--l: 2; --t: 1"></b><u style="--l: 2; --t: 1"></u>
-          <b style="--l: 1; --t: 2"></b><u style="--l: 1; --t: 2"></u> <b style="--l: 3; --t: 3"></b><u style="--l: 3; --t: 3"></u>
-          <b style="--l: 4; --t: 4"></b><u style="--l: 4; --t: 4"></u> <b style="--l: 2; --t: 5"></b><u style="--l: 2; --t: 5"></u>
-          <b style="--l: 0; --t: 6"></b><u style="--l: 0; --t: 6"></u> <b style="--l: 3; --t: 6"></b><u style="--l: 3; --t: 6"></u>
-          <b style="--l: 1; --t: 7"></b><u style="--l: 1; --t: 7"></u>
+          <s class="l0" style="--l: 0"></s><s class="l1" style="--l: 1"></s><s class="l2" style="--l: 2"></s
+          ><s class="l3" style="--l: 3"></s><s class="l4" style="--l: 4"></s> <b class="l0" style="--l: 0; --t: 0"></b
+          ><u class="l0" style="--l: 0; --t: 0"></u> <b class="l2" style="--l: 2; --t: 1"></b><u class="l2" style="--l: 2; --t: 1"></u>
+          <b class="l1" style="--l: 1; --t: 2"></b><u class="l1" style="--l: 1; --t: 2"></u> <b class="l3" style="--l: 3; --t: 3"></b
+          ><u class="l3" style="--l: 3; --t: 3"></u> <b class="l4" style="--l: 4; --t: 4"></b><u class="l4" style="--l: 4; --t: 4"></u>
+          <b class="l2" style="--l: 2; --t: 5"></b><u class="l2" style="--l: 2; --t: 5"></u> <b class="l0" style="--l: 0; --t: 6"></b
+          ><u class="l0" style="--l: 0; --t: 6"></u> <b class="l3" style="--l: 3; --t: 6"></b><u class="l3" style="--l: 3; --t: 6"></u>
+          <b class="l1" style="--l: 1; --t: 7"></b><u class="l1" style="--l: 1; --t: 7"></u>
         </div>
       </div>
       <p class="boot-word">Soundwave</p>
