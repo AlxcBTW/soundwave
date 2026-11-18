@@ -135,6 +135,40 @@ export function focusStart(scope?: ParentNode) {
   const el = scope ? startEl(focusables(scope), scope) : startEl();
   if (el) focusEl(el, false);
 }
+
+/**
+ * Puts focus on the screen's starting control once it has come in: a control that takes focus
+ * while it is still rising into place (a main menu tile) would snap to its focused look at the end
+ * of its entrance. Waits at most `maxMs`; nothing happens if focus has been put somewhere meanwhile.
+ * Returns a cancel.
+ */
+export function focusStartSettled(maxMs = 1500): () => void {
+  const el = startEl();
+  if (!el) return () => {};
+  const entrances: Animation[] = [];
+  for (let at: Element | null = el; at && at !== document.body; at = at.parentElement)
+    for (const a of at.getAnimations())
+      if (a.playState === 'running' && Number.isFinite(a.effect?.getComputedTiming().endTime ?? Infinity)) entrances.push(a);
+  if (!entrances.length) {
+    focusEl(el, false);
+    return () => {};
+  }
+  let cancelled = false;
+  const go = () => {
+    if (cancelled) return;
+    cancelled = true;
+    clearTimeout(cap);
+    const active = document.activeElement;
+    if ((active && active !== document.body) || !el.isConnected) return;
+    focusEl(el, false);
+  };
+  const cap = window.setTimeout(go, maxMs);
+  void Promise.allSettled(entrances.map((a) => a.finished)).then(go);
+  return () => {
+    cancelled = true;
+    clearTimeout(cap);
+  };
+}
 /** Whether focus sits on a control of the current scope. */
 function current(list: HTMLElement[]): HTMLElement | null {
   const active = document.activeElement as HTMLElement | null;

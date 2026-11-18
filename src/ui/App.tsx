@@ -29,7 +29,7 @@ import {
 } from '../game/setlist';
 import { loadSettings, saveSettings, type DisplayMode, type Settings } from '../game/settings';
 import { getInputMode, installInputMode, setInputMode, usesFocus } from '../input/inputMode';
-import { EDIT_EVENT, focusStart, installMenuNav } from '../input/menuNav';
+import { EDIT_EVENT, focusStart, focusStartSettled, installMenuNav } from '../input/menuNav';
 import { followOutputDevice, muteWhileUnfocused } from '../audio/output';
 import { pads, resolveStyle } from '../input/pads';
 import { setBindings } from '../input/bindings';
@@ -692,12 +692,17 @@ export function App() {
   }
   const fromBoot = bootScene.current?.done === false;
 
-  // A new screen starts with focus on its first control for keyboard and controller players.
+  // A new screen starts with focus on its first control for keyboard and controller players, once
+  // that control has come in (see focusStartSettled).
   useEffect(() => {
     if (view.name === 'play') return;
+    let cancelFocus = () => {};
     const raf = requestAnimationFrame(() => {
       if (document.querySelector('[data-modal]')) return;
-      if (usesFocus(getInputMode())) return focusStart();
+      if (usesFocus(getInputMode())) {
+        cancelFocus = focusStartSettled();
+        return;
+      }
       // Mouse and touch players get no ring, but a screen reader still hears where it is now.
       const heading = document.querySelector<HTMLElement>('.scene h1');
       if (!heading) return (document.activeElement as HTMLElement | null)?.blur?.();
@@ -705,7 +710,10 @@ export function App() {
       heading.dataset.ring = 'none';
       heading.focus({ preventScroll: true });
     });
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      cancelFocus();
+    };
   }, [sceneKey, view.name, booted]);
 
   // The settings over a paused song take focus as they open (the pause menu takes it back, see PlayScreen).
