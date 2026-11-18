@@ -1,5 +1,11 @@
 # Soundwave
 
+[![CI](https://github.com/DavidNiessen/soundwave/actions/workflows/ci.yml/badge.svg)](https://github.com/DavidNiessen/soundwave/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/DavidNiessen/soundwave)](https://github.com/DavidNiessen/soundwave/releases/latest)
+[![Licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
+
+**[Play in your browser](https://davidniessen.github.io/soundwave/)** · **[Download the app](https://github.com/DavidNiessen/soundwave/releases/latest)** for Windows, macOS and Linux
+
 A rhythm game for your own music. Drop in a song (MP3, WAV, FLAC, OGG, M4A). The game analyzes its percussive, melodic and harmonic content and generates **Lead**, **Bass**, **Drums** and **Vocals** charts at four difficulties:
 
 | Difficulty | Lanes | Feel                                     |
@@ -17,16 +23,21 @@ A song previews by itself: stay on its row in the music library or on the Edit t
 
 Every chart can be changed, or written from nothing, in the **track editor**: with a keyboard, a mouse, a touchscreen or a controller. See [Track editor](#track-editor).
 
-It runs in the browser and as a desktop app (Tauri). Phones and tablets can play, but cannot analyze songs (see How analysis works). The desktop window has no title bar: Exit is at the top right of the home screen (or Esc, or the controller's back button, there), and in Window mode the window is moved by its top edge.
+It runs in the browser and as a desktop app (Tauri). The website shows a **Get the app** button with the download for your computer, and the desktop app keeps itself up to date (see [Releases](#releases)). Phones and tablets can play, but cannot analyze songs (see How analysis works). The desktop window has no title bar: Exit is at the top right of the home screen (or Esc, or the controller's back button, there), and in Window mode the window is moved by its top edge.
 
-## Quick start (browser)
+## Development
+
+You need [Node.js](https://nodejs.org/) 22 or newer and [pnpm](https://pnpm.io/) (`corepack enable` gives you the pinned version).
 
 ```bash
 pnpm install
-pnpm dev
+pnpm dev            # the game in the browser
+pnpm check          # types, lint (oxlint), formatting (Prettier) and tests
 ```
 
-Open http://localhost:5173 and add your own songs.
+Open http://localhost:5173 and add your own songs. [CONTRIBUTING.md](CONTRIBUTING.md) explains the checks, the code style and how to send a change.
+
+## Playing
 
 Default keys are `D F J K` (plus `L` on Expert), `Space` for overdrive and `Esc` to pause. All of them can be changed in Settings. The pause menu also opens Settings (volume, audio offset and note speed take effect in the paused song; the rest from the next one) and asks before a song is restarted, skipped or left.
 
@@ -96,12 +107,26 @@ pnpm tauri dev      # run the desktop app
 pnpm tauri build    # build an installer (NSIS/MSI on Windows)
 ```
 
+The installers are not signed with a Windows or Apple developer certificate yet: Windows asks to confirm the first start (More info, Run anyway), and macOS wants the app opened once with a right-click and Open.
+
 ## Production web build
 
 ```bash
 pnpm build          # outputs static files to dist/
 pnpm preview
 ```
+
+The analysis runs its model on several threads, which needs the page to be served with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`. A host that cannot send them (GitHub Pages) gets them from a small service worker, `public/coi-sw.js`, which the page registers by itself. Set `BASE_PATH` when the site is not served from the root (`BASE_PATH=/soundwave/ pnpm build`).
+
+## Releases
+
+Every push to `main` is checked, and the desktop app is built for Windows, macOS and Linux and published as a **pre-release** (version: the next patch with the run number, such as `0.1.1-42`) for trying the newest work. Only the newest three are kept. Installed apps never update to a pre-release.
+
+A **full release** is started by hand: Actions › **Release** › Run workflow, choosing which part of the version to raise (or an exact version). It checks `main`, commits the version and tags it, builds and signs the app for all three systems, publishes the release with the updater's `latest.json`, and deploys the website to GitHub Pages. The website is only ever deployed from a full release.
+
+The desktop app looks for a new full release when it starts (Settings › Advanced › Updates; it can be switched off) and shows an **Update** button on the main menu when there is one. Installing downloads the release, checks its signature against the public key in `src-tauri/tauri.conf.json`, installs it and starts again. The matching private key is the repository secret `TAURI_SIGNING_PRIVATE_KEY`; without it a release cannot be built, and if it is lost, installed apps can no longer update themselves, so keep a copy somewhere safe.
+
+The workflows are in `.github/workflows`: `ci.yml` (checks, also on pull requests), `prerelease.yml` and `release.yml`.
 
 ## How analysis works
 
@@ -154,7 +179,7 @@ To tune analysis or charts on your own files without the UI, see `scripts/dev/an
 ## Tests
 
 ```bash
-npm test
+pnpm test
 ```
 
 Unit tests cover:
@@ -239,6 +264,10 @@ They need Python 3 with `numpy`, `scipy` and `soundfile`, and the instrument sam
 4. Optional, for the finale's applause (and its crowd when the recording above is missing): save these four recordings from Wikimedia Commons as 48 kHz WAV files in `local-audio/samples/crowd/commons/`. For the applause: [Applause i](https://commons.wikimedia.org/wiki/File:Applause_i.ogg) by thore (public domain) as `Applause-i.wav` and [applause-2](https://commons.wikimedia.org/wiki/File:277021_sandermotions_applause-2.wav) by Sandermotions (CC0) as `277021-sandermotions-applause-2.wav`. For the cheering: [Hurray](https://commons.wikimedia.org/wiki/File:Hurray.ogg) by starlite (public domain) as `Hurray.wav` and [Clapping hurray](https://commons.wikimedia.org/wiki/File:Clapping_hurray.ogg) by starlite (public domain) as `Clapping-hurray.wav`. The finale's crowd is mixed from them: the applause as the bed and, well above it, the cheering takes laid over each other several times at different pitches to make a crowd of voices (a synthesized crowd of that size has no distinct hands or voices in it and comes out as wind). Without the recordings it is synthesized.
 
 The first run measures the pitch of every sample (file names disagree about octaves) and caches the result next to the library. `theme.py --stems` prints how loud each instrument group is in each section. The theme is one seamless loop plus a short intro that is played once before it; each sound is levelled to its place in `LEVELS` in `sfx.py`, so the game plays them all at the same gain.
+
+## Contributing
+
+Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md). Security problems go through [private reporting](SECURITY.md).
 
 ## Licence
 

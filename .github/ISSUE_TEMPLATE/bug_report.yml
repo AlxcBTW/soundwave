@@ -1,0 +1,48 @@
+name: Bug report
+description: Something does not work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the music library
+        2. …
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - Desktop app on Windows
+        - Desktop app on macOS
+        - Desktop app on Linux
+        - Website in a desktop browser
+        - Website on a phone or tablet
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Settings › Advanced › Updates shows it.
+  - type: dropdown
+    id: input
+    attributes:
+      label: Playing with
+      multiple: true
+      options: [Keyboard, Mouse, Controller, Touchscreen]
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Screenshots, the browser's console output, the controller model. Please do not attach songs you do not own.
