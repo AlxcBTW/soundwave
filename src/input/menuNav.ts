@@ -87,7 +87,8 @@ export function nearest(from: DOMRect, dir: Dir, rects: DOMRect[]): number {
 const groupOf = (el: Element | null) => el?.closest('[data-nav-group]') ?? null;
 const remembered = new WeakMap<Element, HTMLElement>();
 
-function focusEl(el: HTMLElement, announce = true) {
+/** Moves focus to a control the way a directional move does, for a row that picks its own next control. */
+export function focusEl(el: HTMLElement, announce = true) {
   el.focus({ preventScroll: true });
   // A window without focus (a controller used right after switching apps) moves focus silently:
   // say so, for the screens that follow the focused control.
@@ -111,6 +112,20 @@ export function focusStart(scope?: ParentNode) {
 function current(list: HTMLElement[]): HTMLElement | null {
   const active = document.activeElement as HTMLElement | null;
   return active && active !== document.body && list.includes(active) ? active : null;
+}
+
+/**
+ * With no control further up or down, the panel the focus is in scrolls on that way: what lies
+ * before the first control or after the last one (a legend, a note) can be read with a controller too.
+ */
+function scrollOn(from: HTMLElement, d: -1 | 1) {
+  for (let el = from.parentElement; el && el !== document.body; el = el.parentElement) {
+    if (el.scrollHeight <= el.clientHeight + 1 || !/auto|scroll/.test(getComputedStyle(el).overflowY)) continue;
+    const room = d > 0 ? el.scrollHeight - el.clientHeight - el.scrollTop : el.scrollTop;
+    if (room < 1) continue;
+    el.scrollBy({ top: d * Math.min(room, el.clientHeight * 0.6), behavior: document.documentElement.dataset.motion === 'reduced' ? 'auto' : 'smooth' });
+    return;
+  }
 }
 
 export function navMove(dir: Dir, fromPad = false) {
@@ -138,7 +153,10 @@ export function navMove(dir: Dir, fromPad = false) {
   }
   const others = all.filter((el) => el !== active);
   const i = nearest(active.getBoundingClientRect(), dir, others.map((el) => el.getBoundingClientRect()));
-  if (i < 0) return;
+  if (i < 0) {
+    if (!horizontal) scrollOn(active, dir === 'down' ? 1 : -1);
+    return;
+  }
   let target = others[i];
   const group = groupOf(target);
   if (group && group !== groupOf(active)) {

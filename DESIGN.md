@@ -587,7 +587,7 @@ Panel Violet sheets with a 1.1rem radius: a cover mosaic filling the top, then t
 Every row is one focus stop: name on the left, control on the right. The highlighted row takes the Row fill (Lit Row under focus) and its name turns Ink.
 - **Choice:** round step arrows either side of the value's name, with one tick per option beneath and the current tick lit in Ink. Left and right change the value; pressing the row cycles it. The arrows show only on the highlighted row (always on touch).
 - **Value bar:** a Well track at least 2.3rem tall, filled from the left in Signal Violet with the value printed on top; drag it, use the arrows, or press left and right.
-- **Bindings:** caps in Raised Violet with a 4px underline in the lane's colour; a cap that is listening turns pink and pulses. Fixed bindings are dimmed.
+- **Bindings:** caps in Raised Violet with a 4px underline in the lane's colour; a cap that is listening turns pink and pulses. Fixed bindings are dimmed. Left and right move through a row's caps in order and stop at its ends; up and down go to the cap above or below, in the next row of bindings too, so every cap is reached with a controller or the arrow keys.
 - **Action and text rows:** a small button, or a Well text field with a mint caret and a status pill beside it.
 - **Detail pane (wide screens):** a panel naming the highlighted setting, explaining it, and listing a choice's options (each with its own help) to pick directly, or a slider's value and range. On narrow screens the same help text opens inside the highlighted row.
 
@@ -601,7 +601,7 @@ Seven icon tabs in a Well trough; only the selected tab shows its name, on the t
 Pills and tags are small uppercase labels (0.85rem, 0.45rem radius): a neutral lavender wash, a green wash for ready, a red wash for errors. Results tags are solid: pink "New best", gold "Full combo" with dark text. Stars are five drawn outlines, filled gold when earned. Pips are four 0.6rem dots lit to the difficulty's level in its lane colour.
 
 ### Dialogs
-A dialog dims and blurs the screen, takes focus and directional navigation, keeps Tab inside, and closes on Esc, the controller's back button, its round close button or a press outside; focus returns where it was. The **sheet** variant sits at the right edge on wide screens and rises from the foot on phones. The **card** variant is centred (pause, calibration). Calibration shows a 9rem round pad with a dot that turns pink on every other click, and a tap count.
+A dialog dims and blurs the screen, takes focus and directional navigation (a control that focus moves to keeps 1.2rem clear of the dialog's edge, and a move up or down with no control further that way scrolls the panel on, so what lies past the last control can be read), keeps Tab inside, and closes on Esc, the controller's back button, its round close button or a press outside; focus returns where it was. The **sheet** variant sits at the right edge on wide screens and rises from the foot on phones. The **card** variant is centred (pause, calibration). Calibration shows a 9rem round pad with a dot that turns pink on every other click, and a tap count.
 
 ### Toasts
 Plum cards (#4a1a52, 0.75rem radius) with a Pink Light alert icon, stacked at the bottom right above the action bar (full width on phones), rising in over 0.35s, dismissed on press or after 6s. Each one plays the error sound and an error pulse.

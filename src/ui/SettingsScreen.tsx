@@ -9,7 +9,7 @@ import { applyPreset, autoTier, resolveGraphics, type GraphicsPreset, type Graph
 import { DEFAULT_SETTINGS, keyLabel, type DisplayMode, type MotionPref, type RumbleLevel, type Settings } from '../game/settings';
 import { PadGlyph, STYLE_LABEL } from '../input/glyphs';
 import { getInputMode, usesFocus } from '../input/inputMode';
-import { focusStart, NAV_EVENT, TAB_EVENT, type Dir } from '../input/menuNav';
+import { focusEl, focusStart, NAV_EVENT, nearest, TAB_EVENT, type Dir } from '../input/menuNav';
 import { PAUSE_INPUT, pads, styleFor, SYSTEM_INPUT, type GlyphStyle } from '../input/pads';
 import { dualSenseHaptics, menuPulse, Rumbler } from '../input/rumble';
 import { usePads } from '../input/usePads';
@@ -675,12 +675,12 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
 /* Rows                                                                                         */
 
 /** Lets a row answer left and right itself (see menuNav), for the keyboard and controllers alike. */
-function useSideways(ref: React.RefObject<HTMLElement | null>, step: (d: -1 | 1) => void) {
+function useSideways(ref: React.RefObject<HTMLElement | null>, step: (d: -1 | 1) => void, on = true) {
   const stepRef = useRef(step);
   stepRef.current = step;
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || !on) return;
     const onNav = (e: Event) => {
       const dir = (e as CustomEvent<{ dir: Dir }>).detail.dir;
       if (dir !== 'left' && dir !== 'right') return;
@@ -689,7 +689,46 @@ function useSideways(ref: React.RefObject<HTMLElement | null>, step: (d: -1 | 1)
     };
     el.addEventListener(NAV_EVENT, onNav);
     return () => el.removeEventListener(NAV_EVENT, onNav);
-  }, [ref]);
+  }, [ref, on]);
+}
+
+/**
+ * A row of bindings moves the focus itself. Left and right go through its buttons in order (also
+ * onto a second line where the row wraps) and stop at its ends. Up and down go to the button above
+ * or below: on another line of this row, else in the next row when that holds bindings too, so a
+ * short row (overdrive, one button) is not passed over from a button that is not right above it.
+ */
+function useBindingMoves(ref: React.RefObject<HTMLElement | null>, on: boolean) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !on) return;
+    const capsOf = (row: Element) => [...row.querySelectorAll<HTMLElement>('button.keycap')];
+    const onNav = (e: Event) => {
+      const dir = (e as CustomEvent<{ dir: Dir }>).detail.dir;
+      const from = e.target as HTMLElement;
+      const caps = capsOf(el);
+      const at = caps.indexOf(from);
+      if (at < 0) return;
+      if (dir === 'left' || dir === 'right') {
+        e.preventDefault();
+        const next = caps[at + (dir === 'left' ? -1 : 1)];
+        if (next) focusEl(next);
+        return;
+      }
+      const pick = (list: HTMLElement[]) => list[nearest(from.getBoundingClientRect(), dir, list.map((c) => c.getBoundingClientRect()))];
+      let to = pick(caps.filter((c) => c !== from));
+      if (!to) {
+        const rows = [...(el.closest('.set-list')?.querySelectorAll<HTMLElement>('.set-row') ?? [])].filter((r) => r.tabIndex >= 0 || r.querySelector('button:not([disabled]):not([tabindex="-1"])'));
+        const next = rows[rows.indexOf(el) + (dir === 'down' ? 1 : -1)];
+        if (next?.classList.contains('keys')) to = pick(capsOf(next));
+      }
+      if (!to) return;
+      e.preventDefault();
+      focusEl(to);
+    };
+    el.addEventListener(NAV_EVENT, onNav);
+    return () => el.removeEventListener(NAV_EVENT, onNav);
+  }, [ref, on]);
 }
 
 function RowView({ row, active, first, touch, onActive }: { row: Row; active: boolean; first: boolean; touch: boolean; onActive(): void }) {
@@ -712,7 +751,8 @@ function RowView({ row, active, first, touch, onActive }: { row: Row; active: bo
       row.set(Number(next.toFixed(4)));
     }
   };
-  useSideways(ref, (d) => step(d));
+  useSideways(ref, (d) => step(d), row.kind !== 'keys');
+  useBindingMoves(ref, row.kind === 'keys');
 
   // A touch screen reader cannot send a slider its arrow keys, so on touch the row is a group whose
   // step buttons are the controls; everywhere else the row itself is the slider.
