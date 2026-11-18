@@ -485,25 +485,16 @@ void main() {
 
 /**
  * A strike target, an island on the deck: a thin ring of its lane's light round dark glass. Pressed
- * (`uPress`), it fills with light, a second, wider ring lights round it and its middle glows white;
- * struck (`uFlash`), the white flares. The light rising from the ring is drawn by islandWallFragment.
+ * (`uPress`), it fills with light and its middle glows white; struck (`uFlash`), the white flares. The light rising from the ring is drawn by islandWallFragment.
  * The plane lies on the deck, with y toward the far end.
  */
 const islandFragment = /* glsl */ `
 ${neonPill}
-float sdBox(vec2 p, vec2 b, float r) {
-  vec2 q = abs(p) - b + r;
-  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
-}
 uniform vec3 uNeon;
 uniform vec3 uCore;
 uniform vec3 uFill;
-uniform vec3 uOuter;
-uniform vec3 uGap;
 uniform float uPress;
 uniform float uFlash;
-/** The outer ring: its half size, its corner radius and how far its middle sits toward the player. */
-uniform vec4 uRing;
 varying vec2 vP;
 void main() {
   float d = pill(vP);
@@ -527,13 +518,6 @@ void main() {
   vec3 ringCol = mix(uNeon, uCore, clamp(core * 0.75 + lit * 0.3, 0.0, 1.0));
   col += ringCol * line * (1.1 + 0.4 * lit);
   a = max(a, line * 0.9);
-  // Pressed, the outer ring, with a band of darker glass between the two.
-  float d2 = sdBox(vP + vec2(0.0, uRing.w), uRing.xy, uRing.z);
-  float within = 1.0 - smoothstep(-aa, aa, d2);
-  float gap = within * (1.0 - inside) * (1.0 - line);
-  float line2 = exp(-pow(d2 / 0.016, 2.0)) * (1.0 - inside);
-  col += uGap * gap * 0.55 * lit + uOuter * line2 * lit * 1.15;
-  a = max(a, max(gap * 0.55, line2) * lit);
   gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
 }
 `;
@@ -559,8 +543,8 @@ void main() {
   gl_FragColor = vec4(uColor * across * up * uLevel, 1.0);
 }
 `;
-/** How far beyond an island its plane reaches: room for its outer ring and the ring's light. */
-const ISLAND_REACH = 0.19;
+/** How far beyond an island its plane reaches: room for its ring's light. */
+const ISLAND_REACH = 0.08;
 /** How high the light rising from an island's ring reaches, and a pressed lane's column of light. */
 const WALL_H = 0.09;
 const PILLAR = { w: 0.82, h: 0.7 } as const;
@@ -568,8 +552,6 @@ const TARGETS = {
   pill: { half: [0.42, 0.13], rad: 0.13 },
   square: { half: [0.45, 0.42], rad: 0.16 },
 } as const;
-/** The outer ring of a pressed island: how much wider and deeper than the island, and how far toward the player. */
-const OUTER = { grow: [0.09, 0.09], rad: 0.17, toward: 0.06 } as const;
 
 /** A strip of wall standing on the outline of a rounded box (half size `hx`, `hy`, corner radius `r`), `h` high, with `uv.y` going up. */
 function outlineWall(hx: number, hy: number, r: number, h: number): THREE.BufferGeometry {
@@ -833,12 +815,9 @@ export class Highway {
             uExtent: { value: new THREE.Vector2() },
             uHalf: { value: new THREE.Vector2() },
             uRad: { value: 0 },
-            uRing: { value: new THREE.Vector4() },
             uNeon: { value: halo.clone().lerp(up, 0.3) },
             uCore: { value: band(kind, 'hi').lerp(new THREE.Vector3(1, 1, 1), 0.35) },
             uFill: { value: up.clone().lerp(base, 0.42) },
-            uOuter: { value: up.clone().lerp(base, 0.4) },
-            uGap: { value: band(kind, 'low').lerp(up, 0.3).multiplyScalar(0.7) },
             uPress: { value: 0 },
             uFlash: { value: 0 },
           },
@@ -1056,7 +1035,6 @@ export class Highway {
       (u.uExtent.value as THREE.Vector2).set(w, h);
       (u.uHalf.value as THREE.Vector2).set(half[0], half[1]);
       u.uRad.value = rad;
-      (u.uRing.value as THREE.Vector4).set(half[0] + OUTER.grow[0], half[1] + OUTER.grow[1], Math.max(rad, OUTER.rad), OUTER.toward);
     }
     for (const wall of this.walls) {
       wall.geometry.dispose();
