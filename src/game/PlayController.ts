@@ -424,7 +424,7 @@ export class PlayController {
       });
     }
     this.highway.render(t, this.session, beatPulse * 0.5 + low * 0.5);
-    this.updateHud(t);
+    this.updateHud(t, beat);
   };
 
   /**
@@ -451,7 +451,7 @@ export class PlayController {
     this.feedbackTimer = window.setTimeout(() => el.classList.remove('pop'), 1150);
   }
 
-  private updateHud(t: number) {
+  private updateHud(t: number, beat: 'none' | 'beat' | 'downbeat' = 'none') {
     const s = this.session;
     const c = this.hudCache;
     const score = Math.round(s.score);
@@ -490,23 +490,23 @@ export class PlayController {
     if (songP !== c.songP) this.hud.timeline.style.setProperty('--song-p', String(songP));
     const left = Math.max(0, Math.ceil(this.chart.duration - Math.max(0, t)));
     if (left !== c.left) this.hud.remaining.textContent = `-${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
-    this.updateBreak(t);
+    this.updateBreak(t, beat);
     Object.assign(c, { score, mult, streak: s.streak, od, stars, starP, odActive: s.overdriveActive, songP, left });
   }
 
   /**
    * The break countdown: bars left until the next note, with a ring that drains until the note is
-   * due. It floats gently while it is up (an even sway, whatever the music does), its number pops and
-   * its ring glows on every bar line, and it takes its last two beats to leave, gone just before the
-   * notes kick in.
+   * due. It holds still; on every beat its ring breathes a little, the same each time; on every bar line the new number rolls up into place
+   * as the old one rolls away, and a ripple runs out from the ring. It takes its last two beats to
+   * leave, gone just before the notes kick in.
    */
-  private updateBreak(t: number) {
+  private updateBreak(t: number, beat: 'none' | 'beat' | 'downbeat') {
     const b = this.phase === 'playing' || this.phase === 'paused' ? this.breaks.find((x) => t >= x.from && t < x.to) : undefined;
     const el = this.hud.breakTimer;
     const c = this.hudCache;
     if (!b) {
       if (c.breakSec !== -1) {
-        el.classList.remove('on', 'final', 'leaving', 'bounce');
+        el.classList.remove('on', 'final', 'leaving');
         c.breakSec = -1;
       }
       return;
@@ -517,24 +517,20 @@ export class PlayController {
     const leaving = t >= b.to - fade;
     if (leaving && !el.classList.contains('leaving')) el.style.setProperty('--break-fade', `${fade.toFixed(2)}s`);
     el.classList.toggle('leaving', leaving);
-    const restart = (node: HTMLElement, cls: string) => {
-      node.classList.remove(cls);
-      void node.offsetWidth;
-      node.classList.add(cls);
-    };
+    const moving = !leaving && !reducedMotion();
     // Without a bar grid, fall back to seconds.
     const bars = this.barTimes.length > 1 ? barsLeft(t, b.next, this.barTimes) : Math.max(1, Math.ceil(b.next - t));
-    if (bars === c.breakSec) return;
+    if (bars === c.breakSec) {
+      if (beat !== 'none' && moving) breakBeat(this.hud.breakRing);
+      return;
+    }
     const first = c.breakSec === -1;
+    const was = this.hud.breakNumber.textContent ?? '';
     c.breakSec = bars;
     this.hud.breakNumber.textContent = String(bars);
     el.classList.add('on');
     el.classList.toggle('final', bars <= 1);
-    // A new bar: the number pops and the ring glows.
-    if (!first && !leaving) {
-      restart(this.hud.breakNumber, 'tick');
-      restart(el, 'bounce');
-    }
+    if (!first && moving) breakBar(el, this.hud.breakNumber, this.hud.breakRing, was);
   }
 
   dispose() {
@@ -554,4 +550,71 @@ export class PlayController {
     this.stage?.dispose();
     this.shownStage?.dispose();
   }
+}
+
+function reducedMotion(): boolean {
+  const m = document.documentElement.dataset.motion;
+  return m === 'reduced' || (m !== 'full' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+
+/**
+ * A beat in a break: the ring breathes out a little and brightens, then eases back. The same on
+ * every beat, loud or quiet, and on the ring alone (`scale`, apart from the ring's own turn), so it
+ * never pulls at the timer's place or its number.
+ */
+function breakBeat(fill: SVGCircleElement) {
+  fill.ownerSVGElement?.animate(
+    [
+      { scale: 1, opacity: 1 },
+      { scale: 1.03, opacity: 1, offset: 0.18 },
+      { scale: 1, opacity: 1 },
+    ],
+    { duration: 480, easing: 'cubic-bezier(0.25, 0.6, 0.35, 1)' },
+  );
+  fill.animate(
+    [
+      { filter: 'drop-shadow(0 0 8px currentColor) brightness(1)' },
+      { filter: 'drop-shadow(0 0 14px currentColor) brightness(1.25)', offset: 0.18 },
+      { filter: 'drop-shadow(0 0 8px currentColor) brightness(1)' },
+    ],
+    { duration: 480, easing: 'ease-out' },
+  );
+}
+
+/**
+ * A bar line in a break: like a counter, the old number rolls up out of the ring's window as the
+ * new one rolls up in after it (together, one number's height apart, so they never overlap); the
+ * ring lights up and a thin ripple runs out from it.
+ */
+function breakBar(timer: HTMLElement, num: HTMLElement, fill: SVGCircleElement, was: string) {
+  // Far enough that the next number waits wholly out of sight below the window.
+  const step = '125%';
+  const roll = { duration: 460, easing: 'cubic-bezier(0.6, 0, 0.2, 1)' };
+  num.animate([{ transform: `translateY(${step})` }, { transform: 'none' }], roll);
+  if (was) {
+    const ghost = num.cloneNode() as HTMLElement;
+    ghost.textContent = was;
+    ghost.classList.add('ghost');
+    ghost.setAttribute('aria-hidden', 'true');
+    num.after(ghost);
+    ghost.animate([{ transform: 'none' }, { transform: `translateY(-${step})` }], { ...roll, fill: 'forwards' }).finished.then(
+      () => ghost.remove(),
+      () => ghost.remove(),
+    );
+  }
+  fill.animate(
+    [
+      { filter: 'drop-shadow(0 0 8px currentColor) brightness(1)' },
+      { filter: 'drop-shadow(0 0 20px currentColor) brightness(1.5)', offset: 0.2 },
+      { filter: 'drop-shadow(0 0 8px currentColor) brightness(1)' },
+    ],
+    { duration: 700, easing: 'ease-out' },
+  );
+  timer.animate(
+    [
+      { transform: 'scale(1)', opacity: 0.7 },
+      { transform: 'scale(1.28)', opacity: 0 },
+    ],
+    { duration: 800, easing: 'cubic-bezier(0.2, 0.6, 0.3, 1)', pseudoElement: '::before' },
+  );
 }

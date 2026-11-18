@@ -3887,53 +3887,37 @@ input.text {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
 }
-/* While it is up it floats: a slow, even sway of its own, not the music's. It moves by `translate`
-   and `scale`, apart from the `transform` that places it, so its leaving can run over it without
-   a jump (the sway carries on into it). */
-.hud-break.on {
-  animation: break-float 3.2s ease-in-out infinite;
+/* The ripple a bar line sends out from the ring (played from PlayController's breakBar). */
+.hud-break::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  border: 2px solid var(--lit);
+  opacity: 0;
+  pointer-events: none;
 }
-@keyframes break-float {
-  0%,
-  100% {
-    translate: 0 0;
-    scale: 1;
-  }
-  50% {
-    translate: 0 -6px;
-    scale: 1.025;
-  }
+.hud-break.final::before {
+  border-color: var(--gold);
 }
-/* On the bar line it also lights up for a moment. */
-.hud-break.on.bounce .hud-break-ring .fill {
-  animation: break-glow 0.7s ease-out;
+/* The number shows through a round window inside the ring: on a bar line the old one rolls up out
+   of it as the next rolls up in (a copy of the old, laid over the same place), like a counter. */
+.hud-break-window {
+  position: absolute;
+  /* Inside the ring's inner edge, so the numbers never cross the ring. */
+  inset: 13%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  overflow: hidden;
 }
-.hud-break.on.bounce .hud-break-num {
-  animation:
-    break-tick 0.6s cubic-bezier(0.22, 1, 0.36, 1),
-    break-shine 0.7s ease-out;
+.hud-break-num.ghost {
+  position: absolute;
 }
-@keyframes break-glow {
-  0% {
-    filter: drop-shadow(0 0 8px currentColor) brightness(1);
-  }
-  25% {
-    filter: drop-shadow(0 0 22px currentColor) drop-shadow(0 0 44px currentColor) brightness(1.6);
-  }
-  100% {
-    filter: drop-shadow(0 0 8px currentColor) brightness(1);
-  }
-}
-@keyframes break-shine {
-  0% {
-    filter: brightness(1);
-  }
-  25% {
-    filter: brightness(1.35) drop-shadow(0 0 18px #fff);
-  }
-  100% {
-    filter: brightness(1);
-  }
+/* Its last pop is let out of the window. */
+.hud-break.leaving .hud-break-window {
+  overflow: visible;
 }
 /* Its last two beats: the number pops and lets go, the ring flares, thins and widens, and a second
    ring runs out from it like a ripple. Then it is gone. */
@@ -3950,9 +3934,7 @@ input.text {
   border-color: var(--gold);
 }
 .hud-break.on.leaving {
-  animation:
-    break-float 3.2s ease-in-out infinite,
-    break-leave var(--break-fade, 1s) cubic-bezier(0.3, 0, 0.3, 1) forwards;
+  animation: break-leave var(--break-fade, 1s) cubic-bezier(0.3, 0, 0.3, 1) forwards;
   transition: none;
 }
 .hud-break.on.leaving::after {
@@ -4081,9 +4063,6 @@ input.text {
   position: relative;
   z-index: 1;
 }
-.hud-break-num.tick {
-  animation: break-tick 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-}
 .hud-break.final .fill {
   color: var(--gold);
   stroke: var(--gold);
@@ -4092,16 +4071,6 @@ input.text {
 .hud-break.final .hud-break-num {
   color: #fff7c2;
   text-shadow: 0 0 30px var(--gold);
-}
-@keyframes break-tick {
-  0% {
-    transform: scale(1.25);
-    opacity: 0.5;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
 }
 
 .lane-key.pad {
@@ -4763,10 +4732,6 @@ input.text {
   animation-delay: 0s !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
-}
-:root[data-motion='reduced']
-  :is(.hud-break-num.tick, .hud-break.on, .hud-break.on.bounce .hud-break-ring .fill, .hud-break.on.bounce .hud-break-num) {
-  animation: none;
 }
 :root[data-motion='reduced'] .hud-break {
   transition: none;

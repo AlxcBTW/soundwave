@@ -360,7 +360,9 @@ export function PlayScreen({
             <circle cx="60" cy="60" r="52" className="track" />
             <circle cx="60" cy="60" r="52" className="fill" pathLength={1} data-hud="break-ring" />
           </svg>
-          <div className="hud-break-num" data-hud="break-num" />
+          <div className="hud-break-window">
+            <div className="hud-break-num" data-hud="break-num" />
+          </div>
         </div>
         {keys.map((k, i) => (
           <span key={i} className={`lane-key lane-${i} ${usingPad ? 'pad' : ''}`}>
