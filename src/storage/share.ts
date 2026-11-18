@@ -52,7 +52,13 @@ export async function chooseSaveTarget(name: string, kind: SaveKind): Promise<Sa
   if (picker) {
     let handle: FileSystemFileHandle;
     try {
-      handle = await picker({ suggestedName: name, types: [{ description: t.description, accept: { [t.mime]: [t.ext] } }] });
+      // The dialog takes only letters and digits after the dot of a file type, and refuses the rest
+      // outright ('.soundwave-backup'): such a file is offered under its own name, without a type.
+      const typed = /^\.[a-z0-9]{1,16}$/i.test(t.ext);
+      handle = await picker({
+        suggestedName: name,
+        ...(typed ? { types: [{ description: t.description, accept: { [t.mime]: [t.ext] } }] } : {}),
+      });
     } catch (e) {
       if ((e as DOMException).name === 'AbortError') return null;
       throw e;
