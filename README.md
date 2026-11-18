@@ -11,9 +11,9 @@ A rhythm game for your own music. Drop in a song (MP3, WAV, FLAC, OGG, M4A). The
 
 You play them on a 3D note highway with the keyboard, a controller or a touchscreen, in front of a live 3D festival stage that follows the music: a band, a crowd of thousands, beams, screens and pyro (with a light 2D backdrop as the fallback). Features: sustains, streak multiplier (up to ×6), overdrive phrases (Space doubles the multiplier, up to ×12), Perfect/Great/Good timing, star rating measured against a flawless run without overdrive (one to five stars at 3.5%, 8%, 15%, 46% and 77% of it, and gold stars beyond it, which takes overdrive), best scores, tap calibration and key rebinding.
 
-You pick up to four songs as a setlist, choose a part and a difficulty for the set and play the songs back to back, with a result after each and a total at the end. The main menu has two tabs: **Play**, with your setlist and a few sets dealt from your library (a shuffle, your newest songs, songs without a score), and **Edit**, with the track editor. `Q` and `E`, or a controller's shoulder buttons, switch between them.
+You pick up to four songs as a setlist, choose a part and a difficulty for the set and play the songs back to back, with a result after each and a total at the end. The main menu has two tabs: **Play**, with your setlist and a few sets dealt from your library (a shuffle, your newest songs, songs without a score), and **Edit**, with your tracks to open in the track editor. `Q` and `E`, or a controller's shoulder buttons, switch between them.
 
-A song previews by itself: highlight it in the music library or in the editor's track list, or open its page, and after a moment it plays from a third of the way in (at the songs' volume, with the menu music making way).
+A song previews by itself: stay on its row in the music library or on the Edit tab (or point at it with the mouse), or open its page, and after a moment it plays from a third of the way in (at the songs' volume, with the menu music making way). It stops as soon as you are on something else, such as the search field.
 
 Every chart can be changed, or written from nothing, in the **track editor**: with a keyboard, a mouse, a touchscreen or a controller. See [Track editor](#track-editor).
 
@@ -40,7 +40,7 @@ Controllers (Xbox, PlayStation 4 and 5, Nintendo Switch and most others) work in
 
 ## Track editor
 
-The **Edit** tab of the main menu opens the track editor: its big tile lists your songs, **Carry on** goes straight back into the songs you edited last, and **New track** brings in a new one. Pick a song to edit its charts, or bring in a new one and choose how it gets its first charts:
+The **Edit** tab of the main menu is the list of your tracks, with the highlighted track's sixteen charts beside it (which are yours, which are the game's). Pick a track to open it in the editor, or bring in a new one with **New track** and choose how it gets its first charts:
 
 - **Analyze** – the game charts the song as usual and you change what you like.
 - **Start from scratch** – no analysis. The game only listens for the tempo (a few seconds, on any device, phones included) and you get empty lanes with the bar lines in place.

@@ -8,6 +8,7 @@ import type { BestScore, SongMeta } from '../storage/db';
 import { Hint, useActions, useHints } from './actions';
 import { Cover } from './Cover';
 import { DIFFICULTY_LABEL, ICON_STROKE, PART_ICON, PART_LABEL, Stars } from './icons';
+import { usePreviewRows } from './usePreviewRows';
 
 export type SongStatus = AnalysisStatus;
 
@@ -97,10 +98,8 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
   const picked = setlist.map((id) => byId.get(id)).filter((s): s is SongMeta => !!s);
   const setTime = formatTime(picked.reduce((t, s) => t + s.duration, 0));
 
-  // The highlighted song plays its preview.
-  const currentSong = current?.id ?? null;
-  useEffect(() => onCurrent(currentSong), [currentSong, onCurrent]);
-  useEffect(() => () => onCurrent(null), [onCurrent]);
+  // The song the player is on plays its preview, and only while they are on it.
+  usePreviewRows(onCurrent);
 
   const cycleSort = () => {
     const next = SORTS[(SORTS.findIndex(([id]) => id === sort) + 1) % SORTS.length][0];
@@ -177,7 +176,7 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
             const busy = st.state === 'analyzing' || st.state === 'queued';
             const full = setlist.length >= SET_MAX && slot < 0;
             return (
-              <li key={s.id} className={`song-item ${slot >= 0 ? 'picked' : ''} ${current?.id === s.id ? 'current' : ''}`} style={{ ['--i' as string]: Math.min(i, 12) }}>
+              <li key={s.id} data-preview={s.id} className={`song-item ${slot >= 0 ? 'picked' : ''} ${current?.id === s.id ? 'current' : ''}`} style={{ ['--i' as string]: Math.min(i, 12) }}>
                 <button
                   type="button"
                   className="song-row"

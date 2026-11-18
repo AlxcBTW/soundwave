@@ -1,6 +1,6 @@
-import { FilePlus2, ListMusic, PencilRuler, Play, Plus, Power, Settings as SettingsIcon, Upload, type LucideIcon } from 'lucide-react';
+import { FilePlus2, ListMusic, PencilRuler, Play, Plus, Power, Search, Settings as SettingsIcon, Upload, type LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { analysisManager, type AnalysisStatus } from '../analysis/manager';
+import type { AnalysisStatus } from '../analysis/manager';
 import { playSfx } from '../audio/sfx';
 import { DEMO_ID } from '../audio/songAudio';
 import { formatTime, SET_MAX, suggestSets, type SuggestedSet } from '../game/setlist';
@@ -14,6 +14,7 @@ import { useGlyphStyle } from '../input/usePads';
 import { Hint, useActions } from './actions';
 import { Mosaic } from './Cover';
 import { ICON_STROKE } from './icons';
+import { TrackPicker, type TrackPickerProps } from './TrackPicker';
 import { useSlide } from './useSlide';
 
 interface Props {
@@ -31,10 +32,8 @@ interface Props {
   onLibrary(): void;
   onSet(ids: string[]): void;
   onAdd(): void;
-  /** Opens the list of tracks to edit; with `pick`, straight into choosing a file for a new one. */
-  onEditor(pick?: boolean): void;
-  /** Opens a song in the track editor. */
-  onEditSong(song: SongMeta): void;
+  /** What the Edit tab's list of tracks needs to bring songs in and open them in the editor. */
+  tracks: Omit<TrackPickerProps, 'songs' | 'status' | 'settings'>;
   onSettings(): void;
   /** Asks whether to close the game (absent where the game cannot close itself, as in a browser tab). */
   onExit?(): void;
@@ -47,41 +46,33 @@ const TABS: [Tab, string, LucideIcon][] = [
   ['play', 'Play', Play],
   ['edit', 'Edit', PencilRuler],
 ];
-const TAB_KEY = 'festival.home-tab';
-
-function loadTab(): Tab {
-  try {
-    if (localStorage.getItem(TAB_KEY) === 'edit') return 'edit';
-  } catch {
-    /* storage unavailable */
-  }
-  return 'play';
-}
+/**
+ * The tab the menu was on last, for as long as the game is open: coming back from the editor lands
+ * on Edit again, and a fresh start is always Play.
+ */
+let lastTab: Tab = 'play';
 
 const total = (songs: SongMeta[]) => formatTime(songs.reduce((t, s) => t + s.duration, 0));
 /** "3 songs · 9:12", or just "3 songs" while the length is not known yet. */
 const summary = (songs: SongMeta[]) => [count(songs.length), total(songs)].filter(Boolean).join(' · ');
 const count = (n: number) => `${n} ${n === 1 ? 'song' : 'songs'}`;
-const charts = (n: number) => `${n} ${n === 1 ? 'chart' : 'charts'} of your own`;
 
-export function HomeScreen({ songs, status, setlist, played, seed, importing, empty, onLibrary, onSet, onAdd, onEditor, onEditSong, onSettings, onExit, settings }: Props) {
+export function HomeScreen({ songs, status, setlist, played, seed, importing, empty, onLibrary, onSet, onAdd, tracks, onSettings, onExit, settings }: Props) {
   const style = useGlyphStyle(settings.glyphs);
   const mode = useInputMode();
-  const [tab, setTabState] = useState<Tab>(loadTab);
+  const [tab, setTabState] = useState<Tab>(lastTab);
   const [turn, setTurn] = useState<'fwd' | 'back'>('fwd');
   const tabRef = useRef(tab);
   tabRef.current = tab;
-  /** Set when the tab was switched from the shoulder buttons (Q and E): focus then follows onto its first tile. */
+  /** Set when the tab was switched from the shoulder buttons (Q and E): focus then follows into it. */
   const follow = useRef(false);
+  /** Presses of New track in the action bar, passed on to the list that owns the file chooser. */
+  const [picks, setPicks] = useState(0);
   const setTab = (t: Tab) => {
     if (t === tabRef.current) return;
+    lastTab = t;
     setTurn(t === 'edit' ? 'fwd' : 'back');
     setTabState(t);
-    try {
-      localStorage.setItem(TAB_KEY, t);
-    } catch {
-      /* ignore */
-    }
   };
 
   useEffect(() => {
@@ -108,27 +99,7 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
   const ready = useMemo(() => songs.filter((s) => status[s.id]?.state === 'ready'), [songs, status]);
   const sets: SuggestedSet[] = useMemo(() => suggestSets(ready, played, seed), [ready, played, seed]);
   const busy = songs.filter((s) => status[s.id]?.state === 'analyzing' || status[s.id]?.state === 'queued');
-
-  // The Edit tab: the player's own songs, and the ones with charts of their own, latest first.
-  const own = useMemo(() => songs.filter((s) => s.id !== DEMO_ID), [songs]);
-  const editedKey = own.map((s) => `${s.id}:${status[s.id]?.edited ?? 0}`).join();
-  const [edited, setEdited] = useState<{ song: SongMeta; charts: number }[]>([]);
-  useEffect(() => {
-    let live = true;
-    void (async () => {
-      const list: { song: SongMeta; charts: number; at: number }[] = [];
-      for (const song of own) {
-        const n = status[song.id]?.edited;
-        if (!n) continue;
-        const e = await analysisManager.editsOf(song.id);
-        list.push({ song, charts: n, at: e?.updatedAt ?? 0 });
-      }
-      if (live) setEdited(list.sort((a, b) => b.at - a.at));
-    })();
-    return () => {
-      live = false;
-    };
-  }, [editedKey]);
+  const own = songs.filter((s) => s.id !== DEMO_ID).length;
 
   const touch = mode === 'touch';
   // Tiles that were here when the screen opened arrive together; one that turns up later (a set
@@ -138,16 +109,18 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
   const late = (id: string) => (opening.current!.has(id) ? '' : 'late');
 
   useActions([
-    tab === 'play'
-      ? { id: 'add', label: importing ? `Importing ${importing}…` : 'Add songs', icon: Upload, kbd: 'KeyA', pad: 'b3', run: onAdd }
-      : { id: 'new', label: 'New track', icon: FilePlus2, kbd: 'KeyN', pad: 'b3', run: () => onEditor(true) },
+    ...(tab === 'play'
+      ? [{ id: 'add', label: importing ? `Importing ${importing}…` : 'Add songs', icon: Upload, kbd: 'KeyA', pad: 'b3', run: onAdd }]
+      : [
+          { id: 'search', label: 'Search', icon: Search, kbd: 'Slash', bar: false, run: () => document.querySelector<HTMLInputElement>('.track-picker input[type=search]')?.focus() },
+          { id: 'new', label: 'New track', icon: FilePlus2, kbd: 'KeyN', pad: 'b3', primary: true, run: () => setPicks((n) => n + 1) },
+        ]),
     { id: 'settings', label: 'Settings', icon: SettingsIcon, kbd: 'KeyS', pad: 'b9', run: onSettings },
     // Esc and the controller's back button: there is nowhere further back than out.
     ...(onExit ? [{ id: 'exit', label: 'Exit', icon: Power, kbd: 'Escape', bar: false, run: onExit }] : []),
   ]);
 
   const tabRow = useSlide<HTMLDivElement>(tab);
-  const recent = edited.slice(0, 2);
 
   return (
     <div className="page home" data-nav-bar>
@@ -180,7 +153,7 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
           </button>
         )}
       </header>
-      <main className={`page-body home-body ${turn}`} key={tab} id="home-panel" role="tabpanel" aria-labelledby={`home-tab-${tab}`}>
+      <main className={`page-body home-body ${tab} ${turn}`} key={tab} id="home-panel" role="tabpanel" aria-labelledby={`home-tab-${tab}`}>
         {tab === 'play' ? (
           <>
             <h2 className="page-title">Pick a set</h2>
@@ -243,58 +216,12 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
           </>
         ) : (
           <>
-            <h2 className="page-title">Make your own charts</h2>
-            <div className="tiles" data-nav-group="tiles">
-              {/* The feature: the track editor, with the tracks that already have charts of the player's own. */}
-              <button type="button" className="tile hero" data-autofocus aria-label={`Track editor: ${own.length ? `${own.length} ${own.length === 1 ? 'track' : 'tracks'}, ${edited.length} with charts of your own` : 'no tracks yet'}. Opens your tracks.`} onClick={() => onEditor()}>
-                {(edited.length ? edited.map((e) => e.song) : own).length ? (
-                  <Mosaic songs={edited.length ? edited.map((e) => e.song) : own} />
-                ) : (
-                  <span className="mosaic blank" aria-hidden>
-                    <PencilRuler strokeWidth={ICON_STROKE} />
-                  </span>
-                )}
-                <span className="tile-text">
-                  <span className="tile-title">Track editor</span>
-                  <span className="tile-cap">{own.length ? 'Change the charts the game wrote, or write your own from nothing. The game plays yours.' : 'Bring in a song and write its charts, note by note or by playing along.'}</span>
-                  <span className="hero-songs">
-                    {Array.from({ length: SET_MAX }, (_, i) => {
-                      const e = edited[i];
-                      return (
-                        <span key={i} className={`hero-song ${e ? '' : 'open'}`}>
-                          <span className="hero-num">{i + 1}</span>
-                          <span className="hero-name">{e ? e.song.title : i === edited.length ? 'Nothing edited yet' : ''}</span>
-                          {e && <span className="hero-by">{charts(e.charts)}</span>}
-                        </span>
-                      );
-                    })}
-                  </span>
-                </span>
-              </button>
-              <div className="tile-stack">
-                {recent.map((e, i) => (
-                  <button type="button" key={e.song.id} className="tile" style={{ ['--i' as string]: i + 1 }} aria-label={`Carry on with ${e.song.title} by ${e.song.artist}: ${charts(e.charts)}`} onClick={() => onEditSong(e.song)}>
-                    <Mosaic songs={[e.song]} />
-                    <span className="tile-text">
-                      <span className="tile-title">Carry on</span>
-                      <span className="tile-cap tile-song">
-                        {e.song.title} · {e.song.artist}
-                      </span>
-                      <span className="tile-meta">{charts(e.charts)}</span>
-                    </span>
-                  </button>
-                ))}
-                <button type="button" className="tile add" style={{ ['--i' as string]: recent.length + 1 }} onClick={() => onEditor(true)}>
-                  <span className="mosaic blank dashed" aria-hidden>
-                    <Plus strokeWidth={ICON_STROKE} />
-                  </span>
-                  <span className="tile-text">
-                    <span className="tile-title">New track</span>
-                    <span className="tile-cap">Bring in a song. Let the game chart it for you to edit, or start with empty lanes.</span>
-                  </span>
-                </button>
-              </div>
+            {/* Edit is a workbench, not a shelf: the tracks themselves, and a press on one opens it in the editor. */}
+            <div className="edit-head">
+              <h2 className="page-title">Edit a track</h2>
+              <p className="head-count">{own ? `${own} ${own === 1 ? 'track' : 'tracks'} · pick one to open it in the editor` : 'Bring in a song to write its charts'}</p>
             </div>
+            <TrackPicker songs={songs} status={status} settings={settings} pickSignal={picks} {...tracks} />
           </>
         )}
       </main>

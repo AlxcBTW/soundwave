@@ -27,7 +27,7 @@ import { saveSongFile, watchOpenedFiles } from '../storage/share';
 import { convertLibrary, readSongPackage, songFile, storeNewSong, storeSongPackage } from '../storage/songFile';
 import { ActionBar, useActions } from './actions';
 import { Dialog } from './Dialog';
-import { EditorHub, type PickedSong } from './EditorHub';
+import type { PickedSong } from './TrackPicker';
 import { EditorScreen } from './EditorScreen';
 import { FocusRing } from './FocusRing';
 import { HomeScreen } from './HomeScreen';
@@ -75,7 +75,6 @@ type View =
   | { name: 'library' }
   | LobbyView
   | { name: 'settings'; back: View }
-  | { name: 'editor-hub'; pick?: boolean }
   | EditorView
   | { name: 'play'; run: Run; buffer: AudioBuffer; key: number }
   | { name: 'results'; run: Run }
@@ -87,7 +86,7 @@ function Busy() {
   return null;
 }
 
-const DEPTH: Record<View['name'], number> = { home: 0, library: 1, settings: 1, 'editor-hub': 1, lobby: 2, editor: 2, play: 3, results: 4, summary: 5 };
+const DEPTH: Record<View['name'], number> = { home: 0, library: 1, settings: 1, lobby: 2, editor: 2, play: 3, results: 4, summary: 5 };
 
 export function App() {
   const [view, setView] = useState<View>({ name: 'home' });
@@ -362,8 +361,7 @@ export function App() {
   // Files dropped anywhere on a menu are imported.
   const [dragging, setDragging] = useState(false);
   const inMenus = view.name !== 'play';
-  // The editor takes files through its own door (New track), where it asks how to chart them.
-  const takesDrops = inMenus && view.name !== 'editor' && view.name !== 'editor-hub';
+  const takesDrops = inMenus && view.name !== 'editor';
   useEffect(() => {
     if (!takesDrops) return;
     let depth = 0;
@@ -503,7 +501,7 @@ export function App() {
 
   // A song previews by itself: the one whose page is open, else the one highlighted in a list.
   const sheetOpen = !!sheet && inMenus && view.name !== 'editor';
-  const previewId = launch !== null ? null : sheetOpen ? sheet.id : view.name === 'library' || view.name === 'editor-hub' ? highlight : null;
+  const previewId = launch !== null ? null : sheetOpen ? sheet.id : view.name === 'library' || view.name === 'home' ? highlight : null;
   useEffect(() => previewSong(previewId), [previewId]);
   useEffect(() => () => previewSong(null), []);
   useEffect(() => setPreviewVolume(settings.volume), [settings.volume]);
@@ -588,26 +586,7 @@ export function App() {
     );
   } else {
     let screen: React.ReactNode;
-    if (view.name === 'editor-hub') {
-      screen = (
-        <EditorHub
-          songs={songs}
-          status={status}
-          settings={settings}
-          device={device}
-          pick={view.pick}
-          previewing={heard}
-          onCurrent={setHighlight}
-          onNew={addTrack}
-          onPackage={async (file) => (await importFiles([file]))[0]}
-          onAnalyze={(song) => analysisManager.enqueue(song.id, true)}
-          onScratch={startFromScratch}
-          onOpen={(song) => setView({ name: 'editor', song, back: { name: 'editor-hub' } })}
-          onBack={goHome}
-          toast={toast}
-        />
-      );
-    } else if (view.name === 'editor') {
+    if (view.name === 'editor') {
       screen = <EditorScreen key={view.song.id} song={view.song} settings={settings} tested={view.tested} onTest={(chart, startAt) => testPlay(view, chart, startAt)} onBack={() => setView(view.back)} />;
     } else if (view.name === 'settings') {
       screen = <SettingsScreen settings={settings} model={model} device={device} onChange={updateSettings} onBack={() => setView(view.back)} />;
@@ -667,8 +646,17 @@ export function App() {
           onLibrary={() => setView({ name: 'library' })}
           onSet={(ids) => setView({ name: 'lobby', ids, from: 'home' })}
           onAdd={addSongs}
-          onEditor={(pick) => setView({ name: 'editor-hub', pick })}
-          onEditSong={(song) => setView({ name: 'editor', song, back: view })}
+          tracks={{
+            device,
+            previewing: heard,
+            onCurrent: setHighlight,
+            onNew: addTrack,
+            onPackage: async (file) => (await importFiles([file]))[0],
+            onAnalyze: (song) => analysisManager.enqueue(song.id, true),
+            onScratch: startFromScratch,
+            onOpen: (song) => setView({ name: 'editor', song, back: view }),
+            toast,
+          }}
           onSettings={() => setView({ name: 'settings', back: view })}
           onExit={canExit() ? () => setExitAsk(true) : undefined}
           settings={settings}
