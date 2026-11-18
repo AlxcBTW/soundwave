@@ -1686,7 +1686,8 @@ img.cover {
   }
 }
 
-/* A song's menu: a small panel at the pointer (or beside the song), over the screen left in view. */
+/* A song's menu: a small pane of dark frosted glass at the pointer (or beside the song), over the
+   screen left in view. */
 .overlay.popover {
   display: block;
   z-index: 30;
@@ -1703,11 +1704,14 @@ img.cover {
   min-width: 14rem;
   max-width: min(21rem, calc(100vw - 16px));
   padding: 0.4rem;
+  border: 1px solid rgb(255 255 255 / 0.12);
   border-radius: var(--r-m);
-  background: var(--panel-solid);
+  background: linear-gradient(to bottom, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.015) 40%), rgb(6 4 14 / 0.62);
+  backdrop-filter: blur(22px) saturate(1.5);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
   box-shadow:
-    0 0 0 1px var(--line),
-    0 18px 40px -12px rgb(0 0 0 / 0.75);
+    inset 0 1px 0 rgb(255 255 255 / 0.1),
+    0 22px 48px -14px rgb(0 0 0 / 0.8);
   animation: ctx-in 0.16s var(--ease);
 }
 .overlay.popover.leaving .ctx-menu {
@@ -1747,7 +1751,7 @@ img.cover {
 }
 .ctx-item.is-focus,
 :root[data-input='mouse'] .ctx-item:hover:not(:disabled) {
-  background: var(--row-hi);
+  background: rgb(255 255 255 / 0.11);
 }
 .ctx-item.danger,
 .ctx-item.danger svg {
