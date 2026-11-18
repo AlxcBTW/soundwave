@@ -51,7 +51,12 @@ const navLive = () => !document.querySelector('[data-nav-off]');
 
 const shown = (el: HTMLElement) => {
   const r = el.getBoundingClientRect();
-  return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+  if (r.width <= 0 || r.height <= 0 || getComputedStyle(el).visibility === 'hidden') return false;
+  // What a closed <details> holds keeps its boxes but is not drawn, and cannot take focus (its
+  // summary can). checkVisibility() knows; where it is missing, the closed <details> says so.
+  const closed = el.closest('details:not([open])');
+  if (closed && !(el.tagName === 'SUMMARY' && el.parentElement === closed)) return false;
+  return typeof el.checkVisibility === 'function' ? el.checkVisibility() : true;
 };
 
 export function focusables(scope: ParentNode = navScope()): HTMLElement[] {

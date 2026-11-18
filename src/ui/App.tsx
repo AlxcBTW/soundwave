@@ -1037,8 +1037,8 @@ export function App() {
           )}
         </Dialog>
       )}
-      {appCard === 'update' && <UpdateCard onClose={() => setAppCard(null)} />}
-      {appCard === 'install' && <InstallAppCard onClose={() => setAppCard(null)} />}
+      {appCard === 'update' && <UpdateCard settings={settings} onClose={() => setAppCard(null)} />}
+      {appCard === 'install' && <InstallAppCard settings={settings} onClose={() => setAppCard(null)} />}
       {typing && <VirtualKeyboard target={typing} settings={settings} onClose={() => setTyping(null)} />}
       {/* The desktop window has no title bar: in Window mode this strip along the top moves it. */}
       {inDesktopApp() && settings.displayMode === 'windowed' && <div className="drag-strip" data-tauri-drag-region aria-hidden />}

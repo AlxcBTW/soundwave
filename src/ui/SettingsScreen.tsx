@@ -519,7 +519,7 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
         </Dialog>
       )}
       {library.ui}
-      {updateOpen && <UpdateCard onClose={() => setUpdateOpen(false)} />}
+      {updateOpen && <UpdateCard settings={settings} onClose={() => setUpdateOpen(false)} />}
       {calibrating && (
         <Calibration
           onDone={(ms) => {

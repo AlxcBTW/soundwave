@@ -10,8 +10,17 @@ import {
   type Platform,
 } from '../app/release';
 import { installUpdate, updates } from '../app/updates';
+import type { Settings } from '../game/settings';
+import { backInput } from '../input/pads';
+import { Hint, useHints } from './actions';
 import { Dialog } from './Dialog';
 import { ICON_STROKE } from './icons';
+
+/** The back button's hint (Esc, or the controller's back button), on a card's own way out. */
+function BackHint({ settings }: { settings: Settings }) {
+  const { mode, style } = useHints(settings);
+  return <Hint kbd="Escape" pad={backInput(style)} mode={mode} style={style} />;
+}
 
 const PLATFORM_NAME: Record<Platform, string> = { windows: 'Windows', macos: 'macOS', linux: 'Linux' };
 const mb = (bytes: number) => `${Math.max(1, Math.round(bytes / 1e6))} MB`;
@@ -33,7 +42,7 @@ function plainNotes(notes: string): string[] {
 }
 
 /** Offers the update the desktop app found: what is new, then install and restart. */
-export function UpdateCard({ onClose }: { onClose(): void }) {
+export function UpdateCard({ settings, onClose }: { settings: Settings; onClose(): void }) {
   const status = useSyncExternalStore(updates.subscribe, updates.snapshot);
   const working = status.state === 'downloading' || status.state === 'installing';
   const version = 'version' in status ? status.version : '';
@@ -81,6 +90,7 @@ export function UpdateCard({ onClose }: { onClose(): void }) {
             data-autofocus={status.state === 'available' ? undefined : ''}
             onClick={close}
           >
+            <BackHint settings={settings} />
             {working ? 'Hide' : 'Later'}
           </button>
         </div>
@@ -90,7 +100,7 @@ export function UpdateCard({ onClose }: { onClose(): void }) {
 }
 
 /** On the website: where to get the desktop app, for this computer first. */
-export function InstallAppCard({ onClose }: { onClose(): void }) {
+export function InstallAppCard({ settings, onClose }: { settings: Settings; onClose(): void }) {
   const [release, setRelease] = useState<LatestRelease | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -174,6 +184,7 @@ export function InstallAppCard({ onClose }: { onClose(): void }) {
             </p>
           )}
           <button type="button" className="btn wide" data-sfx="back" onClick={close}>
+            <BackHint settings={settings} />
             Close
           </button>
         </div>
