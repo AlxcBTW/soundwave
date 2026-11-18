@@ -106,6 +106,9 @@ export class AudioEngine {
     else src.start(startAt - from / rate, 0);
     src.onended = () => {
       if (this.source === src && this.playing) {
+        // It stopped at the end: that is where it now stands (a pause after this finds it stopped,
+        // and would otherwise leave the time where this playback started).
+        this.pausedAt = src.buffer?.duration ?? this.pausedAt;
         this.playing = false;
         this.onEnded?.();
       }
