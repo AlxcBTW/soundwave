@@ -39,7 +39,8 @@ export function pruneSetlist(list: readonly string[], known: ReadonlySet<string>
   return [...new Set(list)].filter((id) => known.has(id)).slice(0, SET_MAX);
 }
 
-export const formatTime = (seconds: number) => (seconds > 0 ? `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}` : '');
+export const formatTime = (seconds: number) =>
+  seconds > 0 ? `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}` : '';
 
 export interface SetSong {
   id: string;

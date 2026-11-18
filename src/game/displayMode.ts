@@ -25,7 +25,8 @@ export function windowedSize(monitorWidth: number, monitorHeight: number): { wid
 }
 
 /** Whether the game runs somewhere it can close itself: the desktop app, or a window installed from the browser. */
-export const canExit = () => inDesktopApp() || (typeof matchMedia !== 'undefined' && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches);
+export const canExit = () =>
+  inDesktopApp() || (typeof matchMedia !== 'undefined' && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches);
 
 /**
  * Closes the game. In the desktop app the app itself quits (its own exit_app command); should an
@@ -40,7 +41,10 @@ export async function exitApp() {
   } catch (err) {
     console.warn('Could not quit through the app, closing the window instead', err);
     const win = getCurrentWindow();
-    await win.close().catch(() => win.destroy()).catch((e) => console.warn('Could not close the window', e));
+    await win
+      .close()
+      .catch(() => win.destroy())
+      .catch((e) => console.warn('Could not close the window', e));
   }
 }
 

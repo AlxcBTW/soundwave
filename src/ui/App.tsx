@@ -13,14 +13,35 @@ import { detectGrid } from '../editor/detect';
 import { emptyEdits } from '../editor/edits';
 import type { Results } from '../game/GameSession';
 import { applyDisplayMode, canExit, exitApp, inDesktopApp } from '../game/displayMode';
-import { loadPick, loadSetlist, partFor, pruneSetlist, savePick, saveSetlist, SET_MAX, setParts, toggleSong, type Pick, type ThinParts } from '../game/setlist';
+import {
+  loadPick,
+  loadSetlist,
+  partFor,
+  pruneSetlist,
+  savePick,
+  saveSetlist,
+  SET_MAX,
+  setParts,
+  toggleSong,
+  type Pick,
+  type ThinParts,
+} from '../game/setlist';
 import { loadSettings, saveSettings, type Settings } from '../game/settings';
 import { getInputMode, installInputMode, setInputMode, usesFocus } from '../input/inputMode';
 import { EDIT_EVENT, focusStart, installMenuNav } from '../input/menuNav';
 import { followOutputDevice, muteWhileUnfocused } from '../audio/output';
 import { pads, resolveStyle } from '../input/pads';
 import { menuPulse, setMenuRumble } from '../input/rumble';
-import { deleteSong, getSong, listAllScores, listSongs, StorageBlockedError, submitScore, type BestScore, type SongMeta } from '../storage/db';
+import {
+  deleteSong,
+  getSong,
+  listAllScores,
+  listSongs,
+  StorageBlockedError,
+  submitScore,
+  type BestScore,
+  type SongMeta,
+} from '../storage/db';
 import { soundwaveFileName, isSoundwaveFile } from '../storage/soundwaveFile';
 import { saveSongFile, watchOpenedFiles } from '../storage/share';
 import { readSongPackage, songFile, storeNewSong, storeSongPackage } from '../storage/songFile';
@@ -105,7 +126,8 @@ export function App() {
   useEffect(() => {
     const edit = (e: Event) => {
       const field = (e as CustomEvent<HTMLElement>).detail;
-      if ((field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) && !field.disabled && !field.readOnly) setTyping(field);
+      if ((field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) && !field.disabled && !field.readOnly)
+        setTyping(field);
     };
     // The game has no use for the browser's right-click menu, anywhere.
     const noMenu = (e: Event) => e.preventDefault();
@@ -142,7 +164,15 @@ export function App() {
     const stopNav = installMenuNav(() => resolveStyle(settingsRef.current.glyphs, pads.snapshot().family));
     const stopSounds = installUiSounds();
     void loadSfx();
-    if (import.meta.env.DEV) Object.assign(window, { __audio: { sfx: sfxStatus, music: menuMusicStatus }, __input: setInputMode, __analysis: analysisManager, __stemModel: stemModel, __pads: pads, __preview: previewStatus });
+    if (import.meta.env.DEV)
+      Object.assign(window, {
+        __audio: { sfx: sfxStatus, music: menuMusicStatus },
+        __input: setInputMode,
+        __analysis: analysisManager,
+        __stemModel: stemModel,
+        __pads: pads,
+        __preview: previewStatus,
+      });
     return () => {
       stopMode();
       stopNav();
@@ -173,7 +203,11 @@ export function App() {
       setSongs(await listSongs());
     } catch (e) {
       setSongs([]);
-      toast(e instanceof StorageBlockedError ? e.message : 'Song storage is unavailable in this browser window. Imported songs will not be saved.');
+      toast(
+        e instanceof StorageBlockedError
+          ? e.message
+          : 'Song storage is unavailable in this browser window. Imported songs will not be saved.',
+      );
     }
     setLoaded((l) => (l.songs ? l : { ...l, songs: true }));
   }, [toast]);
@@ -343,7 +377,12 @@ export function App() {
         }
         const found = await detectGrid(buffer);
         song = { ...meta, duration: meta.duration || buffer.duration };
-        await storeNewSong(song, audio, { ...emptyEdits(), grid: found.grid, ...(found.tracked ? { tracked: found.tracked } : {}), duration: buffer.duration });
+        await storeNewSong(song, audio, {
+          ...emptyEdits(),
+          grid: found.grid,
+          ...(found.tracked ? { tracked: found.tracked } : {}),
+          duration: buffer.duration,
+        });
       } else await storeNewSong(song, audio);
       playSfx('add');
       await refresh();
@@ -357,7 +396,13 @@ export function App() {
     const buffer = await loadSongBuffer(song.id);
     const found = await detectGrid(buffer);
     const had = await analysisManager.editsOf(song.id);
-    await analysisManager.saveEdits(song.id, { ...(had ?? emptyEdits()), grid: found.grid, ...(found.tracked ? { tracked: found.tracked } : {}), duration: buffer.duration, updatedAt: Date.now() });
+    await analysisManager.saveEdits(song.id, {
+      ...(had ?? emptyEdits()),
+      grid: found.grid,
+      ...(found.tracked ? { tracked: found.tracked } : {}),
+      duration: buffer.duration,
+      updatedAt: Date.now(),
+    });
   }, []);
 
   // Files dropped anywhere on a menu are imported.
@@ -399,7 +444,8 @@ export function App() {
   }, [takesDrops, importFiles]);
 
   const toggle = (song: SongMeta) => {
-    if (!setlist.includes(song.id) && setlist.length >= SET_MAX) return toast(`The setlist holds ${SET_MAX} songs. Take one out to add another.`);
+    if (!setlist.includes(song.id) && setlist.length >= SET_MAX)
+      return toast(`The setlist holds ${SET_MAX} songs. Take one out to add another.`);
     setSetlist(toggleSong(setlist, song.id));
   };
 
@@ -454,7 +500,11 @@ export function App() {
         setLaunch(null);
         return toast('No notes were found for this part. Try another part.');
       }
-      await playAt({ songs: entries.map((e) => e.song), charts: entries.map((e) => e.chart), index: 0, results: [], pick: use, lobby }, 0, true);
+      await playAt(
+        { songs: entries.map((e) => e.song), charts: entries.map((e) => e.chart), index: 0, results: [], pick: use, lobby },
+        0,
+        true,
+      );
     } catch (e) {
       setLaunch(null);
       toast((e as Error).message);
@@ -464,7 +514,18 @@ export function App() {
   /** Plays a chart from the track editor in the game itself; the editor comes back when it ends. */
   const testPlay = (editor: EditorView, chart: Chart, startAt: number) => {
     menuPulse('launch');
-    void playAt({ songs: [editor.song], charts: [chart], index: 0, results: [], pick: { part: chart.part, difficulty: chart.difficulty }, lobby: { name: 'lobby', ids: [], from: 'home' }, test: { back: editor, startAt } }, 0);
+    void playAt(
+      {
+        songs: [editor.song],
+        charts: [chart],
+        index: 0,
+        results: [],
+        pick: { part: chart.part, difficulty: chart.difficulty },
+        lobby: { name: 'lobby', ids: [], from: 'home' },
+        test: { back: editor, startAt },
+      },
+      0,
+    );
   };
 
   const withResult = (run: Run, result: SetResult): Run => {
@@ -508,7 +569,14 @@ export function App() {
   // A song previews by itself (unless that is switched off): the one whose page is open, else the one
   // highlighted in a list.
   const sheetOpen = !!sheet && inMenus && view.name !== 'editor';
-  const previewId = launch !== null || !settings.songPreviews ? null : sheetOpen ? sheet.id : view.name === 'library' || view.name === 'home' ? highlight : null;
+  const previewId =
+    launch !== null || !settings.songPreviews
+      ? null
+      : sheetOpen
+        ? sheet.id
+        : view.name === 'library' || view.name === 'home'
+          ? highlight
+          : null;
   useEffect(() => previewSong(previewId), [previewId]);
   useEffect(() => () => previewSong(null), []);
   useEffect(() => setPreviewVolume(settings.volume), [settings.volume]);
@@ -594,9 +662,20 @@ export function App() {
   } else {
     let screen: React.ReactNode;
     if (view.name === 'editor') {
-      screen = <EditorScreen key={view.song.id} song={view.song} settings={settings} tested={view.tested} onTest={(chart, startAt) => testPlay(view, chart, startAt)} onBack={() => setView(view.back)} />;
+      screen = (
+        <EditorScreen
+          key={view.song.id}
+          song={view.song}
+          settings={settings}
+          tested={view.tested}
+          onTest={(chart, startAt) => testPlay(view, chart, startAt)}
+          onBack={() => setView(view.back)}
+        />
+      );
     } else if (view.name === 'settings') {
-      screen = <SettingsScreen settings={settings} model={model} device={device} onChange={updateSettings} onBack={() => setView(view.back)} />;
+      screen = (
+        <SettingsScreen settings={settings} model={model} device={device} onChange={updateSettings} onBack={() => setView(view.back)} />
+      );
     } else if (view.name === 'library') {
       screen = (
         <LibraryScreen
@@ -618,7 +697,16 @@ export function App() {
     } else if (view.name === 'lobby') {
       const list = view.ids.map((id) => byId.get(id)).filter((s): s is SongMeta => !!s);
       screen = (
-        <LobbyScreen songs={list} pick={pick} thin={thin} scores={scores} settings={settings} onPick={setPick} onStart={() => void start(view)} onBack={() => (view.from === 'library' ? setView({ name: 'library' }) : goHome())} />
+        <LobbyScreen
+          songs={list}
+          pick={pick}
+          thin={thin}
+          scores={scores}
+          settings={settings}
+          onPick={setPick}
+          onStart={() => void start(view)}
+          onBack={() => (view.from === 'library' ? setView({ name: 'library' }) : goHome())}
+        />
       );
     } else if (view.name === 'results') {
       const { run } = view;
@@ -639,7 +727,9 @@ export function App() {
       );
     } else if (view.name === 'summary') {
       const { run } = view;
-      screen = <SummaryScreen set={run.results} subtitle={subtitle(run)} onAgain={() => void playAt({ ...run, results: [] }, 0)} onDone={goHome} />;
+      screen = (
+        <SummaryScreen set={run.results} subtitle={subtitle(run)} onAgain={() => void playAt({ ...run, results: [] }, 0)} onDone={goHome} />
+      );
     } else {
       screen = (
         <HomeScreen
@@ -718,7 +808,14 @@ export function App() {
         <div className="menu settings-over" data-modal>
           <div className="veil" aria-hidden />
           <div className="scene fwd">
-            <SettingsScreen settings={settings} model={model} device={device} onChange={updateSettings} onBack={() => setSongSettings(false)} inSong />
+            <SettingsScreen
+              settings={settings}
+              model={model}
+              device={device}
+              onChange={updateSettings}
+              onBack={() => setSongSettings(false)}
+              inSong
+            />
           </div>
         </div>
       )}

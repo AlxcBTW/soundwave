@@ -105,8 +105,20 @@ function beamTexture(kind: 'glow' | 'core'): THREE.CanvasTexture {
   const grad = g.createLinearGradient(0, 0, 64, 0);
   const stops: [number, number][] =
     kind === 'glow'
-      ? [[0, 0], [0.14, 0], [0.28, 26], [0.39, 110], [0.46, 215], [0.5, 255]]
-      : [[0, 0], [0.2, 0], [0.38, 150], [0.5, 255]];
+      ? [
+          [0, 0],
+          [0.14, 0],
+          [0.28, 26],
+          [0.39, 110],
+          [0.46, 215],
+          [0.5, 255],
+        ]
+      : [
+          [0, 0],
+          [0.2, 0],
+          [0.38, 150],
+          [0.5, 255],
+        ];
   for (const [at, v] of stops) {
     grad.addColorStop(at, `rgb(${v},${v},${v})`);
     if (at < 0.5) grad.addColorStop(1 - at, `rgb(${v},${v},${v})`);
@@ -459,7 +471,13 @@ export class Highway {
       fill.position.set(x, 0.005, 0);
       const glow = new THREE.Mesh(
         padGeo,
-        new THREE.MeshBasicMaterial({ color: this.laneColors[i], transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }),
+        new THREE.MeshBasicMaterial({
+          color: this.laneColors[i],
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }),
       );
       glow.quaternion.copy(this.flat);
       glow.position.set(x, 0.01, 0);
@@ -492,7 +510,11 @@ export class Highway {
     const coreGeo2 = new THREE.ShapeGeometry(roundedRect(0.73, 0.23, 0.075), 10);
     coreGeo2.rotateX(-Math.PI / 2);
     coreGeo2.translate(0, 0.148, 0);
-    this.cores = new THREE.InstancedMesh(coreGeo2, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.92, depthWrite: false }), MAX_GEMS);
+    this.cores = new THREE.InstancedMesh(
+      coreGeo2,
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.92, depthWrite: false }),
+      MAX_GEMS,
+    );
     this.cores.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_GEMS * 3), 3);
     this.cores.frustumCulled = false;
     this.root.add(this.cores);
@@ -512,16 +534,8 @@ export class Highway {
     const tailGeo = new THREE.PlaneGeometry(1, 1);
     tailGeo.rotateX(-Math.PI / 2);
     tailGeo.translate(0, 0, -0.5); // extends from z=0 to z=-1 before scaling
-    this.tails = new THREE.InstancedMesh(
-      tailGeo,
-      new THREE.MeshBasicMaterial({ map: beamTexture('glow'), ...LIGHT }),
-      MAX_TAILS,
-    );
-    this.tailCores = new THREE.InstancedMesh(
-      tailGeo,
-      new THREE.MeshBasicMaterial({ map: beamTexture('core'), ...LIGHT }),
-      MAX_TAILS,
-    );
+    this.tails = new THREE.InstancedMesh(tailGeo, new THREE.MeshBasicMaterial({ map: beamTexture('glow'), ...LIGHT }), MAX_TAILS);
+    this.tailCores = new THREE.InstancedMesh(tailGeo, new THREE.MeshBasicMaterial({ map: beamTexture('core'), ...LIGHT }), MAX_TAILS);
     for (const mesh of [this.tails, this.tailCores]) {
       mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TAILS * 3), 3);
       mesh.frustumCulled = false;
@@ -563,7 +577,14 @@ export class Highway {
     for (let i = 0; i < this.lanes; i++) {
       const f = new THREE.Mesh(
         flashGeo,
-        new THREE.MeshBasicMaterial({ map: tex, color: this.laneColors[i], transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }),
+        new THREE.MeshBasicMaterial({
+          map: tex,
+          color: this.laneColors[i],
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }),
       );
       f.position.set(this.laneX(i), 0.35, 0.05);
       this.root.add(f);
@@ -580,7 +601,14 @@ export class Highway {
     pGeo.setAttribute('color', new THREE.BufferAttribute(this.pCol, 3));
     this.particles = new THREE.Points(
       pGeo,
-      new THREE.PointsMaterial({ size: 0.16, map: tex, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.PointsMaterial({
+        size: 0.16,
+        map: tex,
+        vertexColors: true,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
     );
     this.particles.frustumCulled = false;
     this.root.add(this.particles);
@@ -654,7 +682,8 @@ export class Highway {
     this.camera.setViewOffset(w, h, 0, Math.round(now - strike * h), w, h);
     this.camera.updateProjectionMatrix();
     // A mote's size is in highway units: this turns it into pixels at its distance.
-    (this.motes.material as THREE.ShaderMaterial).uniforms.uScale.value = (h * this.renderer.getPixelRatio()) / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
+    (this.motes.material as THREE.ShaderMaterial).uniforms.uScale.value =
+      (h * this.renderer.getPixelRatio()) / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
   }
   /** Strike targets as thin pills, or as finger-sized squares set a little toward the player. */
   private setPadStyle(style: 'pill' | 'square') {
@@ -692,7 +721,10 @@ export class Highway {
     const h = this.canvas.clientHeight || 1;
     const eye = this.camera.position;
     this.camera.updateMatrixWorld();
-    this.v.set(0, 1 - ((h - margin) / h) * 2, 0.5).unproject(this.camera).sub(eye);
+    this.v
+      .set(0, 1 - ((h - margin) / h) * 2, 0.5)
+      .unproject(this.camera)
+      .sub(eye);
     const z = this.v.y < -1e-4 ? eye.z + this.v.z * (-eye.y / this.v.y) : 1.4;
     return this.padScreenPositions(Math.min(FRONT - 0.3, Math.max(0.9, z)));
   }
@@ -706,7 +738,10 @@ export class Highway {
     const w = this.canvas.clientWidth || 1;
     const h = this.canvas.clientHeight || 1;
     const eye = this.camera.position;
-    this.v.set((x / w) * 2 - 1, 1 - (y / h) * 2, 0.5).unproject(this.camera).sub(eye);
+    this.v
+      .set((x / w) * 2 - 1, 1 - (y / h) * 2, 0.5)
+      .unproject(this.camera)
+      .sub(eye);
     if (this.v.y < -1e-4) {
       const worldX = eye.x + this.v.x * (-eye.y / this.v.y);
       return Math.min(this.lanes - 1, Math.max(0, Math.round(worldX / LANE_W + (this.lanes - 1) / 2)));
@@ -936,7 +971,10 @@ export class Highway {
           this.s.set(held ? 0.2 : 0.15, 1, len);
           this.m.compose(this.v, this.q, this.s);
           this.tailCores.setMatrixAt(ti, this.m);
-          this.c.copy(color).lerp(WHITE, 0.72).multiplyScalar(burn * (missed ? 0.5 : 0.9));
+          this.c
+            .copy(color)
+            .lerp(WHITE, 0.72)
+            .multiplyScalar(burn * (missed ? 0.5 : 0.9));
           this.tailCores.setColorAt(ti, this.c);
           ti++;
         }

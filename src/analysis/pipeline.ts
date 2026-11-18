@@ -222,13 +222,7 @@ const BANDS: { kind: DrumKind; lo: number; hi: number; wait: number }[] = [
 ];
 
 /** Kick / snare / hat hits from band-limited flux of the percussive component. */
-export function detectDrums(
-  percussive: Float32Array,
-  s: Spectrogram,
-  fps: number,
-  signal?: Float32Array,
-  mag?: Float32Array,
-): DrumHit[] {
+export function detectDrums(percussive: Float32Array, s: Spectrogram, fps: number, signal?: Float32Array, mag?: Float32Array): DrumHit[] {
   const curves = BANDS.map((b) => normalize(bandFlux(percussive, s, b.lo, b.hi)));
   const peaks = curves.map((c, i) =>
     pickPeaks(c, { maxWin: 2, avgWin: Math.round(0.25 * fps), delta: 0.12, wait: Math.max(2, Math.round(BANDS[i].wait * fps)) }),

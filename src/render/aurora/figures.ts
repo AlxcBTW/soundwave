@@ -338,7 +338,14 @@ const NEAR_CAMERA = 12;
  * them nearly in time; otherwise each person starts at a point of their own. `ground` gives the
  * height of the land where each one stands.
  */
-export function makeCrowd(data: VenueData, characters: string[], share: number, cameras: Vec3[] = [], sync = false, ground: (x: number, z: number) => number = () => 0): Person[] {
+export function makeCrowd(
+  data: VenueData,
+  characters: string[],
+  share: number,
+  cameras: Vec3[] = [],
+  sync = false,
+  ground: (x: number, z: number) => number = () => 0,
+): Person[] {
   const rand = rng(31);
   const people: Person[] = [];
   if (!characters.length) return people;
@@ -394,6 +401,19 @@ export function makeBand(data: VenueData, band: Record<string, { character: stri
   return Object.entries(band).flatMap(([part, who]) => {
     const pos = data.band[part];
     if (!pos) return [];
-    return [{ pos, yaw: turn[part] ?? 0, scale: 1, character: who.character, calm: who.clip, hype: who.clip, threshold: 2, phase: 0, spot: part === focus ? 1.3 : 1, part }];
+    return [
+      {
+        pos,
+        yaw: turn[part] ?? 0,
+        scale: 1,
+        character: who.character,
+        calm: who.clip,
+        hype: who.clip,
+        threshold: 2,
+        phase: 0,
+        spot: part === focus ? 1.3 : 1,
+        part,
+      },
+    ];
   });
 }

@@ -27,7 +27,9 @@ export function hearBeats(signal: Float32Array, sampleRate: number): HeardBeats 
   if (!Number.isFinite(tempo) || tempo <= 0) return { beats: [], downbeats: [] };
   const rms = rmsCurve(signal, HOP);
   // Beats the tracker carried on through silence are not beats of the song.
-  const beats = refineBeats(trackBeats(env, fps, tempo), env, fps).filter((t) => (rms[Math.min(rms.length - 1, Math.round(t * fps))] ?? 0) > 0.06);
+  const beats = refineBeats(trackBeats(env, fps, tempo), env, fps).filter(
+    (t) => (rms[Math.min(rms.length - 1, Math.round(t * fps))] ?? 0) > 0.06,
+  );
   if (beats.length < 4) return { beats: [], downbeats: [] };
   // A bar starts where the low end hits hardest.
   const low = normalize(bandFlux(spec.mag, spec, 30, 150));

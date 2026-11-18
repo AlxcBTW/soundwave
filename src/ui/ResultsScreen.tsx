@@ -62,10 +62,13 @@ export function ResultsScreen({ song, subtitle, results: r, best, position, tota
   // The stars land one by one (see .results-stars in styles.css); each rings a little higher.
   useEffect(() => {
     const timers = Array.from({ length: shownStars(r.stars) }, (_, k) =>
-      window.setTimeout(() => {
-        playSfx('star', { index: k });
-        menuPulse('star');
-      }, 250 + k * 140 + 120),
+      window.setTimeout(
+        () => {
+          playSfx('star', { index: k });
+          menuPulse('star');
+        },
+        250 + k * 140 + 120,
+      ),
     );
     if (newBest)
       timers.push(
@@ -81,7 +84,15 @@ export function ResultsScreen({ song, subtitle, results: r, best, position, tota
   useActions([
     ...(last ? [] : [{ id: 'end', label: 'End the set', icon: Flag, kbd: 'Escape', sfx: 'back', run: onEnd }]),
     { id: 'retry', label: 'Play again', icon: Repeat, kbd: 'KeyR', pad: 'b3', sfx: 'launch', run: onRetry },
-    { id: 'next', label: last ? (total > 1 ? 'Set summary' : 'Done') : 'Next song', icon: last && total === 1 ? Home : ArrowRight, kbd: 'Enter', primary: true, sfx: last ? undefined : 'launch', run: onNext },
+    {
+      id: 'next',
+      label: last ? (total > 1 ? 'Set summary' : 'Done') : 'Next song',
+      icon: last && total === 1 ? Home : ArrowRight,
+      kbd: 'Enter',
+      primary: true,
+      sfx: last ? undefined : 'launch',
+      run: onNext,
+    },
   ]);
 
   return (
@@ -112,17 +123,46 @@ export function ResultsScreen({ song, subtitle, results: r, best, position, tota
 
         <section className="results-side" aria-label="Details">
           <dl className="results-stats">
-            <div><dt>Accuracy</dt><dd>{Math.round(r.accuracy * 100)}%</dd></div>
-            <div><dt>Best streak</dt><dd>{r.bestStreak}</dd></div>
-            <div><dt>Perfect</dt><dd>{r.counts.perfect}</dd></div>
-            <div><dt>Great</dt><dd>{r.counts.great}</dd></div>
-            <div><dt>Good</dt><dd>{r.counts.good}</dd></div>
-            <div className="miss"><dt>Miss</dt><dd>{r.counts.miss}</dd></div>
-            <div><dt>Overdrives</dt><dd>{r.overdriveActivations}</dd></div>
+            <div>
+              <dt>Accuracy</dt>
+              <dd>{Math.round(r.accuracy * 100)}%</dd>
+            </div>
+            <div>
+              <dt>Best streak</dt>
+              <dd>{r.bestStreak}</dd>
+            </div>
+            <div>
+              <dt>Perfect</dt>
+              <dd>{r.counts.perfect}</dd>
+            </div>
+            <div>
+              <dt>Great</dt>
+              <dd>{r.counts.great}</dd>
+            </div>
+            <div>
+              <dt>Good</dt>
+              <dd>{r.counts.good}</dd>
+            </div>
+            <div className="miss">
+              <dt>Miss</dt>
+              <dd>{r.counts.miss}</dd>
+            </div>
+            <div>
+              <dt>Overdrives</dt>
+              <dd>{r.overdriveActivations}</dd>
+            </div>
             {r.releases.total > 0 && (
-              <div><dt>Releases</dt><dd>{r.releases.hit}/{r.releases.total}</dd></div>
+              <div>
+                <dt>Releases</dt>
+                <dd>
+                  {r.releases.hit}/{r.releases.total}
+                </dd>
+              </div>
             )}
-            <div><dt>Notes</dt><dd>{r.totalNotes}</dd></div>
+            <div>
+              <dt>Notes</dt>
+              <dd>{r.totalNotes}</dd>
+            </div>
           </dl>
           {next && (
             <div className="next-up">
@@ -171,7 +211,9 @@ export function SummaryScreen({ set, subtitle, onAgain, onDone }: SummaryProps) 
           <p className="results-sub">{subtitle}</p>
         </header>
         <div className="summary-total">
-          <div className="results-score num" role="img" aria-label={`Total score ${totalScore.toLocaleString()}`}>{score.toLocaleString()}</div>
+          <div className="results-score num" role="img" aria-label={`Total score ${totalScore.toLocaleString()}`}>
+            {score.toLocaleString()}
+          </div>
           <p className="summary-stars">
             <span className="num">{stars}</span> of {set.length * 5} stars
           </p>
@@ -181,7 +223,9 @@ export function SummaryScreen({ set, subtitle, onAgain, onDone }: SummaryProps) 
             const newBest = s.results && s.results.score > 0 && (s.best === undefined || s.results.score > s.best);
             return (
               <li key={s.song.id} className={`set-card ${s.results ? '' : 'skipped'}`} style={{ ['--i' as string]: i }}>
-                <span className="slot-num" aria-hidden>{i + 1}</span>
+                <span className="slot-num" aria-hidden>
+                  {i + 1}
+                </span>
                 <Cover blob={s.song.cover} title={s.song.title} />
                 <span className="song-text">
                   <span className="song-title">{s.song.title}</span>

@@ -20,7 +20,9 @@ type SinkContext = AudioContext & { setSinkId?(id: string): Promise<void>; sinkI
 
 /** Whether this browser can send the game's sound to a chosen device at all. */
 export const canPickOutput = () =>
-  typeof AudioContext !== 'undefined' && 'setSinkId' in AudioContext.prototype && typeof navigator.mediaDevices?.enumerateDevices === 'function';
+  typeof AudioContext !== 'undefined' &&
+  'setSinkId' in AudioContext.prototype &&
+  typeof navigator.mediaDevices?.enumerateDevices === 'function';
 
 /** The system's own aliases: "System default" stands for them. */
 const ALIASES = new Set(['', 'default', 'communications']);

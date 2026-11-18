@@ -4,7 +4,17 @@ import type { Fixture } from './assets';
 
 const DOWN = new THREE.Vector3(0, -1, 0);
 const LENGTH: Record<string, number> = { Sky: 90, Shell0: 52, Shell2: 44, Ribbon: 40, Truss: 34, Floor: 26, Halo: 17, Delay: 40, Foh: 60 };
-const SPREAD: Record<string, number> = { Sky: 0.02, Shell0: 0.034, Shell2: 0.034, Ribbon: 0.03, Truss: 0.045, Floor: 0.04, Halo: 0.075, Delay: 0.03, Foh: 0.012 };
+const SPREAD: Record<string, number> = {
+  Sky: 0.02,
+  Shell0: 0.034,
+  Shell2: 0.034,
+  Ribbon: 0.03,
+  Truss: 0.045,
+  Floor: 0.04,
+  Halo: 0.075,
+  Delay: 0.03,
+  Foh: 0.012,
+};
 
 export interface BeamState {
   /** Pan and tilt away from the fixture's rest direction, radians. */

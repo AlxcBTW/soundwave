@@ -52,7 +52,6 @@ describe('suggested sets', () => {
     // Two songs, none played: shuffle, newest and unplayed would all be the same two.
     expect(suggestSets([song('a', 1), song('b', 2)], new Set(), 1).map((s) => s.id)).toEqual(['shuffle']);
   });
-
 });
 
 describe('progress toward the next star', () => {

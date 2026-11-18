@@ -66,7 +66,8 @@ export function reduceNotes(notes: readonly BeatNote[], fromLanes: number, to: D
     const ranked = [...list].sort((a, b) => b.w - a.w || a.pos - b.pos).slice(0, p.maxPerBar);
     for (const m of ranked) kept.add(m);
   }
-  const fold = (lane: number) => (fromLanes <= p.lanes ? Math.min(p.lanes - 1, lane) : Math.round((lane * (p.lanes - 1)) / (fromLanes - 1)));
+  const fold = (lane: number) =>
+    fromLanes <= p.lanes ? Math.min(p.lanes - 1, lane) : Math.round((lane * (p.lanes - 1)) / (fromLanes - 1));
   const out: BeatNote[] = [];
   for (const m of spaced) {
     if (!kept.has(m)) continue;
@@ -78,7 +79,13 @@ export function reduceNotes(notes: readonly BeatNote[], fromLanes: number, to: D
     chord = chord.filter((n) => n.lane - chord[0].lane <= p.maxChordSpread);
     for (const n of chord) {
       const long = n.len >= p.sustainBeats - 1e-3;
-      out.push({ pos: n.pos, lane: n.lane, len: long ? n.len : 0, phrase: n.phrase, ...(n.release && long && to !== 'easy' ? { release: true } : {}) });
+      out.push({
+        pos: n.pos,
+        lane: n.lane,
+        len: long ? n.len : 0,
+        phrase: n.phrase,
+        ...(n.release && long && to !== 'easy' ? { release: true } : {}),
+      });
     }
   }
   // A phrase needs at least two notes to be worth lighting up.

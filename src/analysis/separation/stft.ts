@@ -96,7 +96,15 @@ export function addInverse(planes: Float32Array, re: number, im: number, out: Fl
  * Z1 + i·Z2 has the first stem as its real part and the second as its imaginary part. As in
  * HTDemucs._ispec, the imaginary part of the first bin is ignored.
  */
-export function addInversePair(planes: Float32Array, base1: number, base2: number, dev: number, mean: number, out1: Float32Array, out2: Float32Array): void {
+export function addInversePair(
+  planes: Float32Array,
+  base1: number,
+  base2: number,
+  dev: number,
+  mean: number,
+  out1: Float32Array,
+  out2: Float32Array,
+): void {
   const shift = PAD + CENTER;
   const k = 1 / (SCALE * WINDOW_SUM);
   const P = BINS * FRAMES;

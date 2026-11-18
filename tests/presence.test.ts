@@ -8,7 +8,10 @@ const BARS = 40;
 const BAR = 2;
 
 /** A song of 40 two-second bars; each part plays in the bars its function says yes to. */
-function song(plays: { vocals?(bar: number): boolean; lead?(bar: number): boolean; bass?(bar: number): boolean; drums?(bar: number): boolean }, grid = true): AnalysisResult {
+function song(
+  plays: { vocals?(bar: number): boolean; lead?(bar: number): boolean; bass?(bar: number): boolean; drums?(bar: number): boolean },
+  grid = true,
+): AnalysisResult {
   const beats = Array.from({ length: BARS * 4 }, (_, i) => i * 0.5);
   const notes = (on?: (bar: number) => boolean): PitchedNote[] =>
     Array.from({ length: BARS }, (_, bar) => bar)

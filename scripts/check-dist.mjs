@@ -17,6 +17,9 @@ const walk = (dir) => {
 };
 walk(dist);
 if (tooLarge.length) {
-  for (const path of tooLarge) console.error(`${relative(dist, path)}: ${(statSync(path).size / 1024 / 1024).toFixed(1)} MiB, over the 25 MiB a file may have on Cloudflare`);
+  for (const path of tooLarge)
+    console.error(
+      `${relative(dist, path)}: ${(statSync(path).size / 1024 / 1024).toFixed(1)} MiB, over the 25 MiB a file may have on Cloudflare`,
+    );
   process.exit(1);
 }

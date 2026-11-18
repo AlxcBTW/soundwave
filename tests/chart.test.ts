@@ -207,7 +207,8 @@ describe('release notes', () => {
 
   it('appear on medium and up, never on easy', () => {
     expect(generateChart(a, 'vocals', 'easy', 'song').notes.some((n) => n.release)).toBe(false);
-    for (const d of ['medium', 'hard', 'expert'] as const) expect(generateChart(a, 'vocals', d, 'song').notes.some((n) => n.release)).toBe(true);
+    for (const d of ['medium', 'hard', 'expert'] as const)
+      expect(generateChart(a, 'vocals', d, 'song').notes.some((n) => n.release)).toBe(true);
   });
 
   it('end on a beat or half-beat, with room before the next note', () => {

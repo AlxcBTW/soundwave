@@ -534,7 +534,15 @@ export function generateAll(a: AnalysisResult, part: Part, seedKey = ''): Record
     const evs = drums ? reduceRhythm(reduceDrums(source, d), p, spb, true, a.downbeats) : reduceRhythm(source, p, spb, false, a.downbeats);
     const notes = drums
       ? drumNotes(evs, p, d)
-      : pitchedNotes(evs, p, d, a.downbeats, sectionStarts, { lanes: p.pitchedLanes, partLo, partHi, memo: new Map() }, part === 'vocals' ? { spb } : undefined);
+      : pitchedNotes(
+          evs,
+          p,
+          d,
+          a.downbeats,
+          sectionStarts,
+          { lanes: p.pitchedLanes, partLo, partHi, memo: new Map() },
+          part === 'vocals' ? { spb } : undefined,
+        );
     const timed: Note[] = notes.map((n) => ({ ...n, t: grid.time(n.t), dur: n.dur > 0 ? grid.time(n.t + n.dur) - grid.time(n.t) : 0 }));
     timed.sort((x, y) => x.t - y.t || x.lane - y.lane);
     const clean = validate(timed, p.lanes, p, spb);

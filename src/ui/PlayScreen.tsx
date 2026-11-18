@@ -45,7 +45,21 @@ const STAR_FACET_LO = 'M24 24.5 L29.9 26.42 L31.94 35.42 L24 30.7 Z';
 /** The overdrive meter: an arc over the top of the dial, from its lower left round to its lower right. */
 const OD_ARC = 'M7.81 69.2 A53 53 0 1 1 112.19 69.2';
 
-export function PlayScreen({ title, artist, position, total, buffer, chart, startAt = 0, settings, onFinish, onSkip, onSettings, settingsOpen, onQuit }: Props) {
+export function PlayScreen({
+  title,
+  artist,
+  position,
+  total,
+  buffer,
+  chart,
+  startAt = 0,
+  settings,
+  onFinish,
+  onSkip,
+  onSettings,
+  settingsOpen,
+  onQuit,
+}: Props) {
   // The song is set up with the settings it starts with; the ones that can change mid-song are
   // handed over as they change (see applySettings), so opening the settings never restarts it.
   const settingsRef = useRef(settings);
@@ -72,23 +86,31 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, star
   useEffect(() => {
     const root = hudRef.current!;
     const q = (s: string) => root.querySelector<HTMLElement>(s)!;
-    const ctrl = new PlayController(getEngine(), buffer, chart, settingsRef.current, hwRef.current!, {
-      root,
-      score: q('[data-hud=score]'),
-      multiplier: q('[data-hud=mult]'),
-      stars: q('[data-hud=stars]'),
-      timeline: q('[data-hud=timeline]'),
-      remaining: q('[data-hud=remaining]'),
-      feedback: q('[data-hud=feedback]'),
-      feedbackWord: q('[data-hud=fb-word]'),
-      feedbackStreak: q('[data-hud=fb-streak]'),
-      keys: Array.from(root.querySelectorAll<HTMLElement>('.lane-key')),
-      touchLayer: q('[data-hud=touch]'),
-      overdriveButton: q('[data-hud=od]'),
-      breakTimer: q('[data-hud=break]'),
-      breakNumber: q('[data-hud=break-num]'),
-      breakRing: root.querySelector<SVGCircleElement>('[data-hud=break-ring]')!,
-    }, stageRef.current!);
+    const ctrl = new PlayController(
+      getEngine(),
+      buffer,
+      chart,
+      settingsRef.current,
+      hwRef.current!,
+      {
+        root,
+        score: q('[data-hud=score]'),
+        multiplier: q('[data-hud=mult]'),
+        stars: q('[data-hud=stars]'),
+        timeline: q('[data-hud=timeline]'),
+        remaining: q('[data-hud=remaining]'),
+        feedback: q('[data-hud=feedback]'),
+        feedbackWord: q('[data-hud=fb-word]'),
+        feedbackStreak: q('[data-hud=fb-streak]'),
+        keys: Array.from(root.querySelectorAll<HTMLElement>('.lane-key')),
+        touchLayer: q('[data-hud=touch]'),
+        overdriveButton: q('[data-hud=od]'),
+        breakTimer: q('[data-hud=break]'),
+        breakNumber: q('[data-hud=break-num]'),
+        breakRing: root.querySelector<SVGCircleElement>('[data-hud=break-ring]')!,
+      },
+      stageRef.current!,
+    );
     let prev: PlayPhase = 'countdown';
     ctrl.onPhase = (p, n) => {
       if (p === 'paused' && prev !== 'paused') {
@@ -172,10 +194,18 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, star
   const PartIcon = PART_ICON[chart.part];
   const set = total > 1;
   const question = {
-    restart: { title: 'Restart the song?', hint: 'This run and its score are thrown away, and the song starts from the top.', yes: 'Restart song' },
+    restart: {
+      title: 'Restart the song?',
+      hint: 'This run and its score are thrown away, and the song starts from the top.',
+      yes: 'Restart song',
+    },
     skip: { title: 'Skip this song?', hint: 'It gets no score, and the next song in the set starts.', yes: 'Skip to next song' },
     leave: set
-      ? { title: 'Leave the set?', hint: 'The set ends here and this song gets no score. The songs you finished keep theirs.', yes: 'Leave the set' }
+      ? {
+          title: 'Leave the set?',
+          hint: 'The set ends here and this song gets no score. The songs you finished keep theirs.',
+          yes: 'Leave the set',
+        }
       : { title: 'Leave the song?', hint: 'This run and its score are thrown away.', yes: 'Leave the song' },
   }[ask ?? 'restart'];
   const confirm = () => {
@@ -191,7 +221,13 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, star
   const usingPad = mode === 'pad';
 
   return (
-    <div className={`play ${paused ? 'is-paused' : ''} ${settingsOpen ? 'under-settings' : ''}`} data-lanes={chart.lanes} data-od-side={settings.touchOverdriveSide} data-nav-off={paused ? undefined : ''} inert={settingsOpen}>
+    <div
+      className={`play ${paused ? 'is-paused' : ''} ${settingsOpen ? 'under-settings' : ''}`}
+      data-lanes={chart.lanes}
+      data-od-side={settings.touchOverdriveSide}
+      data-nav-off={paused ? undefined : ''}
+      inert={settingsOpen}
+    >
       <div ref={stageRef} className="layer stage-host" />
       <canvas ref={hwRef} className="layer highway" />
       <div ref={hudRef} className="hud">
@@ -211,10 +247,19 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, star
               <stop offset="0.8" stopColor="#f28a14" />
               <stop offset="1" stopColor="#c85c00" />
             </radialGradient>
-            <clipPath id="hud-star-clip"><path d={STAR_PATH} /></clipPath>
+            <clipPath id="hud-star-clip">
+              <path d={STAR_PATH} />
+            </clipPath>
           </defs>
         </svg>
-        <button type="button" className="hud-pause" data-sfx="none" tabIndex={-1} aria-label="Pause" onClick={() => ctrlRef.current?.pause()}>
+        <button
+          type="button"
+          className="hud-pause"
+          data-sfx="none"
+          tabIndex={-1}
+          aria-label="Pause"
+          onClick={() => ctrlRef.current?.pause()}
+        >
           <Pause strokeWidth={ICON_STROKE} aria-hidden />
         </button>
 
@@ -222,11 +267,17 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, star
           <div className="hud-songbox">
             <span className="hud-artist">{artist}</span>
             <span className="hud-song">
-              {total > 1 && <span className="hud-pos">{position}/{total}</span>}
+              {total > 1 && (
+                <span className="hud-pos">
+                  {position}/{total}
+                </span>
+              )}
               {title}
             </span>
             <div className="hud-timeline" data-hud="timeline" aria-hidden>
-              <div className="hud-timeline-bar"><div className="hud-timeline-fill" /></div>
+              <div className="hud-timeline-bar">
+                <div className="hud-timeline-fill" />
+              </div>
               <span className="hud-timeline-head" />
             </div>
             <span className="hud-remaining" data-hud="remaining" aria-hidden />
@@ -252,7 +303,9 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, star
           <div className="hud-scorepanel">
             <PartIcon className="hud-part-icon" strokeWidth={ICON_STROKE} aria-hidden />
             <span className="hud-part">{PART_LABEL[chart.part]} score</span>
-            <span className="hud-score" data-hud="score">0</span>
+            <span className="hud-score" data-hud="score">
+              0
+            </span>
           </div>
         </div>
 
@@ -265,13 +318,19 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, star
               <circle cx="60" cy="60" r="37" className="track" pathLength={1} />
               <circle cx="60" cy="60" r="37" className="fill" pathLength={1} />
             </svg>
-            <span className="hud-mult" data-hud="mult" data-level="1">×1</span>
+            <span className="hud-mult" data-hud="mult" data-level="1">
+              ×1
+            </span>
           </div>
           <button type="button" className="hud-od" data-hud="od" data-sfx="none" tabIndex={-1} aria-label="Start overdrive">
             <Zap strokeWidth={ICON_STROKE} aria-hidden />
             {mode !== 'touch' && <span className="hud-od-word hud-od-press">Press</span>}
             <span className="hud-od-word">Overdrive</span>
-            {mode !== 'touch' && <span className="hud-od-key">{usingPad ? <PadGlyph input={settings.padOverdrive} style={style} /> : <kbd>{keyLabel(settings.overdriveKey)}</kbd>}</span>}
+            {mode !== 'touch' && (
+              <span className="hud-od-key">
+                {usingPad ? <PadGlyph input={settings.padOverdrive} style={style} /> : <kbd>{keyLabel(settings.overdriveKey)}</kbd>}
+              </span>
+            )}
           </button>
         </div>
         <div className="hud-feedback">
@@ -292,10 +351,16 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, star
           <div className="hud-break-num" data-hud="break-num" />
         </div>
         {keys.map((k, i) => (
-          <span key={i} className={`lane-key lane-${i} ${usingPad ? 'pad' : ''}`}>{usingPad ? <PadGlyph input={padKeys[i]} style={style} /> : keyLabel(k)}</span>
+          <span key={i} className={`lane-key lane-${i} ${usingPad ? 'pad' : ''}`}>
+            {usingPad ? <PadGlyph input={padKeys[i]} style={style} /> : keyLabel(k)}
+          </span>
         ))}
       </div>
-      {phase === 'countdown' && count > 0 && <div className="countdown" key={count}>{count}</div>}
+      {phase === 'countdown' && count > 0 && (
+        <div className="countdown" key={count}>
+          {count}
+        </div>
+      )}
       {paused && (
         <div className="overlay card" data-modal ref={pauseRef}>
           <div className="dialog pause-card" role="dialog" aria-modal="true" aria-label="Paused">
@@ -304,7 +369,13 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, star
               {title}
               {total > 1 && ` · song ${position} of ${total}`}
             </p>
-            <button type="button" className="btn primary wide" data-sfx="none" data-autofocus onClick={() => void ctrlRef.current?.resume()}>
+            <button
+              type="button"
+              className="btn primary wide"
+              data-sfx="none"
+              data-autofocus
+              onClick={() => void ctrlRef.current?.resume()}
+            >
               <Play strokeWidth={ICON_STROKE} aria-hidden />
               Resume
             </button>

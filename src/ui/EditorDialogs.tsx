@@ -122,7 +122,14 @@ export function StepRow({ label, text, help, index, count, atMin, atMax, disable
   useSideways(ref, (d) => step(d));
   const value = touch
     ? ({ role: 'group', 'aria-label': `${label}: ${text}` } as const)
-    : ({ role: 'slider', 'aria-label': label, 'aria-valuetext': text, 'aria-valuenow': index ?? 0, 'aria-valuemin': 0, 'aria-valuemax': count !== undefined ? count - 1 : undefined } as const);
+    : ({
+        role: 'slider',
+        'aria-label': label,
+        'aria-valuetext': text,
+        'aria-valuenow': index ?? 0,
+        'aria-valuemin': 0,
+        'aria-valuemax': count !== undefined ? count - 1 : undefined,
+      } as const);
   return (
     <div
       ref={ref}
@@ -141,11 +148,22 @@ export function StepRow({ label, text, help, index, count, atMin, atMax, disable
     >
       <span className="set-label">{label}</span>
       <span className="set-control">
-        <button type="button" className="step" tabIndex={-1} data-sfx="none" aria-label={touch ? `Lower ${label}` : undefined} aria-hidden={!touch} disabled={disabled || atMin} onClick={(e) => (e.stopPropagation(), step(-1))}>
+        <button
+          type="button"
+          className="step"
+          tabIndex={-1}
+          data-sfx="none"
+          aria-label={touch ? `Lower ${label}` : undefined}
+          aria-hidden={!touch}
+          disabled={disabled || atMin}
+          onClick={(e) => (e.stopPropagation(), step(-1))}
+        >
           <ChevronLeft strokeWidth={3} />
         </button>
         <span className="set-value">
-          <span className="set-value-text" key={text}>{text}</span>
+          <span className="set-value-text" key={text}>
+            {text}
+          </span>
           {count !== undefined && (
             <span className="ticks" aria-hidden>
               {Array.from({ length: count }, (_, i) => (
@@ -154,7 +172,16 @@ export function StepRow({ label, text, help, index, count, atMin, atMax, disable
             </span>
           )}
         </span>
-        <button type="button" className="step" tabIndex={-1} data-sfx="none" aria-label={touch ? `Raise ${label}` : undefined} aria-hidden={!touch} disabled={disabled || atMax} onClick={(e) => (e.stopPropagation(), step(1))}>
+        <button
+          type="button"
+          className="step"
+          tabIndex={-1}
+          data-sfx="none"
+          aria-label={touch ? `Raise ${label}` : undefined}
+          aria-hidden={!touch}
+          disabled={disabled || atMax}
+          onClick={(e) => (e.stopPropagation(), step(1))}
+        >
           <ChevronRight strokeWidth={3} />
         </button>
       </span>
@@ -176,7 +203,10 @@ interface ChoiceRowProps<T> {
 
 /** One of a few named values. */
 export function ChoiceRow<T>({ label, value, options, help, disabled, autoFocus, touch, onChange }: ChoiceRowProps<T>) {
-  const index = Math.max(0, options.findIndex((o) => o.value === value));
+  const index = Math.max(
+    0,
+    options.findIndex((o) => o.value === value),
+  );
   return (
     <StepRow
       label={label}
@@ -207,7 +237,13 @@ const ON_OFF = [
 export const SNAP_MODE_LABEL: Record<SnapMode, string> = { grid: 'The grid', sounds: 'Sounds in the song', off: 'Nothing' };
 
 /** A full-width button with its name and, under it, a line that says what it does. */
-function MenuButton({ icon: Icon, help, children, className = '', ...rest }: { icon: LucideIcon; help?: string; children: ReactNode } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+function MenuButton({
+  icon: Icon,
+  help,
+  children,
+  className = '',
+  ...rest
+}: { icon: LucideIcon; help?: string; children: ReactNode } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button type="button" className={`btn wide ${help ? 'menu-btn' : ''} ${className}`} {...rest}>
       <Icon strokeWidth={ICON_STROKE} aria-hidden />
@@ -257,14 +293,28 @@ export function EditorMenu({ ctrl, snap, mode, legend, onTest, onRecord, onAsk, 
             <div className="sheet-title">
               <h2 className="display">Editor</h2>
               <p className="sheet-artist">
-                {PART_LABEL[snap.part]} · {DIFFICULTY_LABEL[snap.difficulty]} · {snap.stats.notes.toLocaleString()} {snap.stats.notes === 1 ? 'note' : 'notes'}
+                {PART_LABEL[snap.part]} · {DIFFICULTY_LABEL[snap.difficulty]} · {snap.stats.notes.toLocaleString()}{' '}
+                {snap.stats.notes === 1 ? 'note' : 'notes'}
               </p>
             </div>
             <div className="menu-section">
-              <MenuButton icon={Gamepad2} className="primary" help="Play the chart in the game from the bar the cursor is in, then come back here." data-autofocus data-sfx="launch" disabled={snap.stats.notes === 0} onClick={then(() => onTest(false))}>
+              <MenuButton
+                icon={Gamepad2}
+                className="primary"
+                help="Play the chart in the game from the bar the cursor is in, then come back here."
+                data-autofocus
+                data-sfx="launch"
+                disabled={snap.stats.notes === 0}
+                onClick={then(() => onTest(false))}
+              >
                 Test play from here
               </MenuButton>
-              <MenuButton icon={Circle} help="The song plays from a bar before the cursor. Play the lanes as you would in a song: every press becomes a note." data-sfx="none" onClick={then(onRecord)}>
+              <MenuButton
+                icon={Circle}
+                help="The song plays from a bar before the cursor. Play the lanes as you would in a song: every press becomes a note."
+                data-sfx="none"
+                onClick={then(onRecord)}
+              >
                 Record
               </MenuButton>
             </div>
@@ -274,14 +324,29 @@ export function EditorMenu({ ctrl, snap, mode, legend, onTest, onRecord, onAsk, 
                 <h3 className="label">The note under the cursor</h3>
                 <MenuButton
                   icon={Hand}
-                  help={!here.long ? 'Only a long note can be a hold-and-release note. Stretch it first: hold confirm on it and move up.' : here.release ? 'It is a hold-and-release note: it must be let go when it ends. Press to make it a plain long note.' : 'Makes it a hold-and-release note: it must also be let go on time, when it ends.'}
+                  help={
+                    !here.long
+                      ? 'Only a long note can be a hold-and-release note. Stretch it first: hold confirm on it and move up.'
+                      : here.release
+                        ? 'It is a hold-and-release note: it must be let go when it ends. Press to make it a plain long note.'
+                        : 'Makes it a hold-and-release note: it must also be let go on time, when it ends.'
+                  }
                   aria-pressed={here.release}
                   disabled={!here.long}
                   onClick={() => ctrl.toggleRelease()}
                 >
                   {here.release ? 'Let go on time: on' : 'Let go on time: off'}
                 </MenuButton>
-                <MenuButton icon={Zap} help={here.phrase ? 'It is part of an overdrive phrase. Press to take it out.' : 'Makes it an overdrive note. Mark a stretch to make a whole phrase.'} aria-pressed={here.phrase} onClick={() => ctrl.togglePhrase()}>
+                <MenuButton
+                  icon={Zap}
+                  help={
+                    here.phrase
+                      ? 'It is part of an overdrive phrase. Press to take it out.'
+                      : 'Makes it an overdrive note. Mark a stretch to make a whole phrase.'
+                  }
+                  aria-pressed={here.phrase}
+                  onClick={() => ctrl.togglePhrase()}
+                >
                   {here.phrase ? 'Overdrive: on' : 'Overdrive: off'}
                 </MenuButton>
               </section>
@@ -289,7 +354,14 @@ export function EditorMenu({ ctrl, snap, mode, legend, onTest, onRecord, onAsk, 
 
             <section className="menu-section set-list" aria-label="Chart">
               <h3 className="label">Chart</h3>
-              <ChoiceRow label="Part" help="Each part has its own four charts." value={snap.part} options={PARTS.map((p) => ({ value: p, label: PART_LABEL[p] }))} touch={touch} onChange={(p) => void ctrl.setChart(p, snap.difficulty)} />
+              <ChoiceRow
+                label="Part"
+                help="Each part has its own four charts."
+                value={snap.part}
+                options={PARTS.map((p) => ({ value: p, label: PART_LABEL[p] }))}
+                touch={touch}
+                onChange={(p) => void ctrl.setChart(p, snap.difficulty)}
+              />
               <ChoiceRow
                 label="Difficulty"
                 help="Easy, Medium and Hard have four lanes, Expert five. Each is a chart of its own."
@@ -310,8 +382,19 @@ export function EditorMenu({ ctrl, snap, mode, legend, onTest, onRecord, onAsk, 
                 touch={touch}
                 onChange={(m) => ctrl.setSnapMode(m)}
               />
-              <ChoiceRow label="Grid" help="How finely a beat is divided: the lines notes snap to and the size of a cursor step." value={snap.snap} options={SNAPS.map((s) => ({ value: s, label: SNAP_NAME[s] }))} touch={touch} onChange={(s: Snap) => ctrl.setSnap(s)} />
-              <MenuButton icon={Timer} help="Where the beats and bar lines are: follow the song or set a tempo, tap it, move the first beat." onClick={then(() => onAsk('tempo'))}>
+              <ChoiceRow
+                label="Grid"
+                help="How finely a beat is divided: the lines notes snap to and the size of a cursor step."
+                value={snap.snap}
+                options={SNAPS.map((s) => ({ value: s, label: SNAP_NAME[s] }))}
+                touch={touch}
+                onChange={(s: Snap) => ctrl.setSnap(s)}
+              />
+              <MenuButton
+                icon={Timer}
+                help="Where the beats and bar lines are: follow the song or set a tempo, tap it, move the first beat."
+                onClick={then(() => onAsk('tempo'))}
+              >
                 Tempo and bars
               </MenuButton>
             </section>
@@ -344,14 +427,59 @@ export function EditorMenu({ ctrl, snap, mode, legend, onTest, onRecord, onAsk, 
 
             <section className="menu-section set-list" aria-label="Listening">
               <h3 className="label">Listening</h3>
-              <ChoiceRow label="Speed" help="Slower playback for fast passages. Recording works at every speed." value={snap.rate} options={RATES.map((r) => ({ value: r as number, label: `${Math.round(r * 100)}%` })).reverse()} touch={touch} onChange={(r) => ctrl.setRate(r)} />
+              <ChoiceRow
+                label="Speed"
+                help="Slower playback for fast passages. Recording works at every speed."
+                value={snap.rate}
+                options={RATES.map((r) => ({ value: r as number, label: `${Math.round(r * 100)}%` })).reverse()}
+                touch={touch}
+                onChange={(r) => ctrl.setRate(r)}
+              />
               {snap.sources.length > 1 && (
-                <ChoiceRow label="Play" help="The whole song, or one of its separated instruments on its own." value={snap.source} options={snap.sources.map((s) => ({ value: s, label: SOURCE_LABEL[s] }))} touch={touch} onChange={(s) => void ctrl.setSource(s)} />
+                <ChoiceRow
+                  label="Play"
+                  help="The whole song, or one of its separated instruments on its own."
+                  value={snap.source}
+                  options={snap.sources.map((s) => ({ value: s, label: SOURCE_LABEL[s] }))}
+                  touch={touch}
+                  onChange={(s) => void ctrl.setSource(s)}
+                />
               )}
-              <ChoiceRow label="Loop" help="Playback goes round the marked stretch until you stop it." value={snap.loop} options={ON_OFF} touch={touch} onChange={(v) => ctrl.setLoop(v)} />
-              <ChoiceRow label="Click on every note" help="A tick as each note passes the line, to hear whether it sits on the music." value={snap.clicks} options={ON_OFF} touch={touch} onChange={(v) => ctrl.setClicks(v)} />
-              <ChoiceRow label="Metronome" help="A click on every beat, higher on the first beat of a bar." value={snap.metronome} options={ON_OFF} touch={touch} onChange={(v) => ctrl.setMetronome(v)} />
-              <StepRow label="Zoom" help="How much of the song the lanes show." text={`${snap.zoom + 1} of ${snap.zoomSteps}`} index={snap.zoom} count={snap.zoomSteps} atMin={snap.zoom <= 0} atMax={snap.zoom >= snap.zoomSteps - 1} touch={touch} onStep={(d) => ctrl.zoomBy(d)} />
+              <ChoiceRow
+                label="Loop"
+                help="Playback goes round the marked stretch until you stop it."
+                value={snap.loop}
+                options={ON_OFF}
+                touch={touch}
+                onChange={(v) => ctrl.setLoop(v)}
+              />
+              <ChoiceRow
+                label="Click on every note"
+                help="A tick as each note passes the line, to hear whether it sits on the music."
+                value={snap.clicks}
+                options={ON_OFF}
+                touch={touch}
+                onChange={(v) => ctrl.setClicks(v)}
+              />
+              <ChoiceRow
+                label="Metronome"
+                help="A click on every beat, higher on the first beat of a bar."
+                value={snap.metronome}
+                options={ON_OFF}
+                touch={touch}
+                onChange={(v) => ctrl.setMetronome(v)}
+              />
+              <StepRow
+                label="Zoom"
+                help="How much of the song the lanes show."
+                text={`${snap.zoom + 1} of ${snap.zoomSteps}`}
+                index={snap.zoom}
+                count={snap.zoomSteps}
+                atMin={snap.zoom <= 0}
+                atMax={snap.zoom >= snap.zoomSteps - 1}
+                touch={touch}
+                onStep={(d) => ctrl.zoomBy(d)}
+              />
             </section>
 
             <section className="menu-section" aria-label="Edit">
@@ -370,41 +498,92 @@ export function EditorMenu({ ctrl, snap, mode, legend, onTest, onRecord, onAsk, 
                   Select all
                 </MenuButton>
               </div>
-              <MenuButton icon={Wrench} help={snap.selected ? `Snap, move, reverse, thin out or stretch the ${snap.selected} selected notes.` : 'Snap every note to the grid or to the sounds of the song. Select notes first for more.'} disabled={!snap.stats.notes && !snap.ranged} onClick={then(() => onAsk('tools'))}>
+              <MenuButton
+                icon={Wrench}
+                help={
+                  snap.selected
+                    ? `Snap, move, reverse, thin out or stretch the ${snap.selected} selected notes.`
+                    : 'Snap every note to the grid or to the sounds of the song. Select notes first for more.'
+                }
+                disabled={!snap.stats.notes && !snap.ranged}
+                onClick={then(() => onAsk('tools'))}
+              >
                 Tools
               </MenuButton>
             </section>
 
             <section className="menu-section" aria-label="This chart">
               <h3 className="label">This chart</h3>
-              <MenuButton icon={ListChecks} help={snap.issues ? `${snap.issues} ${snap.issues === 1 ? 'place' : 'places'} worth a second look. Pick one to go there.` : 'Nothing stands out in this chart.'} disabled={!snap.issues} onClick={then(() => onAsk('check'))}>
+              <MenuButton
+                icon={ListChecks}
+                help={
+                  snap.issues
+                    ? `${snap.issues} ${snap.issues === 1 ? 'place' : 'places'} worth a second look. Pick one to go there.`
+                    : 'Nothing stands out in this chart.'
+                }
+                disabled={!snap.issues}
+                onClick={then(() => onAsk('check'))}
+              >
                 Check the chart
               </MenuButton>
-              <MenuButton icon={Play} help="Play the whole chart in the game, from the top." data-sfx="launch" disabled={snap.stats.notes === 0} onClick={then(() => onTest(true))}>
+              <MenuButton
+                icon={Play}
+                help="Play the whole chart in the game, from the top."
+                data-sfx="launch"
+                disabled={snap.stats.notes === 0}
+                onClick={then(() => onTest(true))}
+              >
                 Test play from the start
               </MenuButton>
               {snap.easier.length > 0 && (
-                <MenuButton icon={TrendingDown} help={`Writes ${snap.easier.map((d) => DIFFICULTY_LABEL[d]).join(', ')} as simpler versions of this chart.`} disabled={snap.stats.notes === 0} onClick={then(() => onAsk('easier'))}>
+                <MenuButton
+                  icon={TrendingDown}
+                  help={`Writes ${snap.easier.map((d) => DIFFICULTY_LABEL[d]).join(', ')} as simpler versions of this chart.`}
+                  disabled={snap.stats.notes === 0}
+                  onClick={then(() => onAsk('easier'))}
+                >
                   Write the easier charts from this one
                 </MenuButton>
               )}
               {snap.harder && (
-                <MenuButton icon={TrendingDown} help={`Replaces this chart with a simpler version of ${DIFFICULTY_LABEL[snap.harder]}.`} onClick={then(() => onAsk('simplify'))}>
+                <MenuButton
+                  icon={TrendingDown}
+                  help={`Replaces this chart with a simpler version of ${DIFFICULTY_LABEL[snap.harder]}.`}
+                  onClick={then(() => onAsk('simplify'))}
+                >
                   Simplify from {DIFFICULTY_LABEL[snap.harder]}
                 </MenuButton>
               )}
-              <MenuButton icon={CopyPlus} help="Replaces this chart with a copy of another part or difficulty." onClick={then(() => onAsk('copy-from'))}>
+              <MenuButton
+                icon={CopyPlus}
+                help="Replaces this chart with a copy of another part or difficulty."
+                onClick={then(() => onAsk('copy-from'))}
+              >
                 Copy from another chart
               </MenuButton>
               {snap.canRevert && (
-                <MenuButton icon={RotateCcw} help="Drops your version for the chart the game wrote from the song." onClick={then(() => onAsk('revert'))}>
+                <MenuButton
+                  icon={RotateCcw}
+                  help="Drops your version for the chart the game wrote from the song."
+                  onClick={then(() => onAsk('revert'))}
+                >
                   Put back the game’s chart
                 </MenuButton>
               )}
-              <MenuButton icon={Grid3x3} help={`Puts every note of this chart on the nearest grid line (${SNAP_NAME[snap.snap].toLowerCase()}).`} disabled={snap.stats.notes === 0} onClick={then(() => void ctrl.quantizeAll())}>
+              <MenuButton
+                icon={Grid3x3}
+                help={`Puts every note of this chart on the nearest grid line (${SNAP_NAME[snap.snap].toLowerCase()}).`}
+                disabled={snap.stats.notes === 0}
+                onClick={then(() => void ctrl.quantizeAll())}
+              >
                 Quantize all notes
               </MenuButton>
-              <MenuButton icon={Eraser} help="Takes every note out of this chart. It asks first." disabled={snap.stats.notes === 0} onClick={then(() => onAsk('clear'))}>
+              <MenuButton
+                icon={Eraser}
+                help="Takes every note out of this chart. It asks first."
+                disabled={snap.stats.notes === 0}
+                onClick={then(() => onAsk('clear'))}
+              >
                 Clear all notes
               </MenuButton>
             </section>
@@ -423,7 +602,17 @@ export function EditorMenu({ ctrl, snap, mode, legend, onTest, onRecord, onAsk, 
 /* Tempo ------------------------------------------------------------------------------------ */
 
 /** The beat grid: follow the song or one tempo, the tempo itself, where the bar starts, beats in a bar. */
-export function TempoSheet({ ctrl, snap, mode, onClose }: { ctrl: EditorController; snap: EditorSnapshot; mode: InputMode; onClose(): void }) {
+export function TempoSheet({
+  ctrl,
+  snap,
+  mode,
+  onClose,
+}: {
+  ctrl: EditorController;
+  snap: EditorSnapshot;
+  mode: InputMode;
+  onClose(): void;
+}) {
   const touch = mode === 'touch';
   const g = snap.grid;
   const fixed = g.mode === 'fixed';
@@ -440,13 +629,26 @@ export function TempoSheet({ ctrl, snap, mode, onClose }: { ctrl: EditorControll
       title="Tempo and bars"
       className="see-through"
       onClose={onClose}
-      actions={[{ id: 'play', label: snap.playing ? 'Pause' : 'Play', icon: snap.playing ? Pause : Play, kbd: 'Space', pad: 'b3', sfx: 'none', run: () => ctrl.togglePlay() }]}
+      actions={[
+        {
+          id: 'play',
+          label: snap.playing ? 'Pause' : 'Play',
+          icon: snap.playing ? Pause : Play,
+          kbd: 'Space',
+          pad: 'b3',
+          sfx: 'none',
+          run: () => ctrl.togglePlay(),
+        },
+      ]}
     >
       {(close) => (
         <div className="sheet-body editor-menu">
           <div className="sheet-title">
             <h2 className="display">Tempo and bars</h2>
-            <p className="hint">The grid is what notes snap to. Play the song with the metronome on: when the clicks sit on the beat and the bright lines on the first beat of each bar, it is right. Notes stay on their beats when the grid moves.</p>
+            <p className="hint">
+              The grid is what notes snap to. Play the song with the metronome on: when the clicks sit on the beat and the bright lines on
+              the first beat of each bar, it is right. Notes stay on their beats when the grid moves.
+            </p>
           </div>
 
           <section className="menu-section set-list" aria-label="Grid">
@@ -464,11 +666,51 @@ export function TempoSheet({ ctrl, snap, mode, onClose }: { ctrl: EditorControll
                 onChange={(m) => (m === 'song' ? ctrl.followSong() : ctrl.setFixed({}))}
               />
             )}
-            <StepRow label="Tempo" help="Beats a minute, in whole steps." text={bpmText} autoFocus={!g.canFollow} atMin={g.bpm <= MIN_BPM} atMax={g.bpm >= MAX_BPM} disabled={!fixed} touch={touch} onStep={(d) => ctrl.setFixed({ bpm: (d > 0 ? whole : Math.ceil(g.bpm - 1e-6)) + d })} />
-            <StepRow label="Tempo, fine" help="The same tempo in hundredths, for a grid that drifts off the song near its end." text={`${g.bpm.toFixed(2)} BPM`} atMin={g.bpm <= MIN_BPM} atMax={g.bpm >= MAX_BPM} disabled={!fixed} touch={touch} onStep={(d) => ctrl.setFixed({ bpm: g.bpm + d * 0.01 })} />
-            <StepRow label="First beat" help="Moves the whole grid earlier or later, 5 milliseconds a step." text={`${Math.round(g.offset * 1000)} ms`} atMin={g.offset <= 0} disabled={!fixed} touch={touch} onStep={(d) => ctrl.setFixed({ offset: g.offset + d * 0.005 })} />
-            <StepRow label="Beats in a bar" help="How many beats lie between two bar lines." text={String(g.beatsPerBar)} atMin={g.beatsPerBar <= 2} atMax={g.beatsPerBar >= 9} disabled={!fixed} touch={touch} onStep={(d) => ctrl.setFixed({ beatsPerBar: g.beatsPerBar + d })} />
-            {!fixed && <p className="hint menu-note">The grid follows the beats heard in the song, about {Math.round(g.bpm)} BPM. Choose One tempo to set it yourself.</p>}
+            <StepRow
+              label="Tempo"
+              help="Beats a minute, in whole steps."
+              text={bpmText}
+              autoFocus={!g.canFollow}
+              atMin={g.bpm <= MIN_BPM}
+              atMax={g.bpm >= MAX_BPM}
+              disabled={!fixed}
+              touch={touch}
+              onStep={(d) => ctrl.setFixed({ bpm: (d > 0 ? whole : Math.ceil(g.bpm - 1e-6)) + d })}
+            />
+            <StepRow
+              label="Tempo, fine"
+              help="The same tempo in hundredths, for a grid that drifts off the song near its end."
+              text={`${g.bpm.toFixed(2)} BPM`}
+              atMin={g.bpm <= MIN_BPM}
+              atMax={g.bpm >= MAX_BPM}
+              disabled={!fixed}
+              touch={touch}
+              onStep={(d) => ctrl.setFixed({ bpm: g.bpm + d * 0.01 })}
+            />
+            <StepRow
+              label="First beat"
+              help="Moves the whole grid earlier or later, 5 milliseconds a step."
+              text={`${Math.round(g.offset * 1000)} ms`}
+              atMin={g.offset <= 0}
+              disabled={!fixed}
+              touch={touch}
+              onStep={(d) => ctrl.setFixed({ offset: g.offset + d * 0.005 })}
+            />
+            <StepRow
+              label="Beats in a bar"
+              help="How many beats lie between two bar lines."
+              text={String(g.beatsPerBar)}
+              atMin={g.beatsPerBar <= 2}
+              atMax={g.beatsPerBar >= 9}
+              disabled={!fixed}
+              touch={touch}
+              onStep={(d) => ctrl.setFixed({ beatsPerBar: g.beatsPerBar + d })}
+            />
+            {!fixed && (
+              <p className="hint menu-note">
+                The grid follows the beats heard in the song, about {Math.round(g.bpm)} BPM. Choose One tempo to set it yourself.
+              </p>
+            )}
           </section>
 
           <section className="menu-section" aria-label="Find the tempo">
@@ -487,7 +729,13 @@ export function TempoSheet({ ctrl, snap, mode, onClose }: { ctrl: EditorControll
               <Hand strokeWidth={ICON_STROKE} aria-hidden />
               <span className="pick-text">
                 <span>Tap the beat</span>
-                <span className="pick-help">{taps < 1 ? 'Press in time with the song, four times or more.' : taps < 4 ? `${4 - taps} more…` : `${bpmText}. Keep tapping to steady it.`}</span>
+                <span className="pick-help">
+                  {taps < 1
+                    ? 'Press in time with the song, four times or more.'
+                    : taps < 4
+                      ? `${4 - taps} more…`
+                      : `${bpmText}. Keep tapping to steady it.`}
+                </span>
               </span>
             </button>
             <MenuButton icon={MoveVertical} help="The bar line moves to where the cursor is." onClick={() => ctrl.firstBeatHere()}>
@@ -513,7 +761,14 @@ export function TempoSheet({ ctrl, snap, mode, onClose }: { ctrl: EditorControll
           </section>
 
           <section className="menu-section set-list" aria-label="Listening">
-            <ChoiceRow label="Metronome" help="A click on every beat while the song plays, to check the grid by ear." value={snap.metronome} options={ON_OFF} touch={touch} onChange={(v) => ctrl.setMetronome(v)} />
+            <ChoiceRow
+              label="Metronome"
+              help="A click on every beat while the song plays, to check the grid by ear."
+              value={snap.metronome}
+              options={ON_OFF}
+              touch={touch}
+              onChange={(v) => ctrl.setMetronome(v)}
+            />
             <MenuButton icon={snap.playing ? Pause : Play} data-sfx="none" onClick={() => ctrl.togglePlay()}>
               {snap.playing ? 'Pause' : 'Play from the cursor'}
             </MenuButton>
@@ -547,15 +802,38 @@ export function selectionActions(ctrl: EditorController, snap: EditorSnapshot): 
     { id: 'repeat', label: 'Repeat after itself', short: 'Repeat', icon: CopyPlus, stay: true, run: () => ctrl.repeat() },
     { id: 'copy', label: 'Copy', short: 'Copy', icon: Copy, run: () => void ctrl.copy() },
     { id: 'cut', label: 'Cut', short: 'Cut', icon: Scissors, run: () => ctrl.cut() },
-    { id: 'phrase', label: snap.selPhrase ? 'Take out of overdrive' : 'Make an overdrive phrase', short: 'Overdrive', icon: Zap, run: () => ctrl.togglePhrase() },
-    { id: 'release', label: snap.selRelease ? 'No need to let go on time' : 'Let go on time', short: 'Let go', icon: Hand, disabled: !snap.selLong, run: () => ctrl.toggleRelease() },
+    {
+      id: 'phrase',
+      label: snap.selPhrase ? 'Take out of overdrive' : 'Make an overdrive phrase',
+      short: 'Overdrive',
+      icon: Zap,
+      run: () => ctrl.togglePhrase(),
+    },
+    {
+      id: 'release',
+      label: snap.selRelease ? 'No need to let go on time' : 'Let go on time',
+      short: 'Let go',
+      icon: Hand,
+      disabled: !snap.selLong,
+      run: () => ctrl.toggleRelease(),
+    },
     { id: 'mirror', label: 'Mirror left and right', short: 'Mirror', icon: FlipHorizontal2, stay: true, run: () => ctrl.mirror() },
     { id: 'delete', label: 'Delete', short: 'Delete', icon: Trash2, run: () => ctrl.remove() },
   ];
 }
 
 /** The selection's actions as a card: what the confirm button opens on a marked stretch. */
-export function SelectionCard({ ctrl, snap, onTools, onClose }: { ctrl: EditorController; snap: EditorSnapshot; onTools(): void; onClose(): void }) {
+export function SelectionCard({
+  ctrl,
+  snap,
+  onTools,
+  onClose,
+}: {
+  ctrl: EditorController;
+  snap: EditorSnapshot;
+  onTools(): void;
+  onClose(): void;
+}) {
   return (
     <Dialog title="Selected notes" variant="card" closeLabel="Go back" onClose={onClose}>
       {(close) => (
@@ -563,7 +841,12 @@ export function SelectionCard({ ctrl, snap, onTools, onClose }: { ctrl: EditorCo
           <h2 className="display">
             {snap.selected} {snap.selected === 1 ? 'note' : 'notes'}
           </h2>
-          {snap.selected === 0 && <p className="hint">There are no notes in the stretch you marked. Paste sets copied notes down here; Fill, under More tools, writes a note on every grid line.</p>}
+          {snap.selected === 0 && (
+            <p className="hint">
+              There are no notes in the stretch you marked. Paste sets copied notes down here; Fill, under More tools, writes a note on
+              every grid line.
+            </p>
+          )}
           {snap.selected === 0 && (
             <button type="button" className="btn wide" data-autofocus disabled={!snap.clipboard} onClick={() => (close(), ctrl.paste())}>
               <ClipboardPaste strokeWidth={ICON_STROKE} aria-hidden />
@@ -572,12 +855,25 @@ export function SelectionCard({ ctrl, snap, onTools, onClose }: { ctrl: EditorCo
           )}
           {snap.selected > 0 &&
             selectionActions(ctrl, snap).map((a, i) => (
-              <button key={a.id} type="button" className="btn wide" data-autofocus={i === 0 ? '' : undefined} data-sfx={a.id === 'delete' ? 'back' : undefined} disabled={a.disabled} onClick={() => (a.stay || close(), a.run())}>
+              <button
+                key={a.id}
+                type="button"
+                className="btn wide"
+                data-autofocus={i === 0 ? '' : undefined}
+                data-sfx={a.id === 'delete' ? 'back' : undefined}
+                disabled={a.disabled}
+                onClick={() => (a.stay || close(), a.run())}
+              >
                 <a.icon strokeWidth={ICON_STROKE} aria-hidden />
                 {a.label}
               </button>
             ))}
-          <button type="button" className="btn wide" data-autofocus={snap.selected === 0 && !snap.clipboard ? '' : undefined} onClick={() => (close(), onTools())}>
+          <button
+            type="button"
+            className="btn wide"
+            data-autofocus={snap.selected === 0 && !snap.clipboard ? '' : undefined}
+            onClick={() => (close(), onTools())}
+          >
             <Wrench strokeWidth={ICON_STROKE} aria-hidden />
             More tools
           </button>
@@ -599,16 +895,36 @@ export function ToolsCard({ ctrl, snap, onClose }: { ctrl: EditorController; sna
       {(close) => (
         <div className="pause-card">
           <h2 className="display">Tools</h2>
-          <p className="hint">{some ? `These work on ${what}. Each can be undone.` : 'The snapping tools work on the whole chart. Mark or select notes for the others.'}</p>
-          <MenuButton icon={Grid3x3} help={`Puts ${what} on the nearest grid line (${SNAP_NAME[snap.snap].toLowerCase()}).`} data-autofocus disabled={!snap.stats.notes} onClick={() => ctrl.quantizeNotes()}>
+          <p className="hint">
+            {some
+              ? `These work on ${what}. Each can be undone.`
+              : 'The snapping tools work on the whole chart. Mark or select notes for the others.'}
+          </p>
+          <MenuButton
+            icon={Grid3x3}
+            help={`Puts ${what} on the nearest grid line (${SNAP_NAME[snap.snap].toLowerCase()}).`}
+            data-autofocus
+            disabled={!snap.stats.notes}
+            onClick={() => ctrl.quantizeNotes()}
+          >
             Snap to the grid
           </MenuButton>
           {snap.hasSounds && (
-            <MenuButton icon={Waves} help={`Moves ${what} onto the nearest sound heard in the song, where one is close.`} disabled={!snap.stats.notes} onClick={() => ctrl.snapToSounds()}>
+            <MenuButton
+              icon={Waves}
+              help={`Moves ${what} onto the nearest sound heard in the song, where one is close.`}
+              disabled={!snap.stats.notes}
+              onClick={() => ctrl.snapToSounds()}
+            >
               Snap to sounds
             </MenuButton>
           )}
-          <MenuButton icon={Magnet} help="A note on every grid line of the marked stretch, in the cursor’s lane." disabled={!snap.ranged} onClick={() => ctrl.fill()}>
+          <MenuButton
+            icon={Magnet}
+            help="A note on every grid line of the marked stretch, in the cursor’s lane."
+            disabled={!snap.ranged}
+            onClick={() => ctrl.fill()}
+          >
             Fill the marked stretch
           </MenuButton>
           <div className="menu-grid">
@@ -625,10 +941,20 @@ export function ToolsCard({ ctrl, snap, onClose }: { ctrl: EditorController; sna
               Half as fast
             </MenuButton>
           </div>
-          <MenuButton icon={ArrowLeftRight} help="The same rhythm with the lanes in the opposite order." disabled={!some} onClick={() => ctrl.reverse()}>
+          <MenuButton
+            icon={ArrowLeftRight}
+            help="The same rhythm with the lanes in the opposite order."
+            disabled={!some}
+            onClick={() => ctrl.reverse()}
+          >
             Play it backwards
           </MenuButton>
-          <MenuButton icon={Scissors} help="Takes out every other moment, to make a busy passage half as busy." disabled={!some} onClick={() => ctrl.thin()}>
+          <MenuButton
+            icon={Scissors}
+            help="Takes out every other moment, to make a busy passage half as busy."
+            disabled={!some}
+            onClick={() => ctrl.thin()}
+          >
             Thin out
           </MenuButton>
           <button type="button" className="btn quiet wide" data-sfx="back" onClick={close}>
@@ -643,14 +969,26 @@ export function ToolsCard({ ctrl, snap, onClose }: { ctrl: EditorController; sna
 /* Checking --------------------------------------------------------------------------------- */
 
 /** What stands out in the chart, each a button that goes there. */
-export function CheckCard({ issues, where, onGo, onClose }: { issues: Issue[]; where(pos: number): string; onGo(issue: Issue): void; onClose(): void }) {
+export function CheckCard({
+  issues,
+  where,
+  onGo,
+  onClose,
+}: {
+  issues: Issue[];
+  where(pos: number): string;
+  onGo(issue: Issue): void;
+  onClose(): void;
+}) {
   const shown = issues.slice(0, 80);
   return (
     <Dialog title="Check the chart" variant="card" className="wide-card" closeLabel="Go back" onClose={onClose}>
       {(close) => (
         <div className="pause-card">
           <h2 className="display">Worth a look</h2>
-          <p className="hint">{issues.length ? 'None of these stops the chart from being played. Pick one to go there.' : 'Nothing stands out in this chart.'}</p>
+          <p className="hint">
+            {issues.length ? 'None of these stops the chart from being played. Pick one to go there.' : 'Nothing stands out in this chart.'}
+          </p>
           <ul className="check-list">
             {shown.map((issue, i) => (
               <li key={i}>
@@ -696,7 +1034,9 @@ export function CopyFromCard({ ctrl, snap, onClose }: { ctrl: EditorController; 
               <tr>
                 <td />
                 {DIFFICULTIES.map((d) => (
-                  <th key={d} scope="col">{DIFFICULTY_LABEL[d]}</th>
+                  <th key={d} scope="col">
+                    {DIFFICULTY_LABEL[d]}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -749,7 +1089,19 @@ export function CopyFromCard({ ctrl, snap, onClose }: { ctrl: EditorController; 
 
 /* Questions -------------------------------------------------------------------------------- */
 
-export function AskCard({ title, hint, yes, onYes, onClose }: { title: string; hint: string; yes: string; onYes(): void; onClose(): void }) {
+export function AskCard({
+  title,
+  hint,
+  yes,
+  onYes,
+  onClose,
+}: {
+  title: string;
+  hint: string;
+  yes: string;
+  onYes(): void;
+  onClose(): void;
+}) {
   return (
     <Dialog title={title} variant="card" closeLabel="Go back" onClose={onClose}>
       {(close) => (

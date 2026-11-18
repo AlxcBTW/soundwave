@@ -146,7 +146,11 @@ export function HoldButton({ label, hint, glyph, disabled, tone = 'primary', gly
   return (
     <button ref={ref} type="button" className={`hold-btn ${tone}`} data-sfx="none" data-autofocus disabled={disabled}>
       <span className="hold-fill" aria-hidden />
-      {glyph && <span className="hold-glyph" aria-hidden>{glyph}</span>}
+      {glyph && (
+        <span className="hold-glyph" aria-hidden>
+          {glyph}
+        </span>
+      )}
       <span className="hold-text">
         <span className="hold-label">{label}</span>
         <span className="hold-hint">{hint}</span>

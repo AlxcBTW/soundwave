@@ -109,7 +109,9 @@ function cleanBeats(raw: unknown): { beats: number[]; downbeats: number[] } | un
   if (!g || !Array.isArray(g.beats) || g.beats.length < 2 || g.beats.length > MAX_BEATS) return undefined;
   const beats = g.beats.filter(num).filter((t) => t >= 0);
   if (beats.length < 2) return undefined;
-  const downbeats = Array.isArray(g.downbeats) ? g.downbeats.filter(num).filter((i) => Number.isInteger(i) && i >= 0 && i < beats.length) : [];
+  const downbeats = Array.isArray(g.downbeats)
+    ? g.downbeats.filter(num).filter((i) => Number.isInteger(i) && i >= 0 && i < beats.length)
+    : [];
   return { beats, downbeats };
 }
 
@@ -133,16 +135,25 @@ export function sanitizeEdits(raw: unknown): SongEdits | undefined {
     }
   }
   if (!grid && !Object.keys(charts).length) return undefined;
-  return { version: EDITS_VERSION, ...(grid ? { grid } : {}), ...(tracked ? { tracked } : {}), ...(duration ? { duration } : {}), charts, updatedAt: num(e.updatedAt) ? e.updatedAt : Date.now() };
+  return {
+    version: EDITS_VERSION,
+    ...(grid ? { grid } : {}),
+    ...(tracked ? { tracked } : {}),
+    ...(duration ? { duration } : {}),
+    charts,
+    updatedAt: num(e.updatedAt) ? e.updatedAt : Date.now(),
+  };
 }
 
 /** How long the song is, from whichever knows: its analysis, or what the editor stored. */
-export const songDuration = (edits: SongEdits | undefined, analysis: AnalysisResult | undefined, fallback = 0) => analysis?.duration || edits?.duration || fallback;
+export const songDuration = (edits: SongEdits | undefined, analysis: AnalysisResult | undefined, fallback = 0) =>
+  analysis?.duration || edits?.duration || fallback;
 
 /** The grid a song's hand-made charts sit on: its own, or the beats of its analysis. */
 export function resolveGrid(edits: SongEdits | undefined, analysis: AnalysisResult | undefined, duration: number): BeatGrid | undefined {
   if (edits?.grid) return buildGrid(edits.grid, duration);
-  if (analysis && analysis.beats.length >= 2) return buildGrid({ kind: 'beats', beats: analysis.beats, downbeats: analysis.downbeats }, duration);
+  if (analysis && analysis.beats.length >= 2)
+    return buildGrid({ kind: 'beats', beats: analysis.beats, downbeats: analysis.downbeats }, duration);
   return undefined;
 }
 

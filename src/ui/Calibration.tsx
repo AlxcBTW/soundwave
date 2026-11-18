@@ -97,15 +97,30 @@ export function Calibration({ onDone }: { onDone(offsetMs: number | null): void 
   const sorted = [...taps].sort((a, b) => a - b);
   const median = sorted.length ? Math.round(sorted[Math.floor(sorted.length / 2)] * 1000) : null;
   const mode = useInputMode();
-  const how = mode === 'touch' ? 'Tap the pad exactly on each click.' : mode === 'pad' ? 'Press any button exactly on each click.' : 'Press any key exactly on each click, or click the pad.';
+  const how =
+    mode === 'touch'
+      ? 'Tap the pad exactly on each click.'
+      : mode === 'pad'
+        ? 'Press any button exactly on each click.'
+        : 'Press any key exactly on each click, or click the pad.';
   // No bar actions while the clicks run: every key and button is a tap.
   useActions([]);
   return (
     <div className="overlay card" data-modal>
       <div className="dialog calib-card" role="dialog" aria-modal="true" aria-label="Calibration">
         <h2 className="display">Calibrate</h2>
-        <p className="calib-how" role="status">{beat < 0 ? `Get ready… ${-beat}` : how}</p>
-        <button type="button" className={`calib-pad ${beat >= 0 && beat % 2 === 0 ? 'on' : ''}`} data-sfx="none" data-ring="none" tabIndex={-1} aria-label="Tap here on each click" onPointerDown={(e) => tapRef.current(e.timeStamp)}>
+        <p className="calib-how" role="status">
+          {beat < 0 ? `Get ready… ${-beat}` : how}
+        </p>
+        <button
+          type="button"
+          className={`calib-pad ${beat >= 0 && beat % 2 === 0 ? 'on' : ''}`}
+          data-sfx="none"
+          data-ring="none"
+          tabIndex={-1}
+          aria-label="Tap here on each click"
+          onPointerDown={(e) => tapRef.current(e.timeStamp)}
+        >
           <span className="calib-dot" />
         </button>
         <p className="calib-count num">

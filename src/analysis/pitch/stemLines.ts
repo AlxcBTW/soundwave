@@ -186,7 +186,14 @@ export function vocalLineFromStem({ signal, sr, notes }: StemInput): PitchedNote
     const held = Math.max(heldUntil(voiced, pitch) + 0.1, e.t + 0.1);
     const end = Math.min(next - 0.02, held, fadeEnd(env, e.t, next, 0.3));
     if (end - e.t < MIN_SYLLABLE) continue;
-    out.push({ t: e.t, dur: end - e.t, midi: pitch.midi, strength: Math.min(1, 0.4 + e.strength * 0.6), bend: pitch.bend, fine: pitch.fine });
+    out.push({
+      t: e.t,
+      dur: end - e.t,
+      midi: pitch.midi,
+      strength: Math.min(1, 0.4 + e.strength * 0.6),
+      bend: pitch.bend,
+      fine: pitch.fine,
+    });
   }
   // A note or two alone in a long break is usually bleed from an instrument.
   return dropStrayVocals(stabilizePitches(out), (n) => level(env, n.t, n.t + Math.min(0.3, Math.max(0.1, n.dur))));
@@ -352,7 +359,11 @@ export function leadLineFromStem({ signal, sr, notes, beats }: StemInput): Pitch
       }
       ({ top, chord } = voicing(pitches));
       longest = Math.max(h.t + 0.1, ...voice.map((n) => n.t + n.dur));
-    } else if (prev && h.t - (prev.t + prev.dur) < 0.15 && soundingAt(pitched, h.t + 0.05).some((n) => (prev.chord ?? [prev.midi]).includes(n.midi))) {
+    } else if (
+      prev &&
+      h.t - (prev.t + prev.dur) < 0.15 &&
+      soundingAt(pitched, h.t + 0.05).some((n) => (prev.chord ?? [prev.midi]).includes(n.midi))
+    ) {
       // A re-strum: no new pitch, the previous chord still ringing. Same chord again.
       top = prev.midi;
       chord = prev.chord;

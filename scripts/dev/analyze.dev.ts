@@ -52,7 +52,8 @@ it(`analyze ${song}`, async () => {
     const ml = JSON.parse(readFileSync(join(dir, `${song}.ml.json`), 'utf8')) as AnalysisResult;
     const drumPath = join(dir, `${song}.ml.drums.wav`);
     const drumSignal = existsSync(drumPath) ? readWav16(drumPath, signal.length) : undefined;
-    const stem = (n: string) => (existsSync(join(dir, `${song}.ml.${n}.wav`)) ? readWav16(join(dir, `${song}.ml.${n}.wav`), signal.length) : undefined);
+    const stem = (n: string) =>
+      existsSync(join(dir, `${song}.ml.${n}.wav`)) ? readWav16(join(dir, `${song}.ml.${n}.wav`), signal.length) : undefined;
     const stemNotes = (ml as { stemNotes?: StemNotes }).stemNotes;
     const a = await analyzeSignal(signal, {
       lines: { bass: ml.bass, lead: ml.lead, vocals: ml.vocals },
@@ -92,18 +93,25 @@ function readWav16(path: string, length: number): Float32Array {
 }
 
 function report(a: AnalysisResult, name: string) {
-
   const spb = 60 / a.tempo;
   const bars = a.downbeats.map((i) => a.beats[i]);
   const from = Number(process.env.BAR ?? bars.findIndex((t) => t >= 60));
   const count = Number(process.env.BARS ?? 4);
-  const lines: string[] = [`tempo ${a.tempo}  bass ${a.bass.length}  lead ${a.lead.length}  vocals ${a.vocals.length}  drums ${a.drums.length}`];
-  for (const [name, list] of [['bass', a.bass], ['lead', a.lead], ['vocals', a.vocals]] as const) {
+  const lines: string[] = [
+    `tempo ${a.tempo}  bass ${a.bass.length}  lead ${a.lead.length}  vocals ${a.vocals.length}  drums ${a.drums.length}`,
+  ];
+  for (const [name, list] of [
+    ['bass', a.bass],
+    ['lead', a.lead],
+    ['vocals', a.vocals],
+  ] as const) {
     for (let b = from; b < from + count; b++) {
       const s = bars[b];
       const e = bars[b + 1];
       const ns = list.filter((n) => n.t >= s - 0.03 && n.t < e - 0.03);
-      lines.push(`${name.padEnd(6)} bar ${b}: ${ns.map((n) => `${((n.t - s) / spb).toFixed(2)}:${n.chord ? `[${n.chord.map(nm).join(' ')}]` : nm(n.midi)}`).join(' ')}`);
+      lines.push(
+        `${name.padEnd(6)} bar ${b}: ${ns.map((n) => `${((n.t - s) / spb).toFixed(2)}:${n.chord ? `[${n.chord.map(nm).join(' ')}]` : nm(n.midi)}`).join(' ')}`,
+      );
     }
   }
   const parts = (process.env.PARTS ?? PARTS.join(',')).split(',');
@@ -112,7 +120,9 @@ function report(a: AnalysisResult, name: string) {
       const c = generateChart(a, part, d, song);
       const lanesUsed = Array.from({ length: c.lanes }, (_, l) => c.notes.filter((n) => n.lane === l).length).join('/');
       const chords = c.notes.length - new Set(c.notes.map((n) => n.t)).size;
-      lines.push(`${part}/${d}: ${c.notes.length} notes (${(c.notes.length / a.duration).toFixed(2)}/s) lanes ${lanesUsed} chords ${chords} sustains ${c.notes.filter((n) => n.dur > 0).length}`);
+      lines.push(
+        `${part}/${d}: ${c.notes.length} notes (${(c.notes.length / a.duration).toFixed(2)}/s) lanes ${lanesUsed} chords ${chords} sustains ${c.notes.filter((n) => n.dur > 0).length}`,
+      );
       for (let b = from; b < from + Math.min(count, 2); b++) {
         const s = bars[b];
         const e = bars[b + 1];

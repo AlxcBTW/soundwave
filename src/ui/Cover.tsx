@@ -12,7 +12,11 @@ export function Cover({ blob, title, className = '' }: { blob?: Blob; title: str
   if (url) return <img className={`cover ${className}`} src={url} alt="" draggable={false} />;
   const h = hueFor(title);
   return (
-    <div className={`cover generated ${className}`} aria-hidden style={{ ['--c1' as string]: `hsl(${h} 72% 52%)`, ['--c2' as string]: `hsl(${(h + 50) % 360} 70% 30%)` }}>
+    <div
+      className={`cover generated ${className}`}
+      aria-hidden
+      style={{ ['--c1' as string]: `hsl(${h} 72% 52%)`, ['--c2' as string]: `hsl(${(h + 50) % 360} 70% 30%)` }}
+    >
       <span>{title.trim().slice(0, 1).toUpperCase() || '?'}</span>
     </div>
   );

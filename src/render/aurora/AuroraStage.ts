@@ -41,7 +41,14 @@ const SPARKS_PER_RAY: Record<Level, number> = { off: 0, low: 6, medium: 12, high
 const SMOKE: Record<Level, number> = { off: 0, low: 250, medium: 700, high: 1400 };
 const CO2_PER_JET: Record<Level, number> = { off: 0, low: 6, medium: 14, high: 24 };
 /** Camera spots the director adds itself (see buildShots), for placing detailed crowd figures. */
-const EXTRA_CAMERAS: [number, number, number][] = [[-62, 7, 48], [62, 7, 48], [0, 1.6, 26], [-7, 5, 5], [7, 5, 5], [0, 6, 13]];
+const EXTRA_CAMERAS: [number, number, number][] = [
+  [-62, 7, 48],
+  [62, 7, 48],
+  [0, 1.6, 26],
+  [-7, 5, 5],
+  [7, 5, 5],
+  [0, 6, 13],
+];
 /** The order the shaders know the players in. */
 const PLAYERS = ['lead', 'vox', 'bass', 'drums'];
 
@@ -109,7 +116,15 @@ export class AuroraStage {
   private readonly owned: { dispose(): void }[] = [];
   private readonly crowdMap: THREE.Texture;
   /** The players' podiums: what rides on each, how far it may rise and how high it is now. */
-  private readonly lifts: { part: string; index: number; group: THREE.Group; person?: Person; rest: number; travel: number; height: number }[] = [];
+  private readonly lifts: {
+    part: string;
+    index: number;
+    group: THREE.Group;
+    person?: Person;
+    rest: number;
+    travel: number;
+    height: number;
+  }[] = [];
   private readonly key = new THREE.Color();
   private readonly accent = new THREE.Color();
   private readonly wash = new THREE.Color();
@@ -140,7 +155,12 @@ export class AuroraStage {
   private shown = false;
   private disposed = false;
 
-  private constructor(private readonly canvas: HTMLCanvasElement, assets: VenueAssets, private g: GraphicsSettings, opts: StageOptions) {
+  private constructor(
+    private readonly canvas: HTMLCanvasElement,
+    assets: VenueAssets,
+    private g: GraphicsSettings,
+    opts: StageOptions,
+  ) {
     this.data = assets.data;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: g.antialias, powerPreference: 'high-performance', alpha: false });
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -201,7 +221,12 @@ export class AuroraStage {
     const ground = (x: number, z: number) => terrainHeight(land?.data.terrain, x, z);
 
     this.crowd = new Figures(assets.crowd);
-    const low = [...Object.values(this.data.cameras).map((c) => c.pos).filter((p) => p[1] < 10), ...EXTRA_CAMERAS];
+    const low = [
+      ...Object.values(this.data.cameras)
+        .map((c) => c.pos)
+        .filter((p) => p[1] < 10),
+      ...EXTRA_CAMERAS,
+    ];
     const audience = makeCrowd(this.data, this.crowd.characters, LEVEL_SHARE[g.crowd], low, assets.crowd.data.sync, ground);
     this.crowd.add(audience);
     // The ground needs to know where they stand, to shade it under them.
@@ -241,7 +266,11 @@ export class AuroraStage {
         bases.push([deck.center[0] + sx * deck.a * 1.02, deck.height, deck.center[2] - sy * deck.b * 1.02]);
       }
       // And two more to each side of it, where the note lane does not stand in front of them.
-      for (const side of [-1, 1]) bases.push([deck.center[0] + side * (deck.a + 2.5), 1.9, deck.center[2] + 5], [deck.center[0] + side * (deck.a + 8.5), 0.3, deck.center[2] + 6.5]);
+      for (const side of [-1, 1])
+        bases.push(
+          [deck.center[0] + side * (deck.a + 2.5), 1.9, deck.center[2] + 5],
+          [deck.center[0] + side * (deck.a + 8.5), 0.3, deck.center[2] + 6.5],
+        );
       this.flames = new Flames(bases);
       this.scene.add(this.flames.mesh);
       this.owned.push(this.flames);
@@ -317,7 +346,12 @@ export class AuroraStage {
       this.lastBeatAt = t;
     }
     // Beats and bars must reach the show even on frames the cap skips.
-    this.pendingBeat = f.beat === 'downbeat' || this.pendingBeat === 'downbeat' ? 'downbeat' : f.beat === 'beat' || this.pendingBeat === 'beat' ? 'beat' : 'none';
+    this.pendingBeat =
+      f.beat === 'downbeat' || this.pendingBeat === 'downbeat'
+        ? 'downbeat'
+        : f.beat === 'beat' || this.pendingBeat === 'beat'
+          ? 'beat'
+          : 'none';
     if (this.g.fpsCap && now - this.lastRender < 1000 / this.g.fpsCap - 2) return;
     const dt = Math.min(0.1, (now - (this.lastRender || now)) / 1000) || 1 / 60;
     this.lastRender = now;
@@ -426,7 +460,10 @@ export class AuroraStage {
     cam.up.set(0, -1, 0);
     cam.lookAt(target[0], 2 * level - target[1], target[2]);
     cam.updateMatrixWorld();
-    shared.uMirrorMatrix.value.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1).multiply(cam.projectionMatrix).multiply(cam.matrixWorldInverse);
+    shared.uMirrorMatrix.value
+      .set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1)
+      .multiply(cam.projectionMatrix)
+      .multiply(cam.matrixWorldInverse);
     const left = [this.water, this.crowd.group, this.band.group, this.beams.group].filter((o) => o.visible);
     for (const o of left) o.visible = false;
     this.renderer.setRenderTarget(mirror);
@@ -438,7 +475,15 @@ export class AuroraStage {
 
   /** Dev diagnostics. */
   debugInfo() {
-    return { frameMs: +this.frameAvg.toFixed(1), people: this.crowd.count, peopleTriangles: Math.round(this.crowd.triangles + this.band.triangles), shot: this.director.shot.name, level: this.show.state.level, scale: this.dynScale, size: [this.renderer.domElement.width, this.renderer.domElement.height] };
+    return {
+      frameMs: +this.frameAvg.toFixed(1),
+      people: this.crowd.count,
+      peopleTriangles: Math.round(this.crowd.triangles + this.band.triangles),
+      shot: this.director.shot.name,
+      level: this.show.state.level,
+      scale: this.dynScale,
+      size: [this.renderer.domElement.width, this.renderer.domElement.height],
+    };
   }
 
   dispose() {
@@ -489,7 +534,10 @@ export class AuroraStage {
     shared.uAccent.value.copy(this.accent);
     shared.uWash.value.copy(this.wash);
     shared.uScreenLevel.value = 0.62 + 0.16 * washLevel + 0.18 * this.barPulse;
-    shared.uHazeNear.value.setRGB(0.03, 0.035, 0.15).lerp(this.wash, 0.14).multiplyScalar(0.6 + 0.35 * s.beamLevel);
+    shared.uHazeNear.value
+      .setRGB(0.03, 0.035, 0.15)
+      .lerp(this.wash, 0.14)
+      .multiplyScalar(0.6 + 0.35 * s.beamLevel);
 
     for (let i = 0; i < this.beams.states.length; i++) {
       const b = this.beams.states[i];
@@ -569,7 +617,8 @@ export class AuroraStage {
   private fireworks(which: 'all' | 'center' | 'sides') {
     // The flame jets go off with them: the middle ones, the outer ones, or the lot. (Not while they
     // are held burning through the finale: a new shot would start each flame again from its foot.)
-    if (!this.flames?.holding) this.flames?.fire(this.show.state.time, (i) => which === 'all' || (which === 'center') === (i >= 2 && i <= 4));
+    if (!this.flames?.holding)
+      this.flames?.fire(this.show.state.time, (i) => which === 'all' || (which === 'center') === (i >= 2 && i <= 4));
     const perRay = SPARKS_PER_RAY[this.g.effects];
     if (!perRay) return;
     const origin = new THREE.Vector3();
@@ -588,7 +637,15 @@ export class AuroraStage {
         const len = f.length[0] + Math.random() * (f.length[1] - f.length[0]);
         for (let j = 0; j < perRay; j++) {
           const speed = (len / 1.3) * (0.25 + 0.85 * (j / perRay)) * (0.95 + Math.random() * 0.1);
-          this.sparks.spawn(origin, TMP_V.copy(dir).multiplyScalar(speed), [c.r, c.g, c.b], 0.55 + Math.random() * 0.35, 1.6 + Math.random() * 0.9, 0.9, 0);
+          this.sparks.spawn(
+            origin,
+            TMP_V.copy(dir).multiplyScalar(speed),
+            [c.r, c.g, c.b],
+            0.55 + Math.random() * 0.35,
+            1.6 + Math.random() * 0.9,
+            0.9,
+            0,
+          );
         }
       }
     });
@@ -602,7 +659,16 @@ export class AuroraStage {
       origin.set(...c);
       for (let k = 0; k < per; k++) {
         TMP_V.set((Math.random() - 0.5) * 2.2, 9 + Math.random() * 7, (Math.random() - 0.5) * 2.2 + 0.8);
-        this.smoke.spawn(origin, TMP_V, [tint.r * 0.8, tint.g * 0.8, tint.b * 0.85], 1.5 + Math.random() * 1.5, 2.2 + Math.random() * 1.3, 1.6, 4.0, 0.16);
+        this.smoke.spawn(
+          origin,
+          TMP_V,
+          [tint.r * 0.8, tint.g * 0.8, tint.b * 0.85],
+          1.5 + Math.random() * 1.5,
+          2.2 + Math.random() * 1.3,
+          1.6,
+          4.0,
+          0.16,
+        );
       }
     }
   }

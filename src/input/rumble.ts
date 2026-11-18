@@ -44,7 +44,8 @@ type Actuator = {
   reset?(): Promise<unknown>;
 };
 
-const actuator = (index: number): Actuator | undefined => (pads.gamepad(index) as (Gamepad & { vibrationActuator?: Actuator }) | null)?.vibrationActuator;
+const actuator = (index: number): Actuator | undefined =>
+  (pads.gamepad(index) as (Gamepad & { vibrationActuator?: Actuator }) | null)?.vibrationActuator;
 
 /**
  * Rumble one controller. The heavy motor sits in the left grip and the light one in the right,
@@ -60,7 +61,13 @@ function rumblePad(index: number, e: Effect, k: number) {
   const trigger = e.input === 'b6' ? 'left' : e.input === 'b7' ? 'right' : undefined;
   if (trigger && act.effects?.includes('trigger-rumble')) {
     void act
-      .playEffect('trigger-rumble', { duration: e.ms, strongMagnitude: strong * 0.6, weakMagnitude: weak * 0.6, leftTrigger: trigger === 'left' ? amp : 0, rightTrigger: trigger === 'right' ? amp : 0 })
+      .playEffect('trigger-rumble', {
+        duration: e.ms,
+        strongMagnitude: strong * 0.6,
+        weakMagnitude: weak * 0.6,
+        leftTrigger: trigger === 'left' ? amp : 0,
+        rightTrigger: trigger === 'right' ? amp : 0,
+      })
       .catch(() => {});
     return;
   }
@@ -80,7 +87,9 @@ export async function dualSenseHaptics(): Promise<boolean> {
 }
 
 const nativePlay = (e: Effect, k: number, hold?: number) =>
-  void invoke('haptics_play', { effect: { pan: e.pan, amp: Math.min(1, e.amp * k), ms: e.ms, kind: e.kind, hold: hold ?? null } }).catch(() => {});
+  void invoke('haptics_play', { effect: { pan: e.pan, amp: Math.min(1, e.amp * k), ms: e.ms, kind: e.kind, hold: hold ?? null } }).catch(
+    () => {},
+  );
 const nativeRelease = (id: number) => void invoke('haptics_release', { id }).catch(() => {});
 const nativeUpdate = (id: number, amp: number) => void invoke('haptics_update', { id, amp }).catch(() => {});
 
@@ -103,7 +112,8 @@ export class Rumbler {
     private readonly bindings: PadInput[] = [],
   ) {
     const ps5 = pads.snapshot().pads.some((p) => p.family === 'ps5');
-    this.checked = ps5 && s.rumble !== 'off' ? dualSenseHaptics().then((ok) => (this.native = ok && !this.disposed)) : Promise.resolve(false);
+    this.checked =
+      ps5 && s.rumble !== 'off' ? dualSenseHaptics().then((ok) => (this.native = ok && !this.disposed)) : Promise.resolve(false);
   }
 
   private get k() {
@@ -228,7 +238,8 @@ export class Rumbler {
   /** Settings preview: a click travelling across the lanes, then a thud. Resolves with whether DualSense haptics were used. */
   async test(): Promise<boolean> {
     await this.checked;
-    for (let l = 0; l < this.lanes; l++) window.setTimeout(() => this.fire({ pan: this.panFor(l), amp: 1, ms: 60, kind: 'click' }), l * 160);
+    for (let l = 0; l < this.lanes; l++)
+      window.setTimeout(() => this.fire({ pan: this.panFor(l), amp: 1, ms: 60, kind: 'click' }), l * 160);
     window.setTimeout(() => this.fire({ pan: 0, amp: 1, ms: 160, kind: 'thud' }), this.lanes * 160 + 120);
     return this.native;
   }
@@ -238,7 +249,10 @@ export class Rumbler {
     for (const lane of Array.from(this.held.keys())) this.sustainEnd(lane);
     this.overdriveEnd();
     clearTimeout(this.holdTimer);
-    for (const p of pads.snapshot().pads) void actuator(p.index)?.reset?.().catch(() => {});
+    for (const p of pads.snapshot().pads)
+      void actuator(p.index)
+        ?.reset?.()
+        .catch(() => {});
   }
 }
 

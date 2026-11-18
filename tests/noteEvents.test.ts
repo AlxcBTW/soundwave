@@ -45,7 +45,8 @@ function fakeOutput(nFrames: number, seed: number) {
   return { frames, onsets, contours };
 }
 
-const rows = (a: Float32Array, width: number) => Array.from({ length: a.length / width }, (_, r) => Array.from(a.subarray(r * width, (r + 1) * width)));
+const rows = (a: Float32Array, width: number) =>
+  Array.from({ length: a.length / width }, (_, r) => Array.from(a.subarray(r * width, (r + 1) * width)));
 
 describe('note decoding', () => {
   for (const [nFrames, seed] of [
@@ -57,7 +58,10 @@ describe('note decoding', () => {
       const { frames, onsets, contours } = fakeOutput(nFrames, seed);
       const options = { onsetThresh: 0.45, frameThresh: 0.3, minNoteLen: 8, energyTolerance: 11 };
       const expected = noteFramesToTime(
-        addPitchBendsToNoteEvents(rows(contours, CONTOUR_BINS), outputToNotesPoly(rows(frames, PITCHES), rows(onsets, PITCHES), 0.45, 0.3, 8, true, null, null, true, 11)),
+        addPitchBendsToNoteEvents(
+          rows(contours, CONTOUR_BINS),
+          outputToNotesPoly(rows(frames, PITCHES), rows(onsets, PITCHES), 0.45, 0.3, 8, true, null, null, true, 11),
+        ),
       );
       const got = notesToTime(addPitchBends(contours, decodeNotes(frames, onsets, nFrames, options)));
       expect(expected.length).toBeGreaterThan(20);

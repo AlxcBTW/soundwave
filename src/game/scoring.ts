@@ -32,8 +32,7 @@ export const goldThreshold = (overdriveShare: number) =>
 /** `starsFor` gives this for gold stars: all five, and gold. */
 export const GOLD_STARS = 6;
 
-export const multiplierFor = (streak: number) =>
-  Math.min(MAX_MULTIPLIER, 1 + Math.floor(streak / STREAK_PER_MULTIPLIER));
+export const multiplierFor = (streak: number) => Math.min(MAX_MULTIPLIER, 1 + Math.floor(streak / STREAK_PER_MULTIPLIER));
 
 /** Stars for a score against the song's par: 0..5, or GOLD_STARS (6) for five gold ones. */
 export function starsFor(score: number, par: number, gold = GOLD_THRESHOLD): number {

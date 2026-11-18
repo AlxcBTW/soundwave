@@ -4,7 +4,16 @@ import { getEngine } from '../audio/engine';
 import type { Settings } from '../game/settings';
 import { PadGlyph } from '../input/glyphs';
 import { confirmInput } from '../input/pads';
-import { backupFileName, BACKUP_EXT, clearPreferences, readBackup, restoreBackup, writeBackup, type BackupContents, type RestoreResult } from '../storage/backup';
+import {
+  backupFileName,
+  BACKUP_EXT,
+  clearPreferences,
+  readBackup,
+  restoreBackup,
+  writeBackup,
+  type BackupContents,
+  type RestoreResult,
+} from '../storage/backup';
 import { deleteLibrary, listSongs } from '../storage/db';
 import { chooseSaveTarget } from '../storage/share';
 import { useHints } from './actions';
@@ -56,7 +65,12 @@ export function useLibraryBackup(settings: Settings): LibraryBackup {
   const [last, setLast] = useState<'export' | 'import' | 'delete' | null>(null);
   const [hideProgress, setHideProgress] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const busy = state.kind === 'exporting' || state.kind === 'saving' || state.kind === 'reading' || state.kind === 'importing' || state.kind === 'deleting';
+  const busy =
+    state.kind === 'exporting' ||
+    state.kind === 'saving' ||
+    state.kind === 'reading' ||
+    state.kind === 'importing' ||
+    state.kind === 'deleting';
 
   const askDelete = () => {
     if (busy) return;
@@ -129,16 +143,23 @@ export function useLibraryBackup(settings: Settings): LibraryBackup {
   const pill = (text: string, tone = '') => <span className={`pill ${tone}`}>{text}</span>;
   const progress = (done: number, total: number) => (total ? `${done} of ${total}` : 'Starting…');
   const exportNote =
-    state.kind === 'exporting' ? pill(`Packing ${progress(state.done, state.total)}`)
-    : state.kind === 'saving' ? pill('Saving…')
-    : state.kind === 'exported' ? pill(`Saved ${songs(state.songs)}`, 'ready')
-    : state.kind === 'error' && last === 'export' ? pill('Failed', 'error')
-    : undefined;
+    state.kind === 'exporting'
+      ? pill(`Packing ${progress(state.done, state.total)}`)
+      : state.kind === 'saving'
+        ? pill('Saving…')
+        : state.kind === 'exported'
+          ? pill(`Saved ${songs(state.songs)}`, 'ready')
+          : state.kind === 'error' && last === 'export'
+            ? pill('Failed', 'error')
+            : undefined;
   const importNote =
-    state.kind === 'reading' ? pill('Reading…')
-    : state.kind === 'importing' ? pill(`Adding ${progress(state.done, state.total)}`)
-    : state.kind === 'error' && last === 'import' ? pill('Failed', 'error')
-    : undefined;
+    state.kind === 'reading'
+      ? pill('Reading…')
+      : state.kind === 'importing'
+        ? pill(`Adding ${progress(state.done, state.total)}`)
+        : state.kind === 'error' && last === 'import'
+          ? pill('Failed', 'error')
+          : undefined;
 
   const done = state.kind === 'imported' ? state.result : null;
   const ui = (
@@ -167,7 +188,10 @@ export function useLibraryBackup(settings: Settings): LibraryBackup {
                   {songs(b.songs.length)}, {count(b.scores.length, 'best score')}
                   {Object.keys(b.preferences).length ? ' and settings' : ''}.
                 </p>
-                <p className="hint">Songs you already have stay as they are; the others are added with their charts. Better scores are kept, and your settings are replaced by the backup’s. The game restarts afterwards.</p>
+                <p className="hint">
+                  Songs you already have stay as they are; the others are added with their charts. Better scores are kept, and your settings
+                  are replaced by the backup’s. The game restarts afterwards.
+                </p>
                 <button type="button" className="btn wide" data-autofocus data-sfx="back" onClick={close}>
                   Cancel
                 </button>
@@ -184,7 +208,9 @@ export function useLibraryBackup(settings: Settings): LibraryBackup {
         <Dialog title="Import library" variant="card" closeLabel="Hide" onClose={() => setHideProgress(true)}>
           <div className="pause-card">
             <h2 className="display">Importing…</h2>
-            <p className="hint" role="status">Adding songs: {progress(state.done, state.total)}</p>
+            <p className="hint" role="status">
+              Adding songs: {progress(state.done, state.total)}
+            </p>
           </div>
         </Dialog>
       )}
@@ -205,17 +231,30 @@ export function useLibraryBackup(settings: Settings): LibraryBackup {
         </Dialog>
       )}
       {(state.kind === 'askDelete' || state.kind === 'deleting') && (
-        <Dialog title="Delete everything" variant="card" closeLabel="Keep everything" onClose={() => state.kind === 'askDelete' && setState({ kind: 'idle' })}>
+        <Dialog
+          title="Delete everything"
+          variant="card"
+          closeLabel="Keep everything"
+          onClose={() => state.kind === 'askDelete' && setState({ kind: 'idle' })}
+        >
           {(close) => (
             <div className="pause-card">
               <h2 className="display">Delete everything?</h2>
               <p className="hint">
                 {state.kind === 'askDelete' && state.songs !== null ? `${capital(songs(state.songs))} ` : 'Every song '}
-                in your library will be deleted, with their charts, the charts you edited by hand, and all best scores. Every setting goes back to how the game came, key and controller bindings included.
+                in your library will be deleted, with their charts, the charts you edited by hand, and all best scores. Every setting goes
+                back to how the game came, key and controller bindings included.
               </p>
               <p className="hint">This cannot be undone. To keep a copy, export your library first.</p>
               {/* First, so it has the focus: keeping everything is the safe answer. */}
-              <button type="button" className="btn wide" data-autofocus data-sfx="back" disabled={state.kind === 'deleting'} onClick={close}>
+              <button
+                type="button"
+                className="btn wide"
+                data-autofocus
+                data-sfx="back"
+                disabled={state.kind === 'deleting'}
+                onClick={close}
+              >
                 Keep everything
               </button>
               <HoldButton
@@ -232,10 +271,17 @@ export function useLibraryBackup(settings: Settings): LibraryBackup {
         </Dialog>
       )}
       {state.kind === 'error' && (
-        <Dialog title={last === 'import' ? 'Import library' : last === 'delete' ? 'Delete everything' : 'Export library'} variant="card" closeLabel="OK" onClose={() => setState({ kind: 'idle' })}>
+        <Dialog
+          title={last === 'import' ? 'Import library' : last === 'delete' ? 'Delete everything' : 'Export library'}
+          variant="card"
+          closeLabel="OK"
+          onClose={() => setState({ kind: 'idle' })}
+        >
           {(close) => (
             <div className="pause-card">
-              <h2 className="display">{last === 'import' ? 'Could not import' : last === 'delete' ? 'Could not delete everything' : 'Could not export'}</h2>
+              <h2 className="display">
+                {last === 'import' ? 'Could not import' : last === 'delete' ? 'Could not delete everything' : 'Could not export'}
+              </h2>
               <p className="hint">{state.message}</p>
               <button type="button" className="btn primary wide" data-autofocus onClick={close}>
                 OK

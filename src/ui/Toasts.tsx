@@ -30,7 +30,14 @@ export function Toasts({ items, onDismiss }: { items: Toast[]; onDismiss(id: num
   return (
     <div className="toasts" role="status" data-nav-skip>
       {items.map((t) => (
-        <button key={t.id} type="button" className="toast" data-sfx="none" aria-label={`${t.text} Dismiss.`} onClick={() => onDismiss(t.id)}>
+        <button
+          key={t.id}
+          type="button"
+          className="toast"
+          data-sfx="none"
+          aria-label={`${t.text} Dismiss.`}
+          onClick={() => onDismiss(t.id)}
+        >
           <CircleAlert strokeWidth={ICON_STROKE} aria-hidden />
           <span>{t.text}</span>
         </button>

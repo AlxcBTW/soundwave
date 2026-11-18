@@ -28,7 +28,13 @@ describe('separateParts', () => {
     // Synth stab chords: steady (no bend), three pitches at once.
     for (const off of [0, 1.25]) for (const m of [55, 62, 67]) song.push(note(t + off, m, { dur: 0.2 }));
     // Sung melody: bendy single notes between the stabs.
-    for (const [off, m] of [[0.5, 64], [0.75, 65], [1.5, 67], [1.75, 64]] as const) song.push(note(t + off, m, { bend: 0.2, dur: 0.22 }));
+    for (const [off, m] of [
+      [0.5, 64],
+      [0.75, 65],
+      [1.5, 67],
+      [1.75, 64],
+    ] as const)
+      song.push(note(t + off, m, { bend: 0.2, dur: 0.22 }));
     // Bass.
     song.push(note(t, 31, { dur: 0.4 }), note(t + 1, 31, { dur: 0.4 }));
   }
@@ -57,10 +63,17 @@ describe('separateParts', () => {
 describe('dropStrayVocals', () => {
   // A sung phrase every few seconds, with the given notes added in between.
   const phrase = (t0: number) => [0, 0.3, 0.6, 0.9, 1.2].map((d) => ({ t: t0 + d, dur: 0.25, midi: 64, strength: 0.8, bend: 0.2 }));
-  const song = (...extra: { t: number; dur: number; midi: number; strength: number; bend?: number }[]) => [...phrase(0), ...phrase(10), ...extra, ...phrase(20)];
+  const song = (...extra: { t: number; dur: number; midi: number; strength: number; bend?: number }[]) => [
+    ...phrase(0),
+    ...phrase(10),
+    ...extra,
+    ...phrase(20),
+  ];
 
   it('drops a weak note or two alone in a break', () => {
-    const out = dropStrayVocals(song({ t: 5, dur: 0.2, midi: 48, strength: 0.3, bend: 0.2 }, { t: 5.4, dur: 0.2, midi: 48, strength: 0.35, bend: 0.2 }));
+    const out = dropStrayVocals(
+      song({ t: 5, dur: 0.2, midi: 48, strength: 0.3, bend: 0.2 }, { t: 5.4, dur: 0.2, midi: 48, strength: 0.35, bend: 0.2 }),
+    );
     expect(out.some((n) => n.t === 5 || n.t === 5.4)).toBe(false);
     expect(out).toHaveLength(15);
   });

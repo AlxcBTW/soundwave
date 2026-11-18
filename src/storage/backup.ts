@@ -185,7 +185,8 @@ async function read(blob: Blob, start: number, length: number): Promise<Uint8Arr
 async function index(blob: Blob): Promise<ChunkRef[]> {
   const head = blob.size >= HEADER ? await read(blob, 0, HEADER) : new Uint8Array();
   if (String.fromCharCode(...head.subarray(0, 8)) !== MAGIC) throw new BackupError('This is not a Soundwave library backup.');
-  if (new DataView(head.buffer).getUint16(8, true) > BACKUP_VERSION) throw new BackupError('This backup was made by a newer version of Soundwave. Update the game to import it.');
+  if (new DataView(head.buffer).getUint16(8, true) > BACKUP_VERSION)
+    throw new BackupError('This backup was made by a newer version of Soundwave. Update the game to import it.');
   const refs: ChunkRef[] = [];
   let at = HEADER;
   while (at < blob.size) {
@@ -228,14 +229,35 @@ function cleanScores(raw: unknown): Omit<BestScore, 'key' | 'date'>[] {
   return raw.flatMap((s) => {
     if (!s || typeof s !== 'object') return [];
     const { songId, part, difficulty, score, stars, accuracy, fullCombo } = s as Record<string, unknown>;
-    if (typeof songId !== 'string' || songId.length > 200 || !isPart(part) || !isDifficulty(difficulty) || !finite(score) || !finite(stars) || !finite(accuracy)) return [];
-    return [{ songId, part, difficulty, score: Math.max(0, score), stars: Math.min(GOLD_STARS, Math.max(0, Math.round(stars))), accuracy: Math.min(1, Math.max(0, accuracy)), fullCombo: fullCombo === true }];
+    if (
+      typeof songId !== 'string' ||
+      songId.length > 200 ||
+      !isPart(part) ||
+      !isDifficulty(difficulty) ||
+      !finite(score) ||
+      !finite(stars) ||
+      !finite(accuracy)
+    )
+      return [];
+    return [
+      {
+        songId,
+        part,
+        difficulty,
+        score: Math.max(0, score),
+        stars: Math.min(GOLD_STARS, Math.max(0, Math.round(stars))),
+        accuracy: Math.min(1, Math.max(0, accuracy)),
+        fullCombo: fullCombo === true,
+      },
+    ];
   });
 }
 
 function cleanPreferences(raw: unknown): Record<string, string> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  const entries = Object.entries(raw as Record<string, unknown>).filter((e): e is [string, string] => typeof e[1] === 'string' && e[1].length <= MAX_PREF);
+  const entries = Object.entries(raw as Record<string, unknown>).filter(
+    (e): e is [string, string] => typeof e[1] === 'string' && e[1].length <= MAX_PREF,
+  );
   const keys = new Set(preferenceKeys(entries.map(([k]) => k)));
   return Object.fromEntries(entries.filter(([k]) => keys.has(k)));
 }
@@ -251,14 +273,27 @@ export interface BackupContents {
 
 export async function readBackup(file: Blob): Promise<BackupContents> {
   const refs = await index(file);
-  const info = (await smallJson(file, refs.find((r) => r.type === 'INFO'))) as { createdAt?: unknown } | undefined;
+  const info = (await smallJson(
+    file,
+    refs.find((r) => r.type === 'INFO'),
+  )) as { createdAt?: unknown } | undefined;
   if (!info || typeof info !== 'object') throw new BackupError('This backup is damaged.');
   return {
     createdAt: finite(info.createdAt) ? info.createdAt : undefined,
     // Each song is checked by its own file's checksums as it is restored, one at a time.
     songs: refs.filter((r) => r.type === 'SONG').map((r) => file.slice(r.offset, r.offset + r.length)),
-    scores: cleanScores(await smallJson(file, refs.find((r) => r.type === 'SCOR'))),
-    preferences: cleanPreferences(await smallJson(file, refs.find((r) => r.type === 'PREF'))),
+    scores: cleanScores(
+      await smallJson(
+        file,
+        refs.find((r) => r.type === 'SCOR'),
+      ),
+    ),
+    preferences: cleanPreferences(
+      await smallJson(
+        file,
+        refs.find((r) => r.type === 'PREF'),
+      ),
+    ),
   };
 }
 

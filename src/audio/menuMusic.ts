@@ -202,5 +202,15 @@ if (typeof document !== 'undefined') {
 export const menuMusicStatus = () => {
   const now = voice ? getEngine().ctx.currentTime : 0;
   const at = voice ? voice.from + (now - voice.startedAt) : offset;
-  return { loaded: !!loop, intro: !!intro, playing: !!voice, inIntro: !!voice && at < 0, position: at, wanted, holds, volume, duration: loop?.duration ?? 0 };
+  return {
+    loaded: !!loop,
+    intro: !!intro,
+    playing: !!voice,
+    inIntro: !!voice && at < 0,
+    position: at,
+    wanted,
+    holds,
+    volume,
+    duration: loop?.duration ?? 0,
+  };
 };

@@ -148,8 +148,7 @@ export function melodicPath(notes: PitchedNote[], score: (n: PitchedNote) => num
   return monophonic(chosen, score);
 }
 
-const vocalScore = (n: PitchedNote) =>
-  n.strength * (0.25 + Math.min(1, (n.bend ?? 0) / 0.15)) * Math.min(1.4, 0.6 + n.dur * 2);
+const vocalScore = (n: PitchedNote) => n.strength * (0.25 + Math.min(1, (n.bend ?? 0) / 0.15)) * Math.min(1.4, 0.6 + n.dur * 2);
 
 /**
  * Splits transcribed notes into the parts a band would play:

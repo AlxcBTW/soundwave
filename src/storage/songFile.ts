@@ -5,7 +5,18 @@
  */
 import { ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult } from '../analysis/types';
 import { EDITS_VERSION, sanitizeEdits, type SongEdits } from '../editor/edits';
-import { analysisKey, getAnalysis, getEdits, getSong, getStoredFile, putAnalysis, putEdits, putSong, putStoredFile, type SongMeta } from './db';
+import {
+  analysisKey,
+  getAnalysis,
+  getEdits,
+  getSong,
+  getStoredFile,
+  putAnalysis,
+  putEdits,
+  putSong,
+  putStoredFile,
+  type SongMeta,
+} from './db';
 import { readSoundwave, soundwaveAudio, writeSoundwave, type SoundwaveAnalysis } from './soundwaveFile';
 import { hashBytes } from './hash';
 
@@ -31,7 +42,14 @@ const storedEdits = (id: string) => getEdits(id).catch(() => undefined);
 
 function build(meta: SongMeta, audio: Blob, analysis?: AnalysisResult, edits?: SongEdits) {
   return writeSoundwave({
-    meta: { title: meta.title, artist: meta.artist, album: meta.album, duration: meta.duration, fileName: meta.fileName, addedAt: meta.addedAt },
+    meta: {
+      title: meta.title,
+      artist: meta.artist,
+      album: meta.album,
+      duration: meta.duration,
+      fileName: meta.fileName,
+      addedAt: meta.addedAt,
+    },
     cover: meta.cover,
     analysis: analysis ? { version: ANALYSIS_VERSION, data: analysis } : undefined,
     edits: edits ? { version: EDITS_VERSION, data: edits } : undefined,
@@ -68,7 +86,8 @@ export function songFile(id: string): Promise<Blob> {
     const [analysis, edits] = await Promise.all([cachedAnalysis(id), storedEdits(id)]);
     // The stored file is current unless the analysis or the edited charts changed since it was written.
     const has = await readSoundwave(stored);
-    const sameAnalysis = !analysis || (has.analysis?.version === ANALYSIS_VERSION && JSON.stringify(has.analysis.data) === JSON.stringify(analysis));
+    const sameAnalysis =
+      !analysis || (has.analysis?.version === ANALYSIS_VERSION && JSON.stringify(has.analysis.data) === JSON.stringify(analysis));
     const sameEdits = JSON.stringify(has.edits?.data ?? null) === JSON.stringify(edits ?? null);
     if (sameAnalysis && sameEdits) return stored;
     const file = await build(meta, has.audio, analysis, edits);

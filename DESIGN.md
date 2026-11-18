@@ -2,398 +2,398 @@
 name: Soundwave
 description: A rhythm game that charts your own music; its menus are the night sky over an open-air stage.
 colors:
-  night: "#0e0828"
-  deep: "#1a0f4c"
-  panel: "rgb(34 20 106 / 0.9)"
-  panel-solid: "#22146a"
-  raised: "rgb(54 34 152 / 0.92)"
-  row: "rgb(66 44 176 / 0.5)"
-  row-hi: "rgb(88 62 214 / 0.72)"
-  well: "rgb(12 7 40 / 0.62)"
-  line: "rgb(196 180 255 / 0.2)"
-  violet: "#5b3ee0"
-  ink: "#f6f3ff"
-  ink-2: "#d2c9fa"
-  ink-3: "#aba1e6"
-  pink: "#ff4d9d"
-  pink-2: "#ff7ab8"
-  pink-ink: "#2c0421"
-  mint: "#5df2d6"
-  lit: "#efeaff"
-  lit-ink: "#1d1263"
-  gold: "#ffd23d"
-  danger: "#ff5a72"
-  ok: "#62e89a"
-  lane-0: "#3ddc5a"
-  lane-1: "#ff3b4e"
-  lane-2: "#ffd23d"
-  lane-3: "#3a8bff"
-  lane-4: "#ff8a1f"
-  overdrive: "#bfe6ff"
+  night: '#0e0828'
+  deep: '#1a0f4c'
+  panel: 'rgb(34 20 106 / 0.9)'
+  panel-solid: '#22146a'
+  raised: 'rgb(54 34 152 / 0.92)'
+  row: 'rgb(66 44 176 / 0.5)'
+  row-hi: 'rgb(88 62 214 / 0.72)'
+  well: 'rgb(12 7 40 / 0.62)'
+  line: 'rgb(196 180 255 / 0.2)'
+  violet: '#5b3ee0'
+  ink: '#f6f3ff'
+  ink-2: '#d2c9fa'
+  ink-3: '#aba1e6'
+  pink: '#ff4d9d'
+  pink-2: '#ff7ab8'
+  pink-ink: '#2c0421'
+  mint: '#5df2d6'
+  lit: '#efeaff'
+  lit-ink: '#1d1263'
+  gold: '#ffd23d'
+  danger: '#ff5a72'
+  ok: '#62e89a'
+  lane-0: '#3ddc5a'
+  lane-1: '#ff3b4e'
+  lane-2: '#ffd23d'
+  lane-3: '#3a8bff'
+  lane-4: '#ff8a1f'
+  overdrive: '#bfe6ff'
 typography:
   display:
     fontFamily: "'Archivo Variable', 'Archivo', system-ui, sans-serif"
-    fontSize: "clamp(1.7rem, 3.4vw, 3rem)"
+    fontSize: 'clamp(1.7rem, 3.4vw, 3rem)'
     fontWeight: 900
     lineHeight: 1
-    letterSpacing: "-0.01em"
+    letterSpacing: '-0.01em'
     fontVariation: "'wdth' 112"
   page-title:
     fontFamily: "'Archivo Variable', 'Archivo', system-ui, sans-serif"
-    fontSize: "clamp(1.6rem, 2.9vw, 2.7rem)"
+    fontSize: 'clamp(1.6rem, 2.9vw, 2.7rem)'
     fontWeight: 900
     lineHeight: 1
-    letterSpacing: "-0.01em"
+    letterSpacing: '-0.01em'
     fontVariation: "'wdth' 112"
   wordmark:
     fontFamily: "'Archivo Variable', 'Archivo', system-ui, sans-serif"
-    fontSize: "clamp(1.6rem, 2.6vw, 2.5rem)"
+    fontSize: 'clamp(1.6rem, 2.6vw, 2.5rem)'
     fontWeight: 900
     lineHeight: 1
-    letterSpacing: "-0.01em"
+    letterSpacing: '-0.01em'
     fontVariation: "'wdth' 112"
   tile-title:
     fontFamily: "'Archivo Variable', 'Archivo', system-ui, sans-serif"
-    fontSize: "clamp(1.15rem, 1.7vw, 1.6rem)"
+    fontSize: 'clamp(1.15rem, 1.7vw, 1.6rem)'
     fontWeight: 900
     lineHeight: 1
-    letterSpacing: "-0.01em"
+    letterSpacing: '-0.01em'
     fontVariation: "'wdth' 112"
   panel-title:
     fontFamily: "'Archivo Variable', 'Archivo', system-ui, sans-serif"
-    fontSize: "1.25rem"
+    fontSize: '1.25rem'
     fontWeight: 900
     lineHeight: 1
-    letterSpacing: "-0.01em"
+    letterSpacing: '-0.01em'
     fontVariation: "'wdth' 112"
   score:
     fontFamily: "'Archivo Variable', 'Archivo', system-ui, sans-serif"
-    fontSize: "clamp(3rem, 7.4vw, 5.6rem)"
+    fontSize: 'clamp(3rem, 7.4vw, 5.6rem)'
     fontWeight: 900
     lineHeight: 1
-    letterSpacing: "-0.01em"
+    letterSpacing: '-0.01em'
     fontFeature: "'tnum'"
     fontVariation: "'wdth' 112"
   stat:
     fontFamily: "'Archivo Variable', 'Archivo', system-ui, sans-serif"
-    fontSize: "1.6rem"
+    fontSize: '1.6rem'
     fontWeight: 900
     lineHeight: 1
     fontFeature: "'tnum'"
     fontVariation: "'wdth' 112"
   control:
     fontFamily: "'Archivo Variable', 'Archivo', system-ui, sans-serif"
-    fontSize: "1rem"
+    fontSize: '1rem'
     fontWeight: 850
-    letterSpacing: "0.01em"
+    letterSpacing: '0.01em'
     fontVariation: "'wdth' 100"
   label:
     fontFamily: "'Archivo Variable', 'Archivo', system-ui, sans-serif"
-    fontSize: "0.95rem"
+    fontSize: '0.95rem'
     fontWeight: 800
-    letterSpacing: "0.07em"
+    letterSpacing: '0.07em'
     fontVariation: "'wdth' 100"
   item-title:
     fontFamily: "'Archivo Variable', 'Archivo', system-ui, sans-serif"
-    fontSize: "1.05rem"
+    fontSize: '1.05rem'
     fontWeight: 800
     lineHeight: 1.2
     fontVariation: "'wdth' 100"
   body:
     fontFamily: "'Archivo Variable', 'Archivo', system-ui, sans-serif"
-    fontSize: "1rem"
+    fontSize: '1rem'
     fontWeight: 500
     lineHeight: 1.35
     fontVariation: "'wdth' 100"
   pill:
     fontFamily: "'Archivo Variable', 'Archivo', system-ui, sans-serif"
-    fontSize: "0.85rem"
+    fontSize: '0.85rem'
     fontWeight: 800
-    letterSpacing: "0.04em"
+    letterSpacing: '0.04em'
     fontVariation: "'wdth' 100"
   caption:
     fontFamily: "'Archivo Variable', 'Archivo', system-ui, sans-serif"
-    fontSize: "0.82rem"
+    fontSize: '0.82rem'
     fontWeight: 800
-    letterSpacing: "0.05em"
+    letterSpacing: '0.05em'
     fontVariation: "'wdth' 100"
 rounded:
-  s: "0.45rem"
-  m: "0.75rem"
-  l: "1.1rem"
-  well: "1.05rem"
-  hud: "12px"
-  round: "50%"
+  s: '0.45rem'
+  m: '0.75rem'
+  l: '1.1rem'
+  well: '1.05rem'
+  hud: '12px'
+  round: '50%'
 spacing:
-  list-gap: "0.4rem"
-  control-gap: "0.6rem"
-  panel-pad: "0.9rem"
-  panel-pad-lg: "1.1rem"
-  column-gap: "clamp(0.9rem, 2vw, 2rem)"
-  gutter: "clamp(0.9rem, 3.2vw, 3.5rem)"
-  target: "2.75rem"
-  target-touch: "3rem"
-  bar: "4.1rem"
-  bar-touch: "4.5rem"
+  list-gap: '0.4rem'
+  control-gap: '0.6rem'
+  panel-pad: '0.9rem'
+  panel-pad-lg: '1.1rem'
+  column-gap: 'clamp(0.9rem, 2vw, 2rem)'
+  gutter: 'clamp(0.9rem, 3.2vw, 3.5rem)'
+  target: '2.75rem'
+  target-touch: '3rem'
+  bar: '4.1rem'
+  bar-touch: '4.5rem'
 components:
   button:
-    backgroundColor: "{colors.raised}"
-    textColor: "{colors.ink}"
-    typography: "{typography.control}"
-    rounded: "{rounded.m}"
-    padding: "0.4rem 1.15rem"
-    height: "{spacing.target}"
+    backgroundColor: '{colors.raised}'
+    textColor: '{colors.ink}'
+    typography: '{typography.control}'
+    rounded: '{rounded.m}'
+    padding: '0.4rem 1.15rem'
+    height: '{spacing.target}'
   button-hover:
-    backgroundColor: "#4a31c4"
-    textColor: "{colors.ink}"
+    backgroundColor: '#4a31c4'
+    textColor: '{colors.ink}'
   button-disabled:
-    backgroundColor: "rgb(54 34 152 / 0.4)"
-    textColor: "rgb(171 161 230 / 0.75)"
+    backgroundColor: 'rgb(54 34 152 / 0.4)'
+    textColor: 'rgb(171 161 230 / 0.75)'
   button-primary:
-    backgroundColor: "{colors.pink}"
-    textColor: "{colors.pink-ink}"
-    typography: "{typography.control}"
-    rounded: "{rounded.m}"
-    padding: "0.4rem 1.6rem"
-    height: "{spacing.target}"
+    backgroundColor: '{colors.pink}'
+    textColor: '{colors.pink-ink}'
+    typography: '{typography.control}'
+    rounded: '{rounded.m}'
+    padding: '0.4rem 1.6rem'
+    height: '{spacing.target}'
   button-primary-hover:
-    backgroundColor: "{colors.pink-2}"
-    textColor: "{colors.pink-ink}"
+    backgroundColor: '{colors.pink-2}'
+    textColor: '{colors.pink-ink}'
   button-primary-disabled:
-    backgroundColor: "#5a2a5c"
-    textColor: "#d3a9c6"
+    backgroundColor: '#5a2a5c'
+    textColor: '#d3a9c6'
   button-quiet:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink-2}"
-    rounded: "{rounded.m}"
-    padding: "0.4rem 1.15rem"
+    backgroundColor: 'transparent'
+    textColor: '{colors.ink-2}'
+    rounded: '{rounded.m}'
+    padding: '0.4rem 1.15rem'
   button-quiet-hover:
-    backgroundColor: "rgb(255 255 255 / 0.1)"
-    textColor: "{colors.ink}"
+    backgroundColor: 'rgb(255 255 255 / 0.1)'
+    textColor: '{colors.ink}'
   button-small:
-    backgroundColor: "{colors.raised}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.m}"
-    padding: "0.3rem 0.95rem"
-    height: "2.4rem"
+    backgroundColor: '{colors.raised}'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.m}'
+    padding: '0.3rem 0.95rem'
+    height: '2.4rem'
   button-live:
-    backgroundColor: "{colors.pink}"
-    textColor: "{colors.pink-ink}"
+    backgroundColor: '{colors.pink}'
+    textColor: '{colors.pink-ink}'
   button-danger:
-    backgroundColor: "{colors.danger}"
-    textColor: "#2a0410"
+    backgroundColor: '{colors.danger}'
+    textColor: '#2a0410'
   icon-button:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink-2}"
-    rounded: "{rounded.round}"
-    size: "{spacing.target}"
+    backgroundColor: 'transparent'
+    textColor: '{colors.ink-2}'
+    rounded: '{rounded.round}'
+    size: '{spacing.target}'
   icon-button-hover:
-    backgroundColor: "rgb(255 255 255 / 0.12)"
-    textColor: "{colors.ink}"
+    backgroundColor: 'rgb(255 255 255 / 0.12)'
+    textColor: '{colors.ink}'
   hold-button:
-    backgroundColor: "{colors.pink}"
-    textColor: "{colors.pink-ink}"
-    rounded: "{rounded.m}"
-    height: "4.6rem"
+    backgroundColor: '{colors.pink}'
+    textColor: '{colors.pink-ink}'
+    rounded: '{rounded.m}'
+    height: '4.6rem'
   hold-button-fill:
-    backgroundColor: "#ffc4e0"
+    backgroundColor: '#ffc4e0'
   keycap-hint:
-    backgroundColor: "{colors.lit}"
-    textColor: "{colors.lit-ink}"
-    rounded: "0.35em"
-    padding: "0 0.4em"
-    height: "1.6em"
+    backgroundColor: '{colors.lit}'
+    textColor: '{colors.lit-ink}'
+    rounded: '0.35em'
+    padding: '0 0.4em'
+    height: '1.6em'
   keycap-hint-on-primary:
-    backgroundColor: "{colors.pink-ink}"
-    textColor: "#ffd3e8"
+    backgroundColor: '{colors.pink-ink}'
+    textColor: '#ffd3e8'
   selection:
-    backgroundColor: "{colors.lit}"
-    textColor: "{colors.lit-ink}"
-    rounded: "{rounded.m}"
+    backgroundColor: '{colors.lit}'
+    textColor: '{colors.lit-ink}'
+    rounded: '{rounded.m}'
   choice-well:
-    backgroundColor: "{colors.well}"
-    rounded: "{rounded.well}"
-    padding: "0.3rem"
+    backgroundColor: '{colors.well}'
+    rounded: '{rounded.well}'
+    padding: '0.3rem'
   choice:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink-2}"
-    rounded: "{rounded.m}"
-    padding: "0.4rem 0.3rem"
-    height: "{spacing.target}"
+    backgroundColor: 'transparent'
+    textColor: '{colors.ink-2}'
+    rounded: '{rounded.m}'
+    padding: '0.4rem 0.3rem'
+    height: '{spacing.target}'
   choice-part:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink-2}"
-    rounded: "{rounded.m}"
-    height: "4.8rem"
+    backgroundColor: 'transparent'
+    textColor: '{colors.ink-2}'
+    rounded: '{rounded.m}'
+    height: '4.8rem'
   choice-difficulty:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink-2}"
-    rounded: "{rounded.m}"
-    height: "3.6rem"
+    backgroundColor: 'transparent'
+    textColor: '{colors.ink-2}'
+    rounded: '{rounded.m}'
+    height: '3.6rem'
   choice-selected:
-    backgroundColor: "{colors.lit}"
-    textColor: "{colors.lit-ink}"
+    backgroundColor: '{colors.lit}'
+    textColor: '{colors.lit-ink}'
   tab:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink-2}"
-    typography: "{typography.control}"
-    rounded: "{rounded.m}"
-    padding: "0 0.85rem"
-    height: "{spacing.target}"
+    backgroundColor: 'transparent'
+    textColor: '{colors.ink-2}'
+    typography: '{typography.control}'
+    rounded: '{rounded.m}'
+    padding: '0 0.85rem'
+    height: '{spacing.target}'
   tab-selected:
-    backgroundColor: "{colors.lit}"
-    textColor: "{colors.lit-ink}"
+    backgroundColor: '{colors.lit}'
+    textColor: '{colors.lit-ink}'
   tile:
-    backgroundColor: "{colors.panel}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.l}"
+    backgroundColor: '{colors.panel}'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.l}'
   tile-focus:
-    backgroundColor: "{colors.raised}"
-    textColor: "{colors.ink}"
+    backgroundColor: '{colors.raised}'
+    textColor: '{colors.ink}'
   panel:
-    backgroundColor: "{colors.panel}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.l}"
-    padding: "{spacing.panel-pad}"
+    backgroundColor: '{colors.panel}'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.l}'
+    padding: '{spacing.panel-pad}'
   dialog:
-    backgroundColor: "{colors.panel-solid}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.l}"
+    backgroundColor: '{colors.panel-solid}'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.l}'
   song-row:
-    backgroundColor: "{colors.row}"
-    textColor: "{colors.ink}"
-    typography: "{typography.item-title}"
-    rounded: "{rounded.m}"
-    padding: "0.45rem calc(2.75rem + 0.35rem) 0.45rem 0.45rem"
-    height: "4rem"
+    backgroundColor: '{colors.row}'
+    textColor: '{colors.ink}'
+    typography: '{typography.item-title}'
+    rounded: '{rounded.m}'
+    padding: '0.45rem calc(2.75rem + 0.35rem) 0.45rem 0.45rem'
+    height: '4rem'
   song-row-focus:
-    backgroundColor: "{colors.row-hi}"
-    textColor: "{colors.ink}"
+    backgroundColor: '{colors.row-hi}'
+    textColor: '{colors.ink}'
   song-row-picked:
-    backgroundColor: "rgb(96 70 226 / 0.78)"
-    textColor: "{colors.ink}"
+    backgroundColor: 'rgb(96 70 226 / 0.78)'
+    textColor: '{colors.ink}'
   slot:
-    backgroundColor: "{colors.row}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.m}"
-    padding: "0.35rem 0.7rem 0.35rem 0.5rem"
-    height: "3.5rem"
+    backgroundColor: '{colors.row}'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.m}'
+    padding: '0.35rem 0.7rem 0.35rem 0.5rem'
+    height: '3.5rem'
   slot-empty:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink-3}"
-    rounded: "{rounded.m}"
+    backgroundColor: 'transparent'
+    textColor: '{colors.ink-3}'
+    rounded: '{rounded.m}'
   slot-badge:
-    backgroundColor: "{colors.lit}"
-    textColor: "{colors.lit-ink}"
-    rounded: "{rounded.round}"
-    size: "2rem"
+    backgroundColor: '{colors.lit}'
+    textColor: '{colors.lit-ink}'
+    rounded: '{rounded.round}'
+    size: '2rem'
   search-field:
-    backgroundColor: "{colors.well}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.m}"
-    padding: "0 0.5rem 0 0.9rem"
-    height: "{spacing.target}"
+    backgroundColor: '{colors.well}'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.m}'
+    padding: '0 0.5rem 0 0.9rem'
+    height: '{spacing.target}'
   text-input:
-    backgroundColor: "{colors.well}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.s}"
-    padding: "0.4rem 0.7rem"
-    height: "2.5rem"
+    backgroundColor: '{colors.well}'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.s}'
+    padding: '0.4rem 0.7rem'
+    height: '2.5rem'
   setting-row-active:
-    backgroundColor: "{colors.row}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.m}"
-    padding: "0.35rem 0.5rem 0.35rem 0.9rem"
-    height: "3.5rem"
+    backgroundColor: '{colors.row}'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.m}'
+    padding: '0.35rem 0.5rem 0.35rem 0.9rem'
+    height: '3.5rem'
   setting-row-focus:
-    backgroundColor: "{colors.row-hi}"
-    textColor: "{colors.ink}"
+    backgroundColor: '{colors.row-hi}'
+    textColor: '{colors.ink}'
   value-bar:
-    backgroundColor: "{colors.well}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.s}"
-    height: "2.3rem"
+    backgroundColor: '{colors.well}'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.s}'
+    height: '2.3rem'
   value-bar-fill:
-    backgroundColor: "{colors.violet}"
+    backgroundColor: '{colors.violet}'
   stepper:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.round}"
-    size: "2.4rem"
+    backgroundColor: 'transparent'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.round}'
+    size: '2.4rem'
   option:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink-2}"
-    rounded: "{rounded.s}"
-    padding: "0.55rem 0.9rem"
+    backgroundColor: 'transparent'
+    textColor: '{colors.ink-2}'
+    rounded: '{rounded.s}'
+    padding: '0.55rem 0.9rem'
   option-selected:
-    backgroundColor: "{colors.lit}"
-    textColor: "{colors.lit-ink}"
+    backgroundColor: '{colors.lit}'
+    textColor: '{colors.lit-ink}'
   keycap:
-    backgroundColor: "{colors.raised}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.s}"
-    padding: "0 0.8rem"
-    height: "{spacing.target}"
-    width: "3rem"
+    backgroundColor: '{colors.raised}'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.s}'
+    padding: '0 0.8rem'
+    height: '{spacing.target}'
+    width: '3rem'
   keycap-listening:
-    backgroundColor: "{colors.pink}"
-    textColor: "{colors.pink-ink}"
+    backgroundColor: '{colors.pink}'
+    textColor: '{colors.pink-ink}'
   pill:
-    backgroundColor: "rgb(210 201 250 / 0.16)"
-    textColor: "{colors.ink-2}"
-    typography: "{typography.pill}"
-    rounded: "{rounded.s}"
-    padding: "0.2rem 0.6rem"
+    backgroundColor: 'rgb(210 201 250 / 0.16)'
+    textColor: '{colors.ink-2}'
+    typography: '{typography.pill}'
+    rounded: '{rounded.s}'
+    padding: '0.2rem 0.6rem'
   pill-ready:
-    backgroundColor: "rgb(98 232 154 / 0.18)"
-    textColor: "#a4f7c4"
+    backgroundColor: 'rgb(98 232 154 / 0.18)'
+    textColor: '#a4f7c4'
   pill-error:
-    backgroundColor: "rgb(255 90 114 / 0.2)"
-    textColor: "#ffb1bd"
+    backgroundColor: 'rgb(255 90 114 / 0.2)'
+    textColor: '#ffb1bd'
   tag-new-best:
-    backgroundColor: "{colors.pink}"
-    textColor: "{colors.pink-ink}"
-    rounded: "{rounded.s}"
-    padding: "0.2rem 0.6rem"
+    backgroundColor: '{colors.pink}'
+    textColor: '{colors.pink-ink}'
+    rounded: '{rounded.s}'
+    padding: '0.2rem 0.6rem'
   tag-full-combo:
-    backgroundColor: "{colors.gold}"
-    textColor: "#2a1d00"
-    rounded: "{rounded.s}"
-    padding: "0.2rem 0.6rem"
+    backgroundColor: '{colors.gold}'
+    textColor: '#2a1d00'
+    rounded: '{rounded.s}'
+    padding: '0.2rem 0.6rem'
   stat-cell:
-    backgroundColor: "{colors.well}"
-    textColor: "{colors.ink}"
-    typography: "{typography.stat}"
-    rounded: "{rounded.m}"
-    padding: "0.7rem 0.8rem"
+    backgroundColor: '{colors.well}'
+    textColor: '{colors.ink}'
+    typography: '{typography.stat}'
+    rounded: '{rounded.m}'
+    padding: '0.7rem 0.8rem'
   cover:
-    backgroundColor: "{colors.deep}"
-    rounded: "{rounded.s}"
+    backgroundColor: '{colors.deep}'
+    rounded: '{rounded.s}'
   toast:
-    backgroundColor: "#4a1a52"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.m}"
-    padding: "0.8rem 1rem"
+    backgroundColor: '#4a1a52'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.m}'
+    padding: '0.8rem 1rem'
   hud-panel:
-    backgroundColor: "rgb(16 9 50 / 0.76)"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.hud}"
-    padding: "clamp(6px, 0.6vw, 12px) clamp(12px, 1vw, 20px)"
+    backgroundColor: 'rgb(16 9 50 / 0.76)'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.hud}'
+    padding: 'clamp(6px, 0.6vw, 12px) clamp(12px, 1vw, 20px)'
   hud-dial:
-    backgroundColor: "rgb(16 9 50 / 0.76)"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.round}"
-    size: "clamp(62px, 5.4vw, 104px)"
+    backgroundColor: 'rgb(16 9 50 / 0.76)'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.round}'
+    size: 'clamp(62px, 5.4vw, 104px)'
   hud-star:
-    backgroundColor: "rgb(16 9 50 / 0.76)"
-    rounded: "{rounded.round}"
-    size: "clamp(34px, 3vw, 58px)"
+    backgroundColor: 'rgb(16 9 50 / 0.76)'
+    rounded: '{rounded.round}'
+    size: 'clamp(34px, 3vw, 58px)'
   hud-lane-key:
-    backgroundColor: "rgb(0 0 0 / 0.62)"
-    textColor: "{colors.ink}"
-    rounded: "5px"
-    padding: "0 0.45em"
-    height: "1.75em"
+    backgroundColor: 'rgb(0 0 0 / 0.62)'
+    textColor: '{colors.ink}'
+    rounded: '5px'
+    padding: '0 0.45em'
+    height: '1.75em'
 ---
 
 # Design System: Soundwave
@@ -409,6 +409,7 @@ The type does the shouting. Archivo is set wide, black, leaning and uppercase fo
 The interface is built for four inputs and shows the one in use. The root element carries `data-input` (mouse, keyboard, pad or touch), set from the last input the player used, and the interface changes variant with it: keycaps or controller symbols as hints, hover or the travelling ring, larger targets under a finger. During play the menu world steps back: the HUD is quiet chrome around the highway, and nothing in it moves for decoration.
 
 **Key Characteristics:**
+
 - Layered violet night: indigo ground, a violet glow rising from below, the live stage behind a veil, an aurora band across the top.
 - Rounded violet sheets (0.45, 0.75 and 1.1rem radii) with no borders and no shadow at rest.
 - Four light roles that never trade places: pink acts, mint is the focus ring, lavender with dark ink is the selection, gold is earned.
@@ -423,19 +424,23 @@ The interface is built for four inputs and shows the one in use. The root elemen
 A violet night with four lights that have fixed jobs, and five lane colours that carry game data.
 
 ### Primary
+
 - **Hot Pink** (pink): the one forward action on a screen or dialog: Ready up in the library's action bar, the hold-to-start button, Add to setlist in the song sheet, Resume on pause, Next song and Done on results. Also anything that is sounding or listening right now: the mark on the song whose preview plays, a key binding while it waits for a press, the calibration dot on the beat. And progress through audio: the HUD's song progress bar and the played part of the editor's waveform. It glows behind the wordmark and the countdown numbers, fills the "New best" tag and is the first sheet of the launch wipe. Text on pink is **Pink Ink** (pink-ink), never white.
 - **Pink Light** (pink-2): the hover state of a pink button, the set position in the HUD title ("2/4"), the toast icon and the dashed outline of the file-drop target.
 
 ### Secondary
+
 - **Aurora Mint** (mint): focus. It is the 3px ring that travels between controls, with a soft mint glow beneath it: it follows focus for keyboard and controller players and the pointer for mouse players, so pointing at a control looks the same as moving onto it, and the text caret in the search and text fields. As atmosphere it appears once, faintly (20% alpha), as the aurora band in the sky behind the panels. Mint appears nowhere else: the HUD's break-countdown ring is pale lavender (lit) and turns gold on the final bar.
 
 ### Tertiary
+
 - **Lavender Light** (lit) with **Lavender Ink** (lit-ink): the selection. The sheet that slides behind the chosen part, difficulty or settings tab; the chosen option in the settings detail pane; the numbered badge on a song that is in the setlist. The same pair makes the keycap hints, so a key reads as a printed cap.
 - **Encore Gold** (gold): earned results. Gold stars, the tier beyond five: a score 13% over the song's par (par is a flawless run without overdrive, so gold takes overdrive; a chart with little overdrive to give asks for less, down to par itself) turns all five stars gold, in the HUD (gold discs that glow and breathe), on results (with a "Gold stars" tag) and in every list. On the way there, after the fifth star, gold rises inside the five HUD stars. Ordinary earned stars are not gold but **Star Violet** (star, #c4a6ff). Also the "Full combo" tag, the full-combo tick and underline in best-score tables, the star total on the set summary, the final-bar break ring. On the highway it is also the full streak: once the streak holds the top multiplier the rails and the deck's front lip turn a light, glowing gold (#ffd66b lit toward white) with a gold aura beside them and sparks of gold light rising along both rails, like dust in lantern light: each one small and solid, a white-hot core in a tight amber halo (#ffb52e), some with a four-point glint, swaying a little and sparkling as it fades. They stay close to the rail and are never large or see-through.
 - **Warning Red** (danger): destructive confirmation only (the "Delete song and scores" button in the card that asks before a song is removed). Error text uses a softened pink-red (#ffa3b4) and warnings a soft amber (#ffc98a) so sentences stay readable.
 - **Ready Green** (ok): the "Connected" status pill, as an 18% wash with pale green text.
 
 ### Neutral
+
 - **Night** (night): the page ground behind everything, and the last sheet of the launch wipe.
 - **Deep Night** (deep): the backing of covers and cover mosaics while art loads.
 - **Panel Violet** (panel): every resting sheet: set tiles, the song card, the setlist, set cards, the ready panel, result panels, the settings detail card. 90% opaque, so the stage is just felt behind it.
@@ -450,10 +455,12 @@ A violet night with four lights that have fixed jobs, and five lane colours that
 - **Ink 3** (ink-3): tertiary text: slot numbers, counts, stat captions, placeholders.
 
 ### Lane colours (data)
+
 - **Lane 0 Green, Lane 1 Red, Lane 2 Yellow, Lane 3 Blue, Lane 4 Orange** (lane-0 to lane-4): the five note lanes left to right: tiles, strike targets, and the light a lane gives off along its length when it is played. They also colour the 3 to 4px underline on a bound key (settings caps, the lane keys under the highway), difficulty pips (Easy green, Medium yellow, Hard orange, Expert red) and multiplier levels on the HUD dial (x2 blue, x3 green, x4 yellow, x5 orange; the top step, x6, is gold). Lane 2 Yellow and Encore Gold are the same value; context tells them apart.
 - **Overdrive Ice** (overdrive): the overdrive meter, its ready pulse, the dial while overdrive doubles the multiplier (up to x12), and the "Press … Overdrive" call-out that shows once there is charge to spend. The call-out is small and still: Overdrive Ice text with the key on a dark plate with a thin ice rim, the size of the label it replaces, so it is noticed at the edge of the eye without pulling it off the notes; the meter arc over the dial glows steadily beside it. Overdrive takes the rails, their aura and the motes over in this blue, whatever the streak.
 
 ### Named Rules
+
 **The One Ring Rule.** Mint is focus. In a menu it never fills a control, marks a choice, labels a status or decorates; it is the travelling ring, the caret, and the one faint aurora band in the sky.
 
 **The One Pink Rule.** A screen or dialog has at most one pink button at rest, and it is the step forward. Everything else is violet or quiet. A selected item is never pink.
@@ -470,6 +477,7 @@ A violet night with four lights that have fixed jobs, and five lane colours that
 **Character:** one family, three registers. The stage voice (112% width, weight 900, italic, uppercase, -0.01em tracking, line-height 1) is for titles, tile names and numbers. Control labels (normal width, weight 850, italic, uppercase) are for buttons, tabs and option names. The reading voice (normal width, upright, weight 500 to 800, mixed case) is for song names, artists, setting names, help text and errors.
 
 ### Hierarchy
+
 - **Display** (900, clamp(1.7rem, 3.4vw, 3rem), 112% width, balanced wrap): "Set complete", "Paused" (clamp(2.2rem, 5vw, 3rem)), "Calibrate", the song title on results (clamp(1.4rem, 2.6vw, 2.4rem)) and in the song sheet (clamp(1.4rem, 2.2vw, 2.1rem)).
 - **Page title** (900, clamp(1.6rem, 2.9vw, 2.7rem)): one per screen: "Pick a set" and "Edit a track" on the main menu's two tabs, "Music library", "Track editor", "Ready up", "Settings".
 - **Wordmark** (900, clamp(1.6rem, 2.6vw, 2.5rem), pink glow behind): the product name on Home only. The name is a working title; nothing depends on it.
@@ -484,6 +492,7 @@ A violet night with four lights that have fixed jobs, and five lane colours that
 Numbers that change (scores, times, counts, setting values) use tabular figures.
 
 ### Named Rules
+
 **The Three Registers Rule.** A title or a number is wide, black, italic and uppercase. A control label is normal width, italic and uppercase. Anything read as a sentence, and every song and artist name, is normal width, upright and in its own case. Never set a sentence in the stage voice.
 
 **The Root Scale Rule.** The root size is `clamp(16px, 0.62vw + 7px, 26px)` multiplied by the player's interface-size setting (`--ui-scale`, 85% to 130%). Every menu size is in rem, so the whole interface grows with the window and with the player's choice. Only the HUD is in px.
@@ -513,6 +522,7 @@ Spacing is a small set of steps: 0.4rem between rows in a list, 0.6rem between c
 **Input variants.** Touch raises the target size from 2.75rem to 3rem and brings small buttons, step arrows and the search clear button up to 2.75rem; step arrows and the per-row details button are always visible. Hover styles apply only when `data-input` is mouse. The ring follows focus with the keyboard or a controller and the pointer with a mouse; touch players never see it. On a controller the mouse pointer is hidden; moving the mouse brings it back along with the mouse variant. On Ready up a controller also gets the button that steps through the parts and the one that steps through the difficulties, each to the left of its row.
 
 ### HUD
+
 The HUD is sized in px (with vw clamps) because it sits over the highway's own geometry, which it reads from `--hw-x`, `--hw-y` (the strike line), `--hw-w`, `--lane-w` and `--hw-foot` (the row of lane labels). On a wide screen the strike line sits 80% down and the deck spans about 37% of the width there; it runs on past the foot of the screen, so everything below the strike line stands on the deck: the multiplier dial in the middle, the overdrive meter arching over it, the overdrive prompt (its name and key) beside it on the dial's centre line, and at the foot of the screen each lane's key or controller button under its lane. To the left of the deck, level with the strike line, a slanted tag says how the last note was hit, with the streak above it. The left edge holds one column, bottom up: the score, the stars, and the song (artist, title, timeline, time left). Nothing sits at the top of the screen but the pause button.
 
 On touch the lanes themselves are the controls. The deck runs to the foot of the screen (strike line at 99.2%), the strike targets become finger-sized rounded squares outlined in the lane colour, and a tap anywhere along a lane plays it, following the deck's perspective. The chrome moves up and to the sides: score and stars top left, progress as a strip across the very top, feedback in the middle at 25% height, and one column down the right edge on a shared centre line: pause at the top, then from 30% height the 64px dial with the 64px round overdrive button under it, whose own ring is the overdrive meter (or that button alone on the left edge, level with the dial, if the player chose the left side).
@@ -522,6 +532,7 @@ On touch the lanes themselves are the controls. The deck runs to the foot of the
 Depth comes from layers of night, not from shadows. From back to front: the indigo ground with a violet glow rising from below, the live stage, a veil that darkens it (thinner on Ready up, Results and the summary so the stage shows more), then the panels. Panels are flat violet sheets with no border and no shadow at rest; they separate from the night by fill alone, and rows and wells separate from panels the same way. (The direction called for a lit top edge on panels; the build does not draw one.) The few shadows mark things that sit above a screen: the focus ring's glow, the selection sheet, dialogs and toasts. Overlays dim the screen to 74% and blur it 8px.
 
 ### Shadow Vocabulary
+
 - **Ring glow** (`outline: 3px solid var(--mint); outline-offset: 3px; box-shadow: 0 12px 28px -4px rgb(93 242 214 / 0.42)`): the travelling focus ring.
 - **Selection sheet** (`box-shadow: 0 8px 18px -8px rgb(0 0 0 / 0.6)`): under the lavender selection.
 - **Dialog** (`box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.7)`): sheets and cards over the dimmed screen.
@@ -531,6 +542,7 @@ Depth comes from layers of night, not from shadows. From back to front: the indi
 - **Gameplay glow** (`0 0 14px` to `0 0 26px` in Overdrive Ice; `drop-shadow(0 0 8px)` on the break ring): the overdrive meter when ready or active, and the break ring.
 
 ### Named Rules
+
 **The Flat Sheets Rule.** Nothing has a shadow at rest. A panel is a fill; a row is a lighter fill; a well is a darker one. Shadow is reserved for the ring, the selection, and things that float over a screen.
 
 **The Lit State Rule.** Focus is the ring plus the control's own lit state: a row brightens to Lit Row, a set tile rises 0.4rem and brightens to Raised Violet. Under the mouse the control shows the same lit state without the ring.
@@ -548,7 +560,9 @@ The lean of the italic type is the only slant; shapes themselves are never skewe
 ## Components
 
 ### Buttons
+
 Rounded violet blocks under a leaning uppercase label, with a line icon or an input hint in front.
+
 - **Shape:** 0.75rem radius, at least 2.75rem tall (3rem on touch), padding 0.4rem 1.15rem. Small is 2.4rem (2.75rem on touch). Wide fills its row and aligns left.
 - **Default:** Raised Violet with Ink.
 - **Primary:** Hot Pink with Pink Ink; one per screen or dialog.
@@ -561,30 +575,39 @@ Rounded violet blocks under a leaning uppercase label, with a line icon or an in
 - **Icon buttons:** round, 2.75rem, Ink 2, no fill at rest; a 12% white wash under the mouse; scale to 0.9 when pressed.
 
 ### Hints
+
 A hint says how to reach a control from the input in use. Keyboard and mouse: a small Lavender keycap (0.8rem, weight 800, upright, 0.35em radius); on a pink button the cap is Pink Ink with pale pink text. Controller: the controller's own button symbol in the chosen style. Touch: none. In the action bar a hint replaces the action's icon.
 
 ### Focus ring
+
 One element for the whole interface. Each frame it reads the focused control's box and corner radius and moves to it: a 3px mint outline 3px off the control with a mint glow beneath. Between controls it glides in 200ms; arriving from nowhere or onto a new screen it fades in on the spot (0.16s). It shows only when the last input was the keyboard or a controller. The focused control also carries `.is-focus` for its own lit state. A control can opt out with `data-ring="none"` (the dialog container, the calibration pad).
 
 ### Travelling selection
+
 One Lavender sheet per group (0.75rem radius, soft drop) that slides to the chosen item over 0.36s, resizing as it goes; the first placement appears in place. The chosen item's label turns Lavender Ink. Used by the part choices, the difficulty choices and the settings tabs, each inside a Well trough with 0.3rem of padding. The settings detail pane shows its chosen option with the same fill, placed statically.
 
 ### Choices (part and difficulty)
+
 Radio groups in a trough of four equal columns. Part: icon over name, 4.8rem tall, the icon growing to 1.12 when chosen, with a 1 to 4 keycap in the corner for keyboard and mouse, in the order Vocals, Lead, Bass, Drums. A part the set hardly has (no song in it has more than a trace of it) stays in its place, dimmed to 42% and without its keycap, and cannot be chosen or stepped onto; one line in Faint Ink under the row says why ("This song has almost no vocals, so that part is off") and that a chart written for it in the editor turns it on. The set then plays on the chosen part if it has it, else on the first one it has; the player's choice itself is kept. Difficulty: four round pips lit to the level in its lane colour over the name, 3.6rem tall. On a controller the top face button (Triangle, Y) steps round the parts and the left face button (Square, X) round the difficulties, each symbol shown beside its label; on a keyboard 1 to 4 pick the part and Q and E step the difficulty (the shoulder buttons do too). The hold button below carries the controller's confirm symbol, 3rem tall, at its left end while a controller is in use, with its words still centred. Unchosen labels are Ink 2.
 
 ### Hold to start
+
 The pink button that starts a set asks to be held: a paler pink (#ffc4e0) fills it from the left over 650ms while a pointer, Enter, Space or the controller's confirm button is down, and it fires when full; letting go early drains it. It carries the part and difficulty as its label (1.3rem stage voice) and one line beneath that says what to do or why it cannot start. Activated without a press (assistive technology) it fires at once. If nothing starts, it empties after 2.6s and can be held again. On phones it sticks to the foot of the ready panel.
 
 ### Set tiles
+
 Panel Violet sheets with a 1.1rem radius: a cover mosaic filling the top, then title, caption and count. They rise in one after another (55ms apart). Under focus or the mouse a tile lifts 0.4rem and brightens; pressed it scales to 0.98. On phones tiles are rows and do not lift.
 
 ### Song rows and setlist slots
+
 - **Song row:** Row fill, 0.75rem radius, 4rem tall: a 3.1rem cover, title over artist, then best stars or analysis state, length and a 2rem round badge. The badge shows a plus when the song can be added and becomes a Lavender disc with the slot number, popping in, when it is in the set; the row itself brightens. Pressing a ready row adds or removes it; a row that is not ready opens its details. Analysis shows as a 3px Ink bar along the row's foot and a percentage, not a pill; only problems ("Not analyzed", "Analysis failed") get a pill. A round details button sits inside the row at its right end, shown under the mouse and always on touch.
 - **Slot:** a numbered row (number, 2.7rem cover, title over artist, a small x) that slides in from the left when filled; pressing it removes the song. Empty slots are dashed outlines reading "Pick a song" or "Empty". In the phone dock a slot is a square cover with its number in the corner.
 - **Add row:** a dashed row at the end of the list with a plus on a Raised Violet square.
 
 ### Settings rows
+
 Every row is one focus stop: name on the left, control on the right. The highlighted row takes the Row fill (Lit Row under focus) and its name turns Ink.
+
 - **Choice:** round step arrows either side of the value's name, with one tick per option beneath and the current tick lit in Ink. Left and right change the value; pressing the row cycles it. The arrows show only on the highlighted row (always on touch).
 - **Value bar:** a Well track at least 2.3rem tall, filled from the left in Signal Violet with the value printed on top; drag it, use the arrows, or press left and right.
 - **Bindings:** caps in Raised Violet with a 4px underline in the lane's colour; a cap that is listening turns pink and pulses. Fixed bindings are dimmed. Left and right move through a row's caps in order and stop at its ends; up and down go to the cap above or below, in the next row of bindings too, so every cap is reached with a controller or the arrow keys.
@@ -592,25 +615,33 @@ Every row is one focus stop: name on the left, control on the right. The highlig
 - **Detail pane (wide screens):** a panel naming the highlighted setting, explaining it, and listing a choice's options (each with its own help) to pick directly, or a slider's value and range. On narrow screens the same help text opens inside the highlighted row.
 
 ### Tabs
+
 Seven icon tabs in a Well trough; only the selected tab shows its name, on the travelling Lavender sheet. Q and E on a keyboard or the shoulder buttons on a controller switch tabs, hinted at either end of the row; focus follows onto the new tab's first setting, and the list enters from the side the player moved toward. On phones the row scrolls and keeps the chosen tab in view.
 
 ### Fields
+
 - **Search:** a Well field with a search icon, a "/" keycap hint for keyboard and mouse, and a round clear button once there is text; it darkens while focused. Esc clears it first, then leaves it.
 
 ### Pills, tags, stars and pips
+
 Pills and tags are small uppercase labels (0.85rem, 0.45rem radius): a neutral lavender wash, a green wash for ready, a red wash for errors. Results tags are solid: pink "New best", gold "Full combo" with dark text. Stars are five drawn outlines, filled gold when earned. Pips are four 0.6rem dots lit to the difficulty's level in its lane colour.
 
 ### Dialogs
+
 A dialog dims and blurs the screen, takes focus and directional navigation (a control that focus moves to keeps 1.2rem clear of the dialog's edge, and a move up or down with no control further that way scrolls the panel on, so what lies past the last control can be read), keeps Tab inside, and closes on Esc, the controller's back button, its round close button or a press outside; focus returns where it was. The **sheet** variant sits at the right edge on wide screens and rises from the foot on phones. The **card** variant is centred (pause, calibration). Calibration shows a 9rem round pad with a dot that turns pink on every other click, and a tap count.
 
 ### Toasts
+
 Plum cards (#4a1a52, 0.75rem radius) with a Pink Light alert icon, stacked at the bottom right above the action bar (full width on phones), rising in over 0.35s, dismissed on press or after 6s. Each one plays the error sound and an error pulse.
 
 ### Results
+
 Two panels. The first holds the cover and title, five stars that spin and scale in one by one (140ms apart), the score counting up, and tags fading in at 1.2s. The second holds up to nine Well stat cells (value over caption, the miss count in soft red) rising in 45ms apart, and the next song under a hairline. The set summary lists every song as a card with its tags, stars and score; a skipped song is dimmed.
 
 ### Highway
+
 A solid violet deck in perspective, a shade lighter toward the far end and fading out there, with hairlines between lanes, neighbouring lanes a breath apart in tone, lit violet rails along both edges and a lit lip across the front. Beat lines cross it faintly; bar lines are thicker.
+
 - **Tiles:** rounded pills with a bright rim, a top face in the lane's colour and a short white gloss line. A missed tile dims to 28%. A tile never pops onto the deck: over the farthest sixth of the highway it grows from nothing to full size. It is solid all the way (a half see-through tile reads as a shadow against the bright stage behind) and has no glow of its own outside overdrive. Release markers grow in the same way and beat lines draw themselves in.
 - **Sustain trails:** beams of light: a thin white-hot core in a tight glow of the lane's colour, drawn as light. The glow falls away quickly and stops well short of the neighbouring lanes, so it never smears over the deck. A held beam burns brighter, is a touch wider and breathes; a missed one is all but out. a release marker (a light tile with an upright pointer) stands at the end of a hold that has to be let go in time.
 - **Strike targets:** a thin pill outline per lane in its colour, dark inside. On touch they are finger-sized rounded squares set a little toward the player.
@@ -620,10 +651,13 @@ A solid violet deck in perspective, a shade lighter toward the far end and fadin
 - **Overdrive:** phrase notes are ice white; while overdrive lasts every tile turns light blue and glows, the rails turn blue, and a soft glow lies along the outside of both edges.
 
 ### HUD
+
 Quiet chrome on translucent indigo (rgb(16 9 50 / 0.76)), in stage-voice tabular numerals. **Song panel:** artist, title (with the position in the set in pink), a timeline and the time left. The timeline is a thick bar wherever there are notes and thins to a line through every longer stretch without any (the intro, a break, the fade-out; at least 4 seconds or 2% of the song), with a bright head at the current position. **Stars:** each is a cut star (a lit and a shaded facet) on a disc. Not yet earned, it is a dim star on a faint disc; the next one to earn stands on a dark disc with a violet ring filling toward it; earned, it is light on a violet disc and lands with a spin. After the fifth, gold rises inside all five, and at par they become gold stars: gold discs with a pale star, glowing. **Dial:** a dark plate with the multiplier, ringed by the streak toward the next step in that step's colour; the overdrive meter is an arc of four segments over its top, in Overdrive Ice, that glows when there is charge to spend. **Timing tag:** a slanted tag in the grade's colours (Perfect gold to orange with a spark, Great mint to blue, Good violet, Miss red) carrying the word and a small white target whose bar sits dead centre for a perfect hit, above the middle for an early press and below it for a late one; it pops in, holds about a second and fades. The streak stands above it from 5 on and burns orange at the top multiplier. During a long break a countdown ring shows the bars left.
 
 ### Track editor
+
 The one screen where the player makes something, built from the same parts as the rest: violet sheets, the settings rows, and the four lights in their usual jobs.
+
 - **The lanes:** drawn from above on a canvas, in a Well with a 1.1rem radius, fading out at the top as the highway does. A column per lane, a breath apart in tone, lighter toward both rails; a hairline for every grid step that has room, a brighter one per beat and a 2px line per bar with its number at the left. Later is higher. Sizes are in rem, so the lanes grow with the interface: a lane is up to 6.6rem wide and never narrower than a finger.
 - **The now line:** one Ink line across the lanes, 72% down, with a strike target in every lane (a dark pill outlined in the lane's colour). It is the edit position and the playhead: the chart moves past it and it never moves. Moving a step glides the chart there in about a tenth of a second; with reduced motion it changes in place.
 - **The cursor:** with the keyboard or a controller the focus is a place on the now line. It is drawn as the focus ring, mint with its glow, round the target of the lane the cursor is in, and that lane is a touch lighter all the way up. The track itself opts out of the travelling ring (`data-ring="none"`), so there is still exactly one mint ring on screen. Mouse and touch players see no cursor; a mouse sees a faint tile where a note would land.
@@ -645,6 +679,7 @@ The one screen where the player makes something, built from the same parts as th
 What is on screen while the game loads, drawn by the page itself (`index.html`, its own small stylesheet) so it is there before any script. On the night, lit from below: the game in small, a note highway seen from the player's seat (violet rails, five lanes that fade into the distance, a Lavender strike line with a ring in each lane's colour), on which tiles in the lane colours come down in a two-bar figure and leave a short light on the line as they land. Under it the wordmark, a 6px progress line in Stage Pink on a Well, and one line in Soft Ink that says what is loading ("Opening your library", "Loading the stage", "Building the stage", "Ready"). The words wait for the typeface, so they never show in a stand-in one. It stays until the library, the scores, the chart statuses and the 3D stage are there, the stage built and drawn (after a long wait, 8 seconds for the library and 30 for the stage, the game opens without what has not come), then fades out over 0.55 seconds while the home screen makes its entrance. With calm motion the tiles stand still on the highway and nothing flashes.
 
 ### Motion
+
 - **Ease:** `cubic-bezier(0.16, 1, 0.3, 1)` (`--ease`) for entrances and travel; `cubic-bezier(0.7, 0, 0.84, 0)` (`--ease-in`) for leaving.
 - **Screen direction:** going deeper (Home, library, Ready up, results, summary) enters from the right (3rem, fading in over 0.45s); going back enters from the left. The stage behind stays put. Settings tabs do the same inside the list (0.35s).
 - **Entrances:** tiles, set cards and song rows rise in 0.9rem with a short stagger (55ms, 60ms and 22ms apart); action-bar buttons rise in over 0.3s; a filled slot slides in from the left; a slot badge pops from 0.4 scale; a changed setting value rises in 0.3rem.
@@ -655,9 +690,11 @@ What is on screen while the game loads, drawn by the page itself (`index.html`, 
 - **Reduced motion:** `data-motion='reduced'` on the root (the player's setting, or the system preference when the setting is left on System) cuts every animation and transition to nothing: screens, sheets, the ring and the selection change in place, tiles do not lift, and scores appear at their final value. Hit feedback and the break ring's draining stay; the ring's bounces go, and the countdown numbers fade without scaling.
 
 ### Sound and rumble
+
 The menus have a cinematic theme: a 96-second loop in B minor at 100 BPM. It comes in from nothing, with no opening hit: the first time, two bars rise out of silence before the tune starts (a separate file, played once, that hands over to the loop). Big drums and low strings drive straight eighth notes, snares and short, high violins run in sixteenths over them, and above that the harmony and the melody move slowly in long held notes: the energy is in the rhythm, and the tune never hurries. The five eight-bar sections differ in how many players are in (horns as the orchestra arrives, then violins, a second theme with trumpets, an interlude that builds back, everyone), and the last bar ebbs so the loop returns to the quiet opening. It plays behind every menu at its own volume and fades out for a song preview, the calibration clicks, the launch and the song. A song previews by itself: the one whose row has the focus in the music library or on the Edit tab (with a mouse, the row under the pointer), or the one whose page is open, starts after 0.4 seconds of staying put (so moving down a list starts nothing), from a third of the way in, fades in over 0.7 seconds, goes round the same half minute, and fades across to the next song. It stops the moment the player is on no row: the search field, a toolbar button, the tabs, the pointer off the list. With Song previews switched off (Settings, Audio, Menus) nothing previews, no row is marked, and the theme keeps playing. A small speaker in Pink Light marks its row. It plays at the songs' volume, a little under a song that is played, and the stage behind the menus moves to it. After a short interruption it fades back in where it left off; after a song it starts again from the top. The menu backdrop moves with it.
 
 Every interface sound is a short recording of the same orchestra in the theme's key (B minor / D major), so a press never clashes with the music underneath. The sounds have their own volume, separate from the music and the songs. Everything the game plays leaves through one master output: Settings → Audio can send it to a chosen output device (System default unless the player picks one; a device that is unplugged falls back to the default and is taken up again when it returns) and mutes it while the window is in the background (on by default). Pulses play only on the controller in use, scaled by the player's rumble setting; a keyboard, mouse or touch player feels nothing. In a song a hit's rumble tells its timing apart: great and good are short taps on the lane's side (50ms and 45ms, at 60% and 40%), a perfect hit is a punch at full strength for 130ms in both grips, with a low thump under the click on a DualSense.
+
 - **Move** (focus change or pointer entering a control): one soft damped harp note, in three takes that rotate; light centred pulse (22ms). Rate-limited so held directions do not pile up.
 - **Select:** two harp notes rising a fifth with a glockenspiel on top and a plucked cello under them; medium pulse (45ms).
 - **Back** (Back in the action bar, Esc, the controller's back button, Close, Cancel, Keep, taking a song out of a slot, leaving a set): the same fifth falling, darker; pulse leaning left.
@@ -668,13 +705,14 @@ Every interface sound is a short recording of the same orchestra in the theme's 
 - **Results:** the crowd has had its say in the finale, so the screen opens on the stars. Each star rings a step higher up the D major chord (glockenspiel, harp, triangle; the fifth adds a bell tree), a wood tick counts the score, and a new best gets a brass fanfare. The set summary gets the crowd again.
 - **Hold** (the Ready up button filling): a charge-up: a plucked cello and bass under the finger, a timpani roll and tremolo violins swelling on the key note, a harp running up two octaves, quicker as it climbs, with bells on its top notes, air opening upward and a cymbal swelling into the end. It stops short of an arrival, because the launch is the arrival; letting go early fades it out where it is, and pressing again picks it up from where the fill stands. It is levelled with the select and add sounds, not under them.
 - **Add / pause / resume / error:** a harp run up the chord with bells on import, two plucked steps down onto a soft drum on pause and back up on resume, two dull low knocks a tritone apart with a thud pulse for errors.
-During a song only the pause menu makes menu sounds. In the track editor a step of the cursor is a move, a note set down the rising choice sound and one taken away the falling one, undo is a back and a change of grid a tab, each with its pulse; while the song plays in the editor the sounds stay silent and only the pulses remain.
+  During a song only the pause menu makes menu sounds. In the track editor a step of the cursor is a move, a note set down the rising choice sound and one taken away the falling one, undo is a back and a change of grid a tab, each with its pulse; while the song plays in the editor the sounds stay silent and only the pulses remain.
 
 Sounds are wired in one place: a shared handler gives every button, tab and row its move and select sound, and a control picks another with `data-sfx` (back, tab, launch, or none when it makes its own). The theme and the sounds are rendered by `tools/audio` (see the README); new sounds belong there, levelled against the others, and not as synthesized tones in the app.
 
 ## Do's and Don'ts
 
 ### Do:
+
 - **Do** build surfaces as flat rounded violet sheets: Panel Violet at 1.1rem for panels and tiles, Row at 0.75rem for list rows, Well for recessed troughs and fields.
 - **Do** keep the four light roles: pink for the one forward action, mint for the focus ring, a lavender sheet with dark ink for the selection, gold for what was earned.
 - **Do** let focus be the one travelling ring plus the control's own lit state, following focus for keyboard and controller players and the pointer for mouse players; never show it on touch.
@@ -690,6 +728,7 @@ Sounds are wired in one place: a shared handler gives every button, tab and row 
 - **Do** draw anything on a canvas (the highway, the editor's lanes) with the same tokens and the same light roles as the DOM around it.
 
 ### Don't:
+
 - **Don't** use mint for anything in the menus except the focus ring and the caret: no mint fills, borders, badges, status or decoration.
 - **Don't** put more than one pink button on a screen or dialog at rest, and don't mark a selected item in pink.
 - **Don't** put borders or resting shadows on panels, rows or buttons; the only strokes are hairline dividers and dashed "empty" outlines.

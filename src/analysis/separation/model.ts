@@ -43,8 +43,18 @@ export const INTEL_MODEL: ModelSource = {
   id: 'htdemucs-intel-efb3d2b',
   entry: 'htdemucs_fwd.onnx',
   files: [
-    { name: 'htdemucs_fwd.onnx', url: `${INTEL}htdemucs_fwd.onnx`, bytes: 2385507, sha256: '555f511fb653348a1c9495ab6b6091767d1920798f3fba68629a1fe5b135a45f' },
-    { name: 'htdemucs_fwd.onnx.data', url: `${INTEL}htdemucs_fwd.onnx.data`, bytes: 168361984, sha256: '23a7c68669c041363caaef94641e961dc8c4e16b9891cb87f58f0e199a5e8820' },
+    {
+      name: 'htdemucs_fwd.onnx',
+      url: `${INTEL}htdemucs_fwd.onnx`,
+      bytes: 2385507,
+      sha256: '555f511fb653348a1c9495ab6b6091767d1920798f3fba68629a1fe5b135a45f',
+    },
+    {
+      name: 'htdemucs_fwd.onnx.data',
+      url: `${INTEL}htdemucs_fwd.onnx.data`,
+      bytes: 168361984,
+      sha256: '23a7c68669c041363caaef94641e961dc8c4e16b9891cb87f58f0e199a5e8820',
+    },
   ],
 };
 
@@ -152,7 +162,8 @@ class StemModel {
         }
         if (at !== file.bytes) throw new Error('the file arrived incomplete');
         // Only a secure page can hash; elsewhere the size has to do.
-        if (globalThis.crypto?.subtle && hex(await crypto.subtle.digest('SHA-256', data)) !== file.sha256) throw new Error('the file is not the expected one');
+        if (globalThis.crypto?.subtle && hex(await crypto.subtle.digest('SHA-256', data)) !== file.sha256)
+          throw new Error('the file is not the expected one');
         await (await this.db()).put('files', new Blob([data]), this.key(file));
       }
       // Copies of an earlier model version are no longer needed.

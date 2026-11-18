@@ -171,7 +171,10 @@ export function findDownbeats(beatAccent: number[], beatsPerBar = 4): number[] {
 }
 
 const medianInterval = (b: number[]) => {
-  const d = b.slice(1).map((x, i) => x - b[i]).sort((x, y) => x - y);
+  const d = b
+    .slice(1)
+    .map((x, i) => x - b[i])
+    .sort((x, y) => x - y);
   return d[Math.floor(d.length / 2)];
 };
 

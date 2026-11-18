@@ -199,8 +199,11 @@ class PadHub {
       s.axes.forEach((d, i) => d && this.emit({ input: `a${i}${d < 0 ? '-' : '+'}`, down: false, t: now, pad: index }));
     }
     const pads: PadInfo[] = [];
-    for (const gp of list) if (gp?.connected) pads.push({ index: gp.index, id: gp.id, name: padName(gp.id), family: detectFamily(gp.id), standard: gp.mapping === 'standard' });
-    const same = pads.length === this.snap.pads.length && pads.every((p, i) => p.id === this.snap.pads[i].id && p.index === this.snap.pads[i].index);
+    for (const gp of list)
+      if (gp?.connected)
+        pads.push({ index: gp.index, id: gp.id, name: padName(gp.id), family: detectFamily(gp.id), standard: gp.mapping === 'standard' });
+    const same =
+      pads.length === this.snap.pads.length && pads.every((p, i) => p.id === this.snap.pads[i].id && p.index === this.snap.pads[i].index);
     if (!same) {
       const family = pads.some((p) => p.index === this.snap.lastPad) ? this.snap.family : (pads[0]?.family ?? 'generic');
       this.update({ pads, family, lastDevice: pads.length ? this.snap.lastDevice : 'keyboard' });

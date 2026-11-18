@@ -29,7 +29,20 @@ interface Props {
 }
 
 /** Everything about one song: its best scores, its place in the setlist, analysis, editing, sharing and removal. */
-export function SongSheet({ song, status, scores, slot, setFull, previewing, onToggle, onAnalyze, onEdit, onExport, onDelete, onClose }: Props) {
+export function SongSheet({
+  song,
+  status,
+  scores,
+  slot,
+  setFull,
+  previewing,
+  onToggle,
+  onAnalyze,
+  onEdit,
+  onExport,
+  onDelete,
+  onClose,
+}: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const ready = status.state === 'ready';
   const busy = status.state === 'analyzing' || status.state === 'queued';
@@ -51,7 +64,11 @@ export function SongSheet({ song, status, scores, slot, setFull, previewing, onT
                 </p>
                 <div className="sheet-status">
                   <StatusPill status={status} />
-                  {!!status.edited && <span className="pill lit">{status.edited} {status.edited === 1 ? 'chart' : 'charts'} edited by hand</span>}
+                  {!!status.edited && (
+                    <span className="pill lit">
+                      {status.edited} {status.edited === 1 ? 'chart' : 'charts'} edited by hand
+                    </span>
+                  )}
                   {busy && (
                     <>
                       <span className="meter" aria-hidden>
@@ -93,7 +110,9 @@ export function SongSheet({ song, status, scores, slot, setFull, previewing, onT
                   <tr>
                     <td />
                     {DIFFICULTIES.map((d) => (
-                      <th key={d} scope="col">{DIFFICULTY_LABEL[d]}</th>
+                      <th key={d} scope="col">
+                        {DIFFICULTY_LABEL[d]}
+                      </th>
                     ))}
                   </tr>
                 </thead>
@@ -138,11 +157,22 @@ export function SongSheet({ song, status, scores, slot, setFull, previewing, onT
                   {ready && !status.manual ? 'Analyze again' : 'Analyze'}
                 </button>
               )}
-              <button type="button" className="btn quiet small" disabled={!ready} onClick={onEdit} title="Change the song's charts note by note in the track editor">
+              <button
+                type="button"
+                className="btn quiet small"
+                disabled={!ready}
+                onClick={onEdit}
+                title="Change the song's charts note by note in the track editor"
+              >
                 <PencilRuler strokeWidth={ICON_STROKE} aria-hidden />
                 Edit charts
               </button>
-              <button type="button" className="btn quiet small" onClick={onExport} title="Save the song with its charts as one .soundwave file, to share it">
+              <button
+                type="button"
+                className="btn quiet small"
+                onClick={onExport}
+                title="Save the song with its charts as one .soundwave file, to share it"
+              >
                 <Share strokeWidth={ICON_STROKE} aria-hidden />
                 Export
               </button>

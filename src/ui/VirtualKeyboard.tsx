@@ -22,7 +22,10 @@ const LETTERS = ['1234567890', 'qwertyuiop', "asdfghjkl'", 'zxcvbnm,.?'];
 const SYMBOLS = ['1234567890', '-/:;()$&@"', ".,?!'#%^*+", '=_\\|~<>[]`'];
 
 /** The buttons that work the keyboard without moving onto a key, named by position (see input/pads.ts). */
-const PAD = { del: 'b2', space: 'b3', left: 'b4', right: 'b5', shift: 'b6', done: 'b7', symbols: 'b10' } as const satisfies Record<string, PadInput>;
+const PAD = { del: 'b2', space: 'b3', left: 'b4', right: 'b5', shift: 'b6', done: 'b7', symbols: 'b10' } as const satisfies Record<
+  string,
+  PadInput
+>;
 
 /** How far the focus travels for a swipe across the whole touchpad, in keyboard widths (and heights). */
 const SWIPE_REACH = 1.35;
@@ -153,7 +156,9 @@ export function VirtualKeyboard({ target, settings, onClose }: Props) {
       if (!origin) {
         clearTimeout(hide);
         // It starts from where it was left, or from the key in focus the first time.
-        const from = (box.current?.contains(document.activeElement) ? (document.activeElement as HTMLElement) : keys).getBoundingClientRect();
+        const from = (
+          box.current?.contains(document.activeElement) ? (document.activeElement as HTMLElement) : keys
+        ).getBoundingClientRect();
         const at = cursor && dot.classList.contains('on') ? cursor : { x: from.left + from.width / 2, y: from.top + from.height / 2 };
         origin = { fx: finger.x, fy: finger.y, x: at.x, y: at.y };
       }
@@ -222,7 +227,14 @@ export function VirtualKeyboard({ target, settings, onClose }: Props) {
               {[...row].map((ch, i) => {
                 const face = shift && !symbols ? ch.toUpperCase() : ch;
                 return (
-                  <button key={ch} type="button" className="vk-key" data-autofocus={r === 1 && i === 0 ? '' : undefined} aria-label={ch === ' ' ? 'Space' : face} onClick={() => type(ch)}>
+                  <button
+                    key={ch}
+                    type="button"
+                    className="vk-key"
+                    data-autofocus={r === 1 && i === 0 ? '' : undefined}
+                    aria-label={ch === ' ' ? 'Space' : face}
+                    onClick={() => type(ch)}
+                  >
                     {face}
                   </button>
                 );
@@ -230,11 +242,24 @@ export function VirtualKeyboard({ target, settings, onClose }: Props) {
             </div>
           ))}
           <div className="vk-row vk-bottom">
-            <button type="button" className={`vk-key wide ${shift ? 'on' : ''}`} aria-pressed={shift} aria-label="Shift" disabled={symbols} onClick={() => setShift((s) => !s)}>
+            <button
+              type="button"
+              className={`vk-key wide ${shift ? 'on' : ''}`}
+              aria-pressed={shift}
+              aria-label="Shift"
+              disabled={symbols}
+              onClick={() => setShift((s) => !s)}
+            >
               {glyph(PAD.shift)}
               <ArrowBigUp strokeWidth={ICON_STROKE} aria-hidden />
             </button>
-            <button type="button" className={`vk-key wide ${symbols ? 'on' : ''}`} aria-pressed={symbols} aria-label={symbols ? 'Letters' : 'Symbols'} onClick={() => setSymbols((s) => !s)}>
+            <button
+              type="button"
+              className={`vk-key wide ${symbols ? 'on' : ''}`}
+              aria-pressed={symbols}
+              aria-label={symbols ? 'Letters' : 'Symbols'}
+              onClick={() => setSymbols((s) => !s)}
+            >
               {glyph(PAD.symbols)}
               {symbols ? 'abc' : '#+='}
             </button>

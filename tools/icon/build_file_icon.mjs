@@ -59,7 +59,7 @@ function inPage(x, y) {
 function inFold(x, y) {
   const fx = PAGE.x1 - FOLD;
   const fy = PAGE.y0 + FOLD;
-  return x >= fx && y <= fy && x - fx <= y - PAGE.y0 && (x - fx) + (fy - y) >= 0.012;
+  return x >= fx && y <= fy && x - fx <= y - PAGE.y0 && x - fx + (fy - y) >= 0.012;
 }
 
 /** Half the highway's width at height y, and how far along it y is (0 near, 1 far). */
@@ -92,7 +92,9 @@ function shade(x, y) {
   if (!inPage(x, y)) return null;
   // The page: violet at the top into deep night at the foot, with a thin lit edge.
   let c = mix(mix(VIOLET, DEEP, 0.15), NIGHT, Math.min(1, Math.max(0, (y - 0.1) / 0.85)));
-  const edge = !inRoundRect(x, y, { x0: PAGE.x0 + 0.022, x1: PAGE.x1 - 0.022, y0: PAGE.y0 + 0.022, y1: PAGE.y1 - 0.022, r: PAGE.r - 0.022 }) || beyondFold(x + 0.03, y - 0.03);
+  const edge =
+    !inRoundRect(x, y, { x0: PAGE.x0 + 0.022, x1: PAGE.x1 - 0.022, y0: PAGE.y0 + 0.022, y1: PAGE.y1 - 0.022, r: PAGE.r - 0.022 }) ||
+    beyondFold(x + 0.03, y - 0.03);
   if (edge) c = mix(c, RAIL, 0.55);
   // Shadow the fold casts on the page below the cut.
   const d = y - PAGE.y0 - (x - (PAGE.x1 - FOLD));
@@ -142,7 +144,10 @@ function render(size) {
   const px = new Uint8Array(size * size * 4);
   for (let py = 0; py < size; py++) {
     for (let pxl = 0; pxl < size; pxl++) {
-      let r = 0, g = 0, b = 0, a = 0;
+      let r = 0,
+        g = 0,
+        b = 0,
+        a = 0;
       for (let sy = 0; sy < n; sy++) {
         for (let sx = 0; sx < n; sx++) {
           const c = shade((pxl + (sx + 0.5) / n) / size, (py + (sy + 0.5) / n) / size);
@@ -191,7 +196,12 @@ function png(size, rgba) {
   ihdr.set([8, 6, 0, 0, 0], 8);
   const raw = Buffer.alloc(size * (size * 4 + 1));
   for (let y = 0; y < size; y++) raw.set(rgba.subarray(y * size * 4, (y + 1) * size * 4), y * (size * 4 + 1) + 1);
-  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(raw, { level: 9 })),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
 }
 
 function ico(images) {

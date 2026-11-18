@@ -21,7 +21,10 @@ export class Particles {
   private cursor = 0;
   private live = 0;
 
-  constructor(private readonly max: number, blending: THREE.Blending) {
+  constructor(
+    private readonly max: number,
+    blending: THREE.Blending,
+  ) {
     this.pos = new Float32Array(max * 3);
     this.vel = new Float32Array(max * 3);
     this.col = new Float32Array(max * 3);

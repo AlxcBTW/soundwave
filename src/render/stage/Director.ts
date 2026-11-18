@@ -44,22 +44,57 @@ export function buildShots(cams: StageCameras, band: Partial<Record<string, Vec3
   const shots: Shot[] = [];
   const add = (s: Shot) => shots.push(s);
   if (cams.front) add({ name: 'front', ...cams.front, move: 'push', amount: 6, levels: ['calm', 'groove', 'peak'], weight: 3, calm: true });
-  if (cams.hero) add({ name: 'hero', ...cams.hero, move: 'orbit', amount: 0.12, levels: ['calm', 'groove', 'peak'], weight: 2, calm: true });
+  if (cams.hero)
+    add({ name: 'hero', ...cams.hero, move: 'orbit', amount: 0.12, levels: ['calm', 'groove', 'peak'], weight: 2, calm: true });
   if (cams.crowd) add({ name: 'crowd', ...cams.crowd, move: 'truck', amount: 3, levels: ['groove', 'peak'], weight: 2 });
   if (cams.close) add({ name: 'close', ...cams.close, move: 'pull', amount: 5, levels: ['groove', 'peak'], weight: 1.5 });
   if (cams.aerial) add({ name: 'aerial', ...cams.aerial, move: 'orbit', amount: 0.18, levels: ['calm', 'groove'], weight: 1, calm: true });
-  add({ name: 'wide-left', pos: [-62, 7, 48], target: [0, 22, -12], hfov: 62, move: 'truck', amount: 8, levels: ['calm', 'groove', 'peak'], weight: 1.2, calm: true });
-  add({ name: 'wide-right', pos: [62, 7, 48], target: [0, 22, -12], hfov: 62, move: 'truck', amount: 8, levels: ['calm', 'groove', 'peak'], weight: 1.2, calm: true });
+  add({
+    name: 'wide-left',
+    pos: [-62, 7, 48],
+    target: [0, 22, -12],
+    hfov: 62,
+    move: 'truck',
+    amount: 8,
+    levels: ['calm', 'groove', 'peak'],
+    weight: 1.2,
+    calm: true,
+  });
+  add({
+    name: 'wide-right',
+    pos: [62, 7, 48],
+    target: [0, 22, -12],
+    hfov: 62,
+    move: 'truck',
+    amount: 8,
+    levels: ['calm', 'groove', 'peak'],
+    weight: 1.2,
+    calm: true,
+  });
   add({ name: 'low-gate', pos: [0, 1.6, 26], target: [0, 30, -16], hfov: 84, move: 'crane', amount: 3, levels: ['peak'], weight: 1.2 });
   // The whole band on its island.
   const all = Object.values(band).filter((p): p is Vec3 => !!p);
   if (all.length) {
     const c: Vec3 = [0, 0, 0];
     for (const p of all) for (let i = 0; i < 3; i++) c[i] += p[i] / all.length;
-    add({ name: 'band', pos: [c[0] - 2, c[1] + 3.4, c[2] + 15], target: [c[0], c[1] + 1.6, c[2]], hfov: 56, move: 'truck', amount: 4, levels: ['groove', 'peak'], weight: 1.4 });
+    add({
+      name: 'band',
+      pos: [c[0] - 2, c[1] + 3.4, c[2] + 15],
+      target: [c[0], c[1] + 1.6, c[2]],
+      hfov: 56,
+      move: 'truck',
+      amount: 4,
+      levels: ['groove', 'peak'],
+      weight: 1.4,
+    });
   }
   // Close-ups on the band; the player's member gets the most.
-  const members: [string, Vec3][] = [['lead', [-7, 2.4, -4.5]], ['vocals', [0, 2.4, -3]], ['bass', [7, 2.4, -4.5]], ['drums', [0, 3.8, -13.2]]];
+  const members: [string, Vec3][] = [
+    ['lead', [-7, 2.4, -4.5]],
+    ['vocals', [0, 2.4, -3]],
+    ['bass', [7, 2.4, -4.5]],
+    ['drums', [0, 3.8, -13.2]],
+  ];
   for (const [part, fallback] of members) {
     const key = part === 'vocals' ? 'vox' : part;
     const p = band[key] ?? fallback;
@@ -99,7 +134,12 @@ export class Director {
   private reverse = false;
   private seed: number;
 
-  constructor(private readonly shots: Shot[], private mode: CameraMode, seed = 7, private readonly menu = false) {
+  constructor(
+    private readonly shots: Shot[],
+    private mode: CameraMode,
+    seed = 7,
+    private readonly menu = false,
+  ) {
     this.seed = seed;
     this.current = shots.find((s) => s.name === (menu ? 'hero' : 'front')) ?? shots[0];
     // The opening shot counts as on: the first cut must go somewhere else.

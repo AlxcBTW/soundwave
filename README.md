@@ -2,12 +2,12 @@
 
 A rhythm game for your own music. Drop in a song (MP3, WAV, FLAC, OGG, M4A). The game analyzes its percussive, melodic and harmonic content and generates **Lead**, **Bass**, **Drums** and **Vocals** charts at four difficulties:
 
-| Difficulty | Lanes | Feel |
-|---|---|---|
-| Easy | 4 | quarter notes, chord roots, no chords |
-| Medium | 4 | eighth notes, close two-note chords |
-| Hard | 4 | sixteenths, two-note chords |
-| Expert | 5 | literal transcription, three-note chords |
+| Difficulty | Lanes | Feel                                     |
+| ---------- | ----- | ---------------------------------------- |
+| Easy       | 4     | quarter notes, chord roots, no chords    |
+| Medium     | 4     | eighth notes, close two-note chords      |
+| Hard       | 4     | sixteenths, two-note chords              |
+| Expert     | 5     | literal transcription, three-note chords |
 
 You play them on a 3D note highway with the keyboard, a controller or a touchscreen, in front of a live 3D festival stage that follows the music: a band, a crowd of thousands, beams, screens and pyro. The game opens behind a loading screen that stays until the library and the stage are ready. Features: sustains, streak multiplier (up to ×6), overdrive phrases (Space doubles the multiplier, up to ×12), Perfect/Great/Good timing, star rating measured against a flawless run without overdrive (one to five stars at 3.5%, 8%, 15%, 46% and 77% of it, and gold stars beyond it, which takes overdrive), best scores, tap calibration and key rebinding.
 
@@ -49,19 +49,19 @@ A song has sixteen charts: four parts (vocals, lead, bass, drums) at four diffic
 
 The editor shows the lanes from above, as they run in a song: later is higher, and one line across them is the edit position and the playhead. The chart moves past the line. Beside the lanes stand the song's waveform and, for an analyzed song, a guide to what the game heard in that part.
 
-| | Keyboard | Controller | Mouse or touch |
-|---|---|---|---|
-| Move | arrow keys; `PgUp` `PgDn` a bar; `Home` `End` | D-pad or left stick; triggers a bar; right stick runs through the song | wheel or drag; pinch or `Ctrl`+wheel to zoom |
-| Note | `Enter`, or `1` to `5` for a lane | confirm | click or tap a lane; again to take it away |
-| Long note | hold `Enter`, move up | hold confirm, move up | drag up from the note (on touch: hold, then drag) |
-| Mark a stretch | `Shift` + arrows, then `Enter` | left face button, move, then confirm | Select tool, or `Shift`+drag |
-| Grid | `Q` `E` | shoulder buttons | the arrows beside Grid |
-| What notes snap to | `S` | left stick click | the Snap button |
-| Loop the marked stretch | `L` | right stick click | the loop button |
-| Next note, next sound | `Ctrl` or `Alt` + arrows | Snap to sounds, then move | Snap to sounds |
-| Play | `Space` | top face button | the play button |
-| Undo, redo | `Ctrl`+`Z`, `Ctrl`+`Shift`+`Z` | View / Create; redo in the menu | the arrows in the toolbar |
-| Everything else | `M` | Options / Menu | Menu |
+|                         | Keyboard                                      | Controller                                                             | Mouse or touch                                    |
+| ----------------------- | --------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------- |
+| Move                    | arrow keys; `PgUp` `PgDn` a bar; `Home` `End` | D-pad or left stick; triggers a bar; right stick runs through the song | wheel or drag; pinch or `Ctrl`+wheel to zoom      |
+| Note                    | `Enter`, or `1` to `5` for a lane             | confirm                                                                | click or tap a lane; again to take it away        |
+| Long note               | hold `Enter`, move up                         | hold confirm, move up                                                  | drag up from the note (on touch: hold, then drag) |
+| Mark a stretch          | `Shift` + arrows, then `Enter`                | left face button, move, then confirm                                   | Select tool, or `Shift`+drag                      |
+| Grid                    | `Q` `E`                                       | shoulder buttons                                                       | the arrows beside Grid                            |
+| What notes snap to      | `S`                                           | left stick click                                                       | the Snap button                                   |
+| Loop the marked stretch | `L`                                           | right stick click                                                      | the loop button                                   |
+| Next note, next sound   | `Ctrl` or `Alt` + arrows                      | Snap to sounds, then move                                              | Snap to sounds                                    |
+| Play                    | `Space`                                       | top face button                                                        | the play button                                   |
+| Undo, redo              | `Ctrl`+`Z`, `Ctrl`+`Shift`+`Z`                | View / Create; redo in the menu                                        | the arrows in the toolbar                         |
+| Everything else         | `M`                                           | Options / Menu                                                         | Menu                                              |
 
 A marked stretch can be copied, cut, repeated after itself (the quick way to write a bar four times), mirrored, deleted, or made an overdrive phrase; long notes in it can be made hold-and-release notes.
 
@@ -69,13 +69,13 @@ A marked stretch can be copied, cut, repeated after itself (the quick way to wri
 
 **Snapping.** Notes snap to the grid (quarters down to thirty-seconds, with triplets), to the sounds heard in the song, or to nothing:
 
-- *The grid* is the default: every note lands on a grid line, and a cursor step is one line.
-- *Sounds* puts a note on the nearest sound when one is within 90 ms, and the cursor steps from sound to sound. The sounds are what the analysis heard in that part or, for a song without one, every attack in the waveform; they show as ticks beside the lanes.
-- *Nothing* places notes exactly where they are put, and a recording keeps the timing it was played with.
+- _The grid_ is the default: every note lands on a grid line, and a cursor step is one line.
+- _Sounds_ puts a note on the nearest sound when one is within 90 ms, and the cursor steps from sound to sound. The sounds are what the analysis heard in that part or, for a song without one, every attack in the waveform; they show as ticks beside the lanes.
+- _Nothing_ places notes exactly where they are put, and a recording keeps the timing it was played with.
 
 **Tools** (in the menu, and under More tools on a selection): snap notes to the grid or to sounds, fill a marked stretch with a note on every grid line, move a lane left or right, play a stretch backwards, thin it out, make it twice or half as fast. **Quantize all notes** and **Clear all notes** are in the menu under This chart.
 
-**Difficulties.** *Write the easier charts from this one* writes every easier difficulty of the part as a simpler version of the chart above it (the rhythm that difficulty plays, fewer notes in a bar, smaller chords, four lanes); *Simplify from …* does it for one chart. **Check the chart** lists what stands out on its difficulty (notes very close together, chords larger than usual, two notes under one thumb on a controller) and goes to each.
+**Difficulties.** _Write the easier charts from this one_ writes every easier difficulty of the part as a simpler version of the chart above it (the rhythm that difficulty plays, fewer notes in a bar, smaller chords, four lanes); _Simplify from …_ does it for one chart. **Check the chart** lists what stands out on its difficulty (notes very close together, chords larger than usual, two notes under one thumb on a controller) and goes to each.
 
 **On a controller** every control on screen carries the button that reaches it, the Controls panel lists them all, and everything else is in the menu (Options or Menu), where each row and button says in a line what it does.
 
@@ -83,7 +83,7 @@ A marked stretch can be copied, cut, repeated after itself (the quick way to wri
 - **Test play** (`T`) runs the chart in the game itself from the bar the cursor is in, and returns to the editor, undo history and all. It keeps no score.
 - **Tempo and bars** sets the grid notes snap to: following the beats heard in the song, or one tempo with a first beat and a number of beats in a bar. Tap the beat, put a bar line at the cursor, or let the game listen again. Notes stay on their beats when the grid changes.
 - **Listening**: a click on every note and a metronome, three slower speeds, looping the marked stretch, and any of the song's separated stems on its own.
-- **Step entry**: with *After a note: Move on a step*, the cursor moves on after each note, so a run is written by pressing lanes one after another.
+- **Step entry**: with _After a note: Move on a step_, the cursor moves on after each note, so a run is written by pressing lanes one after another.
 
 The code is in `src/editor` (the grid, the chart being edited, the canvas, the controller behind the screen) and `src/ui/Editor*.tsx`.
 
@@ -111,6 +111,7 @@ Analysis runs in Web Workers in both the browser and the desktop app. Every song
 - **Transcription** – [Basic Pitch](https://github.com/spotify/basic-pitch) transcribes the bass, vocal and instrument stems, on the same runtime and device as the separation (its ONNX file, `public/models/basic-pitch/nmp.onnx`). Its notes are decoded by a port of Basic Pitch's own post-processing (`src/analysis/pitch/noteEvents.ts`) that gives the same notes far faster; a test checks the two agree. All three stems of a four-minute song take under two seconds on a graphics card.
 
 A four-minute song takes about 20 seconds in all on a fast graphics card, most of it the separation.
+
 - The stems are kept: in the track editor, **Play** in the menu plays any one of them on its own (instruments, bass, drums, vocals), to hear a part clearly while charting it.
 
 The stem model is not part of the game's files. It is downloaded once (171 MB), the first time the game opens, checked against a known hash and kept in the browser's storage; Settings → Analysis shows its state. For now it comes from the copy Intel publishes for its Audacity plugins ([Intel/demucs-openvino](https://huggingface.co/Intel/demucs-openvino) on Hugging Face). This repository holds its own, smaller export of the same model (`models/htdemucs/htdemucs-v1.onnx`, 90 MB, made by `tools/analysis/export_stem_model.py`), and the download will move there once the repository can be read without signing in (`src/analysis/separation/model.ts` has both).
@@ -245,16 +246,16 @@ Copyright 2026 DavidNiessen. The source code and the project's own art and audio
 
 Third-party parts keep their own licences:
 
-| Part | Licence |
-|---|---|
-| three.js, React, fft.js, music-metadata, ONNX Runtime Web | MIT |
-| idb, lucide-react | ISC |
-| Basic Pitch (code and model), Tauri | Apache-2.0 (Tauri also MIT) |
-| Archivo typeface (`src/ui/fonts/archivo`) | SIL Open Font License 1.1 |
-| Band and crowd characters, and the crowd's dance loop: Ultimate Modular Men, Ultimate Modular Women and Universal Animation Library by Quaternius | CC0 1.0 (public domain) |
-| The crowd in the finale sound: "Crowd cheering" by voicebosch, from Pixabay | Pixabay Content License (free to use, not to be passed on as a standalone sound) |
-| The applause under it: recordings by thore (public domain) and by Sandermotions (CC0), from Wikimedia Commons | Public domain / CC0 1.0 |
-| Demucs (the code the stem model was exported from) | MIT |
-| The Python reference in `ml-service/`: FastAPI, librosa, Demucs and others | their own licences; see `ml-service/requirements*.txt` |
+| Part                                                                                                                                              | Licence                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| three.js, React, fft.js, music-metadata, ONNX Runtime Web                                                                                         | MIT                                                                              |
+| idb, lucide-react                                                                                                                                 | ISC                                                                              |
+| Basic Pitch (code and model), Tauri                                                                                                               | Apache-2.0 (Tauri also MIT)                                                      |
+| Archivo typeface (`src/ui/fonts/archivo`)                                                                                                         | SIL Open Font License 1.1                                                        |
+| Band and crowd characters, and the crowd's dance loop: Ultimate Modular Men, Ultimate Modular Women and Universal Animation Library by Quaternius | CC0 1.0 (public domain)                                                          |
+| The crowd in the finale sound: "Crowd cheering" by voicebosch, from Pixabay                                                                       | Pixabay Content License (free to use, not to be passed on as a standalone sound) |
+| The applause under it: recordings by thore (public domain) and by Sandermotions (CC0), from Wikimedia Commons                                     | Public domain / CC0 1.0                                                          |
+| Demucs (the code the stem model was exported from)                                                                                                | MIT                                                                              |
+| The Python reference in `ml-service/`: FastAPI, librosa, Demucs and others                                                                        | their own licences; see `ml-service/requirements*.txt`                           |
 
 The Demucs stem model (`models/htdemucs/`, and the copy the game downloads) is the published `htdemucs` weights in another file format. Its authors released the code under the MIT licence but state that the licence of the weights is not clear, because part of the music they were trained on was only cleared for research; the Apache licence of this repository does not cover them. Songs you import stay on your machine.

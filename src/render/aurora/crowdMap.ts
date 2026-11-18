@@ -39,7 +39,10 @@ function density(people: Person[], share: number): HTMLCanvasElement {
   // Three passes of a box blur come close to a Gaussian one.
   const reach = 3;
   for (let pass = 0; pass < 3; pass++) {
-    for (const [step, count, lines] of [[1, w, h], [w, h, w]] as const) {
+    for (const [step, count, lines] of [
+      [1, w, h],
+      [w, h, w],
+    ] as const) {
       const out = new Float32Array(w * h);
       for (let line = 0; line < lines; line++) {
         const start = step === 1 ? line * w : line;

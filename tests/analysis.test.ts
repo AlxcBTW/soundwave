@@ -32,7 +32,14 @@ function song(bpm: number, seconds: number, opts: { drums?: boolean; bass?: numb
     }
     if (opts.lead) {
       const f = midiHz(opts.lead[b % opts.lead.length]);
-      add(t, spb * 0.9, (s) => (Math.sin(2 * Math.PI * f * s) + 0.4 * Math.sin(4 * Math.PI * f * s) + 0.2 * Math.sin(6 * Math.PI * f * s)) * 0.15 * Math.min(1, s * 100));
+      add(
+        t,
+        spb * 0.9,
+        (s) =>
+          (Math.sin(2 * Math.PI * f * s) + 0.4 * Math.sin(4 * Math.PI * f * s) + 0.2 * Math.sin(6 * Math.PI * f * s)) *
+          0.15 *
+          Math.min(1, s * 100),
+      );
     }
   }
   return x;

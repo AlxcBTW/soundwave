@@ -14,7 +14,8 @@ export function usePreviewRows(onCurrent: (id: string | null) => void) {
 
   useEffect(() => {
     const s = state.current;
-    const idOf = (t: EventTarget | null) => (t instanceof Element ? (t.closest<HTMLElement>('[data-preview]')?.dataset.preview ?? null) : null);
+    const idOf = (t: EventTarget | null) =>
+      t instanceof Element ? (t.closest<HTMLElement>('[data-preview]')?.dataset.preview ?? null) : null;
     const tell = () => onCurrent(s.mode === 'mouse' ? s.hovered : s.focused);
     const focusin = (e: FocusEvent) => {
       s.focused = idOf(e.target);

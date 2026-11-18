@@ -148,9 +148,15 @@ mod tests {
     #[test]
     fn reads_the_corners_and_the_middle() {
         // x = 0, y = 0: top left.
-        assert_eq!(parse(&usb([0x01, 0x00, 0x00, 0x00])), Some(Some(Finger { x: -1.0, y: -1.0 })));
+        assert_eq!(
+            parse(&usb([0x01, 0x00, 0x00, 0x00])),
+            Some(Some(Finger { x: -1.0, y: -1.0 }))
+        );
         // x = 1919 (0x77F), y = 1079 (0x437): bottom right.
-        assert_eq!(parse(&usb([0x01, 0x7F, 0x77, 0x43])), Some(Some(Finger { x: 1.0, y: 1.0 })));
+        assert_eq!(
+            parse(&usb([0x01, 0x7F, 0x77, 0x43])),
+            Some(Some(Finger { x: 1.0, y: 1.0 }))
+        );
         // x = 960 (0x3C0), y = 540 (0x21C): the middle, near enough.
         let mid = parse(&usb([0x01, 0xC0, 0xC3, 0x21])).unwrap().unwrap();
         assert!(mid.x.abs() < 0.01 && mid.y.abs() < 0.01);
@@ -178,7 +184,13 @@ mod tests {
     fn hardware() {
         let api = hidapi::HidApi::new().expect("hid");
         for d in api.device_list().filter(|d| d.vendor_id() == SONY) {
-            println!("sony device: product {:04x}, usage page {:04x}, usage {:04x}, interface {}", d.product_id(), d.usage_page(), d.usage(), d.interface_number());
+            println!(
+                "sony device: product {:04x}, usage page {:04x}, usage {:04x}, interface {}",
+                d.product_id(),
+                d.usage_page(),
+                d.usage(),
+                d.interface_number()
+            );
         }
         let Some(device) = open(&api) else {
             println!("no DualSense found");
@@ -187,7 +199,13 @@ mod tests {
         let mut report = [0u8; 128];
         for _ in 0..5 {
             match device.read_timeout(&mut report, 500) {
-                Ok(n) => println!("report id {:02x}, {} bytes, touch bytes {:02x?} -> {:?}", report[0], n, &report[33..38], parse(&report[..n])),
+                Ok(n) => println!(
+                    "report id {:02x}, {} bytes, touch bytes {:02x?} -> {:?}",
+                    report[0],
+                    n,
+                    &report[33..38],
+                    parse(&report[..n])
+                ),
                 Err(e) => println!("read failed: {e}"),
             }
         }

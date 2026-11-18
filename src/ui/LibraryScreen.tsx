@@ -65,7 +65,21 @@ export function StatusPill({ status }: { status: SongStatus }) {
   );
 }
 
-export function LibraryScreen({ songs, status, setlist, scores, importing, settings, previewing, onCurrent, onToggle, onDetails, onReady, onBack, onAdd }: Props) {
+export function LibraryScreen({
+  songs,
+  status,
+  setlist,
+  scores,
+  importing,
+  settings,
+  previewing,
+  onCurrent,
+  onToggle,
+  onDetails,
+  onReady,
+  onBack,
+  onAdd,
+}: Props) {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<Sort>(loadSort);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -84,11 +98,15 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
     const list = q ? songs.filter((s) => `${s.title} ${s.artist} ${s.album ?? ''}`.toLowerCase().includes(q)) : [...songs];
     const text = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' });
     list.sort((a, b) =>
-      sort === 'artist' ? text(a.artist, b.artist) || text(a.title, b.title)
-      : sort === 'newest' ? b.addedAt - a.addedAt
-      : sort === 'length' ? a.duration - b.duration
-      : sort === 'stars' ? (bestStars.get(b.id) ?? -1) - (bestStars.get(a.id) ?? -1) || text(a.title, b.title)
-      : text(a.title, b.title),
+      sort === 'artist'
+        ? text(a.artist, b.artist) || text(a.title, b.title)
+        : sort === 'newest'
+          ? b.addedAt - a.addedAt
+          : sort === 'length'
+            ? a.duration - b.duration
+            : sort === 'stars'
+              ? (bestStars.get(b.id) ?? -1) - (bestStars.get(a.id) ?? -1) || text(a.title, b.title)
+              : text(a.title, b.title),
     );
     return list;
   }, [songs, query, sort, bestStars]);
@@ -126,7 +144,15 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
 
   useActions([
     { id: 'back', label: 'Back', icon: ArrowLeft, kbd: 'Escape', sfx: 'back', run: onBack },
-    { id: 'details', label: 'Song details', icon: Info, kbd: 'KeyD', pad: 'b2', disabled: !current, run: () => current && onDetails(current) },
+    {
+      id: 'details',
+      label: 'Song details',
+      icon: Info,
+      kbd: 'KeyD',
+      pad: 'b2',
+      disabled: !current,
+      run: () => current && onDetails(current),
+    },
     { id: 'search', label: 'Search', icon: Search, kbd: 'Slash', bar: false, run: () => search.current?.focus() },
     { id: 'sort', label: 'Sort', icon: ArrowUpDown, kbd: 'KeyS', pad: 'b3', bar: false, run: cycleSort },
     { id: 'add', label: 'Add songs', icon: Upload, kbd: 'KeyA', pad: 'b8', bar: false, run: onAdd },
@@ -146,9 +172,24 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
       <div className="toolbar" data-nav-group="toolbar">
         <label className="search">
           <Search strokeWidth={ICON_STROKE} aria-hidden />
-          <input ref={search} type="search" placeholder="Search songs" aria-label="Search your library by title, artist or album" value={query} onChange={(e) => setQuery(e.target.value)} spellCheck={false} enterKeyHint="search" />
+          <input
+            ref={search}
+            type="search"
+            placeholder="Search songs"
+            aria-label="Search your library by title, artist or album"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            spellCheck={false}
+            enterKeyHint="search"
+          />
           {query ? (
-            <button type="button" className="icon-btn small" aria-label="Clear search" data-nav-skip onClick={() => (setQuery(''), search.current?.focus())}>
+            <button
+              type="button"
+              className="icon-btn small"
+              aria-label="Clear search"
+              data-nav-skip
+              onClick={() => (setQuery(''), search.current?.focus())}
+            >
               <X strokeWidth={ICON_STROKE} aria-hidden />
             </button>
           ) : (
@@ -160,7 +201,13 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
           <ArrowUpDown strokeWidth={ICON_STROKE} aria-hidden />
           <span className="btn-label">{sortLabel}</span>
         </button>
-        <button type="button" className="btn" data-action="add" aria-label={importing ? `Importing ${importing} songs` : 'Add songs'} onClick={onAdd}>
+        <button
+          type="button"
+          className="btn"
+          data-action="add"
+          aria-label={importing ? `Importing ${importing} songs` : 'Add songs'}
+          onClick={onAdd}
+        >
           <Hint kbd="KeyA" pad="b8" {...hints} />
           <Upload strokeWidth={ICON_STROKE} aria-hidden />
           <span className="btn-label">{importing ? `Importing ${importing}…` : 'Add songs'}</span>
@@ -176,7 +223,12 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
             const busy = st.state === 'analyzing' || st.state === 'queued';
             const full = setlist.length >= SET_MAX && slot < 0;
             return (
-              <li key={s.id} data-preview={s.id} className={`song-item ${slot >= 0 ? 'picked' : ''} ${current?.id === s.id ? 'current' : ''}`} style={{ ['--i' as string]: Math.min(i, 12) }}>
+              <li
+                key={s.id}
+                data-preview={s.id}
+                className={`song-item ${slot >= 0 ? 'picked' : ''} ${current?.id === s.id ? 'current' : ''}`}
+                style={{ ['--i' as string]: Math.min(i, 12) }}
+              >
                 <button
                   type="button"
                   className="song-row"
@@ -193,7 +245,13 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
                     <span className="song-artist">{s.artist}</span>
                   </span>
                   <span className="song-side">
-                    {busy ? <span className="song-busy">{st.state === 'queued' ? 'Waiting' : `${Math.round((st.progress ?? 0) * 100)}%`}</span> : ready ? bestStars.has(s.id) && <Stars n={bestStars.get(s.id)!} /> : <StatusPill status={st} />}
+                    {busy ? (
+                      <span className="song-busy">{st.state === 'queued' ? 'Waiting' : `${Math.round((st.progress ?? 0) * 100)}%`}</span>
+                    ) : ready ? (
+                      bestStars.has(s.id) && <Stars n={bestStars.get(s.id)!} />
+                    ) : (
+                      <StatusPill status={st} />
+                    )}
                     {previewing === s.id && (
                       <span className="song-playing" role="img" aria-label="Playing a preview">
                         <Volume2 strokeWidth={ICON_STROKE} aria-hidden />
@@ -210,7 +268,13 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
                     </span>
                   )}
                 </button>
-                <button type="button" className="icon-btn row-info" data-nav-skip aria-label={`Details for ${s.title}`} onClick={() => (setCurrentId(s.id), onDetails(s))}>
+                <button
+                  type="button"
+                  className="icon-btn row-info"
+                  data-nav-skip
+                  aria-label={`Details for ${s.title}`}
+                  onClick={() => (setCurrentId(s.id), onDetails(s))}
+                >
                   <Info strokeWidth={ICON_STROKE} aria-hidden />
                 </button>
               </li>
@@ -232,7 +296,9 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
                 </span>
                 <span className="song-text">
                   <span className="song-title">Add your music</span>
-                  <span className="song-artist">{hints.mode === 'touch' ? 'Pick files from this device.' : 'Drop files anywhere or browse.'} MP3, WAV, FLAC, OGG, M4A.</span>
+                  <span className="song-artist">
+                    {hints.mode === 'touch' ? 'Pick files from this device.' : 'Drop files anywhere or browse.'} MP3, WAV, FLAC, OGG, M4A.
+                  </span>
                 </span>
               </button>
             </li>
@@ -255,8 +321,16 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
                 return (
                   <li key={s ? s.id : `empty-${i}`}>
                     {s ? (
-                      <button type="button" className="slot filled" data-sfx="back" aria-label={`Remove ${s.title} from the setlist`} onClick={() => onToggle(s)}>
-                        <span className="slot-num" aria-hidden>{i + 1}</span>
+                      <button
+                        type="button"
+                        className="slot filled"
+                        data-sfx="back"
+                        aria-label={`Remove ${s.title} from the setlist`}
+                        onClick={() => onToggle(s)}
+                      >
+                        <span className="slot-num" aria-hidden>
+                          {i + 1}
+                        </span>
                         <Cover blob={s.cover} title={s.title} />
                         <span className="song-text">
                           <span className="song-title">{s.title}</span>
@@ -266,7 +340,9 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
                       </button>
                     ) : (
                       <div className="slot empty">
-                        <span className="slot-num" aria-hidden>{i + 1}</span>
+                        <span className="slot-num" aria-hidden>
+                          {i + 1}
+                        </span>
                         <span className="slot-blank">{i === picked.length ? 'Pick a song' : 'Empty'}</span>
                       </div>
                     )}
@@ -306,7 +382,15 @@ function NowCard({ song, status, scores }: { song: SongMeta; status: SongStatus;
               const Icon = PART_ICON[p];
               const best = mine.filter((s) => s.part === p).sort((a, b) => b.stars - a.stars || b.score - a.score)[0];
               return (
-                <li key={p} className={best ? '' : 'none'} title={best ? `${PART_LABEL[p]}: ${best.score.toLocaleString()} on ${DIFFICULTY_LABEL[best.difficulty]}` : `${PART_LABEL[p]}: not played`}>
+                <li
+                  key={p}
+                  className={best ? '' : 'none'}
+                  title={
+                    best
+                      ? `${PART_LABEL[p]}: ${best.score.toLocaleString()} on ${DIFFICULTY_LABEL[best.difficulty]}`
+                      : `${PART_LABEL[p]}: not played`
+                  }
+                >
                   <Icon strokeWidth={ICON_STROKE} aria-hidden />
                   <span className="sr-only">{PART_LABEL[p]}</span>
                   {best ? (

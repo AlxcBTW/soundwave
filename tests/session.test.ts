@@ -52,7 +52,12 @@ describe('scoring', () => {
 
 describe('GameSession', () => {
   it('hits notes in the right lane and misses late ones', () => {
-    const s = new GameSession(chart([{ t: 1, lane: 0 }, { t: 2, lane: 1 }]));
+    const s = new GameSession(
+      chart([
+        { t: 1, lane: 0 },
+        { t: 2, lane: 1 },
+      ]),
+    );
     s.press(0, 1.01);
     s.update(3);
     const r = s.results();
@@ -70,7 +75,12 @@ describe('GameSession', () => {
   });
 
   it('judges each chord note separately', () => {
-    const s = new GameSession(chart([{ t: 1, lane: 0 }, { t: 1, lane: 2 }]));
+    const s = new GameSession(
+      chart([
+        { t: 1, lane: 0 },
+        { t: 1, lane: 2 },
+      ]),
+    );
     s.press(0, 1);
     s.press(2, 1.05);
     expect(s.results().fullCombo).toBe(true);
@@ -99,7 +109,12 @@ describe('GameSession', () => {
   });
 
   it('fails a phrase when one note is missed', () => {
-    const s = new GameSession(chart([{ t: 1, phrase: 0 }, { t: 2, phrase: 0 }]));
+    const s = new GameSession(
+      chart([
+        { t: 1, phrase: 0 },
+        { t: 2, phrase: 0 },
+      ]),
+    );
     s.update(1.5);
     s.press(0, 2);
     expect(s.overdrive).toBe(0);
@@ -110,7 +125,11 @@ describe('hold and release notes', () => {
   const holdThenRelease = () => {
     const s = new GameSession(chart([{ t: 1, dur: 1, release: true }, { t: 3 }]));
     const events: string[] = [];
-    s.on((e) => events.push(e.type === 'release' ? `release ${e.grade}` : e.type === 'release-miss' ? `release-miss ${e.early ? 'early' : 'late'}` : e.type));
+    s.on((e) =>
+      events.push(
+        e.type === 'release' ? `release ${e.grade}` : e.type === 'release-miss' ? `release-miss ${e.early ? 'early' : 'late'}` : e.type,
+      ),
+    );
     s.update(0.99);
     s.press(0, 1.0);
     return { s, events };

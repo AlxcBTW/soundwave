@@ -39,12 +39,20 @@ describe('graphics settings', () => {
 });
 
 describe('light show', () => {
-  const frame = (p: Partial<ShowFrame>): ShowFrame => ({ dt: 1 / 60, beat: 'none', intensity: 0.2, bands: { low: 0, mid: 0, high: 0 }, overdrive: false, ...p });
+  const frame = (p: Partial<ShowFrame>): ShowFrame => ({
+    dt: 1 / 60,
+    beat: 'none',
+    intensity: 0.2,
+    bands: { low: 0, mid: 0, high: 0 },
+    overdrive: false,
+    ...p,
+  });
 
   it('climbs to a peak with busy music and fires there', () => {
     const show = new LightShow();
     const events = [];
-    for (let i = 0; i < 60 * 12; i++) events.push(...show.update(frame({ intensity: 1, beat: i % 30 === 0 ? (i % 120 === 0 ? 'downbeat' : 'beat') : 'none' })));
+    for (let i = 0; i < 60 * 12; i++)
+      events.push(...show.update(frame({ intensity: 1, beat: i % 30 === 0 ? (i % 120 === 0 ? 'downbeat' : 'beat') : 'none' })));
     expect(show.state.level).toBe('peak');
     expect(events.some((e) => e.type === 'co2')).toBe(true);
     expect(events.some((e) => e.type === 'fireworks')).toBe(true);
@@ -53,7 +61,8 @@ describe('light show', () => {
   it('stays calm with quiet music and never fires pyro in the menus', () => {
     const show = new LightShow(true);
     const events = [];
-    for (let i = 0; i < 60 * 12; i++) events.push(...show.update(frame({ intensity: i < 300 ? 0.1 : 1, beat: i % 120 === 0 ? 'downbeat' : 'none' })));
+    for (let i = 0; i < 60 * 12; i++)
+      events.push(...show.update(frame({ intensity: i < 300 ? 0.1 : 1, beat: i % 120 === 0 ? 'downbeat' : 'none' })));
     show.overdriveStart();
     events.push(...show.update(frame({})));
     expect(events).toEqual([]);
@@ -72,7 +81,11 @@ describe('light show', () => {
 
   it('measures how busy each bar is', () => {
     const beats = Array.from({ length: 16 }, (_, i) => i * 0.5);
-    const chart = { beats, downbeats: [0, 4, 8, 12], notes: [0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 2.1, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7].map((t) => ({ t, lane: 0, dur: 0, phrase: -1 })) } as unknown as Chart;
+    const chart = {
+      beats,
+      downbeats: [0, 4, 8, 12],
+      notes: [0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 2.1, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7].map((t) => ({ t, lane: 0, dur: 0, phrase: -1 })),
+    } as unknown as Chart;
     const v = barIntensity(chart);
     expect(v).toHaveLength(4);
     expect(v[3]).toBeGreaterThan(v[1]);
@@ -110,7 +123,7 @@ describe('camera director', () => {
     expect(count('fixed', 'peak')).toBe(0);
   });
 
-  it('favours the player\'s band member and never repeats a shot straight away', () => {
+  it("favours the player's band member and never repeats a shot straight away", () => {
     const d = new Director(shots, 'auto', 3);
     const seen: string[] = [];
     for (let bar = 0; bar < 400; bar++) if (d.update(2, true, 'peak', 2)) seen.push(d.shot.name);
@@ -122,11 +135,21 @@ describe('camera director', () => {
 
   it('does not come back to a shot until others have been on, starting with the opening shot', () => {
     const all = buildShots(
-      { ...cams, crowd: { pos: [9, 3.5, 44], target: [0, 15, -10], hfov: 72 }, close: { pos: [-9, 5.2, 19], target: [0, 9, -8], hfov: 76 }, aerial: { pos: [44, 62, 118], target: [0, 8, -6], hfov: 56 } },
+      {
+        ...cams,
+        crowd: { pos: [9, 3.5, 44], target: [0, 15, -10], hfov: 72 },
+        close: { pos: [-9, 5.2, 19], target: [0, 9, -8], hfov: 76 },
+        aerial: { pos: [44, 62, 118], target: [0, 8, -6], hfov: 56 },
+      },
       { lead: [-4.5, 3, -3.4], vox: [0, 3, -1.7], bass: [4.5, 3, -3.4], drums: [0, 3.25, -7.5] },
       'lead',
     );
-    for (const [mode, level] of [['auto', 'calm'], ['auto', 'groove'], ['auto', 'peak'], ['calm', 'groove']] as const) {
+    for (const [mode, level] of [
+      ['auto', 'calm'],
+      ['auto', 'groove'],
+      ['auto', 'peak'],
+      ['calm', 'groove'],
+    ] as const) {
       const d = new Director(all, mode, 7);
       const seen: string[] = [d.shot.name];
       for (let bar = 0; bar < 1600; bar++) if (d.update(2, true, level, 2)) seen.push(d.shot.name);
@@ -140,7 +163,14 @@ describe('camera director', () => {
   it('runs a shot the other way when it comes round again', () => {
     const d = new Director(shots, 'auto', 5);
     const starts = new Map<string, string[]>();
-    const note = () => starts.set(d.shot.name, [...(starts.get(d.shot.name) ?? []), d.pose().pos.map((v) => v.toFixed(2)).join(',')]);
+    const note = () =>
+      starts.set(d.shot.name, [
+        ...(starts.get(d.shot.name) ?? []),
+        d
+          .pose()
+          .pos.map((v) => v.toFixed(2))
+          .join(','),
+      ]);
     note();
     for (let bar = 0; bar < 400; bar++) if (d.update(2, true, 'groove', 2)) note();
     for (const [, poses] of starts) {

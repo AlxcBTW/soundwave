@@ -100,7 +100,23 @@ const LANE_DARK = LANE_HEX.map((c) => mix(c, '#0e0828', 0.45));
 
 export class EditorView {
   private readonly g: CanvasRenderingContext2D;
-  private lay: Layout = { w: 0, h: 0, u: 16, labelX: 0, labelW: 0, waveX: 0, waveW: 0, deckX: 0, deckW: 0, laneW: 0, guideX: 0, guideW: 0, nowY: 0, noteH: 0, noteW: 0 };
+  private lay: Layout = {
+    w: 0,
+    h: 0,
+    u: 16,
+    labelX: 0,
+    labelW: 0,
+    waveX: 0,
+    waveW: 0,
+    deckX: 0,
+    deckW: 0,
+    laneW: 0,
+    guideX: 0,
+    guideW: 0,
+    nowY: 0,
+    noteH: 0,
+    noteW: 0,
+  };
   private lanes = 5;
   private hasGuide = false;
 

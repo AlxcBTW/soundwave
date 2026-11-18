@@ -91,7 +91,10 @@ function heardGrid(spec: Extract<GridSpec, { kind: 'beats' }>, duration: number)
   for (let t = beats[beats.length - 1] + tail; t <= duration + tail; t += tail) post.push(t);
   const all = [...pre, ...beats, ...post];
   // Bars as given, then carried on at the same length before and after them.
-  const given = spec.downbeats.map((d) => kept.indexOf(d)).filter((i) => i >= 0).map((i) => i + pre.length);
+  const given = spec.downbeats
+    .map((d) => kept.indexOf(d))
+    .filter((i) => i >= 0)
+    .map((i) => i + pre.length);
   const gaps = given.slice(1).map((d, i) => d - given[i]);
   const perBar = Math.max(1, median(gaps) || 4);
   const downs = new Set(given);
@@ -131,7 +134,10 @@ export function fitFixed(beats: number[], downbeats: number[]): Extract<GridSpec
   bpm = Math.min(MAX_BPM, Math.max(MIN_BPM, bpm));
   spb = 60 / bpm;
   // Bars are counted in the beats that were heard: an unheard beat does not make a bar longer.
-  const gaps = downbeats.slice(1).map((d, i) => d - downbeats[i]).filter((g) => g > 0);
+  const gaps = downbeats
+    .slice(1)
+    .map((d, i) => d - downbeats[i])
+    .filter((g) => g > 0);
   const beatsPerBar = Math.min(12, Math.max(1, median(gaps) || 4));
   const phase = downbeats.length ? count[downbeats[0]] % beatsPerBar : 0;
   // Where beat 0 would be at this tempo, judged from every beat.

@@ -11,7 +11,10 @@ describe('edited charts in a .soundwave file', () => {
       ...emptyEdits(),
       grid: { kind: 'fixed', bpm: 128, offset: 0.31, beatsPerBar: 4 },
       duration: 30,
-      charts: { 'lead:expert': [{ t: 1, lane: 4, dur: 0.5, phrase: 0, release: true }], 'drums:easy': [{ t: 2, lane: 0, dur: 0, phrase: -1 }] },
+      charts: {
+        'lead:expert': [{ t: 1, lane: 4, dur: 0.5, phrase: 0, release: true }],
+        'drums:easy': [{ t: 2, lane: 0, dur: 0, phrase: -1 }],
+      },
     };
     const file = await writeSoundwave({ meta, edits: { version: EDITS_VERSION, data: edits }, audio });
     const back = await readSoundwave(file);

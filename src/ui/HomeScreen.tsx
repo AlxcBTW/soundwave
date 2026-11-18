@@ -1,4 +1,15 @@
-import { FilePlus2, ListMusic, PencilRuler, Play, Plus, Power, Search, Settings as SettingsIcon, Upload, type LucideIcon } from 'lucide-react';
+import {
+  FilePlus2,
+  ListMusic,
+  PencilRuler,
+  Play,
+  Plus,
+  Power,
+  Search,
+  Settings as SettingsIcon,
+  Upload,
+  type LucideIcon,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AnalysisStatus } from '../analysis/manager';
 import { playSfx } from '../audio/sfx';
@@ -56,7 +67,22 @@ const total = (songs: SongMeta[]) => formatTime(songs.reduce((t, s) => t + s.dur
 const summary = (songs: SongMeta[]) => [count(songs.length), total(songs)].filter(Boolean).join(' · ');
 const count = (n: number) => `${n} ${n === 1 ? 'song' : 'songs'}`;
 
-export function HomeScreen({ songs, status, setlist, played, seed, importing, empty, onLibrary, onSet, onAdd, tracks, onSettings, onExit, settings }: Props) {
+export function HomeScreen({
+  songs,
+  status,
+  setlist,
+  played,
+  seed,
+  importing,
+  empty,
+  onLibrary,
+  onSet,
+  onAdd,
+  tracks,
+  onSettings,
+  onExit,
+  settings,
+}: Props) {
   const style = useGlyphStyle(settings.glyphs);
   const mode = useInputMode();
   const [tab, setTabState] = useState<Tab>(lastTab);
@@ -111,7 +137,14 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
     ...(tab === 'play'
       ? [{ id: 'add', label: importing ? `Importing ${importing}…` : 'Add songs', icon: Upload, kbd: 'KeyA', pad: 'b3', run: onAdd }]
       : [
-          { id: 'search', label: 'Search', icon: Search, kbd: 'Slash', bar: false, run: () => document.querySelector<HTMLInputElement>('.track-picker input[type=search]')?.focus() },
+          {
+            id: 'search',
+            label: 'Search',
+            icon: Search,
+            kbd: 'Slash',
+            bar: false,
+            run: () => document.querySelector<HTMLInputElement>('.track-picker input[type=search]')?.focus(),
+          },
           { id: 'new', label: 'New track', icon: FilePlus2, kbd: 'KeyN', pad: 'b3', primary: true, run: () => setPicks((n) => n + 1) },
         ]),
     { id: 'settings', label: 'Settings', icon: SettingsIcon, kbd: 'KeyS', pad: 'b9', run: onSettings },
@@ -130,7 +163,17 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
           <div className="tab-row slide" role="tablist" aria-label="Main menu" ref={tabRow} data-nav-group="home-tabs">
             <span className="sel" aria-hidden />
             {TABS.map(([id, label, Icon]) => (
-              <button key={id} type="button" role="tab" id={`home-tab-${id}`} aria-selected={tab === id} aria-controls="home-panel" data-on={tab === id} className={`tab ${tab === id ? 'on' : ''}`} onClick={() => setTab(id)}>
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                id={`home-tab-${id}`}
+                aria-selected={tab === id}
+                aria-controls="home-panel"
+                data-on={tab === id}
+                className={`tab ${tab === id ? 'on' : ''}`}
+                onClick={() => setTab(id)}
+              >
                 <Icon strokeWidth={ICON_STROKE} aria-hidden />
                 <span className="tab-label">{label}</span>
               </button>
@@ -152,13 +195,30 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
           </button>
         )}
       </header>
-      <main className={`page-body home-body ${turn}`} data-tab={tab} key={tab} id="home-panel" role="tabpanel" aria-labelledby={`home-tab-${tab}`}>
+      <main
+        className={`page-body home-body ${turn}`}
+        data-tab={tab}
+        key={tab}
+        id="home-panel"
+        role="tabpanel"
+        aria-labelledby={`home-tab-${tab}`}
+      >
         {tab === 'play' ? (
           <>
             <h2 className="page-title">Pick a set</h2>
             <div className="tiles" data-nav-group="tiles">
               {/* The feature: the player's own set, with its covers, and its songs in order. */}
-              <button type="button" className="tile hero" data-autofocus aria-label={setlist.length ? `Your setlist: ${summary(setlist).replace(' · ', ', ')}` : 'Your setlist: empty. Pick up to four songs from your library.'} onClick={onLibrary}>
+              <button
+                type="button"
+                className="tile hero"
+                data-autofocus
+                aria-label={
+                  setlist.length
+                    ? `Your setlist: ${summary(setlist).replace(' · ', ', ')}`
+                    : 'Your setlist: empty. Pick up to four songs from your library.'
+                }
+                onClick={onLibrary}
+              >
                 {setlist.length ? (
                   <Mosaic songs={setlist} />
                 ) : (
@@ -188,7 +248,13 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
                   {sets.map((set, i) => {
                     const list = set.songs.map((id) => byId.get(id)!).filter(Boolean);
                     return (
-                      <button type="button" key={set.id} className={`tile ${late(set.id)}`} style={{ ['--i' as string]: i + 1 }} onClick={() => onSet(set.songs)}>
+                      <button
+                        type="button"
+                        key={set.id}
+                        className={`tile ${late(set.id)}`}
+                        style={{ ['--i' as string]: i + 1 }}
+                        onClick={() => onSet(set.songs)}
+                      >
                         <Mosaic songs={list} />
                         <span className="tile-text">
                           <span className="tile-title">{set.title}</span>
@@ -199,13 +265,21 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
                     );
                   })}
                   {empty && (
-                    <button type="button" className={`tile add ${late('add')}`} style={{ ['--i' as string]: sets.length + 1 }} onClick={onAdd}>
+                    <button
+                      type="button"
+                      className={`tile add ${late('add')}`}
+                      style={{ ['--i' as string]: sets.length + 1 }}
+                      onClick={onAdd}
+                    >
                       <span className="mosaic blank dashed" aria-hidden>
                         <Plus strokeWidth={ICON_STROKE} />
                       </span>
                       <span className="tile-text">
                         <span className="tile-title">Add your music</span>
-                        <span className="tile-cap">{touch ? 'Pick files from this device.' : 'Drop files anywhere or browse.'} MP3, WAV, FLAC, OGG and M4A. Each song takes about a minute to turn into charts.</span>
+                        <span className="tile-cap">
+                          {touch ? 'Pick files from this device.' : 'Drop files anywhere or browse.'} MP3, WAV, FLAC, OGG and M4A. Each song
+                          takes about a minute to turn into charts.
+                        </span>
                       </span>
                     </button>
                   )}
@@ -218,7 +292,11 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
             {/* Edit is a workbench, not a shelf: the tracks themselves, and a press on one opens it in the editor. */}
             <div className="edit-head">
               <h2 className="page-title">Edit a track</h2>
-              <p className="head-count">{own ? `${own} ${own === 1 ? 'track' : 'tracks'} · pick one to open it in the editor` : 'Bring in a song to write its charts'}</p>
+              <p className="head-count">
+                {own
+                  ? `${own} ${own === 1 ? 'track' : 'tracks'} · pick one to open it in the editor`
+                  : 'Bring in a song to write its charts'}
+              </p>
             </div>
             <TrackPicker songs={songs} status={status} settings={settings} pickSignal={picks} {...tracks} />
           </>

@@ -68,7 +68,8 @@ describe('glyphs', () => {
 });
 
 describe('menu navigation', () => {
-  const rect = (x: number, y: number, w = 100, h = 40) => ({ x, y, width: w, height: h, left: x, top: y, right: x + w, bottom: y + h }) as DOMRect;
+  const rect = (x: number, y: number, w = 100, h = 40) =>
+    ({ x, y, width: w, height: h, left: x, top: y, right: x + w, bottom: y + h }) as DOMRect;
   it('moves to the nearest control in line', () => {
     const from = rect(100, 100);
     const others = [rect(100, 200), rect(400, 160), rect(260, 100), rect(100, 0)];
@@ -113,7 +114,12 @@ describe('GamepadInput', () => {
     const input = new GamepadInput(
       ['b6', 'b4', 'b5', 'b7'],
       'b3',
-      { press: (l, t) => log.push(`press ${l} @${t}`), release: (l) => log.push(`release ${l}`), overdrive: () => log.push('overdrive'), pause: () => log.push('pause') },
+      {
+        press: (l, t) => log.push(`press ${l} @${t}`),
+        release: (l) => log.push(`release ${l}`),
+        overdrive: () => log.push('overdrive'),
+        pause: () => log.push('pause'),
+      },
       () => active,
     );
     const emit = (input: string, down: boolean, t = 1) => (pads as unknown as { emit(e: object): void }).emit({ input, down, t, pad: 0 });

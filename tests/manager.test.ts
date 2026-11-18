@@ -72,7 +72,10 @@ describe('AnalysisManager', () => {
     const wav = () => new ArrayBuffer(8);
     const separator: StemAnalyzer = async (_id, onProgress) => {
       onProgress(0.5, 'Separating stems');
-      return { stems: { drums: wav(), bass: wav(), vocals: wav(), other: wav() }, notes: { bass: [{ t: 1, dur: 0.2, midi: 40, strength: 1 }], vocals: [], other: [] } };
+      return {
+        stems: { drums: wav(), bass: wav(), vocals: wav(), other: wav() },
+        notes: { bass: [{ t: 1, dur: 0.2, midi: 40, strength: 1 }], vocals: [], other: [] },
+      };
     };
     let got: Assist | undefined;
     const m = new AnalysisManager((_id, _p, _signal, assist) => {

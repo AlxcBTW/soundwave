@@ -11,3 +11,5 @@ ml-service/
 local-audio/
 .impeccable/
 *.min.js
+*.wxs
+*.nsh

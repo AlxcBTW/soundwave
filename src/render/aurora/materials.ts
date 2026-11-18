@@ -514,7 +514,23 @@ export function applyVenueMaterials(root: THREE.Object3D, deck: DeckInfo, glitte
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;
     const src = mesh.material as THREE.Material;
-    const info = src.userData as { kind?: string; a?: string; b?: string; c?: string; rim?: string; glitter?: number; glow?: number; panels?: number; veins?: number; tint?: string; twinkle?: number; who?: number; rx?: number; ry?: number; floor?: number };
+    const info = src.userData as {
+      kind?: string;
+      a?: string;
+      b?: string;
+      c?: string;
+      rim?: string;
+      glitter?: number;
+      glow?: number;
+      panels?: number;
+      veins?: number;
+      tint?: string;
+      twinkle?: number;
+      who?: number;
+      rx?: number;
+      ry?: number;
+      floor?: number;
+    };
     const kind = info.kind && FRAGMENTS[info.kind] ? info.kind : 'black';
     const moon = kind === 'screen' && /Moon/.test(mesh.name);
     const key = kind === 'screen' ? `screen-${moon}` : src.name;

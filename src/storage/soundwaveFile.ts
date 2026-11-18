@@ -127,7 +127,8 @@ async function bytesOf(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> 
 }
 
 const gzip = (data: Uint8Array) => bytesOf(new Blob([data as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new CompressionStream('gzip')));
-const gunzip = (data: Uint8Array) => bytesOf(new Blob([data as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new DecompressionStream('gzip')));
+const gunzip = (data: Uint8Array) =>
+  bytesOf(new Blob([data as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new DecompressionStream('gzip')));
 
 /** A payload that starts with a version and carries gzip-compressed JSON (ANLS, EDIT). */
 async function versioned(v: { version: number; data: unknown }): Promise<Uint8Array> {
@@ -193,7 +194,8 @@ export async function isSoundwave(blob: Blob): Promise<boolean> {
 async function index(blob: Blob): Promise<ChunkRef[]> {
   if (!(await isSoundwave(blob))) throw new SoundwaveFileError('This is not a Soundwave song file.');
   const version = new DataView((await read(blob, 8, 2)).buffer).getUint16(0, true);
-  if (version > FORMAT_VERSION) throw new SoundwaveFileError('This song file was made by a newer version of Soundwave. Update the game to open it.');
+  if (version > FORMAT_VERSION)
+    throw new SoundwaveFileError('This song file was made by a newer version of Soundwave. Update the game to open it.');
   const refs: ChunkRef[] = [];
   let at = HEADER;
   while (at < blob.size) {
@@ -201,7 +203,8 @@ async function index(blob: Blob): Promise<ChunkRef[]> {
     const head = await read(blob, at, CHUNK_HEAD);
     const type = String.fromCharCode(...head.subarray(0, 4));
     const length = new DataView(head.buffer).getUint32(4, true);
-    if (!/^[A-Z0-9]{4}$/.test(type) || at + CHUNK_HEAD + length + CRC > blob.size) throw new SoundwaveFileError('This song file is damaged.');
+    if (!/^[A-Z0-9]{4}$/.test(type) || at + CHUNK_HEAD + length + CRC > blob.size)
+      throw new SoundwaveFileError('This song file is damaged.');
     refs.push({ type, offset: at + CHUNK_HEAD, length });
     at += CHUNK_HEAD + length + CRC;
   }
@@ -263,13 +266,16 @@ export async function readSoundwave(blob: Blob): Promise<SoundwaveContents> {
 
   const audioData = splitTyped(await payload(blob, audioRef, true));
   if (!audioData.body.length) throw new SoundwaveFileError('This song file has no song in it.');
-  const audio = new Blob([audioData.body as Uint8Array<ArrayBuffer>], { type: MIME.test(audioData.mime) ? audioData.mime : 'application/octet-stream' });
+  const audio = new Blob([audioData.body as Uint8Array<ArrayBuffer>], {
+    type: MIME.test(audioData.mime) ? audioData.mime : 'application/octet-stream',
+  });
 
   let cover: Blob | undefined;
   const coverRef = find('COVR');
   if (coverRef) {
     const c = splitTyped(await payload(blob, coverRef, true));
-    if (COVER_TYPES.includes(c.mime.toLowerCase()) && c.body.length) cover = new Blob([c.body as Uint8Array<ArrayBuffer>], { type: c.mime.toLowerCase() });
+    if (COVER_TYPES.includes(c.mime.toLowerCase()) && c.body.length)
+      cover = new Blob([c.body as Uint8Array<ArrayBuffer>], { type: c.mime.toLowerCase() });
   }
 
   // An analysis or edits that cannot be read are left out: the song is analyzed again when played.

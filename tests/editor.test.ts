@@ -238,7 +238,11 @@ describe('the chart document', () => {
 
 describe('stored edits', () => {
   it('makes hand-placed notes playable', () => {
-    const cleaned = cleanNotes([note(2, 1), note(1, 0, 3), note(2, 0), note(2.001, 0), note(1, 9), note(-1, 0), note(1.5, 2, 0.01, 7), note(5, 2, 1, 3)], 5, 0.5);
+    const cleaned = cleanNotes(
+      [note(2, 1), note(1, 0, 3), note(2, 0), note(2.001, 0), note(1, 9), note(-1, 0), note(1.5, 2, 0.01, 7), note(5, 2, 1, 3)],
+      5,
+      0.5,
+    );
     expect(cleaned.map((n) => [n.t, n.lane])).toEqual([
       [1, 0],
       [1.5, 2],
@@ -259,7 +263,11 @@ describe('stored edits', () => {
     const e = sanitizeEdits({
       grid: { kind: 'fixed', bpm: 9999, offset: 0.5 },
       duration: 30,
-      charts: { 'lead:easy': [note(1, 0), note(2, 4), { t: 'x', lane: 0 }, note(99, 1)], 'kazoo:easy': [note(1, 0)], 'bass:expert': [note(1, 4)] },
+      charts: {
+        'lead:easy': [note(1, 0), note(2, 4), { t: 'x', lane: 0 }, note(99, 1)],
+        'kazoo:easy': [note(1, 0)],
+        'bass:expert': [note(1, 4)],
+      },
       extra: true,
     })!;
     expect(e.grid).toEqual({ kind: 'fixed', bpm: 260, offset: 0.5, beatsPerBar: 4 });
@@ -366,7 +374,8 @@ describe('finding a tempo by listening', () => {
     for (let b = 0; first + b * spb < 39; b++) {
       const at = Math.floor((first + b * spb) * sr);
       // A kick on every beat (louder on the first of four), a snare on two and four.
-      for (let i = 0; i < 4000; i++) signal[at + i] += Math.sin(2 * Math.PI * (50 + 90 * Math.exp(-i / 700)) * (i / sr)) * Math.exp(-i / 1800) * (b % 4 === 0 ? 1 : 0.7);
+      for (let i = 0; i < 4000; i++)
+        signal[at + i] += Math.sin(2 * Math.PI * (50 + 90 * Math.exp(-i / 700)) * (i / sr)) * Math.exp(-i / 1800) * (b % 4 === 0 ? 1 : 0.7);
       if (b % 2 === 1) for (let i = 0; i < 3000; i++) signal[at + i] += noise() * Math.exp(-i / 900) * 0.4;
     }
     const heard = hearBeats(signal, sr);

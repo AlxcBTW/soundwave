@@ -144,12 +144,16 @@ export function loadVenue(): Promise<VenueAssets> {
       tell();
       return v;
     });
-  cache = Promise.all([part(loader.loadAsync(`${base}venue.glb`)), part(get('venue.json').then((r) => r.json() as Promise<VenueData>)), part(people('band')), part(people('crowd')), part(scenery)]).then(
-    ([venue, data, band, crowd, land]) => {
-      draco.dispose();
-      return { scene: venue.scene, data, band, crowd, scenery: land };
-    },
-  );
+  cache = Promise.all([
+    part(loader.loadAsync(`${base}venue.glb`)),
+    part(get('venue.json').then((r) => r.json() as Promise<VenueData>)),
+    part(people('band')),
+    part(people('crowd')),
+    part(scenery),
+  ]).then(([venue, data, band, crowd, land]) => {
+    draco.dispose();
+    return { scene: venue.scene, data, band, crowd, scenery: land };
+  });
   cache.catch(() => {
     cache = null;
   });

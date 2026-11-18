@@ -16,9 +16,19 @@ import { backInput, confirmInput, pads, type GlyphStyle } from './pads';
 
 export type Dir = 'up' | 'down' | 'left' | 'right';
 
-const DIRS: Record<string, Dir> = { b12: 'up', b13: 'down', b14: 'left', b15: 'right', 'a1-': 'up', 'a1+': 'down', 'a0-': 'left', 'a0+': 'right' };
+const DIRS: Record<string, Dir> = {
+  b12: 'up',
+  b13: 'down',
+  b14: 'left',
+  b15: 'right',
+  'a1-': 'up',
+  'a1+': 'down',
+  'a0-': 'left',
+  'a0+': 'right',
+};
 const ARROWS: Record<string, Dir> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
-const FOCUSABLE = 'button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE =
+  'button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /** Sent to switch tabs (detail: -1 or 1). */
 export const TAB_EVENT = 'nav-tab';
@@ -69,11 +79,21 @@ export function nearest(from: DOMRect, dir: Dir, rects: DOMRect[]): number {
     const dx = p.x - c.x;
     const dy = p.y - c.y;
     // Must lie beyond the current control's edge in that direction.
-    const ahead = dir === 'up' ? r.bottom <= from.top + 4 : dir === 'down' ? r.top >= from.bottom - 4 : dir === 'left' ? r.right <= from.left + 4 : r.left >= from.right - 4;
+    const ahead =
+      dir === 'up'
+        ? r.bottom <= from.top + 4
+        : dir === 'down'
+          ? r.top >= from.bottom - 4
+          : dir === 'left'
+            ? r.right <= from.left + 4
+            : r.left >= from.right - 4;
     if (!ahead) return;
     const main = dir === 'up' || dir === 'down' ? Math.abs(dy) : Math.abs(dx);
     // Overlap on the cross axis counts as perfectly in line.
-    const overlap = dir === 'up' || dir === 'down' ? Math.min(r.right, from.right) - Math.max(r.left, from.left) : Math.min(r.bottom, from.bottom) - Math.max(r.top, from.top);
+    const overlap =
+      dir === 'up' || dir === 'down'
+        ? Math.min(r.right, from.right) - Math.max(r.left, from.left)
+        : Math.min(r.bottom, from.bottom) - Math.max(r.top, from.top);
     const cross = overlap > 0 ? 0 : dir === 'up' || dir === 'down' ? Math.abs(dx) : Math.abs(dy);
     const score = main + cross * 2.5;
     if (score < bestScore) {
@@ -93,14 +113,20 @@ export function focusEl(el: HTMLElement, announce = true) {
   // A window without focus (a controller used right after switching apps) moves focus silently:
   // say so, for the screens that follow the focused control.
   if (!document.hasFocus()) el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-  el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: document.documentElement.dataset.motion === 'reduced' ? 'auto' : 'smooth' });
+  el.scrollIntoView({
+    block: 'nearest',
+    inline: 'nearest',
+    behavior: document.documentElement.dataset.motion === 'reduced' ? 'auto' : 'smooth',
+  });
   if (announce) window.dispatchEvent(new Event(MOVE_EVENT));
 }
 
 /** A scope's starting control: the one marked `data-autofocus` (or the first control inside it), else its primary one, else its first. */
 function startEl(list = focusables(), scope: ParentNode = navScope()): HTMLElement | undefined {
   const marked = scope.querySelector('[data-autofocus]');
-  return (marked && list.find((el) => el === marked || marked.contains(el))) ?? list.find((el) => el.classList.contains('primary')) ?? list[0];
+  return (
+    (marked && list.find((el) => el === marked || marked.contains(el))) ?? list.find((el) => el.classList.contains('primary')) ?? list[0]
+  );
 }
 
 /** Puts focus on the starting control of the screen, or of a part of it. */
@@ -123,7 +149,10 @@ function scrollOn(from: HTMLElement, d: -1 | 1) {
     if (el.scrollHeight <= el.clientHeight + 1 || !/auto|scroll/.test(getComputedStyle(el).overflowY)) continue;
     const room = d > 0 ? el.scrollHeight - el.clientHeight - el.scrollTop : el.scrollTop;
     if (room < 1) continue;
-    el.scrollBy({ top: d * Math.min(room, el.clientHeight * 0.6), behavior: document.documentElement.dataset.motion === 'reduced' ? 'auto' : 'smooth' });
+    el.scrollBy({
+      top: d * Math.min(room, el.clientHeight * 0.6),
+      behavior: document.documentElement.dataset.motion === 'reduced' ? 'auto' : 'smooth',
+    });
     return;
   }
 }
@@ -136,7 +165,13 @@ export function navMove(dir: Dir, fromPad = false) {
     // A control kept out of directional navigation may still hold focus (reached with Tab).
     const stray = document.activeElement as HTMLElement | null;
     const near = stray && stray !== document.body && navScope().contains(stray) ? stray.getBoundingClientRect() : null;
-    const i = near ? nearest(near, dir, all.map((el) => el.getBoundingClientRect())) : -1;
+    const i = near
+      ? nearest(
+          near,
+          dir,
+          all.map((el) => el.getBoundingClientRect()),
+        )
+      : -1;
     const el = i >= 0 ? all[i] : startEl(all);
     if (el) focusEl(el);
     return;
@@ -152,7 +187,11 @@ export function navMove(dir: Dir, fromPad = false) {
     return;
   }
   const others = all.filter((el) => el !== active);
-  const i = nearest(active.getBoundingClientRect(), dir, others.map((el) => el.getBoundingClientRect()));
+  const i = nearest(
+    active.getBoundingClientRect(),
+    dir,
+    others.map((el) => el.getBoundingClientRect()),
+  );
   if (i < 0) {
     if (!horizontal) scrollOn(active, dir === 'down' ? 1 : -1);
     return;
@@ -170,7 +209,8 @@ function confirm() {
   if (!navLive()) return;
   // A control kept out of directional navigation still counts when it holds focus (reached with Tab).
   const stray = document.activeElement as HTMLElement | null;
-  const active = current(focusables()) ?? (stray && stray !== document.body && navScope().contains(stray) && stray.matches(FOCUSABLE) ? stray : null);
+  const active =
+    current(focusables()) ?? (stray && stray !== document.body && navScope().contains(stray) && stray.matches(FOCUSABLE) ? stray : null);
   if (!active) {
     const start = startEl();
     if (start) return focusEl(start, false);

@@ -6,7 +6,16 @@ import { chartFromNotes, chartKey, editedCount, resolveGrid, songDuration, stand
 import { analysisKey, deleteAnalyses, deleteEdits, getAnalysis, getEdits, putAnalysis, putEdits, putStems } from '../storage/db';
 import { writeAnalysisToFile } from '../storage/songFile';
 import { stemAnalyzer, type StemAnalyzer } from './separation/analyzer';
-import { ANALYSIS_SAMPLE_RATE, ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult, type AnalysisStep, type PartLines, type StemName, type StemNotes } from './types';
+import {
+  ANALYSIS_SAMPLE_RATE,
+  ANALYSIS_VERSION,
+  isAnalysisResult,
+  type AnalysisResult,
+  type AnalysisStep,
+  type PartLines,
+  type StemName,
+  type StemNotes,
+} from './types';
 import type { WorkerRequest, WorkerResponse } from './worker';
 
 export interface AnalysisStatus {
@@ -97,7 +106,18 @@ export class AnalysisManager {
     const e = this.edits.get(id) ?? undefined;
     const edited = editedCount(e);
     const thin = s.state === 'ready' ? this.thinOf(id, e) : [];
-    this.status = { ...this.status, [id]: { state: s.state, progress: s.progress, step: s.step, error: s.error, ...(edited ? { edited } : {}), ...(standsAlone(e) ? { manual: true } : {}), ...(thin.length ? { thin } : {}) } };
+    this.status = {
+      ...this.status,
+      [id]: {
+        state: s.state,
+        progress: s.progress,
+        step: s.step,
+        error: s.error,
+        ...(edited ? { edited } : {}),
+        ...(standsAlone(e) ? { manual: true } : {}),
+        ...(thin.length ? { thin } : {}),
+      },
+    };
     for (const l of this.listeners) l();
   }
 

@@ -56,7 +56,8 @@ const top = (): Action[] => layers[layers.length - 1]?.actions ?? [];
  * hint is left out: confirm does nothing here.
  */
 export const CONFIRM_HINT = 'confirm-hint';
-const signature = (a: Action[]) => a.map((x) => `${x.id}|${x.label}|${x.kbd}|${x.pad}|${x.primary ? 1 : 0}|${x.disabled ? 1 : 0}|${x.bar === false ? 0 : 1}`).join(';');
+const signature = (a: Action[]) =>
+  a.map((x) => `${x.id}|${x.label}|${x.kbd}|${x.pad}|${x.primary ? 1 : 0}|${x.disabled ? 1 : 0}|${x.bar === false ? 0 : 1}`).join(';');
 
 /**
  * Declares the actions of a screen or dialog while it is mounted. The most recently mounted
@@ -81,10 +82,19 @@ export function useActions(actions: Action[]) {
   });
 }
 
-const KEY_NAMES: Record<string, string> = { Escape: 'Esc', Enter: 'Enter', Space: 'Space', Delete: 'Del', Backspace: 'Back', Slash: '/', Tab: 'Tab' };
+const KEY_NAMES: Record<string, string> = {
+  Escape: 'Esc',
+  Enter: 'Enter',
+  Space: 'Space',
+  Delete: 'Del',
+  Backspace: 'Back',
+  Slash: '/',
+  Tab: 'Tab',
+};
 
 /** A key as printed on its cap. */
-export const keyName = (code: string) => KEY_NAMES[code] ?? (code.startsWith('Key') ? code.slice(3) : code.startsWith('Digit') ? code.slice(5) : code);
+export const keyName = (code: string) =>
+  KEY_NAMES[code] ?? (code.startsWith('Key') ? code.slice(3) : code.startsWith('Digit') ? code.slice(5) : code);
 
 /** The hint for a control in the input in use: a keycap, a controller glyph, or nothing on touch. */
 export function Hint({ kbd, pad, mode, style }: { kbd?: string; pad?: PadInput; mode: InputMode; style: GlyphStyle }) {
@@ -142,8 +152,26 @@ export function ActionBar({ settings }: { settings: Settings }) {
   const primary = actions.filter((a) => a.primary);
   // The bar only re-renders when an action's look changes, so a press always looks the action up afresh.
   const button = (a: Action) => (
-    <button key={a.id} type="button" className={`act ${a.primary ? 'primary' : ''}`} data-action={a.id} data-sfx={a.sfx} aria-label={a.label} disabled={a.disabled} onClick={() => top().find((x) => x.id === a.id)?.run()}>
-      <Hint kbd={a.kbd} pad={a.kbd === 'Escape' ? backInput(style) : a.kbd === 'Enter' ? confirmInput(style) : a.pad} mode={mode} style={style} />
+    <button
+      key={a.id}
+      type="button"
+      className={`act ${a.primary ? 'primary' : ''}`}
+      data-action={a.id}
+      data-sfx={a.sfx}
+      aria-label={a.label}
+      disabled={a.disabled}
+      onClick={() =>
+        top()
+          .find((x) => x.id === a.id)
+          ?.run()
+      }
+    >
+      <Hint
+        kbd={a.kbd}
+        pad={a.kbd === 'Escape' ? backInput(style) : a.kbd === 'Enter' ? confirmInput(style) : a.pad}
+        mode={mode}
+        style={style}
+      />
       <a.icon className="act-icon" strokeWidth={ICON_STROKE} aria-hidden />
       <span className="act-label">{a.label}</span>
     </button>

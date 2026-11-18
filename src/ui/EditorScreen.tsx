@@ -36,7 +36,17 @@ import { confirmInput, type GlyphStyle } from '../input/pads';
 import type { SongMeta } from '../storage/db';
 import { CONFIRM_HINT, Hint, keyName, useActions, useHints } from './actions';
 import { Cover } from './Cover';
-import { AskCard, CheckCard, CopyFromCard, EditorMenu, SelectionCard, selectionActions, TempoSheet, ToolsCard, type MenuAsk } from './EditorDialogs';
+import {
+  AskCard,
+  CheckCard,
+  CopyFromCard,
+  EditorMenu,
+  SelectionCard,
+  selectionActions,
+  TempoSheet,
+  ToolsCard,
+  type MenuAsk,
+} from './EditorDialogs';
 import { DIFFICULTY_LABEL, ICON_STROKE, PART_ICON, PART_LABEL, Pips, Stars } from './icons';
 import { useSlide } from './useSlide';
 
@@ -86,14 +96,39 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
     const G = (input: string) => <PadGlyph input={input} style={style} />;
     const ok = confirmInput(style);
     return [
-      [<>{G('b12')}{G('b15')}</>, 'Move along the song and across the lanes'],
+      [
+        <>
+          {G('b12')}
+          {G('b15')}
+        </>,
+        'Move along the song and across the lanes',
+      ],
       [G(ok), 'Set a note down, or take it away'],
-      [<>{G(ok)}<span className="legend-plus">+</span>{G('b12')}</>, 'Hold and move up for a long note'],
+      [
+        <>
+          {G(ok)}
+          <span className="legend-plus">+</span>
+          {G('b12')}
+        </>,
+        'Hold and move up for a long note',
+      ],
       [G(ok), 'On a long note, or stretched into a tile: it must be let go there'],
       [G('b2'), 'Mark a stretch, then press confirm to copy, repeat or delete it'],
       [G('b3'), 'Play from here'],
-      [<>{G('b4')}{G('b5')}</>, 'Coarser or finer grid'],
-      [<>{G('b6')}{G('b7')}</>, 'A bar back, a bar on'],
+      [
+        <>
+          {G('b4')}
+          {G('b5')}
+        </>,
+        'Coarser or finer grid',
+      ],
+      [
+        <>
+          {G('b6')}
+          {G('b7')}
+        </>,
+        'A bar back, a bar on',
+      ],
       [G('a3-'), 'Push to run through the song; sideways to zoom'],
       [G('b10'), 'Notes snap to the grid, to sounds, or to nothing'],
       [G('b11'), 'Loop the marked stretch'],
@@ -103,18 +138,100 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
   }
   if (mode === 'keyboard') {
     return [
-      [<><Key>↑</Key><Key>↓</Key><Key>←</Key><Key>→</Key></>, 'Move along the song and across the lanes'],
-      [<><Key>Enter</Key><Key>1</Key>–<Key>{lanes}</Key></>, 'Set a note down, or take it away'],
-      [<><Key>Enter</Key><span className="legend-plus">+</span><Key>↑</Key></>, 'Hold and move up for a long note'],
-      [<><Key>Enter</Key></>, 'On a long note, or stretched into a tile: it must be let go there'],
-      [<><Key>Shift</Key><span className="legend-plus">+</span><Key>↑</Key></>, 'Mark a stretch; Enter for what to do with it'],
-      [<><Key>Q</Key><Key>E</Key><Key>S</Key></>, 'Coarser or finer grid; what notes snap to'],
-      [<><Key>PgUp</Key><Key>PgDn</Key></>, 'A bar on, a bar back'],
-      [<><Key>Ctrl</Key><span className="legend-plus">+</span><Key>↑</Key></>, 'To the next note; with Alt, the next sound'],
-      [<><Key>Ctrl</Key><Key>Z</Key></>, 'Undo; with Shift, redo'],
-      [<><Key>Ctrl</Key><Key>C</Key><Key>V</Key><Key>D</Key><Key>Q</Key></>, 'Copy, paste, repeat, snap to the grid'],
-      [<><Key>O</Key><Key>H</Key><Key>L</Key></>, 'Overdrive phrase; let go on time; loop'],
-      [<><Key>R</Key><Key>T</Key><Key>M</Key></>, 'Record; test play; menu'],
+      [
+        <>
+          <Key>↑</Key>
+          <Key>↓</Key>
+          <Key>←</Key>
+          <Key>→</Key>
+        </>,
+        'Move along the song and across the lanes',
+      ],
+      [
+        <>
+          <Key>Enter</Key>
+          <Key>1</Key>–<Key>{lanes}</Key>
+        </>,
+        'Set a note down, or take it away',
+      ],
+      [
+        <>
+          <Key>Enter</Key>
+          <span className="legend-plus">+</span>
+          <Key>↑</Key>
+        </>,
+        'Hold and move up for a long note',
+      ],
+      [
+        <>
+          <Key>Enter</Key>
+        </>,
+        'On a long note, or stretched into a tile: it must be let go there',
+      ],
+      [
+        <>
+          <Key>Shift</Key>
+          <span className="legend-plus">+</span>
+          <Key>↑</Key>
+        </>,
+        'Mark a stretch; Enter for what to do with it',
+      ],
+      [
+        <>
+          <Key>Q</Key>
+          <Key>E</Key>
+          <Key>S</Key>
+        </>,
+        'Coarser or finer grid; what notes snap to',
+      ],
+      [
+        <>
+          <Key>PgUp</Key>
+          <Key>PgDn</Key>
+        </>,
+        'A bar on, a bar back',
+      ],
+      [
+        <>
+          <Key>Ctrl</Key>
+          <span className="legend-plus">+</span>
+          <Key>↑</Key>
+        </>,
+        'To the next note; with Alt, the next sound',
+      ],
+      [
+        <>
+          <Key>Ctrl</Key>
+          <Key>Z</Key>
+        </>,
+        'Undo; with Shift, redo',
+      ],
+      [
+        <>
+          <Key>Ctrl</Key>
+          <Key>C</Key>
+          <Key>V</Key>
+          <Key>D</Key>
+          <Key>Q</Key>
+        </>,
+        'Copy, paste, repeat, snap to the grid',
+      ],
+      [
+        <>
+          <Key>O</Key>
+          <Key>H</Key>
+          <Key>L</Key>
+        </>,
+        'Overdrive phrase; let go on time; loop',
+      ],
+      [
+        <>
+          <Key>R</Key>
+          <Key>T</Key>
+          <Key>M</Key>
+        </>,
+        'Record; test play; menu',
+      ],
     ];
   }
   if (mode === 'touch') {
@@ -134,10 +251,32 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
     ['Click', 'a long note, or drag one into a tile: it must be let go there'],
     ['Right-click', 'takes a note away'],
     ['Wheel', 'moves through the song; with Ctrl it zooms'],
-    [<><Key>Shift</Key><span className="legend-plus">+</span>drag</>, 'or the Select tool: box notes in, then drag them'],
-    [<><Key>1</Key>–<Key>{lanes}</Key></>, 'A note in that lane at the line'],
-    [<><Key>S</Key><Key>L</Key></>, 'What notes snap to; loop the marked stretch'],
-    [<><Key>R</Key></>, `Record: play ${keys} in time and every press becomes a note`],
+    [
+      <>
+        <Key>Shift</Key>
+        <span className="legend-plus">+</span>drag
+      </>,
+      'or the Select tool: box notes in, then drag them',
+    ],
+    [
+      <>
+        <Key>1</Key>–<Key>{lanes}</Key>
+      </>,
+      'A note in that lane at the line',
+    ],
+    [
+      <>
+        <Key>S</Key>
+        <Key>L</Key>
+      </>,
+      'What notes snap to; loop the marked stretch',
+    ],
+    [
+      <>
+        <Key>R</Key>
+      </>,
+      `Record: play ${keys} in time and every press becomes a note`,
+    ],
   ];
 }
 
@@ -165,7 +304,14 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
   useEffect(() => {
     const c = takeParked(song.id) ?? new EditorController(song, settingsRef.current);
     closing.current = false;
-    c.attach({ track: track.current!, canvas: canvas.current!, overview: overview.current!, bar: bar.current!, time: time.current!, status: status.current! });
+    c.attach({
+      track: track.current!,
+      canvas: canvas.current!,
+      overview: overview.current!,
+      bar: bar.current!,
+      time: time.current!,
+      status: status.current!,
+    });
     if (c.snapshot().phase === 'loading') void c.load();
     // In development the editor can be reached from the console.
     if (import.meta.env.DEV) Object.assign(window, { __editor: c });
@@ -227,7 +373,12 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
   const test = (fromStart = false) => {
     if (!ctrl || !ready) return;
     const { chart, startAt } = ctrl.testChart(fromStart);
-    if (!chart.notes.length) return say(snap.stats.notes ? 'There are no notes from here on. Move back, or test play from the start.' : 'There is nothing to play yet. Set some notes down first.');
+    if (!chart.notes.length)
+      return say(
+        snap.stats.notes
+          ? 'There are no notes from here on. Move back, or test play from the start.'
+          : 'There is nothing to play yet. Set some notes down first.',
+      );
     void ctrl.flush().then(() => onTest(chart, startAt));
   };
   const record = () => void ctrl?.startRecording();
@@ -236,7 +387,14 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
     recording
       ? [
           // On a controller every other button is a lane: Options stops, as it pauses a song.
-          { id: 'stop', label: 'Stop recording', icon: Square, ...(mode === 'pad' ? { pad: 'b9' } : { kbd: 'Escape' }), sfx: 'none', run: () => ctrl?.stopRecording() },
+          {
+            id: 'stop',
+            label: 'Stop recording',
+            icon: Square,
+            ...(mode === 'pad' ? { pad: 'b9' } : { kbd: 'Escape' }),
+            sfx: 'none',
+            run: () => ctrl?.stopRecording(),
+          },
           { id: CONFIRM_HINT, label: '', icon: Circle, bar: false, run: () => {} },
         ]
       : [
@@ -250,17 +408,83 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
           },
           // What the confirm button does here, beside Back.
           { id: CONFIRM_HINT, label: snap?.selected || snap?.ranged ? 'Selection' : 'Note', icon: Circle, bar: false, run: () => {} },
-          { id: 'mark', label: snap?.marking ? 'Stop marking' : 'Mark', icon: SquareDashedMousePointer, kbd: 'KeyX', pad: 'b2', bar: mode === 'pad', disabled: !ready, sfx: 'none', run: () => ctrl?.toggleMark() },
+          {
+            id: 'mark',
+            label: snap?.marking ? 'Stop marking' : 'Mark',
+            icon: SquareDashedMousePointer,
+            kbd: 'KeyX',
+            pad: 'b2',
+            bar: mode === 'pad',
+            disabled: !ready,
+            sfx: 'none',
+            run: () => ctrl?.toggleMark(),
+          },
           // Under a finger the play button beside the lanes is the one to press.
-          { id: 'play', label: snap?.playing ? 'Pause' : 'Play', icon: snap?.playing ? Pause : Play, kbd: 'Space', pad: 'b3', bar: mode !== 'touch', disabled: !ready, sfx: 'none', run: () => ctrl?.togglePlay() },
+          {
+            id: 'play',
+            label: snap?.playing ? 'Pause' : 'Play',
+            icon: snap?.playing ? Pause : Play,
+            kbd: 'Space',
+            pad: 'b3',
+            bar: mode !== 'touch',
+            disabled: !ready,
+            sfx: 'none',
+            run: () => ctrl?.togglePlay(),
+          },
           { id: 'record', label: 'Record', icon: Circle, kbd: 'KeyR', bar: false, disabled: !ready, sfx: 'none', run: record },
-          { id: 'phrase', label: 'Overdrive phrase', icon: Zap, kbd: 'KeyO', bar: false, disabled: !ready, sfx: 'none', run: () => ctrl?.togglePhrase() },
-          { id: 'release', label: 'Let go on time', icon: Zap, kbd: 'KeyH', bar: false, disabled: !ready, sfx: 'none', run: () => ctrl?.toggleRelease() },
-          { id: 'snap-mode', label: 'Snap to', icon: Magnet, kbd: 'KeyS', bar: false, disabled: !ready, sfx: 'none', run: () => ctrl?.cycleSnapMode() },
-          { id: 'loop', label: 'Loop', icon: Repeat, kbd: 'KeyL', bar: false, disabled: !ready, sfx: 'tab', run: () => ctrl?.setLoop(!snap.loop) },
+          {
+            id: 'phrase',
+            label: 'Overdrive phrase',
+            icon: Zap,
+            kbd: 'KeyO',
+            bar: false,
+            disabled: !ready,
+            sfx: 'none',
+            run: () => ctrl?.togglePhrase(),
+          },
+          {
+            id: 'release',
+            label: 'Let go on time',
+            icon: Zap,
+            kbd: 'KeyH',
+            bar: false,
+            disabled: !ready,
+            sfx: 'none',
+            run: () => ctrl?.toggleRelease(),
+          },
+          {
+            id: 'snap-mode',
+            label: 'Snap to',
+            icon: Magnet,
+            kbd: 'KeyS',
+            bar: false,
+            disabled: !ready,
+            sfx: 'none',
+            run: () => ctrl?.cycleSnapMode(),
+          },
+          {
+            id: 'loop',
+            label: 'Loop',
+            icon: Repeat,
+            kbd: 'KeyL',
+            bar: false,
+            disabled: !ready,
+            sfx: 'tab',
+            run: () => ctrl?.setLoop(!snap.loop),
+          },
           { id: 'menu', label: 'Menu', icon: Menu, kbd: 'KeyM', pad: 'b9', disabled: !ready, run: () => setOpen('menu') },
           // On a controller the menu's first button is the test play; the bar would have no button to show for it.
-          { id: 'test', label: 'Test play', icon: Gamepad2, kbd: 'KeyT', primary: true, bar: mode !== 'pad', disabled: !ready || !snap.stats.notes, sfx: 'launch', run: () => test() },
+          {
+            id: 'test',
+            label: 'Test play',
+            icon: Gamepad2,
+            kbd: 'KeyT',
+            primary: true,
+            bar: mode !== 'pad',
+            disabled: !ready || !snap.stats.notes,
+            sfx: 'launch',
+            run: () => test(),
+          },
         ],
   );
 
@@ -323,7 +547,18 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
             const Icon = PART_ICON[p];
             const on = snap?.part === p;
             return (
-              <button key={p} type="button" role="radio" aria-checked={on} aria-label={PART_LABEL[p]} title={PART_LABEL[p]} data-on={on} data-sfx="tab" className={`tab ${on ? 'on' : ''}`} onClick={() => snap && void ctrl?.setChart(p, snap.difficulty)}>
+              <button
+                key={p}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                aria-label={PART_LABEL[p]}
+                title={PART_LABEL[p]}
+                data-on={on}
+                data-sfx="tab"
+                className={`tab ${on ? 'on' : ''}`}
+                onClick={() => snap && void ctrl?.setChart(p, snap.difficulty)}
+              >
                 <Icon strokeWidth={ICON_STROKE} aria-hidden />
                 <span className="tab-label">{PART_LABEL[p]}</span>
               </button>
@@ -335,7 +570,18 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
           {DIFFICULTIES.map((d) => {
             const on = snap?.difficulty === d;
             return (
-              <button key={d} type="button" role="radio" aria-checked={on} aria-label={DIFFICULTY_LABEL[d]} title={DIFFICULTY_LABEL[d]} data-on={on} data-sfx="tab" className={`tab ${on ? 'on' : ''}`} onClick={() => snap && void ctrl?.setChart(snap.part, d)}>
+              <button
+                key={d}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                aria-label={DIFFICULTY_LABEL[d]}
+                title={DIFFICULTY_LABEL[d]}
+                data-on={on}
+                data-sfx="tab"
+                className={`tab ${on ? 'on' : ''}`}
+                onClick={() => snap && void ctrl?.setChart(snap.part, d)}
+              >
                 <Pips difficulty={d} />
                 <span className="tab-label">{DIFFICULTY_LABEL[d]}</span>
               </button>
@@ -356,18 +602,36 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
             <Magnet strokeWidth={ICON_STROKE} aria-hidden />
             <span className="snap-mode-text">
               <span className="label">Snap</span>
-              <span className="num" key={snap?.snapMode}>{snap ? SNAP_WORD[snap.snapMode] : ''}</span>
+              <span className="num" key={snap?.snapMode}>
+                {snap ? SNAP_WORD[snap.snapMode] : ''}
+              </span>
             </span>
           </button>
           <Hint kbd="KeyQ" pad="b4" {...hints} />
-          <button type="button" className="step" data-sfx="none" aria-label="Coarser grid" disabled={snapIndex <= 0} onClick={() => ctrl?.stepSnap(-1)}>
+          <button
+            type="button"
+            className="step"
+            data-sfx="none"
+            aria-label="Coarser grid"
+            disabled={snapIndex <= 0}
+            onClick={() => ctrl?.stepSnap(-1)}
+          >
             <span aria-hidden>‹</span>
           </button>
           <span className="editor-snap-value" title={snap ? SNAP_NAME[snap.snap] : undefined}>
             <span className="label">Grid</span>
-            <span className="num" key={snap?.snap}>{snap ? SNAP_LABEL[snap.snap] : ''}</span>
+            <span className="num" key={snap?.snap}>
+              {snap ? SNAP_LABEL[snap.snap] : ''}
+            </span>
           </span>
-          <button type="button" className="step" data-sfx="none" aria-label="Finer grid" disabled={snapIndex >= SNAPS.length - 1} onClick={() => ctrl?.stepSnap(1)}>
+          <button
+            type="button"
+            className="step"
+            data-sfx="none"
+            aria-label="Finer grid"
+            disabled={snapIndex >= SNAPS.length - 1}
+            onClick={() => ctrl?.stepSnap(1)}
+          >
             <span aria-hidden>›</span>
           </button>
           <Hint kbd="KeyE" pad="b5" {...hints} />
@@ -376,11 +640,31 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
         {pointer && (
           <div className="tab-row slide editor-tools" ref={toolRow} role="radiogroup" aria-label="Tool">
             <span className="sel" aria-hidden />
-            <button type="button" role="radio" aria-checked={snap?.tool === 'draw'} data-on={snap?.tool === 'draw'} data-sfx="tab" className={`tab ${snap?.tool === 'draw' ? 'on' : ''}`} title="Draw: set notes down and take them away" aria-label="Draw" onClick={() => ctrl?.setTool('draw')}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={snap?.tool === 'draw'}
+              data-on={snap?.tool === 'draw'}
+              data-sfx="tab"
+              className={`tab ${snap?.tool === 'draw' ? 'on' : ''}`}
+              title="Draw: set notes down and take them away"
+              aria-label="Draw"
+              onClick={() => ctrl?.setTool('draw')}
+            >
               <Pencil strokeWidth={ICON_STROKE} aria-hidden />
               <span className="tab-label">Draw</span>
             </button>
-            <button type="button" role="radio" aria-checked={snap?.tool === 'select'} data-on={snap?.tool === 'select'} data-sfx="tab" className={`tab ${snap?.tool === 'select' ? 'on' : ''}`} title="Select: box notes in, move, copy and delete them" aria-label="Select" onClick={() => ctrl?.setTool('select')}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={snap?.tool === 'select'}
+              data-on={snap?.tool === 'select'}
+              data-sfx="tab"
+              className={`tab ${snap?.tool === 'select' ? 'on' : ''}`}
+              title="Select: box notes in, move, copy and delete them"
+              aria-label="Select"
+              onClick={() => ctrl?.setTool('select')}
+            >
               <MousePointer2 strokeWidth={ICON_STROKE} aria-hidden />
               <span className="tab-label">Select</span>
             </button>
@@ -389,19 +673,49 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
 
         <div className="editor-quick">
           <Mark keys="Ctrl Z" pad="b8" mode={mode} style={style} />
-          <button type="button" className="icon-btn" data-sfx="none" aria-label="Undo" title="Undo" disabled={!snap?.canUndo} onClick={() => ctrl?.undo()}>
+          <button
+            type="button"
+            className="icon-btn"
+            data-sfx="none"
+            aria-label="Undo"
+            title="Undo"
+            disabled={!snap?.canUndo}
+            onClick={() => ctrl?.undo()}
+          >
             <Undo2 strokeWidth={ICON_STROKE} aria-hidden />
           </button>
-          <button type="button" className="icon-btn editor-wide-only" data-sfx="none" aria-label="Redo" title="Redo" disabled={!snap?.canRedo} onClick={() => ctrl?.redo()}>
+          <button
+            type="button"
+            className="icon-btn editor-wide-only"
+            data-sfx="none"
+            aria-label="Redo"
+            title="Redo"
+            disabled={!snap?.canRedo}
+            onClick={() => ctrl?.redo()}
+          >
             <Redo2 strokeWidth={ICON_STROKE} aria-hidden />
           </button>
           <span className="editor-wide-only">
             <Mark keys="− +" pad="a2+" mode={mode} style={style} />
           </span>
-          <button type="button" className="icon-btn editor-wide-only" aria-label="Zoom out" title="Zoom out" disabled={!snap || snap.zoom <= 0} onClick={() => ctrl?.zoomBy(-1)}>
+          <button
+            type="button"
+            className="icon-btn editor-wide-only"
+            aria-label="Zoom out"
+            title="Zoom out"
+            disabled={!snap || snap.zoom <= 0}
+            onClick={() => ctrl?.zoomBy(-1)}
+          >
             <ZoomOut strokeWidth={ICON_STROKE} aria-hidden />
           </button>
-          <button type="button" className="icon-btn editor-wide-only" aria-label="Zoom in" title="Zoom in" disabled={!snap || snap.zoom >= snap.zoomSteps - 1} onClick={() => ctrl?.zoomBy(1)}>
+          <button
+            type="button"
+            className="icon-btn editor-wide-only"
+            aria-label="Zoom in"
+            title="Zoom in"
+            disabled={!snap || snap.zoom >= snap.zoomSteps - 1}
+            onClick={() => ctrl?.zoomBy(1)}
+          >
             <ZoomIn strokeWidth={ICON_STROKE} aria-hidden />
           </button>
         </div>
@@ -417,7 +731,11 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
                 {song.artist}
                 {snap && snap.duration > 0 && ` · ${formatTime(snap.duration)}`}
               </p>
-              {ready && <span className={`pill ${snap.edited ? 'lit' : ''}`}>{snap.edited ? 'Edited by hand' : snap.hasAnalysis ? 'Game’s chart' : 'Not charted yet'}</span>}
+              {ready && (
+                <span className={`pill ${snap.edited ? 'lit' : ''}`}>
+                  {snap.edited ? 'Edited by hand' : snap.hasAnalysis ? 'Game’s chart' : 'Not charted yet'}
+                </span>
+              )}
             </div>
           </section>
           {ready && (
@@ -444,7 +762,11 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
                   <dd>{snap.stats.phrases}</dd>
                 </div>
               </dl>
-              {snap.stats.peak > 0 && <p className="editor-fact">Up to {snap.stats.peak} {snap.stats.peak === 1 ? 'note' : 'notes'} in a second.</p>}
+              {snap.stats.peak > 0 && (
+                <p className="editor-fact">
+                  Up to {snap.stats.peak} {snap.stats.peak === 1 ? 'note' : 'notes'} in a second.
+                </p>
+              )}
               {snap.issues > 0 && (
                 <button type="button" className="btn small" data-nav-skip onClick={() => setOpen('check')}>
                   <ListChecks strokeWidth={ICON_STROKE} aria-hidden />
@@ -468,7 +790,9 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
                 <span className="num">{snap.grid.bpm.toFixed(2).replace(/\.?0+$/, '')}</span> BPM
                 <span className="dim"> · {snap.grid.beatsPerBar} beats in a bar</span>
               </p>
-              <p className="editor-fact">{snap.grid.mode === 'song' ? 'The grid follows the beats heard in the song.' : 'One tempo for the whole song.'}</p>
+              <p className="editor-fact">
+                {snap.grid.mode === 'song' ? 'The grid follows the beats heard in the song.' : 'One tempo for the whole song.'}
+              </p>
               <button type="button" className="btn small" data-nav-skip onClick={() => setOpen('tempo')}>
                 Tempo and bars
               </button>
@@ -524,7 +848,12 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
             )}
             {ready && snap.stats.notes === 0 && !recording && (
               <p className="editor-empty">
-                {mode === 'touch' ? 'Tap a lane to set down the first note.' : mode === 'mouse' ? 'Click a lane to set down the first note.' : 'Move to where the first note goes and press confirm.'} Or record: play the song and tap along.
+                {mode === 'touch'
+                  ? 'Tap a lane to set down the first note.'
+                  : mode === 'mouse'
+                    ? 'Click a lane to set down the first note.'
+                    : 'Move to where the first note goes and press confirm.'}{' '}
+                Or record: play the song and tap along.
               </p>
             )}
             {recording && (
@@ -551,7 +880,16 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
                   {snap.selected} {snap.selected === 1 ? 'note' : 'notes'}
                 </span>
                 {selectionActions(ctrl!, snap).map((a) => (
-                  <button key={a.id} type="button" className="btn small" data-sfx={a.id === 'delete' ? 'back' : undefined} aria-label={a.label} title={a.label} disabled={a.disabled} onClick={a.run}>
+                  <button
+                    key={a.id}
+                    type="button"
+                    className="btn small"
+                    data-sfx={a.id === 'delete' ? 'back' : undefined}
+                    aria-label={a.label}
+                    title={a.label}
+                    disabled={a.disabled}
+                    onClick={a.run}
+                  >
                     <a.icon strokeWidth={ICON_STROKE} aria-hidden />
                     <span className="btn-label">{a.short}</span>
                   </button>
@@ -567,25 +905,67 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
           <div className="editor-transport" data-nav-skip role="group" aria-label="Playback" inert={!ready}>
             <span className="editor-readout">
               <span className="label">Bar</span>
-              <span className="num" ref={bar}>1.1</span>
+              <span className="num" ref={bar}>
+                1.1
+              </span>
             </span>
             <span className="editor-transport-mid">
               <Mark keys="PgDn" pad="b6" mode={mode} style={style} />
-              <button type="button" className="icon-btn" aria-label="A bar back" title={`A bar back (${keyName('PageDown')})`} disabled={recording} onClick={() => ctrl?.moveBar(-1)}>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="A bar back"
+                title={`A bar back (${keyName('PageDown')})`}
+                disabled={recording}
+                onClick={() => ctrl?.moveBar(-1)}
+              >
                 <SkipBack strokeWidth={ICON_STROKE} aria-hidden />
               </button>
-              <button type="button" className={`icon-btn editor-play ${snap?.playing && !recording ? 'live' : ''}`} data-sfx="none" aria-label={snap?.playing ? 'Pause' : 'Play from here'} disabled={recording} onClick={() => ctrl?.togglePlay()}>
-                {snap?.playing && !recording ? <Pause strokeWidth={ICON_STROKE} aria-hidden /> : <Play strokeWidth={ICON_STROKE} aria-hidden />}
+              <button
+                type="button"
+                className={`icon-btn editor-play ${snap?.playing && !recording ? 'live' : ''}`}
+                data-sfx="none"
+                aria-label={snap?.playing ? 'Pause' : 'Play from here'}
+                disabled={recording}
+                onClick={() => ctrl?.togglePlay()}
+              >
+                {snap?.playing && !recording ? (
+                  <Pause strokeWidth={ICON_STROKE} aria-hidden />
+                ) : (
+                  <Play strokeWidth={ICON_STROKE} aria-hidden />
+                )}
               </button>
-              <button type="button" className="icon-btn" aria-label="A bar on" title={`A bar on (${keyName('PageUp')})`} disabled={recording} onClick={() => ctrl?.moveBar(1)}>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="A bar on"
+                title={`A bar on (${keyName('PageUp')})`}
+                disabled={recording}
+                onClick={() => ctrl?.moveBar(1)}
+              >
                 <SkipForward strokeWidth={ICON_STROKE} aria-hidden />
               </button>
               <Mark keys="PgUp" pad="b7" mode={mode} style={style} />
-              <button type="button" className={`icon-btn editor-loop ${snap?.loop ? 'on' : ''}`} data-sfx="tab" aria-pressed={!!snap?.loop} aria-label="Loop the marked stretch" title="Loop: playback goes round the marked stretch" disabled={recording} onClick={() => ctrl?.setLoop(!snap.loop)}>
+              <button
+                type="button"
+                className={`icon-btn editor-loop ${snap?.loop ? 'on' : ''}`}
+                data-sfx="tab"
+                aria-pressed={!!snap?.loop}
+                aria-label="Loop the marked stretch"
+                title="Loop: playback goes round the marked stretch"
+                disabled={recording}
+                onClick={() => ctrl?.setLoop(!snap.loop)}
+              >
                 <Repeat strokeWidth={ICON_STROKE} aria-hidden />
               </button>
               <Mark keys="L" pad="b11" mode={mode} style={style} />
-              <button type="button" className={`btn small editor-record ${recording ? 'live' : ''}`} data-sfx="none" aria-pressed={recording} onClick={() => (recording ? ctrl?.stopRecording() : record())}>
+              <button
+                type="button"
+                className={`btn small editor-record ${recording ? 'live' : ''}`}
+                data-sfx="none"
+                aria-pressed={recording}
+                onClick={() => (recording ? ctrl?.stopRecording() : record())}
+              >
                 {recording ? <Square strokeWidth={ICON_STROKE} aria-hidden /> : <Circle strokeWidth={ICON_STROKE} aria-hidden />}
                 <span className="btn-label">{recording ? 'Stop' : 'Record'}</span>
                 {!recording && <Mark keys="R" pad="b9" mode={mode} style={style} />}
@@ -593,7 +973,9 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
             </span>
             <span className="editor-readout end">
               {snap && snap.rate !== 1 && <span className="pill">{Math.round(snap.rate * 100)}%</span>}
-              <span className="num" ref={time}>0:00.0</span>
+              <span className="num" ref={time}>
+                0:00.0
+              </span>
             </span>
           </div>
         </div>
@@ -606,9 +988,27 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
         </aside>
       </div>
 
-      {ctrl && ready && open === 'menu' && <EditorMenu ctrl={ctrl} snap={snap} mode={mode} legend={legend} onTest={test} onRecord={record} onAsk={setOpen} onClose={() => setOpen(null)} />}
+      {ctrl && ready && open === 'menu' && (
+        <EditorMenu
+          ctrl={ctrl}
+          snap={snap}
+          mode={mode}
+          legend={legend}
+          onTest={test}
+          onRecord={record}
+          onAsk={setOpen}
+          onClose={() => setOpen(null)}
+        />
+      )}
       {ctrl && ready && open === 'tempo' && <TempoSheet ctrl={ctrl} snap={snap} mode={mode} onClose={() => setOpen(null)} />}
-      {ctrl && ready && open === 'selection' && <SelectionCard ctrl={ctrl} snap={snap} onTools={() => setOpen('tools')} onClose={() => setOpen((o) => (o === 'selection' ? null : o))} />}
+      {ctrl && ready && open === 'selection' && (
+        <SelectionCard
+          ctrl={ctrl}
+          snap={snap}
+          onTools={() => setOpen('tools')}
+          onClose={() => setOpen((o) => (o === 'selection' ? null : o))}
+        />
+      )}
       {ctrl && ready && open === 'tools' && <ToolsCard ctrl={ctrl} snap={snap} onClose={() => setOpen(null)} />}
       {ctrl && ready && open === 'check' && (
         <CheckCard
@@ -635,7 +1035,11 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
           title="Write the easier charts?"
           hint={`${snap.easier.map((d) => DIFFICULTY_LABEL[d]).join(', ')} of ${PART_LABEL[snap.part]} ${snap.easier.length === 1 ? 'is' : 'are'} written again from this chart, each a simpler version of the one above it. What is in them now is replaced; undo in each chart brings it back while the editor stays open.`}
           yes="Write them"
-          onYes={() => void ctrl.writeEasier().then((done) => done.length && say(`Wrote ${done.map((d) => DIFFICULTY_LABEL[d]).join(', ')} from this chart.`))}
+          onYes={() =>
+            void ctrl
+              .writeEasier()
+              .then((done) => done.length && say(`Wrote ${done.map((d) => DIFFICULTY_LABEL[d]).join(', ')} from this chart.`))
+          }
           onClose={() => setOpen(null)}
         />
       )}

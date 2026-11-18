@@ -58,7 +58,9 @@ export function Dialog({ title, variant = 'sheet', className = '', onClose, acti
     (first ?? box.querySelector<HTMLElement>('.dialog')!).focus({ preventScroll: true });
     const trap = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
-      const all = Array.from(box.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter((el) => el.offsetParent !== null);
+      const all = Array.from(
+        box.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+      ).filter((el) => el.offsetParent !== null);
       if (!all.length) return e.preventDefault();
       const i = all.indexOf(document.activeElement as HTMLElement);
       const next = e.shiftKey ? (i <= 0 ? all.length - 1 : i - 1) : i === all.length - 1 ? 0 : i + 1;
@@ -73,7 +75,12 @@ export function Dialog({ title, variant = 'sheet', className = '', onClose, acti
   }, []);
 
   return (
-    <div ref={ref} className={`overlay ${variant} ${className} ${leaving ? 'leaving' : ''}`} data-modal onPointerDown={(e) => e.target === e.currentTarget && close()}>
+    <div
+      ref={ref}
+      className={`overlay ${variant} ${className} ${leaving ? 'leaving' : ''}`}
+      data-modal
+      onPointerDown={(e) => e.target === e.currentTarget && close()}
+    >
       <div className="dialog" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} data-ring="none">
         <button type="button" className="icon-btn dialog-close" data-sfx="back" data-nav-skip aria-label={closeLabel} onClick={close}>
           <X strokeWidth={ICON_STROKE} aria-hidden />

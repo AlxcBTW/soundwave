@@ -151,7 +151,8 @@ export class PlayController {
         this.stage?.overdriveStart();
         this.odMeterAtStart = Math.max(this.session.overdrive, 0.01);
         this.rumble.overdrive();
-      } else if (e.type === 'overdrive-end') this.rumble.overdriveEnd(); else if (e.type === 'phrase-complete') {
+      } else if (e.type === 'overdrive-end') this.rumble.overdriveEnd();
+      else if (e.type === 'phrase-complete') {
         this.flashFeedback('CHARGED', 'od');
         this.rumble.phraseComplete();
       }
@@ -178,13 +179,23 @@ export class PlayController {
     };
     this.input = new KeyboardInput(keys, settings.overdriveKey, handlers);
     // Controllers drive the menus while paused, so only take their input during play.
-    this.padInput = new GamepadInput(padBindings, settings.padOverdrive, handlers, () => this.phase === 'playing' || this.phase === 'countdown');
+    this.padInput = new GamepadInput(
+      padBindings,
+      settings.padOverdrive,
+      handlers,
+      () => this.phase === 'playing' || this.phase === 'countdown',
+    );
 
     // Touch: a finger anywhere in a lane's column plays that lane (the highway lights the lane).
     const vibrate = settings.touchHaptics && typeof navigator.vibrate === 'function';
-    this.touchInput = new TouchInput(hud.touchLayer, (x, y) => this.highway.laneAt(x, y), handlers, (_lane, down) => {
-      if (down && vibrate && this.phase === 'playing') navigator.vibrate(8);
-    });
+    this.touchInput = new TouchInput(
+      hud.touchLayer,
+      (x, y) => this.highway.laneAt(x, y),
+      handlers,
+      (_lane, down) => {
+        if (down && vibrate && this.phase === 'playing') navigator.vibrate(8);
+      },
+    );
     hud.overdriveButton.addEventListener('pointerdown', this.overdrivePress);
 
     // The canvas changes size with the window and when the touch pads take the bottom of the screen.
@@ -344,7 +355,8 @@ export class PlayController {
       beat = this.downbeats.has(this.lastBeat) ? 'downbeat' : 'beat';
     }
     const stage = this.stage;
-    if (this.phase === 'playing' && this.session.overdriveActive) this.rumble.overdriveTick(this.session.overdrive / this.odMeterAtStart, beat);
+    if (this.phase === 'playing' && this.session.overdriveActive)
+      this.rumble.overdriveTick(this.session.overdrive / this.odMeterAtStart, beat);
     this.beatPulse = Math.max(0, this.beatPulse - 0.08);
 
     let low: number;
@@ -352,7 +364,12 @@ export class PlayController {
       const bar = barAt(this.barTimes, t);
       const busy = bar >= 0 ? (this.barLevels[bar] ?? 0.3) : 0.15;
       low = stage.bands.low;
-      stage.render({ beat, intensity: busy * 0.75 + low * 0.25, overdrive: this.session.overdriveActive, barSeconds: this.chart.secondsPerBeat * 4 });
+      stage.render({
+        beat,
+        intensity: busy * 0.75 + low * 0.25,
+        overdrive: this.session.overdriveActive,
+        barSeconds: this.chart.secondsPerBeat * 4,
+      });
     } else {
       const now = performance.now();
       low = this.meter.update(Math.min(0.1, (now - this.meterAt) / 1000)).low;

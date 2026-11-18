@@ -154,5 +154,4 @@ export function saveSettings(s: Settings) {
   }
 }
 
-export const keyLabel = (code: string) =>
-  code.startsWith('Key') ? code.slice(3) : code.startsWith('Digit') ? code.slice(5) : code;
+export const keyLabel = (code: string) => (code.startsWith('Key') ? code.slice(3) : code.startsWith('Digit') ? code.slice(5) : code);

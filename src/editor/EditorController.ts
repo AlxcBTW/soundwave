@@ -41,7 +41,13 @@ export interface Issue {
   lane: number;
   text: string;
 }
-export const SOURCE_LABEL: Record<AudioSource, string> = { song: 'Whole song', other: 'Instruments only', bass: 'Bass only', drums: 'Drums only', vocals: 'Vocals only' };
+export const SOURCE_LABEL: Record<AudioSource, string> = {
+  song: 'Whole song',
+  other: 'Instruments only',
+  bass: 'Bass only',
+  drums: 'Drums only',
+  vocals: 'Vocals only',
+};
 /** Which stem belongs to a part (the instrument stem feeds Lead). */
 const PART_STEM: Record<Part, StemName> = { lead: 'other', bass: 'bass', drums: 'drums', vocals: 'vocals' };
 
@@ -67,12 +73,26 @@ interface Prefs {
 }
 
 function loadPrefs(): Prefs {
-  const base: Prefs = { part: 'vocals', difficulty: 'expert', snap: 4, zoom: 4, clicks: true, metronome: false, tool: 'draw', snapMode: 'grid', advance: false, loop: false, replace: false };
+  const base: Prefs = {
+    part: 'vocals',
+    difficulty: 'expert',
+    snap: 4,
+    zoom: 4,
+    clicks: true,
+    metronome: false,
+    tool: 'draw',
+    snapMode: 'grid',
+    advance: false,
+    loop: false,
+    replace: false,
+  };
   try {
     const p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') as Partial<Prefs>;
     return {
       part: PARTS.includes(p.part as Part) ? (p.part as Part) : base.part,
-      difficulty: (['easy', 'medium', 'hard', 'expert'] as Difficulty[]).includes(p.difficulty as Difficulty) ? (p.difficulty as Difficulty) : base.difficulty,
+      difficulty: (['easy', 'medium', 'hard', 'expert'] as Difficulty[]).includes(p.difficulty as Difficulty)
+        ? (p.difficulty as Difficulty)
+        : base.difficulty,
       snap: SNAPS.includes(p.snap as Snap) ? (p.snap as Snap) : base.snap,
       zoom: Number.isInteger(p.zoom) && p.zoom! >= 0 && p.zoom! < ZOOMS.length ? p.zoom! : base.zoom,
       clicks: typeof p.clicks === 'boolean' ? p.clicks : base.clicks,
@@ -324,7 +344,11 @@ export class EditorController {
       recording: this.recording,
       rate: this.rate,
       source: this.source,
-      sources: ['song', ...(this.stems.includes(PART_STEM[this.part]) ? [PART_STEM[this.part]] : []), ...this.stems.filter((s) => s !== PART_STEM[this.part])],
+      sources: [
+        'song',
+        ...(this.stems.includes(PART_STEM[this.part]) ? [PART_STEM[this.part]] : []),
+        ...this.stems.filter((s) => s !== PART_STEM[this.part]),
+      ],
       clicks: this.clicksOn,
       metronome: this.metronome,
       snapMode: this.snapMode,
@@ -494,7 +518,11 @@ export class EditorController {
     this.guide = undefined;
     // Sounds to snap to and step between: what the game heard in this part, or failing that every
     // attack in the waveform.
-    const starts = !a ? this.attacks : this.part === 'drums' ? a.drums.map((h) => h.t) : (this.part === 'bass' ? a.bass : this.part === 'vocals' ? a.vocals : a.lead).map((n) => n.t);
+    const starts = !a
+      ? this.attacks
+      : this.part === 'drums'
+        ? a.drums.map((h) => h.t)
+        : (this.part === 'bass' ? a.bass : this.part === 'vocals' ? a.vocals : a.lead).map((n) => n.t);
     const heard = (starts.length ? starts : this.attacks).map((t) => g.pos(t)).sort((x, y) => x - y);
     this.sounds = heard.filter((p, i) => i === 0 || p - heard[i - 1] > 0.02);
     if (!a) return;
@@ -512,7 +540,8 @@ export class EditorController {
     for (const n of line) {
       const pos = g.pos(n.t);
       const len = g.pos(n.t + n.dur) - pos;
-      for (const m of n.chord ?? [n.midi]) marks.push({ pos, len, x: Math.min(1, Math.max(0, (m - lo) / (hi - lo))), strength: m === n.midi ? n.strength : n.strength * 0.5 });
+      for (const m of n.chord ?? [n.midi])
+        marks.push({ pos, len, x: Math.min(1, Math.max(0, (m - lo) / (hi - lo))), strength: m === n.midi ? n.strength : n.strength * 0.5 });
     }
     this.guide = marks;
   }
@@ -636,14 +665,16 @@ export class EditorController {
       // Notes that crossed the now line since the last frame light their lanes.
       if (pos > this.lastPlayed) {
         const notes = this.doc.notes;
-        for (let i = this.doc.firstFrom(this.lastPlayed + 1e-3); i < notes.length && notes[i].pos <= pos; i++) this.struck[notes[i].lane] = now;
+        for (let i = this.doc.firstFrom(this.lastPlayed + 1e-3); i < notes.length && notes[i].pos <= pos; i++)
+          this.struck[notes[i].lane] = now;
       }
       this.lastPlayed = pos;
       this.viewPos = pos;
       this.needsDraw = true;
       if (this.recording && this.replace) this.recordOver(pos);
       // Round the marked stretch again.
-      if (!this.recording && this.looping && this.range && this.range[1] - this.range[0] > 0.05 && pos >= this.range[1]) this.seek(this.range[0]);
+      if (!this.recording && this.looping && this.range && this.range[1] - this.range[0] > 0.05 && pos >= this.range[1])
+        this.seek(this.range[0]);
     } else {
       // The right stick scrubs: the further it is pushed, the faster the chart runs by.
       const stick = this.stick();
@@ -844,7 +875,8 @@ export class EditorController {
     const at = (p: number) => (this.snapMode === 'grid' ? this.grid.snap(p, this.snap) : quantize(p));
     let to: number | undefined;
     if (dir > 0) to = this.sounds.map(at).find((p) => p > from + 1e-3);
-    else for (let i = this.sounds.length - 1; i >= 0 && to === undefined; i--) if (at(this.sounds[i]) < from - 1e-3) to = at(this.sounds[i]);
+    else
+      for (let i = this.sounds.length - 1; i >= 0 && to === undefined; i--) if (at(this.sounds[i]) < from - 1e-3) to = at(this.sounds[i]);
     this.hop(to, dir);
   }
 
@@ -1217,7 +1249,12 @@ export class EditorController {
   quantizeNotes() {
     if (this.phase !== 'ready' || this.recording) return;
     const s = this.snap;
-    this.tooled(this.doc.transform(this.toolIds(), (n) => ({ pos: this.grid.snap(n.pos, s), len: n.len > 0 ? Math.max(1 / s, Math.round(n.len * s) / s) : 0 })));
+    this.tooled(
+      this.doc.transform(this.toolIds(), (n) => ({
+        pos: this.grid.snap(n.pos, s),
+        len: n.len > 0 ? Math.max(1 / s, Math.round(n.len * s) / s) : 0,
+      })),
+    );
   }
 
   /** Puts every note of the chart on the grid, whatever is selected. Returns how many notes there are. */
@@ -1225,7 +1262,10 @@ export class EditorController {
     if (this.phase !== 'ready' || this.recording) return 0;
     const s = this.snap;
     const all = this.doc.notes.map((n) => n.id);
-    const did = this.doc.transform(all, (n) => ({ pos: this.grid.snap(n.pos, s), len: n.len > 0 ? Math.max(1 / s, Math.round(n.len * s) / s) : 0 }));
+    const did = this.doc.transform(all, (n) => ({
+      pos: this.grid.snap(n.pos, s),
+      len: n.len > 0 ? Math.max(1 / s, Math.round(n.len * s) / s) : 0,
+    }));
     if (did) {
       this.updateRangeNotes();
       this.feedback('select', 'select');
@@ -1277,7 +1317,8 @@ export class EditorController {
     const span = this.span();
     if (!span || !this.sel.size) return;
     const from = span.from;
-    if (by > 1 && from + span.length * by > this.grid.end + 1e-3) return this.onNotice('There is not enough song left to spread these notes over.');
+    if (by > 1 && from + span.length * by > this.grid.end + 1e-3)
+      return this.onNotice('There is not enough song left to spread these notes over.');
     const did = this.doc.transform(this.sel, (n) => ({ pos: from + (n.pos - from) * by, len: n.len * by }));
     if (did && this.range) this.range = [from, from + span.length * by];
     this.tooled(did);
@@ -1285,9 +1326,11 @@ export class EditorController {
 
   /** Sets a note on every grid line of the marked stretch, in the cursor's lane. */
   fill() {
-    if (!this.range || this.range[1] - this.range[0] < 1e-3) return this.onNotice('Mark a stretch first: it is filled with a note on every grid line.');
+    if (!this.range || this.range[1] - this.range[0] < 1e-3)
+      return this.onNotice('Mark a stretch first: it is filled with a note on every grid line.');
     this.doc.begin();
-    for (let p = this.grid.snap(this.range[0], this.snap); p < this.range[1] - 1e-4; p = quantize(p + 1 / this.snap)) this.doc.add(p, this.lane, 0, true);
+    for (let p = this.grid.snap(this.range[0], this.snap); p < this.range[1] - 1e-4; p = quantize(p + 1 / this.snap))
+      this.doc.add(p, this.lane, 0, true);
     this.doc.commit();
     this.updateRangeNotes();
     this.feedback('toggle-on', 'select');
@@ -1304,7 +1347,7 @@ export class EditorController {
     const notes = this.doc.notes;
     const name = this.difficulty[0].toUpperCase() + this.difficulty.slice(1);
     let lastT = -Infinity;
-    for (let i = 0; i < notes.length; ) {
+    for (let i = 0; i < notes.length;) {
       let j = i;
       let left = 0;
       let right = 0;
@@ -1316,7 +1359,15 @@ export class EditorController {
       const n = notes[i];
       const t = g.time(n.pos);
       if (n.pos < g.start - 1e-3 || n.pos > g.end + 1e-3) out.push({ pos: n.pos, lane: n.lane, text: 'A note outside the song.' });
-      if (j - i > p.maxChord) out.push({ pos: n.pos, lane: n.lane, text: p.maxChord === 1 ? `${name} is usually played one note at a time.` : `${j - i} notes at once; ${name} usually stops at ${p.maxChord}.` });
+      if (j - i > p.maxChord)
+        out.push({
+          pos: n.pos,
+          lane: n.lane,
+          text:
+            p.maxChord === 1
+              ? `${name} is usually played one note at a time.`
+              : `${j - i} notes at once; ${name} usually stops at ${p.maxChord}.`,
+        });
       if (left > 1 || right > 1) out.push({ pos: n.pos, lane: n.lane, text: 'Two notes under one thumb on a controller.' });
       if (t - lastT < p.minGap * 0.8) out.push({ pos: n.pos, lane: n.lane, text: `Very close to the note before it for ${name}.` });
       lastT = t;
@@ -1334,7 +1385,13 @@ export class EditorController {
     const g = this.grid;
     return notes.map((n) => {
       const pos = quantize(g.pos(n.t));
-      return { pos, lane: n.lane, len: n.dur > 0 ? quantize(g.pos(n.t + n.dur) - pos) : 0, phrase: n.phrase, ...(n.release ? { release: true } : {}) };
+      return {
+        pos,
+        lane: n.lane,
+        len: n.dur > 0 ? quantize(g.pos(n.t + n.dur) - pos) : 0,
+        phrase: n.phrase,
+        ...(n.release ? { release: true } : {}),
+      };
     });
   }
 
@@ -1415,7 +1472,8 @@ export class EditorController {
     this.target = null;
     this.momentum = 0;
     // From the very end there is nothing to play: start over. A loop starts where it is marked.
-    const looped = this.looping && this.range && this.range[1] - this.range[0] > 0.05 && (from < this.range[0] || from >= this.range[1] - 0.01);
+    const looped =
+      this.looping && this.range && this.range[1] - this.range[0] > 0.05 && (from < this.range[0] || from >= this.range[1] - 0.01);
     const pos = looped ? this.range![0] : from >= this.grid.end - 0.05 ? this.grid.start : from;
     const t = Math.min(Math.max(0, this.duration - 0.05), Math.max(0, this.grid.time(pos)));
     this.viewPos = this.lastPlayed = this.grid.pos(t);
@@ -1588,7 +1646,9 @@ export class EditorController {
       for (const d of ['easy', 'medium', 'hard', 'expert'] as Difficulty[]) {
         const key = chartKey(part, d);
         const doc = this.docs.get(key);
-        const notes = doc ? doc.notes.length : (this.edits.charts[key]?.length ?? (await analysisManager.generated(this.song.id, part, d))?.notes.length ?? 0);
+        const notes = doc
+          ? doc.notes.length
+          : (this.edits.charts[key]?.length ?? (await analysisManager.generated(this.song.id, part, d))?.notes.length ?? 0);
         out[key] = { notes, edited: this.isEdited(key) };
       }
     }
@@ -1599,7 +1659,9 @@ export class EditorController {
   async copyFrom(part: Part, difficulty: Difficulty) {
     const key = chartKey(part, difficulty);
     const doc = this.docs.get(key);
-    const notes: readonly Note[] = doc ? doc.toNotes(this.grid) : (this.edits.charts[key] ?? (await analysisManager.generated(this.song.id, part, difficulty))?.notes ?? []);
+    const notes: readonly Note[] = doc
+      ? doc.toNotes(this.grid)
+      : (this.edits.charts[key] ?? (await analysisManager.generated(this.song.id, part, difficulty))?.notes ?? []);
     if (this.disposed) return;
     this.doc.replace(fitLanes(notes, this.doc.lanes), this.grid);
     this.clearSelection(false);
@@ -1613,7 +1675,13 @@ export class EditorController {
     const bar = g.barStart(this.cursor);
     // Close to the top there is no point in skipping the little that comes before.
     const startAt = fromStart || g.time(bar) < 6 ? 0 : g.time(bar);
-    const chart = chartFromNotes(notes.filter((n) => n.t >= startAt - 1e-3), this.part, this.difficulty, g, this.duration);
+    const chart = chartFromNotes(
+      notes.filter((n) => n.t >= startAt - 1e-3),
+      this.part,
+      this.difficulty,
+      g,
+      this.duration,
+    );
     return { chart, startAt };
   }
 
@@ -1803,8 +1871,7 @@ export class EditorController {
       else if (k === 'z') {
         if (e.shiftKey) this.redo();
         else this.undo();
-      }
-      else if (k === 'y') this.redo();
+      } else if (k === 'y') this.redo();
       else if (k === 'c') this.copy();
       else if (k === 'x') this.cut();
       else if (k === 'v') this.paste();
@@ -1974,7 +2041,16 @@ export class EditorController {
           this.emit();
         }
         this.doc.begin();
-        this.gesture = { kind: 'move', pos: this.grid.snap(hit.pos, this.snap), lane: hit.lane, dPos: 0, dLane: 0, moved: false, id: hit.note.id, wasSelected: was && e.shiftKey };
+        this.gesture = {
+          kind: 'move',
+          pos: this.grid.snap(hit.pos, this.snap),
+          lane: hit.lane,
+          dPos: 0,
+          dLane: 0,
+          moved: false,
+          id: hit.note.id,
+          wasSelected: was && e.shiftKey,
+        };
       } else this.gesture = { kind: 'marquee', x, y, add: e.shiftKey ? new Set(this.sel) : new Set() };
       return;
     }
@@ -2031,12 +2107,14 @@ export class EditorController {
       // The mouse is only passing over: show where a note would land.
       if (e.pointerType !== 'mouse') return;
       const hit = this.view.hit(x, y, scene);
-      const ghost = hit.zone === 'deck' && this.tool === 'draw' && !hit.note && !e.shiftKey ? { pos: this.place(hit.pos), lane: hit.lane } : null;
+      const ghost =
+        hit.zone === 'deck' && this.tool === 'draw' && !hit.note && !e.shiftKey ? { pos: this.place(hit.pos), lane: hit.lane } : null;
       if (ghost?.pos !== this.ghost?.pos || ghost?.lane !== this.ghost?.lane) {
         this.ghost = ghost;
         this.needsDraw = true;
       }
-      this.els!.canvas.style.cursor = hit.zone === 'deck' ? (hit.note ? 'pointer' : this.tool === 'select' ? 'crosshair' : 'cell') : 'ns-resize';
+      this.els!.canvas.style.cursor =
+        hit.zone === 'deck' ? (hit.note ? 'pointer' : this.tool === 'select' ? 'crosshair' : 'cell') : 'ns-resize';
       return;
     }
     p.x = x;
@@ -2063,7 +2141,7 @@ export class EditorController {
     } else if (g.kind === 'pan') {
       this.viewPos = this.grid.clamp(g.pos + (y - g.y) / this.pxPerBeat);
       const dt = e.timeStamp - g.lastT;
-      if (dt > 0) g.v = g.v * 0.5 + (((y - g.lastY) / this.pxPerBeat / dt) * 0.5);
+      if (dt > 0) g.v = g.v * 0.5 + ((y - g.lastY) / this.pxPerBeat / dt) * 0.5;
       g.lastY = y;
       g.lastT = e.timeStamp;
       this.afterMove(false);
@@ -2130,7 +2208,8 @@ export class EditorController {
       this.changed();
     } else if (g.kind === 'pan') {
       // A finger that was moving when it lifted lets the chart run on a little.
-      if (e.pointerType !== 'mouse' && Math.abs(g.v) > 0.002 && e.timeStamp - g.lastT < 80 && !this.calm) this.momentum = Math.max(-0.08, Math.min(0.08, g.v));
+      if (e.pointerType !== 'mouse' && Math.abs(g.v) > 0.002 && e.timeStamp - g.lastT < 80 && !this.calm)
+        this.momentum = Math.max(-0.08, Math.min(0.08, g.v));
     } else if (g.kind === 'marquee') {
       if (!this.marquee) this.clearSelection(false);
       this.marquee = null;

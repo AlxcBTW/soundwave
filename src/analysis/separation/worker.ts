@@ -54,7 +54,10 @@ async function openPitchSession(url: string, device: 'gpu' | 'cpu'): Promise<ort
     return await ort.InferenceSession.create(bytes, { executionProviders: [device === 'gpu' ? 'webgpu' : 'wasm'], logSeverityLevel: 3 });
   } catch (err) {
     if (device !== 'gpu') throw err;
-    post({ type: 'log', message: `the graphics card could not load the transcription model (${(err as Error).message}); using the processor` });
+    post({
+      type: 'log',
+      message: `the graphics card could not load the transcription model (${(err as Error).message}); using the processor`,
+    });
     return ort.InferenceSession.create(bytes, { executionProviders: ['wasm'], logSeverityLevel: 3 });
   }
 }
@@ -119,14 +122,19 @@ self.onmessage = async (e: MessageEvent<SeparationRequest>) => {
     post({ type: 'log', message: `stem model on ${device} loaded in ${Math.round(performance.now() - opened)} ms` });
 
     const started = performance.now();
-    const full = await separate(req.left, req.right, runner(session), (p) => post({ type: 'progress', progress: p * share, step: 'Separating stems' }));
+    const full = await separate(req.left, req.right, runner(session), (p) =>
+      post({ type: 'progress', progress: p * share, step: 'Separating stems' }),
+    );
     await session.release();
     post({ type: 'log', message: `separated ${(req.left.length / 44100).toFixed(0)} s in ${Math.round(performance.now() - started)} ms` });
 
     const stems = {} as Record<StemName, Float32Array>;
     MODEL_STEMS.forEach((name, i) => (stems[name] = full[i]));
     pitch = { url: req.pitchModelUrl, device };
-    post({ type: 'separated', stems }, full.map((s) => s.buffer));
+    post(
+      { type: 'separated', stems },
+      full.map((s) => s.buffer),
+    );
   } catch (err) {
     post({ type: 'error', message: (err as Error).message || String(err) });
   }
@@ -145,9 +153,14 @@ async function transcribeStems(stems: Record<'bass' | 'vocals' | 'other', Float3
       const at = share + ((1 - share) * i) / pitched.length;
       const label = name === 'other' ? 'Transcribing instruments' : `Transcribing ${name}`;
       post({ type: 'progress', progress: at, step: label });
-      const t = await transcribeOnnx(ort, transcriber, stems[name], (p) => post({ type: 'progress', progress: at + ((1 - share) * p) / pitched.length, step: label }));
+      const t = await transcribeOnnx(ort, transcriber, stems[name], (p) =>
+        post({ type: 'progress', progress: at + ((1 - share) * p) / pitched.length, step: label }),
+      );
       notes[name] = t.notes;
-      post({ type: 'log', message: `transcribed ${name} on ${device} in ${Math.round(t.modelMs + t.notesMs)} ms (${Math.round(t.notesMs)} ms of it decoding notes)` });
+      post({
+        type: 'log',
+        message: `transcribed ${name} on ${device} in ${Math.round(t.modelMs + t.notesMs)} ms (${Math.round(t.notesMs)} ms of it decoding notes)`,
+      });
     }
     await transcriber.release();
     post({ type: 'done', notes, device });

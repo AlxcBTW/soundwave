@@ -31,10 +31,50 @@ export interface GraphicsSettings {
 export type Tier = Exclude<GraphicsPreset, 'auto' | 'custom'>;
 
 export const PRESETS: Record<Tier, Omit<GraphicsSettings, 'preset' | 'camera'>> = {
-  low: { resolution: 0.6, dynamicResolution: true, fpsCap: 30, crowd: 'low', beams: 'low', lights: 'low', effects: 'low', glow: false, antialias: false },
-  medium: { resolution: 0.75, dynamicResolution: true, fpsCap: 60, crowd: 'medium', beams: 'medium', lights: 'medium', effects: 'medium', glow: true, antialias: false },
-  high: { resolution: 1, dynamicResolution: true, fpsCap: 0, crowd: 'high', beams: 'high', lights: 'high', effects: 'high', glow: true, antialias: true },
-  ultra: { resolution: 1, dynamicResolution: false, fpsCap: 0, crowd: 'high', beams: 'high', lights: 'high', effects: 'high', glow: true, antialias: true },
+  low: {
+    resolution: 0.6,
+    dynamicResolution: true,
+    fpsCap: 30,
+    crowd: 'low',
+    beams: 'low',
+    lights: 'low',
+    effects: 'low',
+    glow: false,
+    antialias: false,
+  },
+  medium: {
+    resolution: 0.75,
+    dynamicResolution: true,
+    fpsCap: 60,
+    crowd: 'medium',
+    beams: 'medium',
+    lights: 'medium',
+    effects: 'medium',
+    glow: true,
+    antialias: false,
+  },
+  high: {
+    resolution: 1,
+    dynamicResolution: true,
+    fpsCap: 0,
+    crowd: 'high',
+    beams: 'high',
+    lights: 'high',
+    effects: 'high',
+    glow: true,
+    antialias: true,
+  },
+  ultra: {
+    resolution: 1,
+    dynamicResolution: false,
+    fpsCap: 0,
+    crowd: 'high',
+    beams: 'high',
+    lights: 'high',
+    effects: 'high',
+    glow: true,
+    antialias: true,
+  },
 };
 
 export const DEFAULT_GRAPHICS: GraphicsSettings = { preset: 'auto', camera: 'auto', ...PRESETS.medium };

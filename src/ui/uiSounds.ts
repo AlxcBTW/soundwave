@@ -2,7 +2,14 @@ import { playSfx, type Sfx } from '../audio/sfx';
 import { MOVE_EVENT } from '../input/menuNav';
 import { menuPulse, type MenuPulse } from '../input/rumble';
 
-const PULSE: Partial<Record<Sfx, MenuPulse>> = { move: 'move', select: 'select', back: 'back', launch: 'launch', 'toggle-on': 'select', 'toggle-off': 'back' };
+const PULSE: Partial<Record<Sfx, MenuPulse>> = {
+  move: 'move',
+  select: 'select',
+  back: 'back',
+  launch: 'launch',
+  'toggle-on': 'select',
+  'toggle-off': 'back',
+};
 
 /** A menu sound plus, on a controller, its matching pulse. */
 function feedback(kind: Sfx) {

@@ -36,7 +36,10 @@ it(`metrics ${song}.${file}`, () => {
     for (const d of ['expert', 'medium'] as const) {
       const c = charts[d];
       const times = [...new Set(c.notes.map((n) => n.t))].sort((x, y) => x - y);
-      const singles = times.map((t) => c.notes.filter((n) => n.t === t)).filter((g) => g.length === 1).map((g) => g[0]);
+      const singles = times
+        .map((t) => c.notes.filter((n) => n.t === t))
+        .filter((g) => g.length === 1)
+        .map((g) => g[0]);
       const src = (t: number) => line.reduce((best, n) => (Math.abs(n.t - t) < Math.abs(best.t - t) ? n : best), line[0]);
       let up = 0;
       let upOk = 0;

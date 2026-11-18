@@ -58,7 +58,14 @@ export class ChartDoc {
       .map((n) => {
         const pos = settle(grid.pos(n.t));
         const len = n.dur > 0 ? settle(grid.pos(n.t + n.dur) - pos) : 0;
-        return { id: this.nextId++, pos, lane: n.lane, len: Math.max(0, len), phrase: n.phrase ?? -1, ...(n.release && n.dur > 0 ? { release: true } : {}) };
+        return {
+          id: this.nextId++,
+          pos,
+          lane: n.lane,
+          len: Math.max(0, len),
+          phrase: n.phrase ?? -1,
+          ...(n.release && n.dur > 0 ? { release: true } : {}),
+        };
       })
       .sort(byPlace);
     this.base = this.list;
@@ -243,7 +250,9 @@ export class ChartDoc {
     const there = this.at(pos, lane);
     if (there) return there;
     if (lane < 0 || lane >= this.lanes) return undefined;
-    const held = plain ? undefined : this.list.find((n) => n.lane === lane && n.len > 0 && pos > n.pos + 1e-4 && pos < n.pos + n.len + 1e-4);
+    const held = plain
+      ? undefined
+      : this.list.find((n) => n.lane === lane && n.len > 0 && pos > n.pos + 1e-4 && pos < n.pos + n.len + 1e-4);
     if (held) {
       const atEnd = samePos(pos, held.pos + held.len);
       const to = quantize(pos - held.pos);
@@ -304,7 +313,8 @@ export class ChartDoc {
     const set = new Set(ids);
     if (!set.size || (!beats && !lanes)) return false;
     const moving = this.list.filter((n) => set.has(n.id));
-    if (moving.some((n) => n.lane + lanes < 0 || n.lane + lanes >= this.lanes || n.pos + beats < min - 1e-4 || n.pos + beats > max + 1e-4)) return false;
+    if (moving.some((n) => n.lane + lanes < 0 || n.lane + lanes >= this.lanes || n.pos + beats < min - 1e-4 || n.pos + beats > max + 1e-4))
+      return false;
     const moved = moving.map((n) => ({ ...n, pos: quantize(n.pos + beats), lane: n.lane + lanes }));
     // What moves wins over what it lands on.
     const taken = new Set(moved.map((n) => `${n.lane}:${n.pos.toFixed(4)}`));
@@ -439,7 +449,13 @@ export class ChartDoc {
     const phrases = new Map<number, number>();
     const notes = picked.map((n) => {
       if (n.phrase >= 0 && !phrases.has(n.phrase)) phrases.set(n.phrase, phrases.size);
-      return { pos: quantize(n.pos - start), lane: n.lane, len: n.len, phrase: n.phrase >= 0 ? phrases.get(n.phrase)! : -1, ...(n.release ? { release: true } : {}) };
+      return {
+        pos: quantize(n.pos - start),
+        lane: n.lane,
+        len: n.len,
+        phrase: n.phrase >= 0 ? phrases.get(n.phrase)! : -1,
+        ...(n.release ? { release: true } : {}),
+      };
     });
     return { notes, length: len, lanes: this.lanes };
   }
@@ -453,7 +469,14 @@ export class ChartDoc {
       if (at > max + 1e-4) continue;
       const lane = Math.min(this.lanes - 1, c.lane);
       if (added.some((a) => a.lane === lane && samePos(a.pos, at))) continue;
-      added.push({ id: this.nextId++, pos: at, lane, len: c.len, phrase: c.phrase >= 0 ? base + c.phrase : -1, ...(c.release ? { release: true } : {}) });
+      added.push({
+        id: this.nextId++,
+        pos: at,
+        lane,
+        len: c.len,
+        phrase: c.phrase >= 0 ? base + c.phrase : -1,
+        ...(c.release ? { release: true } : {}),
+      });
     }
     if (!added.length) return [];
     const rest = this.list.filter((n) => n.pos < pos - 1e-4 || n.pos >= pos + clip.length - 1e-4);
@@ -470,7 +493,7 @@ export class ChartDoc {
     let awkward = 0;
     let peak = 0;
     const times: number[] = [];
-    for (let i = 0; i < this.list.length; ) {
+    for (let i = 0; i < this.list.length;) {
       let j = i;
       let left = 0;
       let right = 0;
@@ -509,7 +532,15 @@ function same(a: DocNote[], b: DocNote[], ids = true) {
     const x = a[i];
     const y = b[i];
     if (x === y) continue;
-    if ((ids && x.id !== y.id) || x.lane !== y.lane || x.phrase !== y.phrase || !!x.release !== !!y.release || !samePos(x.pos, y.pos) || !samePos(x.len, y.len)) return false;
+    if (
+      (ids && x.id !== y.id) ||
+      x.lane !== y.lane ||
+      x.phrase !== y.phrase ||
+      !!x.release !== !!y.release ||
+      !samePos(x.pos, y.pos) ||
+      !samePos(x.len, y.len)
+    )
+      return false;
   }
   return true;
 }

@@ -34,7 +34,13 @@ export function resampleCurve(x: Float32Array, fps: number, stepSec: number): nu
  * Segments the song at bar boundaries where loudness, harmony or onset density changes.
  * `barFeatures` holds one vector per bar (any dimension), `barEnergy` one loudness value per bar.
  */
-export function findSections(barTimes: number[], barEnergy: number[], barFeatures: Float32Array[], duration: number, minBars = 4): Section[] {
+export function findSections(
+  barTimes: number[],
+  barEnergy: number[],
+  barFeatures: Float32Array[],
+  duration: number,
+  minBars = 4,
+): Section[] {
   const n = barTimes.length;
   if (n < minBars * 2) return [{ start: 0, end: duration, energy: 0.7 }];
   const win = 2;
@@ -59,7 +65,7 @@ export function findSections(barTimes: number[], barEnergy: number[], barFeature
       nb += fB[k] * fB[k];
     }
     const cos = d / (Math.sqrt(na * nb) || 1);
-    nov[i] = Math.abs(eA - eB) / win * 2 + (1 - cos);
+    nov[i] = (Math.abs(eA - eB) / win) * 2 + (1 - cos);
   }
   let mean = 0;
   for (const v of nov) mean += v;

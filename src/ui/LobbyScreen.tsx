@@ -40,7 +40,10 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
   const [counts, setCounts] = useState<Counts>({});
   // The parts this set can be played on, and the one it is on: the chosen one, unless the set
   // hardly has it (the choice itself is kept for the next set).
-  const open = setParts(songs.map((s) => s.id), thin);
+  const open = setParts(
+    songs.map((s) => s.id),
+    thin,
+  );
   const part = partFor(pick, open);
   const closed = PARTS.filter((p) => !open.includes(p));
   const sitsOut = (s: SongMeta) => !!thin[s.id]?.includes(part);
@@ -94,7 +97,14 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
     { id: 'back', label: 'Back', icon: ArrowLeft, kbd: 'Escape', sfx: 'back', run: onBack },
     { id: 'part-next', label: 'Next part', icon: PART_ICON[part], pad: 'b3', bar: false, run: nextPart },
     { id: 'difficulty-next', label: 'Next difficulty', icon: Gauge, pad: 'b2', bar: false, run: nextDifficulty },
-    ...PARTS.map((p, i) => ({ id: `part-${p}`, label: PART_LABEL[p], icon: PART_ICON[p], kbd: `Digit${i + 1}`, bar: false, run: () => open.includes(p) && onPick({ ...pick, part: p }) })),
+    ...PARTS.map((p, i) => ({
+      id: `part-${p}`,
+      label: PART_LABEL[p],
+      icon: PART_ICON[p],
+      kbd: `Digit${i + 1}`,
+      bar: false,
+      run: () => open.includes(p) && onPick({ ...pick, part: p }),
+    })),
   ]);
 
   const pad = hints.mode === 'pad';
@@ -123,7 +133,9 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
             const out = sitsOut(s);
             return (
               <li key={s.id} className={`set-card ${n === 0 || out ? 'skipped' : ''}`} style={{ ['--i' as string]: i }}>
-                <span className="slot-num" aria-hidden>{i + 1}</span>
+                <span className="slot-num" aria-hidden>
+                  {i + 1}
+                </span>
                 <Cover blob={s.cover} title={s.title} />
                 <span className="song-text">
                   <span className="song-title">{s.title}</span>
@@ -183,7 +195,19 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
                 const off = !open.includes(p);
                 const why = `${songs.length === 1 ? 'This song has' : 'These songs have'} almost no ${PART_STUFF[p]}`;
                 return (
-                  <button key={p} type="button" className={`choice part ${on ? 'on' : ''}`} data-on={on} data-action={`part-${p}`} role="radio" aria-checked={on} disabled={off} title={off ? why : undefined} aria-label={off ? `${PART_LABEL[p]}: not available. ${why}.` : undefined} onClick={() => onPick({ ...pick, part: p })}>
+                  <button
+                    key={p}
+                    type="button"
+                    className={`choice part ${on ? 'on' : ''}`}
+                    data-on={on}
+                    data-action={`part-${p}`}
+                    role="radio"
+                    aria-checked={on}
+                    disabled={off}
+                    title={off ? why : undefined}
+                    aria-label={off ? `${PART_LABEL[p]}: not available. ${why}.` : undefined}
+                    onClick={() => onPick({ ...pick, part: p })}
+                  >
                     <Icon strokeWidth={ICON_STROKE} aria-hidden />
                     <span>{PART_LABEL[p]}</span>
                     {!off && <Hint kbd={`Digit${i + 1}`} mode={pad ? 'touch' : hints.mode} style={hints.style} />}
@@ -194,7 +218,9 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
           </div>
           {closed.length > 0 && (
             <p className="part-note">
-              {songs.length === 1 ? 'This song has' : 'These songs have'} almost no {list(closed.map((p) => PART_STUFF[p]))}, so {closed.length === 1 ? 'that part is' : 'those parts are'} off. A chart you write for {closed.length === 1 ? 'it' : 'one'} in the editor turns it on.
+              {songs.length === 1 ? 'This song has' : 'These songs have'} almost no {list(closed.map((p) => PART_STUFF[p]))}, so{' '}
+              {closed.length === 1 ? 'that part is' : 'those parts are'} off. A chart you write for {closed.length === 1 ? 'it' : 'one'} in
+              the editor turns it on.
             </p>
           )}
 
@@ -218,7 +244,15 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
               {DIFFICULTIES.map((d: Difficulty) => {
                 const on = pick.difficulty === d;
                 return (
-                  <button key={d} type="button" className={`choice diff ${on ? 'on' : ''}`} data-on={on} role="radio" aria-checked={on} onClick={() => onPick({ ...pick, difficulty: d })}>
+                  <button
+                    key={d}
+                    type="button"
+                    className={`choice diff ${on ? 'on' : ''}`}
+                    data-on={on}
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => onPick({ ...pick, difficulty: d })}
+                  >
                     <Pips difficulty={d} />
                     <span>{DIFFICULTY_LABEL[d]}</span>
                   </button>
@@ -234,7 +268,15 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
 
           <HoldButton
             label={(PART_LABEL[part] as Part | string) + ' · ' + DIFFICULTY_LABEL[pick.difficulty]}
-            hint={!known ? 'Getting the charts ready…' : playable === 0 ? 'No notes on this part. Pick another one.' : hints.mode === 'keyboard' ? 'Hold Enter to start' : 'Hold to start'}
+            hint={
+              !known
+                ? 'Getting the charts ready…'
+                : playable === 0
+                  ? 'No notes on this part. Pick another one.'
+                  : hints.mode === 'keyboard'
+                    ? 'Hold Enter to start'
+                    : 'Hold to start'
+            }
             disabled={!known || playable === 0}
             glyph={pad ? <PadGlyph input={confirmInput(hints.style)} style={hints.style} /> : undefined}
             glyphStyle={hints.style}

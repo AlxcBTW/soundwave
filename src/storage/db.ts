@@ -232,4 +232,3 @@ export async function submitScore(s: Omit<BestScore, 'key' | 'date'>): Promise<n
   if (!prev || s.score > prev.score) await d.put('scores', { ...s, key, date: Date.now() });
   return prev?.score;
 }
-

@@ -66,7 +66,7 @@ describe('the paired inverse transform', () => {
     for (const [j, base] of [0, 4 * PLANE].entries()) {
       // The plain way: undo the normalisation, average the channels, transform.
       const avg = new Float32Array(2 * PLANE);
-      for (let i = 0; i < 2 * PLANE; i++) avg[i] = ((planes[base + i] * dev + mean) + (planes[base + 2 * PLANE + i] * dev + mean)) / 2;
+      for (let i = 0; i < 2 * PLANE; i++) avg[i] = (planes[base + i] * dev + mean + (planes[base + 2 * PLANE + i] * dev + mean)) / 2;
       const single = new Float32Array(SEGMENT);
       addInverse(avg, 0, PLANE, single, 1);
       let worst = 0;
@@ -112,6 +112,14 @@ describe('separating a song', () => {
 
   it('stops when the analysis is cancelled', async () => {
     const l = new Float32Array(SEGMENT);
-    await expect(separate(l, l, quarter, () => {}, () => true)).rejects.toThrow(/cancelled/);
+    await expect(
+      separate(
+        l,
+        l,
+        quarter,
+        () => {},
+        () => true,
+      ),
+    ).rejects.toThrow(/cancelled/);
   });
 });

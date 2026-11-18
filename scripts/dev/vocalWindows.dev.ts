@@ -51,7 +51,9 @@ it(`vocal windows ${song}`, () => {
     const vs = voiced.reduce((s, n) => s + Math.max(0, Math.min(t1, n.t + n.dur) - Math.max(t0, n.t)), 0);
     const ours = a.vocals.filter((n) => n.t >= t0 && n.t < t1).length;
     const p = prev?.filter((n) => n.t >= t0 && n.t < t1).length;
-    out.push(`${t0.toFixed(0).padStart(4)}  ${(r / ref).toFixed(2).padStart(6)}  ${vs.toFixed(2).padStart(6)}  ${String(ours).padStart(4)}${prev ? String(p).padStart(5) : ''}`);
+    out.push(
+      `${t0.toFixed(0).padStart(4)}  ${(r / ref).toFixed(2).padStart(6)}  ${vs.toFixed(2).padStart(6)}  ${String(ours).padStart(4)}${prev ? String(p).padStart(5) : ''}`,
+    );
   });
   writeFileSync(join(dir, `${song}.vocal-windows.txt`), out.join('\n'));
 });

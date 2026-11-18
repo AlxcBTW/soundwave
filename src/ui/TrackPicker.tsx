@@ -64,7 +64,21 @@ const busy = (st: SongStatus | undefined) => st?.state === 'queued' || st?.state
  * The editor's workbench on the main menu: the player's tracks as a list, the highlighted track's
  * sixteen charts beside it, and a way to bring in a new one. A press on a track opens it in the editor.
  */
-export function TrackPicker({ songs, status, settings, device, previewing, pickSignal, onCurrent, onNew, onPackage, onAnalyze, onScratch, onOpen, toast }: Props) {
+export function TrackPicker({
+  songs,
+  status,
+  settings,
+  device,
+  previewing,
+  pickSignal,
+  onCurrent,
+  onNew,
+  onPackage,
+  onAnalyze,
+  onScratch,
+  onOpen,
+  toast,
+}: Props) {
   const hints = useHints(settings);
   const [query, setQuery] = useState('');
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -77,7 +91,11 @@ export function TrackPicker({ songs, status, settings, device, previewing, pickS
     const q = query.trim().toLowerCase();
     const list = q ? own.filter((s) => `${s.title} ${s.artist} ${s.album ?? ''}`.toLowerCase().includes(q)) : [...own];
     // Songs with charts of your own first, then by title.
-    return list.sort((a, b) => (status[b.id]?.edited ? 1 : 0) - (status[a.id]?.edited ? 1 : 0) || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+    return list.sort(
+      (a, b) =>
+        (status[b.id]?.edited ? 1 : 0) - (status[a.id]?.edited ? 1 : 0) ||
+        a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }),
+    );
   }, [own, query, status]);
   const chosen = shown.find((s) => s.id === currentId) ?? null;
   /** The track the card shows: the one the player is on, or the first until they are on one. */
@@ -140,9 +158,24 @@ export function TrackPicker({ songs, status, settings, device, previewing, pickS
             <div className="toolbar" data-nav-group="toolbar">
               <label className="search">
                 <Search strokeWidth={ICON_STROKE} aria-hidden />
-                <input ref={search} type="search" placeholder="Search tracks" aria-label="Search your tracks by title, artist or album" value={query} onChange={(e) => setQuery(e.target.value)} spellCheck={false} enterKeyHint="search" />
+                <input
+                  ref={search}
+                  type="search"
+                  placeholder="Search tracks"
+                  aria-label="Search your tracks by title, artist or album"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  spellCheck={false}
+                  enterKeyHint="search"
+                />
                 {query ? (
-                  <button type="button" className="icon-btn small" aria-label="Clear search" data-nav-skip onClick={() => (setQuery(''), search.current?.focus())}>
+                  <button
+                    type="button"
+                    className="icon-btn small"
+                    aria-label="Clear search"
+                    data-nav-skip
+                    onClick={() => (setQuery(''), search.current?.focus())}
+                  >
                     <X strokeWidth={ICON_STROKE} aria-hidden />
                   </button>
                 ) : (
@@ -155,10 +188,29 @@ export function TrackPicker({ songs, status, settings, device, previewing, pickS
             {shown.map((s, i) => {
               const st = status[s.id];
               const working = busy(st);
-              const state = working ? `Being analyzed, ${Math.round((st?.progress ?? 0) * 100)}%.` : editable(st) ? (st?.edited ? `${st.edited} of its charts are your own.` : 'Charts written by the game.') : 'No charts yet.';
+              const state = working
+                ? `Being analyzed, ${Math.round((st?.progress ?? 0) * 100)}%.`
+                : editable(st)
+                  ? st?.edited
+                    ? `${st.edited} of its charts are your own.`
+                    : 'Charts written by the game.'
+                  : 'No charts yet.';
               return (
-                <li key={s.id} data-preview={s.id} className={`song-item ${current?.id === s.id ? 'current' : ''}`} style={{ ['--i' as string]: Math.min(i, 12) }}>
-                  <button type="button" className="song-row" data-autofocus={s.id === startId ? '' : undefined} aria-label={`${s.title} by ${s.artist}. ${state} Opens it in the editor.`} onFocus={() => setCurrentId(s.id)} onPointerEnter={(e) => e.pointerType === 'mouse' && setCurrentId(s.id)} onClick={() => (setCurrentId(s.id), choose(s))}>
+                <li
+                  key={s.id}
+                  data-preview={s.id}
+                  className={`song-item ${current?.id === s.id ? 'current' : ''}`}
+                  style={{ ['--i' as string]: Math.min(i, 12) }}
+                >
+                  <button
+                    type="button"
+                    className="song-row"
+                    data-autofocus={s.id === startId ? '' : undefined}
+                    aria-label={`${s.title} by ${s.artist}. ${state} Opens it in the editor.`}
+                    onFocus={() => setCurrentId(s.id)}
+                    onPointerEnter={(e) => e.pointerType === 'mouse' && setCurrentId(s.id)}
+                    onClick={() => (setCurrentId(s.id), choose(s))}
+                  >
                     <Cover blob={s.cover} title={s.title} />
                     <span className="song-text">
                       <span className="song-title">{s.title}</span>
@@ -166,7 +218,9 @@ export function TrackPicker({ songs, status, settings, device, previewing, pickS
                     </span>
                     <span className="song-side">
                       {working ? (
-                        <span className="song-busy">{st?.state === 'queued' ? 'Waiting' : `${Math.round((st?.progress ?? 0) * 100)}%`}</span>
+                        <span className="song-busy">
+                          {st?.state === 'queued' ? 'Waiting' : `${Math.round((st?.progress ?? 0) * 100)}%`}
+                        </span>
                       ) : st?.edited ? (
                         <span className="pill lit">{st.edited} yours</span>
                       ) : !editable(st) ? (
@@ -207,7 +261,9 @@ export function TrackPicker({ songs, status, settings, device, previewing, pickS
                   </span>
                   <span className="song-text">
                     <span className="song-title">New track</span>
-                    <span className="song-artist">Bring in a song, then let the game chart it for you to edit, or start with empty lanes.</span>
+                    <span className="song-artist">
+                      Bring in a song, then let the game chart it for you to edit, or start with empty lanes.
+                    </span>
                   </span>
                 </button>
               </li>
@@ -222,7 +278,10 @@ export function TrackPicker({ songs, status, settings, device, previewing, pickS
             <section className="now hub-intro">
               <div className="now-text">
                 <h2 className="now-title">Charts of your own</h2>
-                <p className="now-artist">Every song has sixteen charts: four parts at four difficulties. Change the ones the game wrote, or write them from nothing, note by note or by playing along. The game plays yours in place of its own.</p>
+                <p className="now-artist">
+                  Every song has sixteen charts: four parts at four difficulties. Change the ones the game wrote, or write them from
+                  nothing, note by note or by playing along. The game plays yours in place of its own.
+                </p>
               </div>
             </section>
           )}
@@ -285,7 +344,9 @@ function TrackCard({ song, status }: { song: SongMeta; status: SongStatus | unde
         </p>
         {working && <p className="now-status">{analysisLabel(status!)}</p>}
         {!working && !ready && <p className="now-status">No charts yet. Open it to choose how to chart it.</p>}
-        {ready && <p className="now-status">{status?.edited ? `${status.edited} of 16 charts are your own` : 'All 16 charts are the game’s'}</p>}
+        {ready && (
+          <p className="now-status">{status?.edited ? `${status.edited} of 16 charts are your own` : 'All 16 charts are the game’s'}</p>
+        )}
       </div>
       {ready && (
         <table className="bests hub-charts" aria-label="Charts">
@@ -293,7 +354,9 @@ function TrackCard({ song, status }: { song: SongMeta; status: SongStatus | unde
             <tr>
               <td />
               {DIFFICULTIES.map((d) => (
-                <th key={d} scope="col">{DIFFICULTY_LABEL[d]}</th>
+                <th key={d} scope="col">
+                  {DIFFICULTY_LABEL[d]}
+                </th>
               ))}
             </tr>
           </thead>
@@ -387,7 +450,13 @@ function TrackSetup({ subject, status, canAnalyze, onNew, onAnalyze, onScratch, 
 
   const work = finding || analyzing || (waiting && !failed);
   return (
-    <Dialog title={`Chart ${song.title}`} variant="card" className="wide-card" closeLabel={finding ? 'Close' : work ? 'Wait in the background' : 'Cancel'} onClose={onClose}>
+    <Dialog
+      title={`Chart ${song.title}`}
+      variant="card"
+      className="wide-card"
+      closeLabel={finding ? 'Close' : work ? 'Wait in the background' : 'Cancel'}
+      onClose={onClose}
+    >
       {(close) => (
         <div className="pause-card setup-card">
           <div className="setup-song">
@@ -403,7 +472,9 @@ function TrackSetup({ subject, status, canAnalyze, onNew, onAnalyze, onScratch, 
               <span className="meter busy" aria-hidden>
                 <span />
               </span>
-              <p className="hint" role="status">Listening for the beat, so the lanes come with bar lines in the right places. A few seconds.</p>
+              <p className="hint" role="status">
+                Listening for the beat, so the lanes come with bar lines in the right places. A few seconds.
+              </p>
             </>
           ) : work ? (
             <>
@@ -412,7 +483,8 @@ function TrackSetup({ subject, status, canAnalyze, onNew, onAnalyze, onScratch, 
                 <span style={{ width: `${Math.round((status?.progress ?? 0) * 100)}%` }} />
               </span>
               <p className="hint" role="status">
-                {status && busy(status) ? analysisLabel(status) : 'Getting started…'} The song opens in the editor when its charts are written.
+                {status && busy(status) ? analysisLabel(status) : 'Getting started…'} The song opens in the editor when its charts are
+                written.
               </p>
               <button type="button" className="btn wide" data-autofocus data-sfx="back" onClick={close}>
                 Wait in the background
@@ -425,14 +497,29 @@ function TrackSetup({ subject, status, canAnalyze, onNew, onAnalyze, onScratch, 
             <>
               <h2 className="display">How do you want to chart it?</h2>
               {failed && <p className="error">The analysis did not finish: {status?.error}</p>}
-              <button type="button" className={`btn wide pick-btn ${canAnalyze ? 'primary' : ''}`} data-autofocus={canAnalyze ? '' : undefined} disabled={!canAnalyze} onClick={() => void analyze()}>
+              <button
+                type="button"
+                className={`btn wide pick-btn ${canAnalyze ? 'primary' : ''}`}
+                data-autofocus={canAnalyze ? '' : undefined}
+                disabled={!canAnalyze}
+                onClick={() => void analyze()}
+              >
                 <ScanSearch strokeWidth={ICON_STROKE} aria-hidden />
                 <span className="pick-text">
                   <span>{failed ? 'Analyze again' : 'Analyze'}</span>
-                  <span className="pick-help">{canAnalyze ? 'The game listens to the song and writes charts for all four parts. You change what you like.' : 'This device cannot analyze songs. It can still chart them by hand.'}</span>
+                  <span className="pick-help">
+                    {canAnalyze
+                      ? 'The game listens to the song and writes charts for all four parts. You change what you like.'
+                      : 'This device cannot analyze songs. It can still chart them by hand.'}
+                  </span>
                 </span>
               </button>
-              <button type="button" className="btn wide pick-btn" data-autofocus={canAnalyze ? undefined : ''} onClick={() => void scratch()}>
+              <button
+                type="button"
+                className="btn wide pick-btn"
+                data-autofocus={canAnalyze ? undefined : ''}
+                onClick={() => void scratch()}
+              >
                 <PencilRuler strokeWidth={ICON_STROKE} aria-hidden />
                 <span className="pick-text">
                   <span>Start from scratch</span>

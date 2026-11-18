@@ -15,7 +15,11 @@ export interface StemResult {
 }
 
 /** `download` marks progress of fetching the model, which comes before the song's own work. */
-export type StemAnalyzer = (songId: string, onProgress: (p: number, label: string, download?: boolean) => void, signal: AbortSignal) => Promise<StemResult>;
+export type StemAnalyzer = (
+  songId: string,
+  onProgress: (p: number, label: string, download?: boolean) => void,
+  signal: AbortSignal,
+) => Promise<StemResult>;
 
 const abortError = () => new DOMException('analysis cancelled', 'AbortError');
 
@@ -48,7 +52,10 @@ async function modelInput(buffer: AudioBuffer): Promise<[Float32Array, Float32Ar
  */
 export const stemAnalyzer: StemAnalyzer = async (songId, onProgress, signal) => {
   const device = await analysisDevice();
-  if (device === 'none') throw new Error('This device cannot analyze songs. Splitting a song into its instruments takes more memory than a phone or tablet gives the game; analyze on a computer.');
+  if (device === 'none')
+    throw new Error(
+      'This device cannot analyze songs. Splitting a song into its instruments takes more memory than a phone or tablet gives the game; analyze on a computer.',
+    );
 
   if (stemModel.snapshot().state !== 'ready') {
     const report = () => {
@@ -94,7 +101,10 @@ export const stemAnalyzer: StemAnalyzer = async (songId, onProgress, signal) => 
             for (const name of STEM_NAMES) wavs[name] = wavBytes(rated[name], ANALYSIS_SAMPLE_RATE);
             const pitched = { bass: rated.bass, vocals: rated.vocals, other: rated.other };
             const next: SeparationRequest = { type: 'transcribe', stems: pitched };
-            worker.postMessage(next, Object.values(pitched).map((s) => s.buffer));
+            worker.postMessage(
+              next,
+              Object.values(pitched).map((s) => s.buffer),
+            );
           } catch (err) {
             end();
             reject(new Error(`The stems could not be prepared (${(err as Error).message}).`));

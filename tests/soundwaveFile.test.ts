@@ -1,12 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { soundwaveAudio, soundwaveFileName, SoundwaveFileError, isSoundwave, readSoundwave, writeSoundwave, type SoundwaveContents } from '../src/storage/soundwaveFile';
+import {
+  soundwaveAudio,
+  soundwaveFileName,
+  SoundwaveFileError,
+  isSoundwave,
+  readSoundwave,
+  writeSoundwave,
+  type SoundwaveContents,
+} from '../src/storage/soundwaveFile';
 
 const audioBytes = Uint8Array.from({ length: 5000 }, (_, i) => (i * 7) & 255);
 const coverBytes = Uint8Array.from({ length: 300 }, (_, i) => (i * 13) & 255);
 
 function contents(extra: Partial<SoundwaveContents> = {}): SoundwaveContents {
   return {
-    meta: { title: 'Night Drive', artist: 'The Lanes', album: 'Highway', duration: 201.5, fileName: 'night-drive.mp3', addedAt: 1700000000000 },
+    meta: {
+      title: 'Night Drive',
+      artist: 'The Lanes',
+      album: 'Highway',
+      duration: 201.5,
+      fileName: 'night-drive.mp3',
+      addedAt: 1700000000000,
+    },
     cover: new Blob([coverBytes], { type: 'image/png' }),
     analysis: { version: 2, data: { tempo: 128, beats: [0.5, 0.97, 1.44], note: 'ü' } },
     audio: new Blob([audioBytes], { type: 'audio/mpeg' }),
