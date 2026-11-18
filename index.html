@@ -135,7 +135,10 @@
         position: absolute;
         left: calc(var(--l) * 20% + 2.5%);
         width: 15%;
-        animation: 2.4s linear infinite;
+        /* Spelled out: the build's CSS minifier reads a shorthand without a name as "none". */
+        animation-duration: 2.4s;
+        animation-timing-function: linear;
+        animation-iteration-count: infinite;
         animation-delay: calc(var(--t) * -0.3s);
       }
       .boot-deck b {
