@@ -236,10 +236,11 @@ export function PlayScreen({
         {/* Paint shared by the five stars: the discs' gradients and the star's outline as a clip. */}
         <svg className="hud-defs" aria-hidden>
           <defs>
+            {/* An earned star's disc: polished graphite, the HUD's dark glass made solid. */}
             <radialGradient id="hud-star-disc" cx="0.35" cy="0.28" r="0.85">
-              <stop offset="0" stopColor="#9a7bff" />
-              <stop offset="0.55" stopColor="#5a3bdc" />
-              <stop offset="1" stopColor="#2f1d8c" />
+              <stop offset="0" stopColor="#4a4560" />
+              <stop offset="0.55" stopColor="#221f30" />
+              <stop offset="1" stopColor="#0d0b14" />
             </radialGradient>
             <radialGradient id="hud-star-gold" cx="0.36" cy="0.28" r="0.9">
               <stop offset="0" stopColor="#fff5b8" />

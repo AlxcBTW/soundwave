@@ -3272,11 +3272,11 @@ input.text {
   overflow: visible;
 }
 .hud-star .disc {
-  fill: rgb(16 9 50 / 0.5);
+  fill: rgb(6 4 14 / 0.5);
 }
 .hud-star .rim {
   fill: none;
-  stroke: transparent;
+  stroke: rgb(255 255 255 / 0.13);
   stroke-width: 1.5;
 }
 .hud-star :is(.ring-track, .ring) {
@@ -3288,7 +3288,7 @@ input.text {
   stroke: rgb(255 255 255 / 0.2);
 }
 .hud-star .ring {
-  stroke: var(--star);
+  stroke: #fff;
   stroke-linecap: round;
   stroke-dasharray: 1;
   stroke-dashoffset: calc(1 - var(--star-p, 0));
@@ -3297,8 +3297,8 @@ input.text {
   transition: stroke-dashoffset 0.2s;
 }
 .hud-star .star {
-  fill: rgb(210 201 250 / 0.3);
-  stroke: rgb(210 201 250 / 0.3);
+  fill: rgb(255 255 255 / 0.22);
+  stroke: rgb(255 255 255 / 0.22);
   stroke-width: 1.6;
   stroke-linejoin: round;
   transition:
@@ -3314,14 +3314,14 @@ input.text {
   transition: transform 0.25s;
 }
 .hud-star[data-state='next'] .disc {
-  fill: rgb(16 9 50 / 0.8);
+  fill: rgb(6 4 14 / 0.72);
 }
 .hud-star[data-state='next'] :is(.ring-track, .ring) {
   opacity: 1;
 }
 .hud-star[data-state='next'] .star {
-  fill: rgb(196 166 255 / 0.6);
-  stroke: rgb(196 166 255 / 0.6);
+  fill: rgb(255 255 255 / 0.5);
+  stroke: rgb(255 255 255 / 0.5);
 }
 .hud-star[data-state='on'] {
   animation: star-earn 0.55s var(--ease);
@@ -3330,18 +3330,18 @@ input.text {
   fill: url(#hud-star-disc);
 }
 .hud-star[data-state='on'] .rim {
-  stroke: rgb(255 255 255 / 0.3);
+  stroke: rgb(255 255 255 / 0.42);
 }
 .hud-star[data-state='on'] .star {
-  fill: #f1e9ff;
-  stroke: #f1e9ff;
+  fill: #fff;
+  stroke: #fff;
 }
 .hud-star[data-state='on'] .facet-hi {
   fill: #fff;
   opacity: 0.6;
 }
 .hud-star[data-state='on'] .facet-lo {
-  fill: #9d83ee;
+  fill: #b9b4cc;
   opacity: 0.6;
 }
 .hud-stars[data-count='5'] .hud-star .gold-rise {
