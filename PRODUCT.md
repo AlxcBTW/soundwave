@@ -27,8 +27,8 @@ The game charts the player's own music. There is no fixed setlist: every song co
 ## Operating Context
 
 - Import by file picker or drag and drop; analysis runs in the background with progress per song and can take a minute or more per song.
-- Home offers sets: the player's own setlist and sets dealt from the library (a shuffle, the newest songs, songs without a score).
-- The music library lists every song with search and sort; a song is added to or taken out of the setlist (up to four songs) with one press. A song's details offer stem previews (instrument, bass, drums, vocals), best scores on every part and difficulty, re-analysis, a chart debug view and removal.
+- The main menu has two tabs. Play offers sets: the player's own setlist and sets dealt from the library (a shuffle, the newest songs, songs without a score). Edit gives access to the track editor: the player's tracks, the ones edited last, and a new track.
+- The music library lists every song with search and sort; a song is added to or taken out of the setlist (up to four songs) with one press. A song previews by itself while it is highlighted in a list or its details are open. A song's details offer best scores on every part and difficulty, re-analysis, editing its charts, export and removal.
 - Ready up: the set in order, one part and one difficulty for the whole set, and a button that is held to start.
 - Track editor: a list of the player's songs, each opening in an editor for its sixteen charts (four parts at four difficulties); a new song is either analyzed first or started from scratch on a tempo found by listening, which works on every device. Notes are set down, stretched, marked, copied, repeated and deleted on a top-down view of the lanes; a chart can also be recorded by playing along, and test-played in the game from the cursor. Edited charts save as they change and are played in place of the generated ones.
 - Play: the set's songs back to back. Countdown, highway with lanes and hit pads, score, stars, multiplier, overdrive meter, break countdowns for long gaps, pause with resume/restart/skip/leave, results after each song with grades, accuracy, streak and stars, and a summary of the whole set.
@@ -42,7 +42,7 @@ The game charts the player's own music. There is no fixed setlist: every song co
 - Audio playback is the core of the experience; UI motion must never compete with the gameplay highway or cost frame time during play.
 - The product name is open: "Festival" is a working title and the design must not depend on it.
 - The game must not name, imitate or recreate any existing commercial rhythm game, in look, copy, assets or layouts.
-- The settings layout is tabbed; the screen set is Home, Music library (with Song details), Track editor (the track list and the editor itself), Ready up, Play (with Pause), Results, Set summary, Settings, plus a developer chart-debug screen.
+- The settings layout is tabbed; the screen set is Home, Music library (with Song details), Track editor (the track list and the editor itself), Ready up, Play (with Pause), Results, Set summary, Settings.
 
 ## Evidence on Hand
 

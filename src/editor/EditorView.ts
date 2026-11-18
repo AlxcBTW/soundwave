@@ -7,9 +7,9 @@
  * been analyzed, a guide to what the game heard in this part. Pure canvas: the controller decides
  * what is shown and handles all input.
  */
-import type { Peaks } from '../debug/Timeline';
 import type { ChartDoc, DocNote } from './doc';
 import type { EditorGrid, Snap } from './grid';
+import type { Peaks } from './peaks';
 
 export const LANE_HEX = ['#3ddc5a', '#ff3b4e', '#ffd23d', '#3a8bff', '#ff8a1f'];
 

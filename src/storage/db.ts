@@ -1,6 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { StemName } from '../analysis/types';
-import type { Annotation } from '../debug/annotations';
 import type { Difficulty, Part } from '../chart/types';
 import type { SongEdits } from '../editor/edits';
 import { festivalAudio, isFestival } from './festivalFile';
@@ -43,8 +42,6 @@ interface FestivalDB extends DBSchema {
   scores: { key: string; value: BestScore; indexes: { songId: string } };
   /** A song's separated stems, keyed by `${songId}:${name}` (for previewing). */
   stems: { key: string; value: { key: string; songId: string; name: StemName; blob: Blob }; indexes: { songId: string } };
-  /** Chart problem reports made in the debug view. */
-  annotations: { key: string; value: Annotation; indexes: { songId: string } };
   /** What the track editor made for a song: hand-edited charts and their beat grid, keyed by song id. */
   edits: { key: string; value: { songId: string; data: SongEdits } };
 }
@@ -82,7 +79,7 @@ function db() {
         d.createObjectStore('scores', { keyPath: 'key' }).createIndex('songId', 'songId');
       }
       if (oldVersion < 2) d.createObjectStore('stems', { keyPath: 'key' }).createIndex('songId', 'songId');
-      if (oldVersion < 3) d.createObjectStore('annotations', { keyPath: 'id' }).createIndex('songId', 'songId');
+      // (Version 3 added a store for a developer tool that is gone; libraries that have it keep it, unused.)
       if (oldVersion < 4) d.createObjectStore('edits', { keyPath: 'songId' });
     },
   });
@@ -220,14 +217,3 @@ export async function submitScore(s: Omit<BestScore, 'key' | 'date'>): Promise<n
   return prev?.score;
 }
 
-export async function listAnnotations(songId: string): Promise<Annotation[]> {
-  return (await db()).getAllFromIndex('annotations', 'songId', songId);
-}
-
-export async function putAnnotation(a: Annotation) {
-  await (await db()).put('annotations', a);
-}
-
-export async function deleteAnnotation(id: string) {
-  await (await db()).delete('annotations', id);
-}

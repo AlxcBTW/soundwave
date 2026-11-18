@@ -5,10 +5,10 @@ import { analysisDevice, type AnalysisDevice } from '../analysis/separation/supp
 import { getEngine } from '../audio/engine';
 import { ACCEPTED, isAudioFile, readSongFile } from '../audio/importSong';
 import { menuMusicStatus, setMenuMusic, setMusicVolume } from '../audio/menuMusic';
+import { isPreviewing, previewSong, previewStatus, setPreviewVolume, watchPreview } from '../audio/preview';
 import { loadSfx, playSfx, setSfxVolume, sfxStatus } from '../audio/sfx';
 import { DEMO_ID, forgetSongBuffer, loadSongBuffer } from '../audio/songAudio';
 import type { Chart } from '../chart/types';
-import { DebugScreen } from '../debug/DebugScreen';
 import { detectGrid } from '../editor/detect';
 import { emptyEdits } from '../editor/edits';
 import type { Results } from '../game/GameSession';
@@ -75,9 +75,8 @@ type View =
   | { name: 'library' }
   | LobbyView
   | { name: 'settings'; back: View }
-  | { name: 'editor-hub' }
+  | { name: 'editor-hub'; pick?: boolean }
   | EditorView
-  | { name: 'debug'; song: SongMeta; back: View }
   | { name: 'play'; run: Run; buffer: AudioBuffer; key: number }
   | { name: 'results'; run: Run }
   | { name: 'summary'; run: Run };
@@ -88,7 +87,7 @@ function Busy() {
   return null;
 }
 
-const DEPTH: Record<View['name'], number> = { home: 0, library: 1, settings: 1, 'editor-hub': 1, lobby: 2, debug: 2, editor: 2, play: 3, results: 4, summary: 5 };
+const DEPTH: Record<View['name'], number> = { home: 0, library: 1, settings: 1, 'editor-hub': 1, lobby: 2, editor: 2, play: 3, results: 4, summary: 5 };
 
 export function App() {
   const [view, setView] = useState<View>({ name: 'home' });
@@ -104,7 +103,8 @@ export function App() {
   const [pick, setPickState] = useState<Pick>(loadPick);
   const [seed, setSeed] = useState(() => Date.now());
   const [sheet, setSheet] = useState<SongMeta | null>(null);
-  const [previewing, setPreviewing] = useState(false);
+  /** The song highlighted in the library or the track list: its preview plays. */
+  const [highlight, setHighlight] = useState<string | null>(null);
   const [exitAsk, setExitAsk] = useState(false);
   /** The settings, open over a paused song. */
   const [songSettings, setSongSettings] = useState(false);
@@ -150,7 +150,7 @@ export function App() {
     const stopNav = installMenuNav(() => resolveStyle(settingsRef.current.glyphs, pads.snapshot().family));
     const stopSounds = installUiSounds();
     void loadSfx();
-    if (import.meta.env.DEV) Object.assign(window, { __audio: { sfx: sfxStatus, music: menuMusicStatus }, __input: setInputMode, __analysis: analysisManager, __stemModel: stemModel, __pads: pads });
+    if (import.meta.env.DEV) Object.assign(window, { __audio: { sfx: sfxStatus, music: menuMusicStatus }, __input: setInputMode, __analysis: analysisManager, __stemModel: stemModel, __pads: pads, __preview: previewStatus });
     return () => {
       stopMode();
       stopNav();
@@ -305,7 +305,7 @@ export function App() {
   const openedRef = useRef<(files: File[]) => void>(() => {});
   openedRef.current = (files) =>
     void importFiles(files).then((got) => {
-      if (got.length === 1 && view.name !== 'play' && view.name !== 'debug' && view.name !== 'editor') setSheet(got[0]);
+      if (got.length === 1 && view.name !== 'play' && view.name !== 'editor') setSheet(got[0]);
     });
   useEffect(() => watchOpenedFiles((files) => openedRef.current(files)), []);
   const exportSong = useCallback(
@@ -361,7 +361,7 @@ export function App() {
 
   // Files dropped anywhere on a menu are imported.
   const [dragging, setDragging] = useState(false);
-  const inMenus = view.name !== 'play' && view.name !== 'debug';
+  const inMenus = view.name !== 'play';
   // The editor takes files through its own door (New track), where it asks how to chart them.
   const takesDrops = inMenus && view.name !== 'editor' && view.name !== 'editor-hub';
   useEffect(() => {
@@ -501,6 +501,16 @@ export function App() {
     else setView(run.lobby.from === 'library' ? { name: 'library' } : { name: 'home' });
   };
 
+  // A song previews by itself: the one whose page is open, else the one highlighted in a list.
+  const sheetOpen = !!sheet && inMenus && view.name !== 'editor';
+  const previewId = launch !== null ? null : sheetOpen ? sheet.id : view.name === 'library' || view.name === 'editor-hub' ? highlight : null;
+  useEffect(() => previewSong(previewId), [previewId]);
+  useEffect(() => () => previewSong(null), []);
+  useEffect(() => setPreviewVolume(settings.volume), [settings.volume]);
+  const previewing = useSyncExternalStore(watchPreview, isPreviewing);
+  /** The song that is heard right now, for the lists to mark. */
+  const heard = previewing ? previewId : null;
+
   // The theme plays behind the menus and makes way for a preview, the launch and the song.
   // The editor plays the song itself.
   const menuMusic = inMenus && view.name !== 'editor' && !previewing && launch === null;
@@ -550,9 +560,7 @@ export function App() {
   const subtitle = (run: Run) => `${PART_LABEL[run.pick.part]} · ${DIFFICULTY_LABEL[run.pick.difficulty]}`;
 
   let content: React.ReactNode;
-  if (view.name === 'debug') {
-    content = <DebugScreen song={view.song} settings={settings} onBack={() => setView(view.back)} />;
-  } else if (view.name === 'play') {
+  if (view.name === 'play') {
     const { run } = view;
     const song = run.songs[run.index];
     const more = run.index + 1 < run.songs.length;
@@ -587,11 +595,14 @@ export function App() {
           status={status}
           settings={settings}
           device={device}
+          pick={view.pick}
+          previewing={heard}
+          onCurrent={setHighlight}
           onNew={addTrack}
           onPackage={async (file) => (await importFiles([file]))[0]}
           onAnalyze={(song) => analysisManager.enqueue(song.id, true)}
           onScratch={startFromScratch}
-          onOpen={(song) => setView({ name: 'editor', song, back: view })}
+          onOpen={(song) => setView({ name: 'editor', song, back: { name: 'editor-hub' } })}
           onBack={goHome}
           toast={toast}
         />
@@ -609,6 +620,8 @@ export function App() {
           scores={scores}
           importing={importing}
           settings={settings}
+          previewing={heard}
+          onCurrent={setHighlight}
           onToggle={toggle}
           onDetails={setSheet}
           onReady={() => setView({ name: 'lobby', ids: setlist, from: 'library' })}
@@ -654,7 +667,8 @@ export function App() {
           onLibrary={() => setView({ name: 'library' })}
           onSet={(ids) => setView({ name: 'lobby', ids, from: 'home' })}
           onAdd={addSongs}
-          onEditor={() => setView({ name: 'editor-hub' })}
+          onEditor={(pick) => setView({ name: 'editor-hub', pick })}
+          onEditSong={(song) => setView({ name: 'editor', song, back: view })}
           onSettings={() => setView({ name: 'settings', back: view })}
           onExit={canExit() ? () => setExitAsk(true) : undefined}
           settings={settings}
@@ -678,7 +692,7 @@ export function App() {
   return (
     <div className="app">
       {content}
-      {sheet && inMenus && view.name !== 'editor' && (
+      {sheet && sheetOpen && (
         <SongSheet
           song={byId.get(sheet.id) ?? sheet}
           builtin={sheet.id === DEMO_ID}
@@ -686,16 +700,10 @@ export function App() {
           scores={scores}
           slot={setlist.indexOf(sheet.id)}
           setFull={setlist.length >= SET_MAX}
-          volume={settings.volume}
-          toast={toast}
-          onPreviewing={setPreviewing}
+          previewing={heard === sheet.id}
           onToggle={() => toggle(sheet)}
           onAnalyze={() => analysisManager.enqueue(sheet.id, true)}
           onExport={() => void exportSong(byId.get(sheet.id) ?? sheet)}
-          onDebug={() => {
-            setSheet(null);
-            setView({ name: 'debug', song: sheet, back: view });
-          }}
           onEdit={() => {
             setSheet(null);
             getEngine().stop();

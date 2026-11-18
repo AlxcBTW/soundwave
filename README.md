@@ -11,7 +11,9 @@ A rhythm game for your own music. Drop in a song (MP3, WAV, FLAC, OGG, M4A). The
 
 You play them on a 3D note highway with the keyboard, a controller or a touchscreen, in front of a live 3D festival stage that follows the music: a band, a crowd of thousands, beams, screens and pyro (with a light 2D backdrop as the fallback). Features: sustains, streak multiplier (up to ×6), overdrive phrases (Space doubles the multiplier, up to ×12), Perfect/Great/Good timing, star rating measured against a flawless run without overdrive (one to five stars at 3.5%, 8%, 15%, 46% and 77% of it, and gold stars beyond it, which takes overdrive), best scores, tap calibration and key rebinding.
 
-You pick up to four songs as a setlist, choose a part and a difficulty for the set and play the songs back to back, with a result after each and a total at the end. The home screen also deals a few sets from your library (a shuffle, your newest songs, songs without a score).
+You pick up to four songs as a setlist, choose a part and a difficulty for the set and play the songs back to back, with a result after each and a total at the end. The main menu has two tabs: **Play**, with your setlist and a few sets dealt from your library (a shuffle, your newest songs, songs without a score), and **Edit**, with the track editor. `Q` and `E`, or a controller's shoulder buttons, switch between them.
+
+A song previews by itself: highlight it in the music library or in the editor's track list, or open its page, and after a moment it plays from a third of the way in (at the songs' volume, with the menu music making way).
 
 Every chart can be changed, or written from nothing, in the **track editor**: with a keyboard, a mouse, a touchscreen or a controller. See [Track editor](#track-editor).
 
@@ -38,7 +40,7 @@ Controllers (Xbox, PlayStation 4 and 5, Nintendo Switch and most others) work in
 
 ## Track editor
 
-**Track editor** on the home screen (`E`, or the left face button) lists your songs. Pick one to edit its charts, or bring in a new one with **New track** and choose how it gets its first charts:
+The **Edit** tab of the main menu opens the track editor: its big tile lists your songs, **Carry on** goes straight back into the songs you edited last, and **New track** brings in a new one. Pick a song to edit its charts, or bring in a new one and choose how it gets its first charts:
 
 - **Analyze** – the game charts the song as usual and you change what you like.
 - **Start from scratch** – no analysis. The game only listens for the tempo (a few seconds, on any device, phones included) and you get empty lanes with the bar lines in place.
@@ -109,7 +111,7 @@ Analysis runs in Web Workers in both the browser and the desktop app. Every song
 - **Transcription** – [Basic Pitch](https://github.com/spotify/basic-pitch) transcribes the bass, vocal and instrument stems, on the same runtime and device as the separation (its ONNX file, `public/models/basic-pitch/nmp.onnx`). Its notes are decoded by a port of Basic Pitch's own post-processing (`src/analysis/pitch/noteEvents.ts`) that gives the same notes far faster; a test checks the two agree. All three stems of a four-minute song take under two seconds on a graphics card.
 
 A four-minute song takes about 20 seconds in all on a fast graphics card, most of it the separation.
-- The stems are kept, and the **Listen** buttons in a song's details play each one (instruments, bass, drums, vocals) for checking the separation.
+- The stems are kept: in the track editor, **Play** in the menu plays any one of them on its own (instruments, bass, drums, vocals), to hear a part clearly while charting it.
 
 The stem model is not part of the game's files. It is downloaded once (171 MB), the first time the game opens, checked against a known hash and kept in the browser's storage; Settings → Analysis shows its state. For now it comes from the copy Intel publishes for its Audacity plugins ([Intel/demucs-openvino](https://huggingface.co/Intel/demucs-openvino) on Hugging Face). This repository holds its own, smaller export of the same model (`models/htdemucs/htdemucs-v1.onnx`, 90 MB, made by `tools/analysis/export_stem_model.py`), and the download will move there once the repository can be read without signing in (`src/analysis/separation/model.ts` has both).
 

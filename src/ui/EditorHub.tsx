@@ -1,4 +1,4 @@
-import { ArrowLeft, FilePlus2, PencilRuler, Plus, ScanSearch, Search, X } from 'lucide-react';
+import { ArrowLeft, FilePlus2, PencilRuler, Plus, ScanSearch, Search, Volume2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { analysisManager } from '../analysis/manager';
 import type { AnalysisDevice } from '../analysis/separation/support';
@@ -28,6 +28,12 @@ interface Props {
   settings: Settings;
   /** What this device can analyze on (`none`: it cannot), or null while that is being found out. */
   device: AnalysisDevice | null;
+  /** Opens straight into choosing a file for a new track. */
+  pick?: boolean;
+  /** The song whose preview is sounding, if any. */
+  previewing: string | null;
+  /** Says which track is highlighted (its preview plays), or null when the screen goes. */
+  onCurrent(id: string | null): void;
   /** Adds a picked audio file to the library: to be analyzed, or with empty charts on its own tempo. */
   onNew(song: PickedSong, how: 'analyze' | 'scratch'): Promise<SongMeta>;
   /** Adds a .festival song file. */
@@ -48,7 +54,7 @@ const editable = (st: SongStatus | undefined) => st?.state === 'ready';
 const busy = (st: SongStatus | undefined) => st?.state === 'queued' || st?.state === 'analyzing';
 
 /** The track editor's front door: pick a song to edit, or bring in a new one. */
-export function EditorHub({ songs, status, settings, device, onNew, onPackage, onAnalyze, onScratch, onOpen, onBack, toast }: Props) {
+export function EditorHub({ songs, status, settings, device, pick: pickAtOnce = false, previewing, onCurrent, onNew, onPackage, onAnalyze, onScratch, onOpen, onBack, toast }: Props) {
   const hints = useHints(settings);
   const [query, setQuery] = useState('');
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -65,6 +71,15 @@ export function EditorHub({ songs, status, settings, device, onNew, onPackage, o
     return list.sort((a, b) => (status[b.id]?.edited ? 1 : 0) - (status[a.id]?.edited ? 1 : 0) || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
   }, [own, query, status]);
   const current = shown.find((s) => s.id === currentId) ?? shown[0] ?? null;
+
+  // The highlighted track plays its preview, as in the library.
+  const currentSong = current?.id ?? null;
+  useEffect(() => onCurrent(currentSong), [currentSong, onCurrent]);
+  useEffect(() => () => onCurrent(null), [onCurrent]);
+  // Reached through New track: the file chooser opens at once.
+  useEffect(() => {
+    if (pickAtOnce) file.current?.click();
+  }, [pickAtOnce]);
 
   /** Opens a song in the editor, or asks how to chart it when it has nothing to edit yet. */
   const choose = (song: SongMeta) => (editable(status[song.id]) ? onOpen(song) : setSubject({ song }));
@@ -162,6 +177,11 @@ export function EditorHub({ songs, status, settings, device, onNew, onPackage, o
                     ) : !editable(st) ? (
                       <span className="pill">No charts yet</span>
                     ) : null}
+                    {previewing === s.id && (
+                      <span className="song-playing" role="img" aria-label="Playing a preview">
+                        <Volume2 strokeWidth={ICON_STROKE} aria-hidden />
+                      </span>
+                    )}
                     <span className="song-length">{formatTime(s.duration)}</span>
                   </span>
                   <span className="slot-badge" aria-hidden>

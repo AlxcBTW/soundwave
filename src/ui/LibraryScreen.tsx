@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowUpDown, Check, Info, Play, Plus, Search, Upload, X } from 'lucide-react';
+import { ArrowLeft, ArrowUpDown, Check, Info, Play, Plus, Search, Upload, Volume2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AnalysisStatus } from '../analysis/manager';
 import { PARTS } from '../chart/types';
@@ -19,6 +19,10 @@ interface Props {
   scores: BestScore[];
   importing: number;
   settings: Settings;
+  /** The song whose preview is sounding, if any. */
+  previewing: string | null;
+  /** Says which song is highlighted (its preview plays), or null when the screen goes. */
+  onCurrent(id: string | null): void;
   onToggle(song: SongMeta): void;
   onDetails(song: SongMeta): void;
   onReady(): void;
@@ -60,7 +64,7 @@ export function StatusPill({ status }: { status: SongStatus }) {
   );
 }
 
-export function LibraryScreen({ songs, status, setlist, scores, importing, settings, onToggle, onDetails, onReady, onBack, onAdd }: Props) {
+export function LibraryScreen({ songs, status, setlist, scores, importing, settings, previewing, onCurrent, onToggle, onDetails, onReady, onBack, onAdd }: Props) {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<Sort>(loadSort);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -92,6 +96,11 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
   const current = (currentId && byId.get(currentId)) || shown[0] || null;
   const picked = setlist.map((id) => byId.get(id)).filter((s): s is SongMeta => !!s);
   const setTime = formatTime(picked.reduce((t, s) => t + s.duration, 0));
+
+  // The highlighted song plays its preview.
+  const currentSong = current?.id ?? null;
+  useEffect(() => onCurrent(currentSong), [currentSong, onCurrent]);
+  useEffect(() => () => onCurrent(null), [onCurrent]);
 
   const cycleSort = () => {
     const next = SORTS[(SORTS.findIndex(([id]) => id === sort) + 1) % SORTS.length][0];
@@ -186,6 +195,11 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
                   </span>
                   <span className="song-side">
                     {busy ? <span className="song-busy">{st.state === 'queued' ? 'Waiting' : `${Math.round((st.progress ?? 0) * 100)}%`}</span> : ready ? bestStars.has(s.id) && <Stars n={bestStars.get(s.id)!} /> : <StatusPill status={st} />}
+                    {previewing === s.id && (
+                      <span className="song-playing" role="img" aria-label="Playing a preview">
+                        <Volume2 strokeWidth={ICON_STROKE} aria-hidden />
+                      </span>
+                    )}
                     <span className="song-length">{formatTime(s.duration)}</span>
                   </span>
                   <span className={`slot-badge ${slot >= 0 ? 'on' : ''}`} aria-hidden>
