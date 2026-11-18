@@ -64,6 +64,7 @@ import { checkForUpdates, updates } from '../app/updates';
 import { PlayScreen } from './PlayScreen';
 import { ResultsScreen, SummaryScreen, type SetResult } from './ResultsScreen';
 import { SettingsScreen } from './SettingsScreen';
+import type { SongActions } from './SongMenu';
 import { SongSheet } from './SongSheet';
 import { Toasts, useToasts } from './Toasts';
 import { VirtualKeyboard } from './VirtualKeyboard';
@@ -503,6 +504,35 @@ export function App() {
     setSetlist(toggleSong(setlist, song.id));
   };
 
+  /** What can be done with songs: from a song's detail sheet, or its menu for one or several songs. */
+  const songActions: SongActions = {
+    details: (song) => setSheet(song),
+    addToSet: (list) => {
+      const next = [...setlist];
+      for (const song of list) if (next.length < SET_MAX && !next.includes(song.id)) next.push(song.id);
+      if (next.length !== setlist.length) setSetlist(next);
+      if (list.some((song) => !next.includes(song.id))) toast(`The setlist holds ${SET_MAX} songs. Take one out to add another.`);
+    },
+    removeFromSet: (list) => setSetlist(setlist.filter((id) => !list.some((song) => song.id === id))),
+    analyze: (list) => list.forEach((song) => analysisManager.enqueue(song.id, true)),
+    exportSong: (song) => void exportSong(byId.get(song.id) ?? song),
+    edit: (song) => {
+      setSheet(null);
+      getEngine().stop();
+      setView({ name: 'editor', song: byId.get(song.id) ?? song, back: view });
+    },
+    remove: async (list) => {
+      if (sheet && list.some((song) => song.id === sheet.id)) setSheet(null);
+      getEngine().stop();
+      for (const song of list) {
+        forgetSongBuffer(song.id);
+        analysisManager.forget(song.id);
+        await deleteSong(song.id);
+      }
+      await Promise.all([refresh(), refreshScores()]);
+    },
+  };
+
   /* Playing a set ------------------------------------------------------------------------- */
 
   // A stage-light wipe covers the moment a song loads: it closes over the menu, the play screen
@@ -746,6 +776,7 @@ export function App() {
           onReady={() => setView({ name: 'lobby', ids: setlist, from: 'library' })}
           onBack={goHome}
           onAdd={addSongs}
+          actions={songActions}
         />
       );
     } else if (view.name === 'lobby') {
@@ -843,21 +874,10 @@ export function App() {
           setFull={setlist.length >= SET_MAX}
           previewing={heard === sheet.id}
           onToggle={() => toggle(sheet)}
-          onAnalyze={() => analysisManager.enqueue(sheet.id, true)}
-          onExport={() => void exportSong(byId.get(sheet.id) ?? sheet)}
-          onEdit={() => {
-            setSheet(null);
-            getEngine().stop();
-            setView({ name: 'editor', song: byId.get(sheet.id) ?? sheet, back: view });
-          }}
-          onDelete={async () => {
-            setSheet(null);
-            getEngine().stop();
-            forgetSongBuffer(sheet.id);
-            analysisManager.forget(sheet.id);
-            await deleteSong(sheet.id);
-            await Promise.all([refresh(), refreshScores()]);
-          }}
+          onAnalyze={() => songActions.analyze([sheet])}
+          onExport={() => songActions.exportSong(sheet)}
+          onEdit={() => songActions.edit(sheet)}
+          onDelete={() => void songActions.remove([sheet])}
           onClose={() => setSheet(null)}
         />
       )}

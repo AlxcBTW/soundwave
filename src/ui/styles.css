@@ -1686,6 +1686,103 @@ img.cover {
   }
 }
 
+/* A song's menu: a small panel at the pointer (or beside the song), over the screen left in view. */
+.overlay.popover {
+  display: block;
+  z-index: 30;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+  animation: none;
+}
+.ctx-menu {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 14rem;
+  max-width: min(21rem, calc(100vw - 16px));
+  padding: 0.4rem;
+  border-radius: var(--r-m);
+  background: var(--panel-solid);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 18px 40px -12px rgb(0 0 0 / 0.75);
+  animation: ctx-in 0.16s var(--ease);
+}
+.overlay.popover.leaving .ctx-menu {
+  animation: fade-out 0.12s forwards;
+}
+@keyframes ctx-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+.ctx-title {
+  margin: 0.25rem 0.65rem 0.35rem;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 2.5rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--r-s);
+  color: var(--ink);
+  font-weight: 700;
+  text-align: left;
+}
+.ctx-item svg {
+  flex: none;
+  width: 1.1em;
+  height: 1.1em;
+  color: var(--ink-2);
+}
+.ctx-item.is-focus,
+:root[data-input='mouse'] .ctx-item:hover:not(:disabled) {
+  background: var(--row-hi);
+}
+.ctx-item.danger,
+.ctx-item.danger svg {
+  color: #ffa3b4;
+}
+.ctx-item:disabled,
+.ctx-item:disabled svg {
+  color: rgb(171 161 230 / 0.55);
+}
+:root[data-input='touch'] .ctx-item {
+  min-height: 2.75rem;
+}
+
+/* Songs picked for a menu that acts on several at once: a mint frame and a tick on the cover. */
+.song-item.selected .song-row {
+  box-shadow: inset 0 0 0 2px var(--mint);
+}
+.select-mark {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: var(--mint);
+  color: #06261f;
+}
+.select-mark svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
 .sheet-body {
   display: flex;
   flex-direction: column;

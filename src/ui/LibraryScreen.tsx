@@ -1,5 +1,6 @@
-import { ArrowLeft, ArrowUpDown, Check, Info, Play, Plus, Search, Upload, Volume2, X } from 'lucide-react';
+import { ArrowLeft, ArrowUpDown, Check, CheckSquare, Ellipsis, Info, Play, Plus, Search, Upload, Volume2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { isTextField } from '../input/inputMode';
 import type { AnalysisStatus } from '../analysis/manager';
 import { PARTS } from '../chart/types';
 import type { Settings } from '../game/settings';
@@ -8,6 +9,7 @@ import type { BestScore, SongMeta } from '../storage/db';
 import { Hint, useActions, useHints } from './actions';
 import { Cover } from './Cover';
 import { DIFFICULTY_LABEL, ICON_STROKE, PART_ICON, PART_LABEL, Stars } from './icons';
+import { SongMenu, type SongActions } from './SongMenu';
 import { usePreviewRows } from './usePreviewRows';
 
 export type SongStatus = AnalysisStatus;
@@ -29,6 +31,8 @@ interface Props {
   onReady(): void;
   onBack(): void;
   onAdd(): void;
+  /** What a song's menu can do (the same as its detail sheet). */
+  actions: SongActions;
 }
 
 type Sort = 'title' | 'artist' | 'newest' | 'length' | 'stars';
@@ -79,8 +83,14 @@ export function LibraryScreen({
   onReady,
   onBack,
   onAdd,
+  actions,
 }: Props) {
   const [query, setQuery] = useState('');
+  /** Songs picked for a menu that acts on several at once, and where a Shift-click range starts. */
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [anchor, setAnchor] = useState<string | null>(null);
+  /** The open song menu: the songs it is for and where it opens. */
+  const [menu, setMenu] = useState<{ ids: string[]; at: { x: number; y: number } } | null>(null);
   const [sort, setSort] = useState<Sort>(loadSort);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const search = useRef<HTMLInputElement>(null);
@@ -129,6 +139,67 @@ export function LibraryScreen({
     }
   };
 
+  // Songs that leave the library leave the selection too.
+  useEffect(() => {
+    setSelected((was) => {
+      const kept = [...was].filter((id) => byId.has(id));
+      return kept.length === was.size ? was : new Set(kept);
+    });
+  }, [byId]);
+
+  /** Selects or deselects one song (Ctrl-click, or Select). */
+  const pick = (id: string) => {
+    setSelected((was) => {
+      const next = new Set(was);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+    setAnchor(id);
+  };
+  /** Selects every shown song from the last one picked to this one (Shift-click). */
+  const pickRange = (id: string) => {
+    const from = shown.findIndex((s) => s.id === (anchor ?? id));
+    const to = shown.findIndex((s) => s.id === id);
+    if (from < 0 || to < 0) return pick(id);
+    const [a, b] = from < to ? [from, to] : [to, from];
+    setSelected((was) => new Set([...was, ...shown.slice(a, b + 1).map((s) => s.id)]));
+  };
+
+  /**
+   * Opens the song menu: for the selection when there is one (and the song pressed is in it), else
+   * for that song alone. Without a pointer it opens beside the song.
+   */
+  const openMenu = (song: SongMeta | null = current, at?: { x: number; y: number }) => {
+    let ids: string[];
+    if (selected.size && (!song || selected.has(song.id))) ids = shown.filter((s) => selected.has(s.id)).map((s) => s.id);
+    else if (song) {
+      ids = [song.id];
+      if (selected.size) setSelected(new Set());
+    } else return;
+    if (!at) {
+      const row = document.querySelector(`.song-item[data-preview="${CSS.escape(song?.id ?? ids[0])}"] .song-row`);
+      const r = row?.getBoundingClientRect();
+      at = r ? { x: r.left + r.width * 0.45, y: r.bottom + 4 } : { x: innerWidth / 2, y: innerHeight / 3 };
+    }
+    setMenu({ ids, at });
+  };
+
+  // The keyboard's menu key and Shift+F10 open the menu too; Ctrl+A selects every song shown.
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || isTextField(e.target)) return;
+      if (e.code === 'ContextMenu' || (e.code === 'F10' && e.shiftKey)) {
+        e.preventDefault();
+        openMenu();
+      } else if (e.code === 'KeyA' && (e.ctrlKey || e.metaKey) && !e.altKey) {
+        e.preventDefault();
+        setSelected(new Set(shown.map((s) => s.id)));
+      }
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  });
+
   // Esc in the search field clears it first, then leaves the field.
   useEffect(() => {
     const el = search.current!;
@@ -142,19 +213,41 @@ export function LibraryScreen({
     return () => el.removeEventListener('keydown', key);
   }, []);
 
+  const selecting = selected.size > 0;
+  const isSelected = !!current && selected.has(current.id);
   useActions([
-    { id: 'back', label: 'Back', icon: ArrowLeft, kbd: 'Escape', sfx: 'back', run: onBack },
+    selecting
+      ? { id: 'back', label: 'Clear selection', icon: X, kbd: 'Escape', sfx: 'back', run: () => setSelected(new Set()) }
+      : { id: 'back', label: 'Back', icon: ArrowLeft, kbd: 'Escape', sfx: 'back', run: onBack },
     {
       id: 'details',
       label: 'Song details',
       icon: Info,
       kbd: 'KeyD',
-      pad: 'b2',
+      bar: false,
       disabled: !current,
       run: () => current && onDetails(current),
     },
+    {
+      id: 'options',
+      label: selecting ? `Options for ${selected.size}` : 'Options',
+      icon: Ellipsis,
+      kbd: 'KeyO',
+      pad: 'b2',
+      disabled: !current && !selecting,
+      run: () => openMenu(),
+    },
+    {
+      id: 'select',
+      label: isSelected ? 'Deselect' : 'Select',
+      icon: CheckSquare,
+      kbd: 'KeyX',
+      pad: 'b3',
+      disabled: !current,
+      run: () => current && pick(current.id),
+    },
     { id: 'search', label: 'Search', icon: Search, kbd: 'Slash', bar: false, run: () => search.current?.focus() },
-    { id: 'sort', label: 'Sort', icon: ArrowUpDown, kbd: 'KeyS', pad: 'b3', bar: false, run: cycleSort },
+    { id: 'sort', label: 'Sort', icon: ArrowUpDown, kbd: 'KeyS', pad: 'b7', bar: false, run: cycleSort },
     { id: 'add', label: 'Add songs', icon: Upload, kbd: 'KeyA', pad: 'b8', bar: false, run: onAdd },
     { id: 'ready', label: 'Ready up', icon: Play, kbd: 'KeyR', pad: 'b9', primary: true, disabled: picked.length === 0, run: onReady },
   ]);
@@ -197,7 +290,7 @@ export function LibraryScreen({
           )}
         </label>
         <button type="button" className="btn" data-action="sort" onClick={cycleSort} aria-label={`Sort by ${sortLabel}. Press to change.`}>
-          <Hint kbd="KeyS" pad="b3" {...hints} />
+          <Hint kbd="KeyS" pad="b7" {...hints} />
           <ArrowUpDown strokeWidth={ICON_STROKE} aria-hidden />
           <span className="btn-label">{sortLabel}</span>
         </button>
@@ -222,11 +315,12 @@ export function LibraryScreen({
             const ready = st.state === 'ready';
             const busy = st.state === 'analyzing' || st.state === 'queued';
             const full = setlist.length >= SET_MAX && slot < 0;
+            const chosen = selected.has(s.id);
             return (
               <li
                 key={s.id}
                 data-preview={s.id}
-                className={`song-item ${slot >= 0 ? 'picked' : ''} ${current?.id === s.id ? 'current' : ''}`}
+                className={`song-item ${slot >= 0 ? 'picked' : ''} ${current?.id === s.id ? 'current' : ''} ${chosen ? 'selected' : ''}`}
                 style={{ ['--i' as string]: Math.min(i, 12) }}
               >
                 <button
@@ -234,11 +328,31 @@ export function LibraryScreen({
                   className="song-row"
                   data-autofocus={i === 0 ? '' : undefined}
                   aria-pressed={ready ? slot >= 0 : undefined}
-                  aria-label={`${s.title} by ${s.artist}. ${!ready ? (busy ? 'Being analyzed.' : 'Not ready to play.') + ' Opens song details.' : slot >= 0 ? `In the setlist at ${slot + 1}. Press to remove.` : full ? 'The setlist is full.' : 'Press to add to the setlist.'}`}
+                  aria-label={`${chosen ? 'Selected. ' : ''}${s.title} by ${s.artist}. ${!ready ? (busy ? 'Being analyzed.' : 'Not ready to play.') + ' Opens song details.' : slot >= 0 ? `In the setlist at ${slot + 1}. Press to remove.` : full ? 'The setlist is full.' : 'Press to add to the setlist.'}`}
                   onFocus={() => setCurrentId(s.id)}
                   onPointerEnter={(e) => e.pointerType === 'mouse' && setCurrentId(s.id)}
-                  onClick={() => (setCurrentId(s.id), ready ? onToggle(s) : onDetails(s))}
+                  onClick={(e) => {
+                    setCurrentId(s.id);
+                    // Ctrl (Cmd on a Mac) picks one song more or less, Shift a run of them.
+                    if (e.ctrlKey || e.metaKey) return pick(s.id);
+                    if (e.shiftKey) return pickRange(s.id);
+                    if (selecting) setSelected(new Set());
+                    setAnchor(s.id);
+                    if (ready) onToggle(s);
+                    else onDetails(s);
+                  }}
+                  onContextMenu={(e) => {
+                    // A right-click, or a long press on a touchscreen.
+                    e.preventDefault();
+                    setCurrentId(s.id);
+                    openMenu(s, { x: e.clientX, y: e.clientY });
+                  }}
                 >
+                  {chosen && (
+                    <span className="select-mark" aria-hidden>
+                      <Check strokeWidth={3} />
+                    </span>
+                  )}
                   <Cover blob={s.cover} title={s.title} />
                   <span className="song-text">
                     <span className="song-title">{s.title}</span>
@@ -353,6 +467,16 @@ export function LibraryScreen({
           </section>
         </aside>
       </div>
+      {menu && (
+        <SongMenu
+          songs={menu.ids.map((id) => byId.get(id)).filter((x): x is SongMeta => !!x)}
+          status={status}
+          setlist={setlist}
+          at={menu.at}
+          actions={actions}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </div>
   );
 }
