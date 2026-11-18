@@ -7,6 +7,7 @@ import type { BandLevels } from '../../audio/bands';
 import type { Part } from '../../chart/types';
 import { LEVEL_SHARE, type GraphicsSettings, type Level } from '../../game/graphics';
 import { Director, buildShots } from '../stage/Director';
+import { GpuClock, Governor } from '../stage/governor';
 import { LightShow, PALETTES, type Rgb, type ShowState } from '../stage/LightShow';
 import { Particles } from '../stage/Particles';
 import { loadVenue, type VenueAssets, type VenueData } from './assets';
@@ -131,7 +132,9 @@ export class AuroraStage {
   private lastRender = 0;
   private frameAvg = 16;
   private dynScale = 1;
-  private sinceResize = 0;
+  /** Keeps the stage's share of the graphics chip in bounds (see Governor), from what the clock measures. */
+  private readonly governor: Governor;
+  private readonly gpuClock: GpuClock;
   private beatPeriod = 0.5;
   private lastBeatAt = 0;
   private beats = 0;
@@ -164,6 +167,8 @@ export class AuroraStage {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = EXPOSURE;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.governor = new Governor({ fpsCap: g.fpsCap, adaptiveResolution: g.dynamicResolution });
+    this.gpuClock = new GpuClock(this.renderer.getContext() as WebGL2RenderingContext, (ms) => this.governor.gpu(ms));
     // A graphics context can be taken away (driver reset, GPU under pressure). Asking to keep it
     // lets the browser hand it back, and the renderer rebuilds what it needs.
     canvas.addEventListener('webglcontextlost', this.onContextLost);
@@ -375,11 +380,15 @@ export class AuroraStage {
     this.camera.updateProjectionMatrix();
   }
 
-  /** One frame. Respects the frame-rate cap and adapts the resolution when frames run long. */
+  /**
+   * One frame. Keeps to the frame rate the governor allows (at most the one set), and takes as
+   * much of the graphics chip as it leaves the rest of the screen.
+   */
   render(f: StageFrame) {
     if (this.disposed) return;
     const now = performance.now();
     this.frameAvg += (Math.min(100, now - this.lastFrame) - this.frameAvg) * 0.05;
+    this.governor.tick(now - this.lastFrame);
     this.lastFrame = now;
     if (f.beat !== 'none') {
       const t = now / 1000;
@@ -393,10 +402,14 @@ export class AuroraStage {
         : f.beat === 'beat' || this.pendingBeat === 'beat'
           ? 'beat'
           : 'none';
-    if (this.g.fpsCap && now - this.lastRender < 1000 / this.g.fpsCap - 2) return;
+    const fps = this.governor.pace.fps;
+    if (fps && now - this.lastRender < 1000 / fps - 2) return;
     const dt = Math.min(0.1, (now - (this.lastRender || now)) / 1000) || 1 / 60;
     this.lastRender = now;
-    this.adaptResolution(dt);
+    if (this.governor.update(dt)) {
+      this.dynScale = this.governor.pace.scale;
+      this.applySize();
+    }
     const beat = this.pendingBeat;
     this.pendingBeat = 'none';
     // The clock everything moves to runs by itself at the music's tempo and is drawn toward each
@@ -473,9 +486,12 @@ export class AuroraStage {
     this.beams.update(this.camera, scale);
     this.sparks.setScale(scale);
     this.smoke.setScale(scale);
+    this.gpuClock.begin();
     this.renderMirror(pose.pos, pose.target);
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);
+    this.gpuClock.end();
+    this.governor.frame(now);
   }
 
   /**
@@ -521,6 +537,8 @@ export class AuroraStage {
       shot: this.director.shot.name,
       level: this.show.state.level,
       scale: this.dynScale,
+      pace: this.governor.pace,
+      gpuShare: +this.governor.share.toFixed(2),
       size: [this.renderer.domElement.width, this.renderer.domElement.height],
     };
   }
@@ -530,6 +548,7 @@ export class AuroraStage {
     this.disposed = true;
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored as EventListener);
+    this.gpuClock.dispose();
     for (const o of this.owned) o.dispose();
     this.composer?.dispose();
     this.renderer.dispose();
@@ -708,20 +727,6 @@ export class AuroraStage {
           0.16,
         );
       }
-    }
-  }
-
-  private adaptResolution(dt: number) {
-    this.sinceResize += dt;
-    if (!this.g.dynamicResolution || this.sinceResize < 1.5) return;
-    const budget = this.g.fpsCap ? 1000 / this.g.fpsCap : 1000 / 60;
-    let next = this.dynScale;
-    if (this.frameAvg > budget * 1.15) next = Math.max(0.5, this.dynScale - 0.1);
-    else if (this.frameAvg < budget * 1.02 && this.dynScale < 1) next = Math.min(1, this.dynScale + 0.05);
-    if (next !== this.dynScale) {
-      this.dynScale = next;
-      this.sinceResize = 0;
-      this.applySize();
     }
   }
 

@@ -11,9 +11,12 @@ export interface GraphicsSettings {
   preset: GraphicsPreset;
   /** Stage render resolution relative to the screen, 0.5..1. */
   resolution: number;
-  /** Lowers the stage resolution on the fly when frames run long. */
+  /**
+   * When the graphics chip is too busy, the stage lowers its resolution before its frame rate (off:
+   * the other way round). Either way it keeps within its share of the chip (see Governor).
+   */
   dynamicResolution: boolean;
-  /** Stage frame-rate cap (0 = match the display). The highway is never capped. */
+  /** Stage frame-rate cap (0 = match the display). The highway is never capped; the stage may draw less often still. */
   fpsCap: 0 | 30 | 60 | 120;
   crowd: Level;
   /** Moving-head beams in the haze. */
