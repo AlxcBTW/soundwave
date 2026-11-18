@@ -1,4 +1,4 @@
-import { Bug, ListMinus, ListPlus, Play, RotateCcw, Square, Star, Trash2 } from 'lucide-react';
+import { Bug, ListMinus, ListPlus, Play, RotateCcw, Share, Square, Star, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { StemName } from '../analysis/types';
 import { getEngine } from '../audio/engine';
@@ -30,6 +30,8 @@ interface Props {
   onToggle(): void;
   onAnalyze(): void;
   onDebug(): void;
+  /** Saves the song as a .festival file, to share it. */
+  onExport(): void;
   onDelete(): void;
   onClose(): void;
   /** Tells the app that a preview is sounding, so the menu music makes way. */
@@ -37,8 +39,8 @@ interface Props {
   toast(text: string): void;
 }
 
-/** Everything about one song: listening to it and its stems, best scores, analysis and removal. */
-export function SongSheet({ song, builtin, status, scores, slot, setFull, volume, onToggle, onAnalyze, onDebug, onDelete, onClose, onPreviewing, toast }: Props) {
+/** Everything about one song: listening to it and its stems, best scores, analysis, sharing and removal. */
+export function SongSheet({ song, builtin, status, scores, slot, setFull, volume, onToggle, onAnalyze, onDebug, onExport, onDelete, onClose, onPreviewing, toast }: Props) {
   const [previewing, setPreviewing] = useState<PreviewSource | null>(null);
   const [stems, setStems] = useState<StemName[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -215,6 +217,10 @@ export function SongSheet({ song, builtin, status, scores, slot, setFull, volume
               <button type="button" className="btn quiet small" disabled={!ready} onClick={onDebug} title="Play the song with its notes on a timeline and mark problems">
                 <Bug strokeWidth={ICON_STROKE} aria-hidden />
                 Debug chart
+              </button>
+              <button type="button" className="btn quiet small" onClick={onExport} title="Save the song with its charts as one .festival file, to share it">
+                <Share strokeWidth={ICON_STROKE} aria-hidden />
+                Export
               </button>
               {confirmDelete ? (
                 <>

@@ -19,7 +19,10 @@ import { EDIT_EVENT, focusStart, installMenuNav } from '../input/menuNav';
 import { followOutputDevice, muteWhileUnfocused } from '../audio/output';
 import { pads, resolveStyle } from '../input/pads';
 import { menuPulse, setMenuRumble } from '../input/rumble';
-import { deleteSong, getSong, listAllScores, listSongs, putSong, submitScore, type BestScore, type SongMeta } from '../storage/db';
+import { deleteSong, getSong, listAllScores, listSongs, submitScore, type BestScore, type SongMeta } from '../storage/db';
+import { festivalFileName, isFestivalFile } from '../storage/festivalFile';
+import { saveSongFile, watchOpenedFiles } from '../storage/share';
+import { convertLibrary, readSongPackage, songFile, storeNewSong, storeSongPackage } from '../storage/songFile';
 import { ActionBar, useActions } from './actions';
 import { Dialog } from './Dialog';
 import { FocusRing } from './FocusRing';
@@ -248,22 +251,30 @@ export function App() {
   const setSongs_ = useMemo(() => setlist.map((id) => byId.get(id)).filter((s): s is SongMeta => !!s), [setlist, byId]);
   const played = useMemo(() => new Set(scores.map((s) => s.songId)), [scores]);
 
+  /** Adds audio files and .festival song files to the library. Resolves to the songs they hold. */
   const importFiles = useCallback(
-    async (files: File[]) => {
-      const audio = files.filter(isAudioFile);
-      if (audio.length < files.length) toast(`Skipped ${files.length - audio.length} file(s) that are not audio.`);
-      setImporting((n) => n + audio.length);
-      for (const f of audio) {
+    async (files: File[]): Promise<SongMeta[]> => {
+      const usable = files.filter((f) => isFestivalFile(f) || isAudioFile(f));
+      if (usable.length < files.length) toast(`Skipped ${files.length - usable.length} file(s) that are not audio or Festival songs.`);
+      setImporting((n) => n + usable.length);
+      const got: SongMeta[] = [];
+      for (const f of usable) {
         try {
-          const { meta, bytes } = await readSongFile(f);
-          if (await getSong(meta.id)) toast(`"${meta.title}" is already in your library.`);
-          else {
-            await putSong(meta, new Blob([bytes], { type: meta.mime }));
-            playSfx('add');
-            // A re-import of a removed song starts clean: no stale status or failed analysis.
-            forgetSongBuffer(meta.id);
-            analysisManager.forget(meta.id);
+          const song = isFestivalFile(f) ? await readSongPackage(f, f.name) : await readSongFile(f);
+          const { meta } = song;
+          const had = await getSong(meta.id);
+          if (had) {
+            toast(`"${had.title}" is already in your library.`);
+            got.push(had);
+            continue;
           }
+          // A re-import of a removed song starts clean: no stale status or failed analysis.
+          forgetSongBuffer(meta.id);
+          analysisManager.forget(meta.id);
+          if ('audio' in song) await storeSongPackage(song);
+          else await storeNewSong(meta, new Blob([song.bytes], { type: meta.mime }));
+          playSfx('add');
+          got.push(meta);
         } catch (e) {
           toast(`Could not import ${f.name}: ${(e as Error).message}`);
         } finally {
@@ -271,8 +282,31 @@ export function App() {
         }
       }
       await refresh();
+      return got;
     },
     [refresh, toast],
+  );
+  // Songs stored before the .festival format are rewritten as song files, once, in the background.
+  useEffect(() => {
+    void convertLibrary().catch(() => {});
+  }, []);
+  // Song files the desktop app is opened with (double-clicked in Explorer) are added, and a single
+  // one opens on its page.
+  const openedRef = useRef<(files: File[]) => void>(() => {});
+  openedRef.current = (files) =>
+    void importFiles(files).then((got) => {
+      if (got.length === 1 && view.name !== 'play' && view.name !== 'debug') setSheet(got[0]);
+    });
+  useEffect(() => watchOpenedFiles((files) => openedRef.current(files)), []);
+  const exportSong = useCallback(
+    async (song: SongMeta) => {
+      try {
+        if (await saveSongFile(await songFile(song.id), festivalFileName(song))) toast(`Saved "${song.title}" as a Festival song file.`);
+      } catch (e) {
+        toast(`Could not export "${song.title}": ${(e as Error).message}`);
+      }
+    },
+    [toast],
   );
   const addSongs = useCallback(() => fileInput.current?.click(), []);
 
@@ -578,6 +612,7 @@ export function App() {
           onPreviewing={setPreviewing}
           onToggle={() => toggle(sheet)}
           onAnalyze={() => analysisManager.enqueue(sheet.id, true)}
+          onExport={() => void exportSong(byId.get(sheet.id) ?? sheet)}
           onDebug={() => {
             setSheet(null);
             setView({ name: 'debug', song: sheet, back: view });
@@ -624,7 +659,7 @@ export function App() {
       <FocusRing />
       {dragging && (
         <div className="drop-overlay" aria-hidden>
-          <span>Drop to add to your library</span>
+          <span>Drop songs or Festival song files to add them</span>
         </div>
       )}
       {launch && (
