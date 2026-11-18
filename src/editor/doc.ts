@@ -285,6 +285,32 @@ export class ChartDoc {
     return this.apply([...rest, ...moved]);
   }
 
+  /**
+   * Rewrites notes in place: `fn` gives each of them its new position, lane and length, or null to
+   * remove it. What they land on gives way.
+   */
+  transform(ids: Iterable<number>, fn: (n: DocNote, index: number) => { pos: number; lane?: number; len?: number } | null): boolean {
+    const set = new Set(ids);
+    if (!set.size) return false;
+    const moved: DocNote[] = [];
+    this.list
+      .filter((n) => set.has(n.id))
+      .forEach((n, i) => {
+        const to = fn(n, i);
+        if (!to) return;
+        const len = Math.max(0, to.len ?? n.len);
+        moved.push(trimmed({ ...n, pos: quantize(to.pos), lane: to.lane ?? n.lane }, len < MIN_LONG ? 0 : quantize(len)));
+      });
+    const taken = new Set(moved.map((n) => `${n.lane}:${n.pos.toFixed(4)}`));
+    const rest = this.list.filter((n) => !set.has(n.id) && !taken.has(`${n.lane}:${n.pos.toFixed(4)}`));
+    return this.apply([...rest, ...moved]);
+  }
+
+  /** Replaces the whole chart with notes given in beats. Can be undone. Returns whether it changed. */
+  setNotes(notes: readonly Omit<DocNote, 'id'>[]): boolean {
+    return this.apply(notes.filter((n) => n.lane >= 0 && n.lane < this.lanes).map((n) => ({ ...n, id: this.nextId++ })));
+  }
+
   /** Flips notes across the middle of the highway. */
   mirror(ids: Iterable<number>): boolean {
     const set = new Set(ids);

@@ -9,7 +9,8 @@ import type { AnalysisResult, StemName } from '../analysis/types';
 import { getEngine } from '../audio/engine';
 import { playSfx, type Sfx } from '../audio/sfx';
 import { loadSongBuffer } from '../audio/songAudio';
-import { lanesFor, type Chart, type Difficulty, type Note, type Part } from '../chart/types';
+import { PROFILES } from '../chart/profiles';
+import { DIFFICULTIES, lanesFor, type Chart, type Difficulty, type Note, type Part } from '../chart/types';
 import { computePeaks, type Peaks } from '../debug/Timeline';
 import type { Settings } from '../game/settings';
 import { getInputMode, isTextField, usesFocus } from '../input/inputMode';
@@ -21,11 +22,25 @@ import { detectGrid } from './detect';
 import { ChartDoc, type Clip } from './doc';
 import { chartFromNotes, chartKey, cleanNotes, emptyEdits, fitLanes, resolveGrid, type ChartKey, type SongEdits } from './edits';
 import { drawOverview, EditorView, type GuideMark, type Scene } from './EditorView';
-import { EditorGrid, fitFixed, MAX_BPM, MIN_BPM, SNAPS, type GridSpec, type Snap } from './grid';
+import { EditorGrid, fitFixed, MAX_BPM, MIN_BPM, quantize, samePos, SNAPS, type GridSpec, type Snap } from './grid';
+import { reduceNotes, type BeatNote } from './reduce';
+import { findAttacks, nearestIndex } from './sounds';
 
 export type Tool = 'draw' | 'select';
 export type AudioSource = 'song' | StemName;
-export const RATES = [1, 0.75, 0.5] as const;
+export const RATES = [1, 0.75, 0.5, 0.25] as const;
+/** What a note snaps to when it is set down: the grid, the nearest sound heard in the song, or nothing. */
+export type SnapMode = 'grid' | 'sounds' | 'off';
+export const SNAP_MODES: SnapMode[] = ['grid', 'sounds', 'off'];
+/** How near (in seconds) a sound has to be for a note to snap to it. */
+const SOUND_REACH = 0.09;
+
+/** Something in a chart worth a second look. */
+export interface Issue {
+  pos: number;
+  lane: number;
+  text: string;
+}
 export const SOURCE_LABEL: Record<AudioSource, string> = { song: 'Whole song', other: 'Instruments only', bass: 'Bass only', drums: 'Drums only', vocals: 'Vocals only' };
 /** Which stem belongs to a part (the instrument stem feeds Lead). */
 const PART_STEM: Record<Part, StemName> = { lead: 'other', bass: 'bass', drums: 'drums', vocals: 'vocals' };
@@ -42,10 +57,17 @@ interface Prefs {
   clicks: boolean;
   metronome: boolean;
   tool: Tool;
+  snapMode: SnapMode;
+  /** After a note is set down from the keys, the cursor moves on a step. */
+  advance: boolean;
+  /** Playback goes round the marked stretch. */
+  loop: boolean;
+  /** A recording takes the place of the notes it passes instead of adding to them. */
+  replace: boolean;
 }
 
 function loadPrefs(): Prefs {
-  const base: Prefs = { part: 'lead', difficulty: 'expert', snap: 4, zoom: 4, clicks: true, metronome: false, tool: 'draw' };
+  const base: Prefs = { part: 'lead', difficulty: 'expert', snap: 4, zoom: 4, clicks: true, metronome: false, tool: 'draw', snapMode: 'grid', advance: false, loop: false, replace: false };
   try {
     const p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') as Partial<Prefs>;
     return {
@@ -56,6 +78,10 @@ function loadPrefs(): Prefs {
       clicks: typeof p.clicks === 'boolean' ? p.clicks : base.clicks,
       metronome: typeof p.metronome === 'boolean' ? p.metronome : base.metronome,
       tool: p.tool === 'select' ? 'select' : 'draw',
+      snapMode: SNAP_MODES.includes(p.snapMode as SnapMode) ? (p.snapMode as SnapMode) : 'grid',
+      advance: p.advance === true,
+      loop: p.loop === true,
+      replace: p.replace === true,
     };
   } catch {
     return base;
@@ -90,6 +116,17 @@ export interface EditorSnapshot {
   sources: AudioSource[];
   clicks: boolean;
   metronome: boolean;
+  snapMode: SnapMode;
+  /** Whether there are sounds to snap to and step between. */
+  hasSounds: boolean;
+  loop: boolean;
+  advance: boolean;
+  replace: boolean;
+  /** How many things in the chart are worth a second look. */
+  issues: number;
+  /** The next harder and the easier difficulties of this part, for writing charts from one another. */
+  harder: Difficulty | null;
+  easier: Difficulty[];
   /** Notes selected, and whether a stretch is being marked from the controller or keyboard. */
   selected: number;
   marking: boolean;
@@ -181,6 +218,15 @@ export class EditorController {
   private own = new Set<ChartKey>();
   doc = new ChartDoc(5);
   private guide?: GuideMark[];
+  /** Where sounds start in the song, in seconds (read off the waveform), and in beats for this part. */
+  private attacks: number[] = [];
+  private sounds: number[] = [];
+  private snapMode: SnapMode = this.prefs.snapMode;
+  private advance = this.prefs.advance;
+  private looping = this.prefs.loop;
+  private replace = this.prefs.replace;
+  /** Notes set down by the recording that is running. */
+  private recIds = new Set<number>();
 
   private part: Part = this.prefs.part;
   private difficulty: Difficulty = this.prefs.difficulty;
@@ -281,6 +327,14 @@ export class EditorController {
       sources: ['song', ...(this.stems.includes(PART_STEM[this.part]) ? [PART_STEM[this.part]] : []), ...this.stems.filter((s) => s !== PART_STEM[this.part])],
       clicks: this.clicksOn,
       metronome: this.metronome,
+      snapMode: this.snapMode,
+      hasSounds: this.sounds.length > 0,
+      loop: this.looping,
+      advance: this.advance,
+      replace: this.replace,
+      issues: this.grid ? this.issues().length : 0,
+      harder: DIFFICULTIES[DIFFICULTIES.indexOf(this.difficulty) + 1] ?? null,
+      easier: DIFFICULTIES.slice(0, DIFFICULTIES.indexOf(this.difficulty)).reverse(),
       selected: this.sel.size,
       marking: this.mark !== null && this.sticky,
       ranged: this.mark !== null || this.range !== null,
@@ -314,7 +368,19 @@ export class EditorController {
   }
 
   private savePrefs() {
-    const p: Prefs = { part: this.part, difficulty: this.difficulty, snap: this.snap, zoom: this.zoom, clicks: this.clicksOn, metronome: this.metronome, tool: this.tool };
+    const p: Prefs = {
+      part: this.part,
+      difficulty: this.difficulty,
+      snap: this.snap,
+      zoom: this.zoom,
+      clicks: this.clicksOn,
+      metronome: this.metronome,
+      tool: this.tool,
+      snapMode: this.snapMode,
+      advance: this.advance,
+      loop: this.looping,
+      replace: this.replace,
+    };
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(p));
     } catch {
@@ -357,6 +423,8 @@ export class EditorController {
       this.grid = new EditorGrid(grid, this.duration);
       await this.openChart(this.part, this.difficulty);
       this.peaks = computePeaks(buffer);
+      this.attacks = findAttacks(buffer.getChannelData(0), buffer.sampleRate);
+      this.buildGuide();
       this.phase = 'ready';
       this.setupAudio();
       this.view?.resize(this.doc.lanes, !!this.guide);
@@ -422,9 +490,14 @@ export class EditorController {
 
   private buildGuide() {
     const a = this.analysis;
-    this.guide = undefined;
-    if (!a) return;
     const g = this.grid;
+    this.guide = undefined;
+    // Sounds to snap to and step between: what the game heard in this part, or failing that every
+    // attack in the waveform.
+    const starts = !a ? this.attacks : this.part === 'drums' ? a.drums.map((h) => h.t) : (this.part === 'bass' ? a.bass : this.part === 'vocals' ? a.vocals : a.lead).map((n) => n.t);
+    const heard = (starts.length ? starts : this.attacks).map((t) => g.pos(t)).sort((x, y) => x - y);
+    this.sounds = heard.filter((p, i) => i === 0 || p - heard[i - 1] > 0.02);
+    if (!a) return;
     if (this.part === 'drums') {
       const col = { kick: 0.05, snare: 0.5, hat: 0.95 } as const;
       this.guide = a.drums.map((h) => ({ pos: g.pos(h.t), len: 0, x: col[h.kind], strength: h.strength }));
@@ -541,6 +614,8 @@ export class EditorController {
       held: this.held,
       peaks: this.peaks,
       guide: this.guide,
+      sounds: this.sounds,
+      loop: this.looping && this.range ? this.range : null,
       touch: mode === 'touch',
     };
   }
@@ -566,6 +641,9 @@ export class EditorController {
       this.lastPlayed = pos;
       this.viewPos = pos;
       this.needsDraw = true;
+      if (this.recording && this.replace) this.recordOver(pos);
+      // Round the marked stretch again.
+      if (!this.recording && this.looping && this.range && this.range[1] - this.range[0] > 0.05 && pos >= this.range[1]) this.seek(this.range[0]);
     } else {
       // The right stick scrubs: the further it is pushed, the faster the chart runs by.
       const stick = this.stick();
@@ -577,7 +655,7 @@ export class EditorController {
         this.afterMove(false);
       } else if (this.scrubbing) {
         this.scrubbing = false;
-        this.goto(this.grid.snap(this.viewPos, this.snap));
+        this.goto(this.rest(this.viewPos));
       }
       if (this.momentum && !this.gesture) {
         this.viewPos = this.grid.clamp(this.viewPos + this.momentum * dt);
@@ -626,9 +704,28 @@ export class EditorController {
 
   /* The edit position --------------------------------------------------------------------- */
 
-  /** The snap line the now line is on (or heading for). */
+  /** Where the now line is (or is heading for): on a snap line, unless snapping to the grid is off. */
   get cursor() {
-    return this.grid.snap(this.target ?? this.viewPos, this.snap);
+    const at = this.target ?? this.viewPos;
+    return this.snapMode === 'grid' ? this.grid.snap(at, this.snap) : this.grid.clamp(quantize(at));
+  }
+
+  /**
+   * Where a note goes that is aimed at `pos`: the nearest grid line, the nearest sound heard in the
+   * song when one is close by, or exactly there.
+   */
+  private place(pos: number): number {
+    if (this.snapMode === 'off') return this.grid.clamp(quantize(pos));
+    if (this.snapMode === 'sounds') {
+      const i = nearestIndex(this.sounds, pos);
+      if (i >= 0 && Math.abs(this.grid.time(this.sounds[i]) - this.grid.time(pos)) <= SOUND_REACH) return quantize(this.sounds[i]);
+    }
+    return this.grid.snap(pos, this.snap);
+  }
+
+  /** Where the now line comes to rest after it was moved freely (playback stopped, a finger lifted). */
+  private rest(pos: number): number {
+    return this.snapMode === 'grid' ? this.grid.snap(pos, this.snap) : this.grid.clamp(quantize(pos));
   }
 
   private goto(pos: number, ease = true) {
@@ -662,6 +759,8 @@ export class EditorController {
   moveTime(dir: -1 | 1, extend = false) {
     if (this.phase !== 'ready' || this.recording) return;
     if (this.playing) return this.seek(this.grid.clamp(this.viewPos + dir));
+    // Snapping to sounds, a step is from one sound to the next (a long note is still stretched by the grid).
+    if (this.snapMode === 'sounds' && this.sounds.length && !extend && !this.holding && this.mark === null) return this.moveSound(dir);
     const from = this.cursor;
     const to = this.grid.step(from, this.snap, dir);
     if (extend && this.mark === null) {
@@ -710,8 +809,52 @@ export class EditorController {
   private jump(pos: number) {
     if (this.phase !== 'ready' || this.recording) return;
     if (this.playing) return this.seek(pos);
-    this.goto(this.grid.snap(pos, this.snap));
+    this.goto(this.rest(pos));
     this.afterMove();
+    this.emitIfSelection();
+  }
+
+  /** Goes to a place in the chart (something the check found). */
+  jumpTo(pos: number, lane?: number) {
+    if (lane !== undefined && lane >= 0) this.lane = Math.min(this.doc.lanes - 1, lane);
+    if (this.playing) this.pause();
+    this.clearSelection(false);
+    this.goto(this.grid.clamp(pos), false);
+    this.afterMove();
+    this.emit();
+  }
+
+  /** To the next note of the chart, or the one before. */
+  moveNote(dir: -1 | 1) {
+    if (this.phase !== 'ready' || this.recording) return;
+    const from = this.playing ? this.viewPos : this.cursor;
+    const notes = this.doc.notes;
+    let to: number | undefined;
+    if (dir > 0) to = notes.find((n) => n.pos > from + 1e-3)?.pos;
+    else for (let i = notes.length - 1; i >= 0 && to === undefined; i--) if (notes[i].pos < from - 1e-3) to = notes[i].pos;
+    this.hop(to, dir);
+  }
+
+  /** To the next sound heard in the song, or the one before. */
+  moveSound(dir: -1 | 1) {
+    if (this.phase !== 'ready' || this.recording) return;
+    if (!this.sounds.length) return this.onNotice('No sounds were found in this song to step between.');
+    const from = this.playing ? this.viewPos : this.cursor;
+    // With the grid on, a sound counts as the grid line nearest to it.
+    const at = (p: number) => (this.snapMode === 'grid' ? this.grid.snap(p, this.snap) : quantize(p));
+    let to: number | undefined;
+    if (dir > 0) to = this.sounds.map(at).find((p) => p > from + 1e-3);
+    else for (let i = this.sounds.length - 1; i >= 0 && to === undefined; i--) if (at(this.sounds[i]) < from - 1e-3) to = at(this.sounds[i]);
+    this.hop(to, dir);
+  }
+
+  private hop(to: number | undefined, dir: -1 | 1) {
+    if (to === undefined) return;
+    if (this.playing) return this.seek(to);
+    if (this.mark !== null && !this.sticky && !this.shift) this.clearSelection(false);
+    this.goto(to);
+    this.afterMove();
+    this.feedback('move', dir < 0 ? 'tab-left' : 'tab-right');
     this.emitIfSelection();
   }
 
@@ -733,7 +876,41 @@ export class EditorController {
   setSnap(snap: Snap) {
     if (snap === this.snap) return;
     this.snap = snap;
-    if (!this.playing && this.phase === 'ready') this.goto(this.grid.snap(this.viewPos, snap));
+    if (!this.playing && this.phase === 'ready') this.goto(this.rest(this.viewPos));
+    this.savePrefs();
+    this.emit();
+  }
+
+  setSnapMode(mode: SnapMode) {
+    if (mode === this.snapMode) return;
+    this.snapMode = mode;
+    this.ghost = null;
+    if (!this.playing && this.phase === 'ready') this.goto(this.rest(this.viewPos));
+    this.savePrefs();
+    this.emit();
+  }
+
+  /** Grid, sounds, off, and round again. */
+  cycleSnapMode() {
+    const modes = SNAP_MODES.filter((m) => m !== 'sounds' || this.sounds.length > 0);
+    this.feedback('tab', 'tab-right');
+    this.setSnapMode(modes[(modes.indexOf(this.snapMode) + 1) % modes.length]);
+  }
+
+  setAdvance(on: boolean) {
+    this.advance = on;
+    this.savePrefs();
+    this.emit();
+  }
+
+  setLoop(on: boolean) {
+    this.looping = on;
+    this.savePrefs();
+    this.emit();
+  }
+
+  setReplace(on: boolean) {
+    this.replace = on;
     this.savePrefs();
     this.emit();
   }
@@ -785,7 +962,7 @@ export class EditorController {
   noteDown() {
     if (this.phase !== 'ready' || this.recording || this.holding) return;
     if (this.sel.size || this.mark !== null) return this.onSelectionMenu();
-    const pos = this.playing ? this.grid.snap(this.viewPos, this.snap) : this.cursor;
+    const pos = this.playing ? this.place(this.viewPos) : this.cursor;
     this.doc.begin();
     const there = this.doc.at(pos, this.lane);
     if (there) this.holding = { id: there.id, existed: true, moved: false };
@@ -809,6 +986,8 @@ export class EditorController {
     }
     this.doc.commit();
     this.changed();
+    // Step entry: a note that was just set down sends the cursor on to the next line.
+    if (this.advance && !h.existed && !h.moved && !this.playing) this.moveTime(1);
     this.announce();
   }
 
@@ -830,7 +1009,7 @@ export class EditorController {
   toggleLane(lane: number) {
     if (this.phase !== 'ready' || this.recording || lane < 0 || lane >= this.doc.lanes) return;
     this.lane = lane;
-    const pos = this.playing ? this.grid.snap(this.viewPos, this.snap) : this.cursor;
+    const pos = this.playing ? this.place(this.viewPos) : this.cursor;
     const added = this.doc.toggle(pos, lane);
     if (added) this.struck[lane] = performance.now();
     this.feedback(added ? 'toggle-on' : 'toggle-off', added ? 'select' : 'back');
@@ -951,7 +1130,7 @@ export class EditorController {
     this.range = [at, Math.min(this.grid.end, at + clip.length)];
     this.mark = null;
     this.sticky = false;
-    if (!this.playing) this.goto(this.grid.snap(at + clip.length, this.snap));
+    if (!this.playing) this.goto(this.rest(at + clip.length));
     this.feedback('toggle-on', 'select');
     this.changed();
   }
@@ -1008,6 +1187,191 @@ export class EditorController {
     return n ? [n.id] : [];
   }
 
+  /* Tools --------------------------------------------------------------------------------- */
+
+  /** The notes a tool works on: the selection, or without one the whole chart. */
+  private toolIds(): number[] {
+    return this.sel.size ? [...this.sel] : this.doc.notes.map((n) => n.id);
+  }
+
+  private tooled(did: boolean) {
+    if (!did) return;
+    if (this.mark !== null || this.range) this.updateRangeNotes();
+    this.feedback('select', 'select');
+    this.changed();
+  }
+
+  /** After a tool moved notes about, the marked stretch holds whatever is in it now. */
+  private updateRangeNotes() {
+    if (this.range) this.sel = new Set(this.doc.idsBetween(this.range[0], this.range[1]));
+  }
+
+  /** Puts notes on the grid: each start on the nearest line, each long note a whole number of steps. */
+  quantizeNotes() {
+    if (this.phase !== 'ready' || this.recording) return;
+    const s = this.snap;
+    this.tooled(this.doc.transform(this.toolIds(), (n) => ({ pos: this.grid.snap(n.pos, s), len: n.len > 0 ? Math.max(1 / s, Math.round(n.len * s) / s) : 0 })));
+  }
+
+  /** Puts every note of the chart on the grid, whatever is selected. Returns how many notes there are. */
+  quantizeAll(): number {
+    if (this.phase !== 'ready' || this.recording) return 0;
+    const s = this.snap;
+    const all = this.doc.notes.map((n) => n.id);
+    const did = this.doc.transform(all, (n) => ({ pos: this.grid.snap(n.pos, s), len: n.len > 0 ? Math.max(1 / s, Math.round(n.len * s) / s) : 0 }));
+    if (did) {
+      this.updateRangeNotes();
+      this.feedback('select', 'select');
+      this.changed();
+    }
+    this.onNotice(did ? 'Every note is on the grid now. Undo puts them back.' : 'Every note is on the grid already.');
+    return all.length;
+  }
+
+  /** Puts notes on the sounds heard in the song, where one is close by. */
+  snapToSounds() {
+    if (this.phase !== 'ready' || this.recording || !this.sounds.length) return;
+    this.tooled(
+      this.doc.transform(this.toolIds(), (n) => {
+        const i = nearestIndex(this.sounds, n.pos);
+        const near = i >= 0 && Math.abs(this.grid.time(this.sounds[i]) - this.grid.time(n.pos)) <= SOUND_REACH;
+        return { pos: near ? this.sounds[i] : n.pos };
+      }),
+    );
+  }
+
+  /** Moves the selection a lane to the left or right. */
+  shiftLanes(dir: -1 | 1) {
+    if (!this.sel.size) return;
+    if (!this.doc.move(this.sel, 0, dir, this.grid.start, this.grid.end)) return this.onNotice('There is no lane further that way.');
+    this.tooled(true);
+  }
+
+  /** Plays the selection backwards: the same rhythm, the lanes in the opposite order. */
+  reverse() {
+    const picked = this.doc.notes.filter((n) => this.sel.has(n.id));
+    const times = [...new Set(picked.map((n) => n.pos.toFixed(4)))].map(Number);
+    if (times.length < 2) return;
+    const turned = new Map(times.map((t, i) => [t.toFixed(4), times[times.length - 1 - i]]));
+    this.tooled(this.doc.transform(this.sel, (n) => ({ pos: turned.get(n.pos.toFixed(4)) ?? n.pos, len: 0 })));
+  }
+
+  /** Takes out every other moment of the selection. */
+  thin() {
+    const picked = this.doc.notes.filter((n) => this.sel.has(n.id));
+    const times = [...new Set(picked.map((n) => n.pos.toFixed(4)))];
+    if (times.length < 2) return;
+    const out = new Set(times.filter((_, i) => i % 2 === 1));
+    this.tooled(this.doc.transform(this.sel, (n) => (out.has(n.pos.toFixed(4)) ? null : { pos: n.pos })));
+  }
+
+  /** Squeezes the selection into half the time, or spreads it over twice as much, from its start. */
+  stretch(by: 0.5 | 2) {
+    const span = this.span();
+    if (!span || !this.sel.size) return;
+    const from = span.from;
+    if (by > 1 && from + span.length * by > this.grid.end + 1e-3) return this.onNotice('There is not enough song left to spread these notes over.');
+    const did = this.doc.transform(this.sel, (n) => ({ pos: from + (n.pos - from) * by, len: n.len * by }));
+    if (did && this.range) this.range = [from, from + span.length * by];
+    this.tooled(did);
+  }
+
+  /** Sets a note on every grid line of the marked stretch, in the cursor's lane. */
+  fill() {
+    if (!this.range || this.range[1] - this.range[0] < 1e-3) return this.onNotice('Mark a stretch first: it is filled with a note on every grid line.');
+    this.doc.begin();
+    for (let p = this.grid.snap(this.range[0], this.snap); p < this.range[1] - 1e-4; p = quantize(p + 1 / this.snap)) this.doc.add(p, this.lane);
+    this.doc.commit();
+    this.updateRangeNotes();
+    this.feedback('toggle-on', 'select');
+    this.changed();
+  }
+
+  /* Checking and difficulties ------------------------------------------------------------- */
+
+  /** What in this chart is worth a second look on its difficulty, in the order it comes. */
+  issues(): Issue[] {
+    const out: Issue[] = [];
+    const p = PROFILES[this.difficulty];
+    const g = this.grid;
+    const notes = this.doc.notes;
+    const name = this.difficulty[0].toUpperCase() + this.difficulty.slice(1);
+    let lastT = -Infinity;
+    for (let i = 0; i < notes.length; ) {
+      let j = i;
+      let left = 0;
+      let right = 0;
+      while (j < notes.length && samePos(notes[j].pos, notes[i].pos)) {
+        if (notes[j].lane <= 1) left++;
+        else right++;
+        j++;
+      }
+      const n = notes[i];
+      const t = g.time(n.pos);
+      if (n.pos < g.start - 1e-3 || n.pos > g.end + 1e-3) out.push({ pos: n.pos, lane: n.lane, text: 'A note outside the song.' });
+      if (j - i > p.maxChord) out.push({ pos: n.pos, lane: n.lane, text: p.maxChord === 1 ? `${name} is usually played one note at a time.` : `${j - i} notes at once; ${name} usually stops at ${p.maxChord}.` });
+      if (left > 1 || right > 1) out.push({ pos: n.pos, lane: n.lane, text: 'Two notes under one thumb on a controller.' });
+      if (t - lastT < p.minGap * 0.8) out.push({ pos: n.pos, lane: n.lane, text: `Very close to the note before it for ${name}.` });
+      lastT = t;
+      i = j;
+    }
+    return out;
+  }
+
+  /** A chart of this part in beats, whether it is open, stored or still the game's own. */
+  private async beatNotes(difficulty: Difficulty): Promise<BeatNote[]> {
+    const key = chartKey(this.part, difficulty);
+    const doc = this.docs.get(key);
+    if (doc) return doc.notes.map(({ pos, lane, len, phrase, release }) => ({ pos, lane, len, phrase, ...(release ? { release } : {}) }));
+    const notes = this.edits.charts[key] ?? (await analysisManager.generated(this.song.id, this.part, difficulty))?.notes ?? [];
+    const g = this.grid;
+    return notes.map((n) => {
+      const pos = quantize(g.pos(n.t));
+      return { pos, lane: n.lane, len: n.dur > 0 ? quantize(g.pos(n.t + n.dur) - pos) : 0, phrase: n.phrase, ...(n.release ? { release: true } : {}) };
+    });
+  }
+
+  /** Writes this chart again as a simpler version of a harder one of the same part. */
+  async simplifyFrom(source: Difficulty) {
+    const from = await this.beatNotes(source);
+    if (this.disposed) return;
+    if (!from.length) return this.onNotice('That chart has no notes to work from.');
+    this.doc.setNotes(reduceNotes(from, lanesFor(source), this.difficulty, this.grid));
+    this.clearSelection(false);
+    this.changed();
+  }
+
+  /**
+   * Writes every easier difficulty of this part from this chart, each a simpler version of the one
+   * above it. Returns the difficulties written.
+   */
+  async writeEasier(): Promise<Difficulty[]> {
+    const part = this.part;
+    let above: BeatNote[] = await this.beatNotes(this.difficulty);
+    let lanes = this.doc.lanes;
+    const written: Difficulty[] = [];
+    for (const d of DIFFICULTIES.slice(0, DIFFICULTIES.indexOf(this.difficulty)).reverse()) {
+      const key = chartKey(part, d);
+      let doc = this.docs.get(key);
+      if (!doc) {
+        // Opened as it stands, so that undo in that chart brings back what was there.
+        const stored = this.edits.charts[key];
+        const notes = stored ?? (await analysisManager.generated(this.song.id, part, d))?.notes ?? [];
+        if (this.disposed) return written;
+        doc = new ChartDoc(lanesFor(d));
+        doc.load(notes, this.grid);
+        this.docs.set(key, doc);
+        if (stored) this.own.add(key);
+      }
+      above = reduceNotes(above, lanes, d, this.grid);
+      lanes = doc.lanes;
+      doc.setNotes(above);
+      written.push(d);
+    }
+    this.changed();
+    return written;
+  }
+
   /* Playback ------------------------------------------------------------------------------ */
 
   private ticksBetween(from: number, to: number): Tick[] {
@@ -1043,8 +1407,9 @@ export class EditorController {
     this.endHold();
     this.target = null;
     this.momentum = 0;
-    // From the very end there is nothing to play: start over.
-    const pos = from >= this.grid.end - 0.05 ? this.grid.start : from;
+    // From the very end there is nothing to play: start over. A loop starts where it is marked.
+    const looped = this.looping && this.range && this.range[1] - this.range[0] > 0.05 && (from < this.range[0] || from >= this.range[1] - 0.01);
+    const pos = looped ? this.range![0] : from >= this.grid.end - 0.05 ? this.grid.start : from;
     const t = Math.min(Math.max(0, this.duration - 0.05), Math.max(0, this.grid.time(pos)));
     this.viewPos = this.lastPlayed = this.grid.pos(t);
     this.playing = true;
@@ -1059,7 +1424,7 @@ export class EditorController {
     this.playing = false;
     this.engine.pause();
     this.clicks.stop();
-    this.goto(this.grid.snap(this.viewPos, this.snap));
+    this.goto(this.rest(this.viewPos));
     this.emit();
   }
 
@@ -1127,6 +1492,8 @@ export class EditorController {
     this.recCountIn = this.grid.time(at);
     this.recording = true;
     this.recHeld.clear();
+    this.recIds.clear();
+    this.recFrom = at;
     this.doc.begin();
     this.target = null;
     const t = Math.min(Math.max(0, this.duration - 0.05), Math.max(0, this.grid.time(from)));
@@ -1148,18 +1515,30 @@ export class EditorController {
     this.clicks.stop();
     this.doc.commit();
     this.held.fill(null);
-    this.goto(this.grid.snap(this.viewPos, this.snap));
+    this.goto(this.rest(this.viewPos));
     playSfx('select');
     this.changed();
+  }
+
+  /** Where the running recording began to count, and how far it has cleared the old notes. */
+  private recFrom = 0;
+
+  /** A recording that replaces: the notes it passes that it did not set down itself go. */
+  private recordOver(pos: number) {
+    if (pos <= this.recFrom) return;
+    const old = this.doc.idsBetween(this.recFrom, pos - 0.26).filter((id) => !this.recIds.has(id));
+    this.recFrom = Math.max(this.recFrom, pos - 0.26);
+    if (old.length) this.doc.remove(old);
   }
 
   private recordPress(lane: number, stamp: number) {
     if (lane < 0 || lane >= this.doc.lanes || this.recHeld.has(lane)) return;
     const t = this.engine.time(stamp);
-    const pos = this.grid.snap(this.grid.pos(t), this.snap);
+    const pos = this.place(this.grid.pos(t));
     const note = this.doc.at(pos, lane) ?? this.doc.add(pos, lane);
     this.struck[lane] = performance.now();
     if (!note) return;
+    this.recIds.add(note.id);
     this.recHeld.set(lane, { id: note.id, pos, t });
     this.held[lane] = note.id;
     this.needsDraw = true;
@@ -1171,7 +1550,7 @@ export class EditorController {
     this.recHeld.delete(lane);
     this.held[lane] = null;
     const t = this.engine.time(stamp);
-    const len = this.grid.snap(this.grid.pos(t), this.snap) - h.pos;
+    const len = this.rest(this.grid.pos(t)) - h.pos;
     // A press held for a good part of a beat was meant as a long note.
     if (t - h.t > 0.3 && len >= 0.5) this.doc.setLength(h.id, len);
     this.needsDraw = true;
@@ -1403,11 +1782,17 @@ export class EditorController {
       return;
     }
     const mod = e.ctrlKey || e.metaKey;
-    if (e.altKey) return;
     let done = true;
-    if (mod) {
+    if (e.altKey) {
+      // Alt and the arrows step from sound to sound.
+      if (e.code === 'ArrowUp') this.moveSound(1);
+      else if (e.code === 'ArrowDown') this.moveSound(-1);
+      else done = false;
+    } else if (mod) {
       const k = e.key.toLowerCase();
-      if (k === 'z') e.shiftKey ? this.redo() : this.undo();
+      if (e.code === 'ArrowUp') this.moveNote(1);
+      else if (e.code === 'ArrowDown') this.moveNote(-1);
+      else if (k === 'z') e.shiftKey ? this.redo() : this.undo();
       else if (k === 'y') this.redo();
       else if (k === 'c') this.copy();
       else if (k === 'x') this.cut();
@@ -1415,6 +1800,7 @@ export class EditorController {
       else if (k === 'a') this.selectAll();
       else if (k === 'd') this.repeat();
       else if (k === 's') void this.flush();
+      else if (k === 'q') this.quantizeNotes();
       else done = false;
     } else if (e.code === 'PageUp') this.moveBar(1);
     else if (e.code === 'PageDown') this.moveBar(-1);
@@ -1502,6 +1888,18 @@ export class EditorController {
       if (e.down) this.undo();
       return true;
     }
+    // A click of the left stick changes what notes snap to; a click of the right one loops the marked stretch.
+    if (e.input === 'b10') {
+      if (e.down) this.cycleSnapMode();
+      return true;
+    }
+    if (e.input === 'b11') {
+      if (e.down) {
+        this.feedback('tab', 'tab-right');
+        this.setLoop(!this.looping);
+      }
+      return true;
+    }
     if (e.input === 'a2-' || e.input === 'a2+') {
       if (e.down) this.zoomBy(e.input === 'a2+' ? 1 : -1);
       return true;
@@ -1569,7 +1967,7 @@ export class EditorController {
       } else this.gesture = { kind: 'marquee', x, y, add: e.shiftKey ? new Set(this.sel) : new Set() };
       return;
     }
-    const pos = this.grid.snap(hit.pos, this.snap);
+    const pos = this.place(hit.pos);
     if (touch) {
       // A finger may be about to scroll: a tap sets a note down, a press that stays put stretches one.
       const timer = window.setTimeout(() => {
@@ -1622,7 +2020,7 @@ export class EditorController {
       // The mouse is only passing over: show where a note would land.
       if (e.pointerType !== 'mouse') return;
       const hit = this.view.hit(x, y, scene);
-      const ghost = hit.zone === 'deck' && this.tool === 'draw' && !hit.note && !e.shiftKey ? { pos: this.grid.snap(hit.pos, this.snap), lane: hit.lane } : null;
+      const ghost = hit.zone === 'deck' && this.tool === 'draw' && !hit.note && !e.shiftKey ? { pos: this.place(hit.pos), lane: hit.lane } : null;
       if (ghost?.pos !== this.ghost?.pos || ghost?.lane !== this.ghost?.lane) {
         this.ghost = ghost;
         this.needsDraw = true;
@@ -1663,7 +2061,7 @@ export class EditorController {
       if (!n) return;
       if (Math.abs(y - g.y) > 6) g.stretched = true;
       if (!g.stretched) return;
-      const len = this.grid.snap(this.view.posAt(y, scene), this.snap) - n.pos;
+      const len = this.rest(this.view.posAt(y, scene)) - n.pos;
       if (this.doc.setLength(g.id, Math.max(0, len))) this.changed();
     } else if (g.kind === 'marquee') {
       if (Math.hypot(x - g.x, y - g.y) < 5 && !this.marquee) return;

@@ -53,6 +53,10 @@ export interface Scene {
   held: (number | null)[];
   peaks?: Peaks;
   guide?: GuideMark[];
+  /** Where sounds start in the song, in beats, in order. */
+  sounds?: readonly number[];
+  /** The stretch playback goes round, when looping is on. */
+  loop: [number, number] | null;
   /** Larger hit areas and no hover. */
   touch: boolean;
 }
@@ -269,10 +273,20 @@ export class EditorView {
     g.textAlign = 'right';
     g.textBaseline = 'middle';
     let barNo = -1;
+    let beatNo = s.grid.barBeat(first).beat - 1;
+    const beatNumbers = s.pxPerBeat >= L.u * 2.4;
     for (let b = first; b <= last; b++) {
       const yy = Math.round(y(b)) + 0.5;
-      if (yy < songTop - 1 || yy > songBottom + 1) continue;
       const bar = s.grid.isBar(b);
+      beatNo = bar ? 1 : beatNo + 1;
+      if (yy < songTop - 1 || yy > songBottom + 1) continue;
+      if (!bar && beatNumbers) {
+        // The beats of the bar, counted quietly beside the lanes.
+        g.font = `italic 800 ${Math.round(L.u * 0.62)}px ${FONT}`;
+        g.fillStyle = 'rgb(171 161 230 / 0.55)';
+        g.fillText(String(beatNo), L.labelX + L.labelW - L.u * 0.4, yy);
+        g.font = `italic 900 ${Math.round(L.u * 0.8)}px ${FONT}`;
+      }
       g.strokeStyle = bar ? 'rgb(246 243 255 / 0.5)' : 'rgb(210 201 250 / 0.2)';
       g.lineWidth = bar ? 2 : 1;
       g.beginPath();
@@ -320,9 +334,11 @@ export class EditorView {
       const y1 = y(s.range[0]);
       g.fillStyle = 'rgb(239 234 255 / 0.17)';
       g.fillRect(L.deckX, y0, L.deckW, y1 - y0);
-      g.fillStyle = LIT;
-      g.fillRect(L.deckX, Math.round(y0) - 1, L.deckW, 2);
-      g.fillRect(L.deckX, Math.round(y1) - 1, L.deckW, 2);
+      // Looped, its ends are pink: this is what is sounding, round and round.
+      g.fillStyle = s.loop ? PINK : LIT;
+      const edge = s.loop ? 3 : 2;
+      g.fillRect(L.deckX, Math.round(y0) - edge / 2, L.deckW, edge);
+      g.fillRect(L.deckX, Math.round(y1) - edge / 2, L.deckW, edge);
     }
 
     // What has gone by is a shade darker.
@@ -529,6 +545,25 @@ export class EditorView {
           const w = Math.max(1, amp * half);
           g.fillRect(mid - w, yy, w * 2, 1);
         }
+      }
+    }
+    if (s.sounds?.length) {
+      // Where sounds start: a tick on the lanes' side of the waveform (brighter when notes snap to them).
+      const top = this.posAt(0, s);
+      const bottom = this.posAt(L.h, s);
+      const w = Math.max(5, L.u * 0.5);
+      g.fillStyle = 'rgb(246 243 255 / 0.9)';
+      let lo = 0;
+      let hi = s.sounds.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (s.sounds[mid] < bottom) lo = mid + 1;
+        else hi = mid;
+      }
+      for (let i = lo; i < s.sounds.length && s.sounds[i] <= top; i++) {
+        const yy = Math.round(this.y(s.sounds[i], s));
+        if (yy < songTop || yy > songBottom) continue;
+        g.fillRect(L.waveX + L.waveW - w, yy - 1, w, 2);
       }
     }
     if (L.guideW && s.guide) {

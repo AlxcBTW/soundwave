@@ -2,19 +2,22 @@ import {
   ArrowLeft,
   Circle,
   Gamepad2,
+  ListChecks,
+  Magnet,
   Menu,
   MousePointer2,
   Pause,
   Pencil,
   Play,
   Redo2,
+  Repeat,
   SkipBack,
   SkipForward,
   Square,
   SquareDashedMousePointer,
   Timer,
-  TriangleAlert,
   Undo2,
+  Wrench,
   Zap,
   ZoomIn,
   ZoomOut,
@@ -33,7 +36,7 @@ import { confirmInput, type GlyphStyle } from '../input/pads';
 import type { SongMeta } from '../storage/db';
 import { CONFIRM_HINT, Hint, keyName, useActions, useHints } from './actions';
 import { Cover } from './Cover';
-import { AskCard, CopyFromCard, EditorMenu, SelectionCard, selectionActions, TempoSheet, type MenuAsk } from './EditorDialogs';
+import { AskCard, CheckCard, CopyFromCard, EditorMenu, SelectionCard, selectionActions, TempoSheet, ToolsCard, type MenuAsk } from './EditorDialogs';
 import { DIFFICULTY_LABEL, ICON_STROKE, PART_ICON, PART_LABEL, Pips, Stars } from './icons';
 import { useSlide } from './useSlide';
 
@@ -65,6 +68,18 @@ function Legend({ rows }: { rows: [ReactNode, string][] }) {
 
 const Key = ({ children }: { children: ReactNode }) => <kbd className="keycap-hint">{children}</kbd>;
 
+/**
+ * The mark on a control: how to reach it without pointing at it. A keycap for the keyboard and the
+ * mouse, the controller's own symbol for a controller, nothing under a finger.
+ */
+function Mark({ keys, pad, mode, style }: { keys?: string; pad?: string; mode: InputMode; style: GlyphStyle }) {
+  if (mode === 'touch') return null;
+  if (mode === 'pad') return pad ? <PadGlyph input={pad} style={style} className="hint-glyph mark" /> : null;
+  return keys ? <kbd className="keycap-hint mark">{keys}</kbd> : null;
+}
+
+const SNAP_WORD = { grid: 'Grid', sounds: 'Sounds', off: 'Off' } as const;
+
 /** How the editor is worked with the input in use. */
 function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: Settings): [ReactNode, string][] {
   if (mode === 'pad') {
@@ -79,8 +94,10 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
       [<>{G('b4')}{G('b5')}</>, 'Coarser or finer grid'],
       [<>{G('b6')}{G('b7')}</>, 'A bar back, a bar on'],
       [G('a3-'), 'Push to run through the song; sideways to zoom'],
+      [G('b10'), 'Notes snap to the grid, to sounds, or to nothing'],
+      [G('b11'), 'Loop the marked stretch'],
       [G('b8'), 'Undo'],
-      [G('b9'), 'Record, test play, tempo and the rest'],
+      [G('b9'), 'Menu: record, test play, tools, tempo, and all of the above'],
     ];
   }
   if (mode === 'keyboard') {
@@ -89,12 +106,13 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
       [<><Key>Enter</Key><Key>1</Key>–<Key>{lanes}</Key></>, 'Set a note down, or take it away'],
       [<><Key>Enter</Key><span className="legend-plus">+</span><Key>↑</Key></>, 'Hold and move up for a long note'],
       [<><Key>Shift</Key><span className="legend-plus">+</span><Key>↑</Key></>, 'Mark a stretch; Enter for what to do with it'],
-      [<><Key>Q</Key><Key>E</Key></>, 'Coarser or finer grid'],
+      [<><Key>Q</Key><Key>E</Key><Key>S</Key></>, 'Coarser or finer grid; what notes snap to'],
       [<><Key>PgUp</Key><Key>PgDn</Key></>, 'A bar on, a bar back'],
+      [<><Key>Ctrl</Key><span className="legend-plus">+</span><Key>↑</Key></>, 'To the next note; with Alt, the next sound'],
       [<><Key>Ctrl</Key><Key>Z</Key></>, 'Undo; with Shift, redo'],
-      [<><Key>Ctrl</Key><Key>C</Key><Key>V</Key><Key>D</Key></>, 'Copy, paste, repeat'],
-      [<><Key>O</Key><Key>H</Key></>, 'Overdrive phrase; let go on time'],
-      [<><Key>R</Key><Key>T</Key></>, 'Record; test play'],
+      [<><Key>Ctrl</Key><Key>C</Key><Key>V</Key><Key>D</Key><Key>Q</Key></>, 'Copy, paste, repeat, snap to the grid'],
+      [<><Key>O</Key><Key>H</Key><Key>L</Key></>, 'Overdrive phrase; let go on time; loop'],
+      [<><Key>R</Key><Key>T</Key><Key>M</Key></>, 'Record; test play; menu'],
     ];
   }
   if (mode === 'touch') {
@@ -114,6 +132,7 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
     ['Wheel', 'moves through the song; with Ctrl it zooms'],
     [<><Key>Shift</Key><span className="legend-plus">+</span>drag</>, 'or the Select tool: box notes in, then drag them'],
     [<><Key>1</Key>–<Key>{lanes}</Key></>, 'A note in that lane at the line'],
+    [<><Key>S</Key><Key>L</Key></>, 'What notes snap to; loop the marked stretch'],
     [<><Key>R</Key></>, `Record: play ${keys} in time and every press becomes a note`],
   ];
 }
@@ -158,17 +177,18 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
 
   useEffect(() => ctrl?.applySettings(settings), [ctrl, settings]);
 
-  // What it says in passing shows for a moment over the lanes.
+  // What is said in passing shows for a moment over the lanes.
+  const noticeTimer = useRef(0);
+  const say = (text: string) => {
+    setNotice(text);
+    clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => setNotice(''), 3600);
+  };
   useEffect(() => {
     if (!ctrl) return;
-    let timer = 0;
-    ctrl.onNotice = (text) => {
-      setNotice(text);
-      clearTimeout(timer);
-      timer = window.setTimeout(() => setNotice(''), 3200);
-    };
+    ctrl.onNotice = say;
     ctrl.onSelectionMenu = () => setOpen('selection');
-    return () => clearTimeout(timer);
+    return () => clearTimeout(noticeTimer.current);
   }, [ctrl]);
 
   // Directions on the track move the cursor instead of the focus; Q and E (the shoulder buttons) change the grid.
@@ -203,7 +223,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
   const test = (fromStart = false) => {
     if (!ctrl || !ready) return;
     const { chart, startAt } = ctrl.testChart(fromStart);
-    if (!chart.notes.length) return setNotice(snap.stats.notes ? 'There are no notes from here on. Move back, or test play from the start.' : 'There is nothing to play yet. Set some notes down first.');
+    if (!chart.notes.length) return say(snap.stats.notes ? 'There are no notes from here on. Move back, or test play from the start.' : 'There is nothing to play yet. Set some notes down first.');
     void ctrl.flush().then(() => onTest(chart, startAt));
   };
   const record = () => void ctrl?.startRecording();
@@ -232,6 +252,8 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
           { id: 'record', label: 'Record', icon: Circle, kbd: 'KeyR', bar: false, disabled: !ready, sfx: 'none', run: record },
           { id: 'phrase', label: 'Overdrive phrase', icon: Zap, kbd: 'KeyO', bar: false, disabled: !ready, sfx: 'none', run: () => ctrl?.togglePhrase() },
           { id: 'release', label: 'Let go on time', icon: Zap, kbd: 'KeyH', bar: false, disabled: !ready, sfx: 'none', run: () => ctrl?.toggleRelease() },
+          { id: 'snap-mode', label: 'Snap to', icon: Magnet, kbd: 'KeyS', bar: false, disabled: !ready, sfx: 'none', run: () => ctrl?.cycleSnapMode() },
+          { id: 'loop', label: 'Loop', icon: Repeat, kbd: 'KeyL', bar: false, disabled: !ready, sfx: 'tab', run: () => ctrl?.setLoop(!snap.loop) },
           { id: 'menu', label: 'Menu', icon: Menu, kbd: 'KeyM', pad: 'b9', disabled: !ready, run: () => setOpen('menu') },
           // On a controller the menu's first button is the test play; the bar would have no button to show for it.
           { id: 'test', label: 'Test play', icon: Gamepad2, kbd: 'KeyT', primary: true, bar: mode !== 'pad', disabled: !ready || !snap.stats.notes, sfx: 'launch', run: () => test() },
@@ -268,6 +290,11 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
             {PART_LABEL[snap?.part ?? 'lead']} · {DIFFICULTY_LABEL[snap?.difficulty ?? 'expert']}
           </span>
         </button>
+        {mode === 'pad' && (
+          <span className="editor-via" title="In the menu">
+            <PadGlyph input="b9" style={style} className="hint-glyph mark" />
+          </span>
+        )}
         <div className="tab-row slide editor-pick" ref={partRow} role="radiogroup" aria-label="Part">
           <span className="sel" aria-hidden />
           {PARTS.map((p) => {
@@ -295,6 +322,21 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
         </div>
 
         <div className="editor-snap" role="group" aria-label={`Grid: ${snap ? SNAP_NAME[snap.snap] : ''}`}>
+          <button
+            type="button"
+            className={`btn small snap-mode ${snap?.snapMode !== 'off' ? 'on' : ''}`}
+            data-sfx="none"
+            aria-label={`Notes snap to: ${snap ? SNAP_WORD[snap.snapMode] : ''}. Press to change.`}
+            title="What notes snap to: the grid, sounds in the song, or nothing"
+            onClick={() => ctrl?.cycleSnapMode()}
+          >
+            <Mark keys="S" pad="b10" mode={mode} style={style} />
+            <Magnet strokeWidth={ICON_STROKE} aria-hidden />
+            <span className="snap-mode-text">
+              <span className="label">Snap</span>
+              <span className="num" key={snap?.snapMode}>{snap ? SNAP_WORD[snap.snapMode] : ''}</span>
+            </span>
+          </button>
           <Hint kbd="KeyQ" pad="b4" {...hints} />
           <button type="button" className="step" data-sfx="none" aria-label="Coarser grid" disabled={snapIndex <= 0} onClick={() => ctrl?.stepSnap(-1)}>
             <span aria-hidden>‹</span>
@@ -324,12 +366,16 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
         )}
 
         <div className="editor-quick">
+          <Mark keys="Ctrl Z" pad="b8" mode={mode} style={style} />
           <button type="button" className="icon-btn" data-sfx="none" aria-label="Undo" title="Undo" disabled={!snap?.canUndo} onClick={() => ctrl?.undo()}>
             <Undo2 strokeWidth={ICON_STROKE} aria-hidden />
           </button>
           <button type="button" className="icon-btn editor-wide-only" data-sfx="none" aria-label="Redo" title="Redo" disabled={!snap?.canRedo} onClick={() => ctrl?.redo()}>
             <Redo2 strokeWidth={ICON_STROKE} aria-hidden />
           </button>
+          <span className="editor-wide-only">
+            <Mark keys="− +" pad="a2+" mode={mode} style={style} />
+          </span>
           <button type="button" className="icon-btn editor-wide-only" aria-label="Zoom out" title="Zoom out" disabled={!snap || snap.zoom <= 0} onClick={() => ctrl?.zoomBy(-1)}>
             <ZoomOut strokeWidth={ICON_STROKE} aria-hidden />
           </button>
@@ -377,11 +423,11 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
                 </div>
               </dl>
               {snap.stats.peak > 0 && <p className="editor-fact">Up to {snap.stats.peak} notes in a second.</p>}
-              {snap.stats.awkward > 0 && (
-                <p className="warn editor-fact">
-                  <TriangleAlert strokeWidth={ICON_STROKE} aria-hidden />
-                  {snap.stats.awkward} {snap.stats.awkward === 1 ? 'chord puts' : 'chords put'} two notes under one thumb on a controller.
-                </p>
+              {snap.issues > 0 && (
+                <button type="button" className="btn small" data-nav-skip onClick={() => setOpen('check')}>
+                  <ListChecks strokeWidth={ICON_STROKE} aria-hidden />
+                  {snap.issues} worth a look
+                </button>
               )}
               {tested && (
                 <p className="editor-fact editor-tested">
@@ -488,6 +534,10 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
                     <span className="btn-label">{a.short}</span>
                   </button>
                 ))}
+                <button type="button" className="btn small" aria-label="More tools" title="More tools" onClick={() => setOpen('tools')}>
+                  <Wrench strokeWidth={ICON_STROKE} aria-hidden />
+                  <span className="btn-label">Tools</span>
+                </button>
               </div>
             )}
           </div>
@@ -498,6 +548,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
               <span className="num" ref={bar}>1.1</span>
             </span>
             <span className="editor-transport-mid">
+              <Mark keys="PgDn" pad="b6" mode={mode} style={style} />
               <button type="button" className="icon-btn" aria-label="A bar back" title={`A bar back (${keyName('PageDown')})`} disabled={recording} onClick={() => ctrl?.moveBar(-1)}>
                 <SkipBack strokeWidth={ICON_STROKE} aria-hidden />
               </button>
@@ -507,9 +558,15 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
               <button type="button" className="icon-btn" aria-label="A bar on" title={`A bar on (${keyName('PageUp')})`} disabled={recording} onClick={() => ctrl?.moveBar(1)}>
                 <SkipForward strokeWidth={ICON_STROKE} aria-hidden />
               </button>
+              <Mark keys="PgUp" pad="b7" mode={mode} style={style} />
+              <button type="button" className={`icon-btn editor-loop ${snap?.loop ? 'on' : ''}`} data-sfx="tab" aria-pressed={!!snap?.loop} aria-label="Loop the marked stretch" title="Loop: playback goes round the marked stretch" disabled={recording} onClick={() => ctrl?.setLoop(!snap.loop)}>
+                <Repeat strokeWidth={ICON_STROKE} aria-hidden />
+              </button>
+              <Mark keys="L" pad="b11" mode={mode} style={style} />
               <button type="button" className={`btn small editor-record ${recording ? 'live' : ''}`} data-sfx="none" aria-pressed={recording} onClick={() => (recording ? ctrl?.stopRecording() : record())}>
                 {recording ? <Square strokeWidth={ICON_STROKE} aria-hidden /> : <Circle strokeWidth={ICON_STROKE} aria-hidden />}
                 <span className="btn-label">{recording ? 'Stop' : 'Record'}</span>
+                {!recording && <Mark keys="R" pad="b9" mode={mode} style={style} />}
               </button>
             </span>
             <span className="editor-readout end">
@@ -529,7 +586,37 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
 
       {ctrl && ready && open === 'menu' && <EditorMenu ctrl={ctrl} snap={snap} mode={mode} legend={legend} onTest={test} onRecord={record} onAsk={setOpen} onClose={() => setOpen(null)} />}
       {ctrl && ready && open === 'tempo' && <TempoSheet ctrl={ctrl} snap={snap} mode={mode} onClose={() => setOpen(null)} />}
-      {ctrl && ready && open === 'selection' && <SelectionCard ctrl={ctrl} snap={snap} onClose={() => setOpen(null)} />}
+      {ctrl && ready && open === 'selection' && <SelectionCard ctrl={ctrl} snap={snap} onTools={() => setOpen('tools')} onClose={() => setOpen((o) => (o === 'selection' ? null : o))} />}
+      {ctrl && ready && open === 'tools' && <ToolsCard ctrl={ctrl} snap={snap} onClose={() => setOpen(null)} />}
+      {ctrl && ready && open === 'check' && (
+        <CheckCard
+          issues={ctrl.issues()}
+          where={(pos) => {
+            const bb = ctrl.grid.barBeat(pos);
+            return `${bb.bar}.${bb.beat}`;
+          }}
+          onGo={(issue) => ctrl.jumpTo(issue.pos, issue.lane)}
+          onClose={() => setOpen(null)}
+        />
+      )}
+      {ctrl && ready && open === 'simplify' && snap.harder && (
+        <AskCard
+          title={`Simplify from ${DIFFICULTY_LABEL[snap.harder]}?`}
+          hint={`${PART_LABEL[snap.part]} · ${DIFFICULTY_LABEL[snap.difficulty]} is written again as a simpler version of ${DIFFICULTY_LABEL[snap.harder]}: fewer notes, smaller chords, the same skeleton. Undo brings the old chart back while the editor stays open.`}
+          yes="Simplify"
+          onYes={() => void ctrl.simplifyFrom(snap.harder!)}
+          onClose={() => setOpen(null)}
+        />
+      )}
+      {ctrl && ready && open === 'easier' && (
+        <AskCard
+          title="Write the easier charts?"
+          hint={`${snap.easier.map((d) => DIFFICULTY_LABEL[d]).join(', ')} of ${PART_LABEL[snap.part]} ${snap.easier.length === 1 ? 'is' : 'are'} written again from this chart, each a simpler version of the one above it. What is in them now is replaced; undo in each chart brings it back while the editor stays open.`}
+          yes="Write them"
+          onYes={() => void ctrl.writeEasier().then((done) => done.length && say(`Wrote ${done.map((d) => DIFFICULTY_LABEL[d]).join(', ')} from this chart.`))}
+          onClose={() => setOpen(null)}
+        />
+      )}
       {ctrl && ready && open === 'copy-from' && <CopyFromCard ctrl={ctrl} snap={snap} onClose={() => setOpen(null)} />}
       {ctrl && ready && open === 'clear' && (
         <AskCard

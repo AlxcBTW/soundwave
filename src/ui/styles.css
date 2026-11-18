@@ -1270,10 +1270,12 @@ input.text { width: min(100%, 16rem); min-height: 2.5rem; padding: 0.4rem 0.7rem
   .editor-head .page-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .editor-bar { gap: 0.4rem; padding-bottom: 0.5rem; }
   .editor-wide-only { display: none; }
-  .editor-chart-btn { order: 0; flex-basis: calc(100% - 4rem); }
-  .editor-quick { order: 1; }
-  .editor-snap { order: 2; flex: 1 1 auto; justify-content: space-between; padding: 0 0.15rem; }
-  .editor-tools { order: 3; }
+  .editor-chart-btn { order: 0; flex: 1 1 6rem; }
+  .editor-tools { order: 1; }
+  .editor-quick { order: 2; }
+  .editor-snap { order: 3; flex: 1 1 100%; justify-content: space-between; padding: 0 0.15rem; }
+  /* Under a finger the chart is dragged through the song: the bar buttons give their room away. */
+  .editor-transport-mid .icon-btn:not(.editor-play):not(.editor-loop) { display: none; }
   .editor-bar .tab, .editor-bar .tab.on { padding: 0 0.7rem; }
   .editor-overview { height: 2rem; }
   .editor-track { border-radius: var(--r-m); }
@@ -1291,7 +1293,9 @@ input.text { width: min(100%, 16rem); min-height: 2.5rem; padding: 0.4rem 0.7rem
   .editor-head { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); padding: 0; }
   .page.editor { padding-top: calc(var(--safe-t) + 0.4rem); }
   .editor-bar { flex-wrap: nowrap; padding-bottom: 0.4rem; }
-  .editor-chart-btn { flex: 0 1 auto; }
+  .editor-chart-btn { flex: 0 1 auto; min-width: 8.5rem; }
+  /* Redo and zoom are in the menu (and under two fingers): the line keeps the chart's name instead. */
+  .editor-wide-only { display: none; }
   .editor-quick { margin-left: auto; }
   .editor-stage { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); gap: 0.4rem; }
   .editor-overview { grid-column: 1 / -1; height: 1.6rem; }
@@ -1307,4 +1311,46 @@ input.text { width: min(100%, 16rem); min-height: 2.5rem; padding: 0.4rem 0.7rem
   .editor-record { margin: 0.3rem 0 0; padding-inline: 0.8rem; }
   .editor-record .btn-label { display: none; }
   .editor-card { padding: 0.7rem; }
+}
+
+/* Track editor: marks, snapping, tools ------------------------------------------------------- */
+
+/* A mark beside a control says how to reach it without pointing: a keycap or the controller's symbol. */
+.mark { flex: none; }
+kbd.mark { font-size: 0.72rem; white-space: nowrap; opacity: 0.92; }
+.hint-glyph.mark { height: 1.5em; }
+.editor-via { display: inline-flex; align-items: center; }
+.editor-quick, .editor-transport-mid { align-items: center; }
+.editor-quick .mark, .editor-transport-mid .mark { margin: 0 0.15rem; }
+.editor-record .mark { margin-left: 0.2rem; }
+
+/* What notes snap to: a button in the grid's trough that is lit while anything is snapped to. */
+.snap-mode { gap: 0.45rem; min-height: var(--target); padding: 0.2rem 0.7rem; background: transparent; color: var(--ink-2); }
+.snap-mode.on { background: var(--lit); color: var(--lit-ink); }
+:root[data-input='mouse'] .snap-mode.on:hover:not(:disabled) { background: #fff; }
+.snap-mode-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.05; }
+.snap-mode-text .label { font-size: 0.72rem; color: inherit; opacity: 0.8; }
+.snap-mode-text .num { font-size: 1rem; text-transform: uppercase; animation: value-in 0.25s var(--ease); }
+.snap-mode .keycap-hint { background: var(--lit-ink); color: var(--lit); }
+.snap-mode:not(.on) .keycap-hint { background: var(--lit); color: var(--lit-ink); }
+/* A switch that is on carries the selection's lavender. */
+.icon-btn.on, :root[data-input='mouse'] .icon-btn.on:hover { background: var(--lit); color: var(--lit-ink); }
+
+/* Menu buttons that say what they do, and rows that explain themselves while lit. */
+.menu-btn { min-height: 3.6rem; padding-block: 0.5rem; white-space: normal; text-align: left; }
+.menu-btn .pick-help { font-size: 0.86rem; }
+.editor-menu .set-row.active .set-help, .pause-card .set-row.active .set-help { display: block; animation: fade-in 0.25s; }
+.check-list { display: flex; flex-direction: column; gap: 0.35rem; max-height: min(22rem, 46vh); overflow-y: auto; padding: 0.3rem; margin: -0.3rem; scroll-padding-block: 0.6rem; }
+.check-list .btn { white-space: normal; text-align: left; font-style: normal; text-transform: none; font-weight: 600; letter-spacing: 0; gap: 0.8rem; }
+.check-where { flex: none; min-width: 3.4rem; font-size: 1.05rem; font-style: italic; }
+
+@media (max-width: 640px) {
+  .snap-mode { padding: 0.2rem 0.5rem; }
+  .snap-mode-text .label { display: none; }
+  .editor-snap-value .label { display: none; }
+  .editor-loop { display: inline-grid; }
+}
+@media (max-height: 560px) {
+  .editor-transport-mid .icon-btn.editor-loop { display: inline-grid; }
+  .editor-transport-mid .mark { display: none; }
 }
