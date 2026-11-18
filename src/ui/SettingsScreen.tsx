@@ -19,7 +19,16 @@ import { allowOutputList, canPickOutput, listOutputs, type OutputList } from '..
 import { playSfx } from '../audio/sfx';
 import { inDesktopApp } from '../game/displayMode';
 import { applyPreset, autoTier, resolveGraphics, type GraphicsPreset, type GraphicsSettings, type Level } from '../game/graphics';
-import { DEFAULT_SETTINGS, keyLabel, type DisplayMode, type MotionPref, type RumbleLevel, type Settings } from '../game/settings';
+import {
+  clampTrackSpeed,
+  DEFAULT_SETTINGS,
+  keyLabel,
+  TRACK_SPEED,
+  type DisplayMode,
+  type MotionPref,
+  type RumbleLevel,
+  type Settings,
+} from '../game/settings';
 import { PadGlyph, STYLE_LABEL } from '../input/glyphs';
 import { getInputMode, usesFocus } from '../input/inputMode';
 import { focusEl, focusStart, NAV_EVENT, nearest, TAB_EVENT, type Dir } from '../input/menuNav';
@@ -104,7 +113,7 @@ const RESERVED = new Set(['Escape', 'Enter', 'Tab']);
 const FIELDS: Record<Tab, readonly (keyof Settings)[]> = {
   video: ['graphics', 'displayMode', 'uiScale', 'motion'],
   audio: ['volume', 'musicVolume', 'sfxVolume', 'songPreviews', 'muteUnfocused', 'outputDevice', 'outputDeviceName'],
-  game: ['noteSpeed', 'offsetMs'],
+  game: ['trackSpeed', 'offsetMs'],
   controller: ['glyphs', 'rumble', 'rumbleHits', 'rumbleMisses', 'rumbleSustains', 'rumbleOverdrive', 'ps5Haptics'],
   touch: ['touchHaptics', 'touchOverdriveSide'],
   shortcuts: ['keys4', 'keys5', 'overdriveKey', 'pad4', 'pad5', 'padOverdrive', 'bindings'],
@@ -798,15 +807,15 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
         rows: [
           {
             kind: 'slider',
-            id: 'noteSpeed',
-            label: 'Note speed',
-            help: 'How fast notes travel down the highway. Faster spreads dense passages apart; slower gives more time to read.',
-            value: s.noteSpeed,
-            min: 5,
-            max: 16,
-            step: 0.5,
-            format: (v) => v.toFixed(1),
-            set: (v) => set({ noteSpeed: v }),
+            id: 'trackSpeed',
+            label: 'Track speed',
+            help: 'How fast the track and its notes come towards you; 1.00x is the usual speed. Faster spreads dense passages apart; slower gives more time to read.',
+            value: s.trackSpeed,
+            min: TRACK_SPEED.min,
+            max: TRACK_SPEED.max,
+            step: TRACK_SPEED.step,
+            format: (v) => `${v.toFixed(2)}x`,
+            set: (v) => set({ trackSpeed: clampTrackSpeed(v) }),
           },
         ],
       },
