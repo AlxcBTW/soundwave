@@ -1983,6 +1983,9 @@ img.cover {
 .meta-field input {
   min-height: var(--target);
   padding: 0 0.9rem;
+  border: 0;
+  outline: none;
+  caret-color: var(--mint);
   border-radius: var(--r-m);
   background: var(--well);
   color: var(--ink);
