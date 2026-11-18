@@ -57,6 +57,8 @@ import { LobbyScreen } from './LobbyScreen';
 import { watchVenue } from '../render/aurora/assets';
 import { bootDone, bootStep } from './boot';
 import { MenuBackground } from './MenuBackground';
+import { InstallAppCard, UpdateCard } from './AppUpdates';
+import { checkForUpdates, updates } from '../app/updates';
 import { PlayScreen } from './PlayScreen';
 import { ResultsScreen, SummaryScreen, type SetResult } from './ResultsScreen';
 import { SettingsScreen } from './SettingsScreen';
@@ -119,6 +121,15 @@ export function App() {
   /** The song highlighted in the library or the track list: its preview plays. */
   const [highlight, setHighlight] = useState<string | null>(null);
   const [exitAsk, setExitAsk] = useState(false);
+  /** The card that offers an update (desktop app), or the desktop app itself (website). */
+  const [appCard, setAppCard] = useState<'update' | 'install' | null>(null);
+  const update = useSyncExternalStore(updates.subscribe, updates.snapshot);
+  // The desktop app looks for a new release a few seconds after it opens (not in development).
+  useEffect(() => {
+    if (!booted || import.meta.env.DEV || !settings.checkUpdates) return;
+    const soon = window.setTimeout(() => void checkForUpdates(true), 4000);
+    return () => clearTimeout(soon);
+  }, [booted, settings.checkUpdates]);
   /** The settings, open over a paused song. */
   const [songSettings, setSongSettings] = useState(false);
   /** The text field the on-screen keyboard is open for (a controller pressed it). */
@@ -756,6 +767,9 @@ export function App() {
           }}
           onSettings={() => setView({ name: 'settings', back: view })}
           onExit={canExit() ? () => setExitAsk(true) : undefined}
+          update={update.state === 'available' ? update.version : undefined}
+          onUpdate={() => setAppCard('update')}
+          onInstallApp={update.state === 'unsupported' ? () => setAppCard('install') : undefined}
           settings={settings}
         />
       );
@@ -835,6 +849,8 @@ export function App() {
           )}
         </Dialog>
       )}
+      {appCard === 'update' && <UpdateCard onClose={() => setAppCard(null)} />}
+      {appCard === 'install' && <InstallAppCard onClose={() => setAppCard(null)} />}
       {typing && <VirtualKeyboard target={typing} settings={settings} onClose={() => setTyping(null)} />}
       {/* The desktop window has no title bar: in Window mode this strip along the top moves it. */}
       {inDesktopApp() && settings.displayMode === 'windowed' && <div className="drag-strip" data-tauri-drag-region aria-hidden />}

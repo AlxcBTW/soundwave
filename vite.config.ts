@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { defaultClientConditions, defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+
+const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
 /**
  * Lets the page use threads (SharedArrayBuffer), which the stem model needs to run at a bearable
@@ -8,6 +11,9 @@ import react from '@vitejs/plugin-react';
 const isolation = { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' };
 
 export default defineConfig({
+  // The website is served from a sub-path on GitHub Pages (/soundwave/); the release workflow sets it.
+  base: process.env.BASE_PATH ?? '/',
+  define: { __APP_VERSION__: JSON.stringify(process.env.APP_VERSION ?? version) },
   plugins: [react()],
   clearScreen: false,
   preview: { headers: isolation },

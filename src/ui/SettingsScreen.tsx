@@ -12,7 +12,7 @@ import {
   Volume2,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { stemModel, type ModelStatus } from '../analysis/separation/model';
 import type { AnalysisDevice } from '../analysis/separation/support';
 import { allowOutputList, canPickOutput, listOutputs, type OutputList } from '../audio/output';
@@ -31,6 +31,29 @@ import { Calibration } from './Calibration';
 import { Dialog } from './Dialog';
 import { ICON_STROKE } from './icons';
 import { useLibraryBackup, type LibraryBackup } from './LibraryBackup';
+import { APP_VERSION } from '../app/release';
+import { checkForUpdates, updates, type UpdateStatus } from '../app/updates';
+import { UpdateCard } from './AppUpdates';
+
+/** What the Updates row says about the update, in a word or two. */
+function updateNote(u: UpdateStatus): string {
+  switch (u.state) {
+    case 'available':
+      return `${u.version} is out`;
+    case 'downloading':
+      return u.total ? `Downloading ${Math.round((u.received / u.total) * 100)}%` : 'Downloading';
+    case 'installing':
+      return 'Installing';
+    case 'checking':
+      return 'Checking';
+    case 'current':
+      return 'Up to date';
+    case 'error':
+      return 'Check failed';
+    default:
+      return APP_VERSION;
+  }
+}
 import { useSlide } from './useSlide';
 
 interface Props {
@@ -70,7 +93,7 @@ const FIELDS: Record<Tab, readonly (keyof Settings)[]> = {
   keyboard: ['keys4', 'keys5', 'overdriveKey'],
   controller: ['pad4', 'pad5', 'padOverdrive', 'glyphs', 'rumble', 'rumbleHits', 'rumbleMisses', 'rumbleSustains', 'rumbleOverdrive'],
   touch: ['touchHaptics', 'touchOverdriveSide'],
-  advanced: [],
+  advanced: ['checkUpdates'],
 };
 
 interface Option {
@@ -148,6 +171,8 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
   /** Asking whether to put the open tab's settings back to their defaults. */
   const [askReset, setAskReset] = useState(false);
   const library = useLibraryBackup(settings);
+  const update = useSyncExternalStore(updates.subscribe, updates.snapshot);
+  const [updateOpen, setUpdateOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [turn, setTurn] = useState<'fwd' | 'back'>('fwd');
   const settingsRef = useRef(settings);
@@ -291,6 +316,8 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
     model,
     device,
     library,
+    update,
+    showUpdate: () => setUpdateOpen(true),
     calibrate: () => setCalibrating(true),
     inSong,
     outputs,
@@ -390,6 +417,7 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
         </Dialog>
       )}
       {library.ui}
+      {updateOpen && <UpdateCard onClose={() => setUpdateOpen(false)} />}
       {calibrating && (
         <Calibration
           onDone={(ms) => {
@@ -415,6 +443,9 @@ interface Ctx {
   model: ModelStatus;
   device: AnalysisDevice | null;
   library: LibraryBackup;
+  update: UpdateStatus;
+  /** Opens the card that offers the update found. */
+  showUpdate(): void;
   calibrate(): void;
   inSong: boolean;
   outputs: OutputList;
@@ -971,7 +1002,42 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
   );
   const modelHelp = `Before a song is charted it is split into drums, bass, vocals and the other instruments, so each part follows its own instrument. The model that does this (Demucs, ${mb(stemModel.bytes)}) is downloaded once and kept on this device.${m.state === 'error' && m.error ? ` ${m.error}` : ''}`;
   const lib = c.library;
+  const u = c.update;
+  const updateRows: Row[] =
+    u.state === 'unsupported'
+      ? [
+          {
+            kind: 'info',
+            id: 'version',
+            label: 'Version',
+            help: 'The game in the browser is always the newest release: there is nothing to update here. The desktop app looks for updates itself.',
+            body: APP_VERSION,
+          },
+        ]
+      : [
+          {
+            kind: 'action',
+            id: 'checkForUpdates',
+            label: 'Updates',
+            button: u.state === 'available' ? 'Install' : u.state === 'checking' ? 'Checking…' : 'Check now',
+            disabled: u.state === 'checking' || u.state === 'downloading' || u.state === 'installing',
+            run:
+              u.state === 'available' || u.state === 'downloading' || u.state === 'installing'
+                ? c.showUpdate
+                : () => void checkForUpdates(),
+            note: <span className={`pill ${u.state === 'available' ? 'lit' : u.state === 'error' ? 'error' : ''}`}>{updateNote(u)}</span>,
+            help: `You have version ${APP_VERSION}. The game looks for a newer release on GitHub and, when you say so, downloads it, checks that it is genuine, installs it and starts again. Your library, scores and settings stay.${u.state === 'error' ? ` ${u.message}` : ''}`,
+          },
+          toggle(
+            'checkUpdates',
+            'Look for updates on start',
+            'When the game starts it asks GitHub whether a new release is out, and the main menu shows an Update button when there is one. Nothing is installed until you choose to.',
+            s.checkUpdates,
+            (v) => set({ checkUpdates: v }),
+          ),
+        ];
   return [
+    { title: 'Updates', rows: updateRows },
     {
       title: 'Your library',
       rows: [

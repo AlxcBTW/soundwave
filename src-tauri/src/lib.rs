@@ -25,6 +25,14 @@ pub fn run() {
             song_files::focus(app);
         }));
     }
+    // Updates: the app asks GitHub for the newest full release, checks its signature against the
+    // public key in tauri.conf.json, installs it and restarts (src/app/updates.ts).
+    #[cfg(desktop)]
+    {
+        builder = builder
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .plugin(tauri_plugin_process::init());
+    }
     builder
         .plugin(tauri_plugin_dialog::init())
         .manage(haptics::Haptics::default())

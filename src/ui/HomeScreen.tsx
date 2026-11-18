@@ -8,6 +8,8 @@ import {
   Search,
   Settings as SettingsIcon,
   Upload,
+  Download,
+  MonitorDown,
   type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -47,6 +49,11 @@ interface Props {
   onSettings(): void;
   /** Asks whether to close the game (absent where the game cannot close itself, as in a browser tab). */
   onExit?(): void;
+  /** The version of an update that is ready to install, when the desktop app found one. */
+  update?: string;
+  onUpdate(): void;
+  /** Offers the desktop app (absent in the desktop app itself). */
+  onInstallApp?(): void;
   settings: Settings;
 }
 
@@ -81,6 +88,9 @@ export function HomeScreen({
   tracks,
   onSettings,
   onExit,
+  update,
+  onUpdate,
+  onInstallApp,
   settings,
 }: Props) {
   const style = useGlyphStyle(settings.glyphs);
@@ -148,6 +158,8 @@ export function HomeScreen({
           { id: 'new', label: 'New track', icon: FilePlus2, kbd: 'KeyN', pad: 'b3', primary: true, run: () => setPicks((n) => n + 1) },
         ]),
     { id: 'settings', label: 'Settings', icon: SettingsIcon, kbd: 'KeyS', pad: 'b9', run: onSettings },
+    ...(update ? [{ id: 'update', label: `Update to ${update}`, icon: Download, kbd: 'KeyU', bar: false, run: onUpdate }] : []),
+    ...(onInstallApp ? [{ id: 'install-app', label: 'Get the app', icon: MonitorDown, kbd: 'KeyI', bar: false, run: onInstallApp }] : []),
     // Esc and the controller's back button: there is nowhere further back than out.
     ...(onExit ? [{ id: 'exit', label: 'Exit', icon: Power, kbd: 'Escape', bar: false, run: onExit }] : []),
   ]);
@@ -186,6 +198,20 @@ export function HomeScreen({
           <p className="head-status" role="status">
             Analyzing {count(busy.length)}
           </p>
+        )}
+        {update && (
+          <button type="button" className="btn head-btn update-btn" data-action="update" onClick={onUpdate}>
+            <Hint kbd="KeyU" mode={mode} style={style} />
+            <Download strokeWidth={ICON_STROKE} aria-hidden />
+            Update to {update}
+          </button>
+        )}
+        {onInstallApp && (
+          <button type="button" className="btn head-btn install-btn" data-action="install-app" onClick={onInstallApp}>
+            <Hint kbd="KeyI" mode={mode} style={style} />
+            <MonitorDown strokeWidth={ICON_STROKE} aria-hidden />
+            Get the app
+          </button>
         )}
         {onExit && (
           <button type="button" className="btn exit-btn" data-action="exit" data-sfx="back" onClick={onExit}>

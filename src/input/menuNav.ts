@@ -28,7 +28,7 @@ const DIRS: Record<string, Dir> = {
 };
 const ARROWS: Record<string, Dir> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 const FOCUSABLE =
-  'button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  'button:not([disabled]), a[href], summary, input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /** Sent to switch tabs (detail: -1 or 1). */
 export const TAB_EVENT = 'nav-tab';
