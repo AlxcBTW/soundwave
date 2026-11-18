@@ -8,7 +8,7 @@
  * e.g. `a1-` is the left stick pushed up.
  */
 
-import { setInputMode } from './inputMode';
+import { noteInput, setInputMode } from './inputMode';
 
 export type PadFamily = 'xbox' | 'ps4' | 'ps5' | 'switch' | 'generic';
 export type GlyphStyle = 'xbox' | 'ps4' | 'ps5' | 'switch';
@@ -186,6 +186,7 @@ class PadHub {
       // The report's own time is more precise than when this frame got to read it.
       const t = gp.timestamp > 0 && gp.timestamp <= now && now - gp.timestamp < 250 ? gp.timestamp : now;
       if (changes.some((c) => c.down)) setInputMode('pad');
+      noteInput();
       if (changes.some((c) => c.down) && (this.snap.lastDevice !== 'pad' || this.snap.lastPad !== gp.index)) {
         this.update({ lastDevice: 'pad', lastPad: gp.index, family: detectFamily(gp.id) });
       }

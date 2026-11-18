@@ -108,7 +108,7 @@ const FIELDS: Record<Tab, readonly (keyof Settings)[]> = {
   controller: ['glyphs', 'rumble', 'rumbleHits', 'rumbleMisses', 'rumbleSustains', 'rumbleOverdrive', 'ps5Haptics'],
   touch: ['touchHaptics', 'touchOverdriveSide'],
   shortcuts: ['keys4', 'keys5', 'overdriveKey', 'pad4', 'pad5', 'padOverdrive', 'bindings'],
-  advanced: ['checkUpdates'],
+  advanced: ['checkUpdates', 'discordStatus'],
 };
 
 interface Option {
@@ -1172,6 +1172,22 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
         ];
   return [
     { title: 'Updates', rows: updateRows },
+    ...(inDesktopApp()
+      ? [
+          {
+            title: 'Discord',
+            rows: [
+              toggle(
+                'discordStatus',
+                'Show on Discord',
+                'While Discord runs on this computer, your profile shows that you are playing Soundwave: where you are in the menus, and in a song its title, artist, part, difficulty and the time left. Turn it off to show nothing.',
+                s.discordStatus,
+                (v) => set({ discordStatus: v }),
+              ),
+            ],
+          },
+        ]
+      : []),
     {
       title: 'Your library',
       rows: [

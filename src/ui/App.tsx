@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { setDiscordEnabled, showScene } from '../app/discord';
 import { analysisManager, canPlay } from '../analysis/manager';
 import { stemModel } from '../analysis/separation/model';
 import { analysisDevice, type AnalysisDevice } from '../analysis/separation/support';
@@ -789,6 +790,41 @@ export function App() {
       toast((e as Error).message);
     }
   };
+
+  // The player's Discord profile shows where they are and what they play (desktop app; src/app/discord.ts).
+  useEffect(() => setDiscordEnabled(settings.discordStatus), [settings.discordStatus]);
+  useEffect(() => {
+    const named = (s: SongMeta) => (s.artist ? `${s.title} — ${s.artist}` : s.title);
+    const count = (n: number) => `${n} ${n === 1 ? 'song' : 'songs'}`;
+    switch (view.name) {
+      case 'home':
+        return showScene({ details: 'In the main menu' });
+      case 'library':
+        return showScene({ details: 'Browsing the library', state: count(songs.length) });
+      case 'settings':
+        return showScene({ details: 'In the settings' });
+      case 'lobby':
+        return showScene({ details: 'Getting a set ready', state: count(view.ids.length) });
+      case 'editor':
+        return showScene({ details: named(view.song), state: 'Editing the chart' });
+      case 'play': {
+        const { run } = view;
+        const part = run.charts[run.index].part;
+        const what = `${PART_LABEL[part]} · ${DIFFICULTY_LABEL[run.pick.difficulty]}`;
+        const where = run.test ? 'Test play' : run.songs.length > 1 ? `Song ${run.index + 1} of ${run.songs.length}` : '';
+        return showScene({ details: named(run.songs[run.index]), state: where ? `${what} · ${where}` : what, part, partText: what });
+      }
+      case 'results': {
+        const { song, results } = view.run.results[view.run.index] ?? { song: view.run.songs[view.run.index], results: null };
+        if (!results) return showScene({ details: named(song), state: 'Results' });
+        const stars = '★'.repeat(Math.max(0, Math.min(6, Math.floor(results.stars))));
+        const parts = [stars, `${Math.round(results.accuracy * 100)}%`, results.fullCombo ? 'Full combo' : ''].filter(Boolean);
+        return showScene({ details: named(song), state: parts.join(' · ') });
+      }
+      case 'summary':
+        return showScene({ details: 'Finished a set', state: count(view.run.songs.length) });
+    }
+  }, [view, songs.length]);
 
   let content: React.ReactNode;
   if (view.name === 'play') {

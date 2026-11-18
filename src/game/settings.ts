@@ -52,6 +52,8 @@ export interface Settings {
   touchOverdriveSide: 'left' | 'right';
   /** The desktop app looks for a new release when it starts. */
   checkUpdates: boolean;
+  /** The desktop app shows what is being played on the player's Discord profile. */
+  discordStatus: boolean;
   /** Which volume defaults the stored volumes have been brought up to (not shown; see normalizeSettings). */
   volumeDefaults: number;
 }
@@ -103,6 +105,7 @@ export const DEFAULT_SETTINGS: Settings = {
   touchHaptics: true,
   touchOverdriveSide: 'right',
   checkUpdates: true,
+  discordStatus: true,
   volumeDefaults: VOLUME_DEFAULTS,
 };
 
@@ -138,6 +141,7 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
   s.muteUnfocused = Boolean(s.muteUnfocused);
   s.songPreviews = Boolean(s.songPreviews);
   s.checkUpdates = Boolean(s.checkUpdates);
+  s.discordStatus = Boolean(s.discordStatus);
   if (typeof s.outputDevice !== 'string') s.outputDevice = '';
   if (typeof s.outputDeviceName !== 'string' || !s.outputDevice) s.outputDeviceName = '';
   if (s.touchOverdriveSide !== 'left') s.touchOverdriveSide = 'right';

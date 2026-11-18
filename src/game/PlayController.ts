@@ -108,6 +108,11 @@ export class PlayController {
     if (this.shownStage !== this.stage) this.shownStage?.setRate(on ? 'frozen' : 'full');
   }
 
+  /** Seconds until the song is over, at the speed it plays (the lead-in counted). */
+  get songLeft() {
+    return Math.max(0, this.chart.duration - this.engine.time()) / this.engine.playbackRate;
+  }
+
   onPhase: (p: PlayPhase, countdown?: number) => void = () => {};
   onFinish: (r: Results) => void = () => {};
 

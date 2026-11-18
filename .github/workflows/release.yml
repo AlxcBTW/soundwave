@@ -99,6 +99,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # The Discord application the profile status belongs to (src-tauri/src/discord.rs); unset = no status.
+          SOUNDWAVE_DISCORD_CLIENT_ID: ${{ vars.SOUNDWAVE_DISCORD_CLIENT_ID }}
         with:
           tauriScript: pnpm tauri
           # Release builds also make the signed update bundles the installed apps download.

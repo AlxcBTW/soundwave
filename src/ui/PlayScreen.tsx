@@ -1,5 +1,6 @@
 import { LogOut, Pause, Play, RotateCcw, Settings as SettingsIcon, SkipForward, Zap } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { showSong } from '../app/discord';
 import { getEngine } from '../audio/engine';
 import { playSfx } from '../audio/sfx';
 import type { Chart } from '../chart/types';
@@ -112,7 +113,14 @@ export function PlayScreen({
       stageRef.current!,
     );
     let prev: PlayPhase = 'countdown';
+    // Discord shows the time left, or that the song is paused or over (src/app/discord.ts). The
+    // countdown and the song count down alike; the time left is taken once the song plays again.
+    let shown: PlayPhase | null = null;
     ctrl.onPhase = (p, n) => {
+      if (p !== shown) {
+        shown = p;
+        showSong({ phase: p === 'countdown' ? 'playing' : p, left: ctrl.songLeft });
+      }
       if (p === 'paused' && prev !== 'paused') {
         playSfx('pause');
         menuPulse('back');
@@ -141,6 +149,7 @@ export function PlayScreen({
       clearTimeout(finishTimer);
       ctrl.dispose();
       ctrlRef.current = null;
+      showSong(null);
     };
   }, [buffer, chart, startAt, run]);
 
