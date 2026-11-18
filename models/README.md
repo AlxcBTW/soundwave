@@ -8,6 +8,6 @@ The neural models the game uses are kept in this repository, not fetched from pa
 | Note transcription | `public/models/basic-pitch/nmp.onnx` (0.2 MB) | Spotify's Basic Pitch as ONNX, as shipped in the `basic-pitch` 0.4.0 Python package (`saved_models/icassp_2022/nmp.onnx`). | Apache-2.0 |
 | Note transcription, TensorFlow.js | `models/basic-pitch-tfjs/` (0.9 MB) | The same network as shipped in `@spotify/basic-pitch` 1.0.1, used only by the offline tooling in `scripts/dev/`. | Apache-2.0 |
 
-The transcription model is served with the game (the ONNX file; the TensorFlow.js copy is not served). The stem model is too large for that: the game downloads it once on first launch. For now it downloads the copy Intel publishes on Hugging Face (`Intel/demucs-openvino`, the same model in float32, 171 MB); the download moves to the file in this folder once the repository can be read without signing in. `src/analysis/separation/model.ts` holds both addresses and the hashes the download is checked against.
+The transcription model is served with the game (the ONNX file; the TensorFlow.js copy is not served). The stem model is too large for that: the game downloads it once, on first launch, from this folder on GitHub, read at a fixed commit. `src/analysis/separation/model.ts` holds that commit and the size and SHA-256 the download is checked against.
 
-After re-exporting the stem model, update its size and SHA-256 in `src/analysis/separation/model.ts`.
+After re-exporting the stem model, commit it, then give it a new id in `src/analysis/separation/model.ts` along with the new commit, size and SHA-256 (a game already installed keeps reading the file it knows).

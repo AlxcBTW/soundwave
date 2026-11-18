@@ -4,7 +4,8 @@ import { openDB, type IDBPDatabase } from 'idb';
  * The stem-separation model: where it is downloaded from, and the copy kept on this device.
  *
  * It is Demucs "htdemucs" (Défossez, Rouard, Massa; Meta). The game does not ship it: it is fetched
- * once, checked against the hashes below and kept in the browser's storage.
+ * once from this repository on GitHub, checked against the hash below and kept in the browser's
+ * storage.
  */
 export interface ModelFile {
   name: string;
@@ -20,9 +21,16 @@ export interface ModelSource {
 }
 
 /**
+ * The commit the model file is read from. Pinned, not the main branch: a re-exported model gets a
+ * new id, size and hash here, and a game already installed keeps fetching exactly the file it
+ * checks against.
+ */
+const MODEL_COMMIT = '63e0a897f0344a6063051fe35b93f51e3239dbfe';
+
+/**
  * The file this repository holds (models/htdemucs/htdemucs-v1.onnx, made by
- * tools/analysis/export_stem_model.py): half the size of the copy below, same numbers.
- * The download moves here once the repository can be read without signing in.
+ * tools/analysis/export_stem_model.py): the weights as float16, half the size of the float32 copy
+ * Intel publishes, with the same results.
  */
 export const REPO_MODEL: ModelSource = {
   id: 'htdemucs-v1',
@@ -30,47 +38,26 @@ export const REPO_MODEL: ModelSource = {
   files: [
     {
       name: 'htdemucs-v1.onnx',
-      url: 'https://raw.githubusercontent.com/DavidNiessen/soundwave/main/models/htdemucs/htdemucs-v1.onnx',
+      url: `https://raw.githubusercontent.com/DavidNiessen/soundwave/${MODEL_COMMIT}/models/htdemucs/htdemucs-v1.onnx`,
       bytes: 90415579,
       sha256: 'fee1c4f070dc290f3ce65c16cd0927279b5e23159d01bfb6c8a8a13bd734f276',
     },
   ],
 };
 
-/** Until then: the same model as Intel publishes it for its Audacity plugins, at a fixed revision. */
-const INTEL = 'https://huggingface.co/Intel/demucs-openvino/resolve/efb3d2bc54f93899b13b72b12c57001e19f09ae2/htdemucs_v4/';
-export const INTEL_MODEL: ModelSource = {
-  id: 'htdemucs-intel-efb3d2b',
-  entry: 'htdemucs_fwd.onnx',
-  files: [
-    {
-      name: 'htdemucs_fwd.onnx',
-      url: `${INTEL}htdemucs_fwd.onnx`,
-      bytes: 2385507,
-      sha256: '555f511fb653348a1c9495ab6b6091767d1920798f3fba68629a1fe5b135a45f',
-    },
-    {
-      name: 'htdemucs_fwd.onnx.data',
-      url: `${INTEL}htdemucs_fwd.onnx.data`,
-      bytes: 168361984,
-      sha256: '23a7c68669c041363caaef94641e961dc8c4e16b9891cb87f58f0e199a5e8820',
-    },
-  ],
-};
-
 function chosenSource(): ModelSource {
-  // Development only: `localStorage['soundwave.dev.stem-model'] = 'repo'` loads the repository's file
-  // from the dev server, to check it before the download moves there.
+  // Development only: `localStorage['soundwave.dev.stem-model'] = 'local'` loads the file in the
+  // working copy from the dev server instead (to try a newly exported model before it is pushed).
   if (import.meta.env.DEV) {
     try {
-      if (localStorage.getItem('soundwave.dev.stem-model') === 'repo') {
+      if (localStorage.getItem('soundwave.dev.stem-model') === 'local') {
         return { ...REPO_MODEL, files: REPO_MODEL.files.map((f) => ({ ...f, url: `/models/htdemucs/${f.name}` })) };
       }
     } catch {
       /* storage unavailable */
     }
   }
-  return INTEL_MODEL;
+  return REPO_MODEL;
 }
 
 export interface ModelStatus {
@@ -157,8 +144,8 @@ class StemModel {
           data.set(value, at);
           at += value.length;
           received += value.length;
-          // Not for every network chunk: listeners redraw.
-          if (received - this.status.received >= this.bytes / 200) this.set({ received });
+          // Not for every network chunk: listeners redraw (the whole menu, while it shows the bar).
+          if (received - this.status.received >= this.bytes / 100) this.set({ received });
         }
         if (at !== file.bytes) throw new Error('the file arrived incomplete');
         // Only a secure page can hash; elsewhere the size has to do.
