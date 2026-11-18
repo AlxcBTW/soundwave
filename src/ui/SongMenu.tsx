@@ -63,8 +63,20 @@ export function SongMenu({ songs, status, setlist, at, actions, onClose }: Props
   const addable = ready.filter((s) => !setlist.includes(s.id));
   const analyzable = songs.filter((s) => !busy(s));
 
-  // Every item closes the menu as it runs, except Remove, which asks first.
-  const item = (i: Item): Item => ({ ...i, run: i.id === 'remove' ? i.run : () => (close(), i.run()) });
+  // Every item closes the menu as it runs, except Remove, which asks first. Focus goes back where it
+  // was first, so what the item opens (the song's details) hands it back there when it closes.
+  const before = useRef<HTMLElement | null>(null);
+  const item = (i: Item): Item => ({
+    ...i,
+    run:
+      i.id === 'remove'
+        ? i.run
+        : () => {
+            close();
+            if (before.current?.isConnected) before.current.focus({ preventScroll: true });
+            i.run();
+          },
+  });
   const items: Item[] = one
     ? [
         { id: 'details', label: 'Song details', icon: Info, run: () => actions.details(one) },
@@ -144,7 +156,8 @@ export function SongMenu({ songs, status, setlist, at, actions, onClose }: Props
   // Focus moves in (the first item for keys and controllers), stays in, and goes back where it was.
   useEffect(() => {
     if (confirm) return;
-    const before = document.activeElement as HTMLElement | null;
+    const was = document.activeElement as HTMLElement | null;
+    before.current = was;
     const box = ref.current!;
     const first = usesFocus(getInputMode()) ? focusables(box)[0] : undefined;
     (first ?? box.querySelector<HTMLElement>('.ctx-menu')!).focus({ preventScroll: true });
@@ -159,7 +172,9 @@ export function SongMenu({ songs, status, setlist, at, actions, onClose }: Props
     box.addEventListener('keydown', trap);
     return () => {
       box.removeEventListener('keydown', trap);
-      if (before?.isConnected) before.focus({ preventScroll: true });
+      // Only while the focus is still the menu's: what an item opened keeps it.
+      const now = document.activeElement;
+      if (was?.isConnected && (!now || now === document.body || box.contains(now))) was.focus({ preventScroll: true });
     };
   }, [confirm]);
 
