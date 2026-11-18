@@ -591,7 +591,7 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
           toggle(
             'dynamicResolution',
             'Adaptive resolution',
-            'When the graphics chip is too busy, the stage gives up sharpness before smoothness. Off, it draws less often first.',
+            'Lowers the stage resolution for a moment when frames run long.',
             shown.dynamicResolution,
             (v) => setG({ dynamicResolution: v }),
           ),
@@ -599,7 +599,7 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
             kind: 'choice',
             id: 'fpsCap',
             label: 'Stage frame rate',
-            help: 'Caps how often the stage redraws. The highway is never capped, and when the graphics chip is too busy the stage draws less often, so the game and the menus stay smooth.',
+            help: 'Caps how often the stage redraws. The highway is never capped.',
             value: String(shown.fpsCap),
             options: [
               { value: '0', label: 'Display' },
