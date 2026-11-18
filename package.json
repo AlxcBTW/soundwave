@@ -4,7 +4,7 @@
   "description": "Rhythm game that charts your own songs",
   "scripts": {
     "dev": "node scripts/copy-models.mjs && vite",
-    "build": "node scripts/copy-models.mjs && tsc --noEmit && vite build",
+    "build": "node scripts/copy-models.mjs && tsc --noEmit && vite build && node scripts/check-dist.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
