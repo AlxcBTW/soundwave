@@ -66,6 +66,15 @@ export function isFullscreenToggle(
   return e.altKey && (e.code === 'Enter' || e.code === 'NumpadEnter');
 }
 
+/**
+ * macOS keeps its menu bar and Dock over a borderless window the size of the screen, so there
+ * Windowed fullscreen is the system's simple fullscreen instead: the window covers the whole
+ * screen with the menu bar and Dock hidden, without moving to a Space of its own (switching apps
+ * stays instant, as the mode promises).
+ */
+const onMac = () => typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || navigator.userAgent);
+let simple = false;
+
 let queue: Promise<void> = Promise.resolve();
 let applied: DisplayMode | null = null;
 let shown = false;
@@ -82,6 +91,10 @@ async function apply(mode: DisplayMode) {
   try {
     if (mode === applied) return;
     applied = null;
+    if (simple && mode !== 'borderless') {
+      await win.setSimpleFullscreen(false);
+      simple = false;
+    }
     if (mode === 'fullscreen') {
       await win.setFullscreen(true);
     } else {
@@ -93,7 +106,10 @@ async function apply(mode: DisplayMode) {
         await win.setDecorations(false);
         await win.setShadow(false);
         await win.setResizable(false);
-        if (monitor) {
+        if (onMac()) {
+          await win.setSimpleFullscreen(true);
+          simple = true;
+        } else if (monitor) {
           await win.setPosition(monitor.position);
           await win.setSize(monitor.size);
         }
