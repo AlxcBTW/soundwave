@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronLeft, ChevronRight, Gamepad2, Hand, Keyboard, Monitor, RotateCcw, ScanSearch, Target, Volume2, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Gamepad2, Hand, Keyboard, Monitor, RotateCcw, SlidersHorizontal, Target, Volume2, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { stemModel, type ModelStatus } from '../analysis/separation/model';
 import type { AnalysisDevice } from '../analysis/separation/support';
@@ -17,6 +17,7 @@ import { Hint, useActions, useHints } from './actions';
 import { Calibration } from './Calibration';
 import { Dialog } from './Dialog';
 import { ICON_STROKE } from './icons';
+import { useLibraryBackup, type LibraryBackup } from './LibraryBackup';
 import { useSlide } from './useSlide';
 
 interface Props {
@@ -30,7 +31,7 @@ interface Props {
   inSong?: boolean;
 }
 
-type Tab = 'video' | 'audio' | 'game' | 'keyboard' | 'controller' | 'touch' | 'analysis';
+type Tab = 'video' | 'audio' | 'game' | 'keyboard' | 'controller' | 'touch' | 'advanced';
 const TABS: [Tab, string, LucideIcon][] = [
   ['video', 'Video', Monitor],
   ['audio', 'Audio', Volume2],
@@ -38,7 +39,7 @@ const TABS: [Tab, string, LucideIcon][] = [
   ['keyboard', 'Keyboard', Keyboard],
   ['controller', 'Controller', Gamepad2],
   ['touch', 'Touch', Hand],
-  ['analysis', 'Analysis', ScanSearch],
+  ['advanced', 'Advanced', SlidersHorizontal],
 ];
 const TAB_KEY = 'festival.settings-tab';
 
@@ -56,7 +57,7 @@ const FIELDS: Record<Tab, readonly (keyof Settings)[]> = {
   keyboard: ['keys4', 'keys5', 'overdriveKey'],
   controller: ['pad4', 'pad5', 'padOverdrive', 'glyphs', 'rumble', 'rumbleHits', 'rumbleMisses', 'rumbleSustains', 'rumbleOverdrive'],
   touch: ['touchHaptics', 'touchOverdriveSide'],
-  analysis: [],
+  advanced: [],
 };
 
 interface Option {
@@ -128,6 +129,7 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
   const [calibrating, setCalibrating] = useState(false);
   /** Asking whether to put the open tab's settings back to their defaults. */
   const [askReset, setAskReset] = useState(false);
+  const library = useLibraryBackup();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [turn, setTurn] = useState<'fwd' | 'back'>('fwd');
   const settingsRef = useRef(settings);
@@ -261,7 +263,7 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
     { id: 'reset', label: 'Restore defaults', icon: RotateCcw, kbd: 'KeyR', pad: 'b3', run: () => setAskReset(true) },
   ]);
 
-  const sections = buildSections(tab, { settings, set, binding, setBinding, snap, haptics, model, device, calibrate: () => setCalibrating(true), inSong, outputs, outputsRefused, askOutputs: () => void askOutputs() });
+  const sections = buildSections(tab, { settings, set, binding, setBinding, snap, haptics, model, device, library, calibrate: () => setCalibrating(true), inSong, outputs, outputsRefused, askOutputs: () => void askOutputs() });
   const rows = sections.flatMap((s) => s.rows);
   const active = rows.find((r) => r.id === activeId) ?? rows[0];
   const tabRow = useSlide<HTMLDivElement>(tab);
@@ -326,6 +328,7 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
           )}
         </Dialog>
       )}
+      {library.ui}
       {calibrating && (
         <Calibration
           onDone={(ms) => {
@@ -350,6 +353,7 @@ interface Ctx {
   haptics: boolean | null;
   model: ModelStatus;
   device: AnalysisDevice | null;
+  library: LibraryBackup;
   calibrate(): void;
   inSong: boolean;
   outputs: OutputList;
@@ -621,20 +625,38 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
     : m.state === 'error' ? <span className="pill error">Failed</span>
     : <span className="pill">{m.state === 'absent' ? 'Not downloaded' : 'Checking…'}</span>;
   const modelHelp = `Before a song is charted it is split into drums, bass, vocals and the other instruments, so each part follows its own instrument. The model that does this (Demucs, ${mb(stemModel.bytes)}) is downloaded once and kept on this device.${m.state === 'error' && m.error ? ` ${m.error}` : ''}`;
-  return [{
-    title: 'Song analysis',
-    rows: [
-      // A button only while there is something to press it for.
-      m.state === 'absent' || m.state === 'error'
-        ? { kind: 'action', id: 'stemModel', label: 'Analysis model', help: modelHelp, button: m.state === 'error' ? 'Try again' : 'Download', disabled: unsupported, run: () => void stemModel.ensure().catch(() => {}), note: modelNote }
-        : { kind: 'info', id: 'stemModel', label: 'Analysis model', help: modelHelp, body: modelNote },
-      {
-        kind: 'info', id: 'analysisDevice', label: 'Runs on',
-        help: 'On a graphics card a song takes about a minute. Without one the processor does the work, which takes several minutes per song. Phones and tablets do not have the memory for it: they can play the demo track, but not analyze songs.',
-        body: c.device === 'gpu' ? 'Graphics card' : c.device === 'cpu' ? 'Processor (slower)' : c.device === 'none' ? 'Not available on this device' : 'Checking…',
-      },
-    ],
-  }];
+  const lib = c.library;
+  return [
+    {
+      title: 'Your library',
+      rows: [
+        {
+          kind: 'action', id: 'exportLibrary', label: 'Export library', button: 'Export', disabled: lib.busy, run: lib.exportLibrary, note: lib.exportNote,
+          help: 'Saves every song with its charts, the charts you edited by hand, your best scores and your settings in one file, to move the game to another computer or keep a copy safe. Separated stems are left out: a song makes them again when it is analyzed again.',
+        },
+        {
+          kind: 'action', id: 'importLibrary', label: 'Import library', button: 'Import', disabled: lib.busy || c.inSong, run: lib.importLibrary, note: lib.importNote,
+          help: c.inSong
+            ? 'Leave the song first: importing restarts the game.'
+            : 'Adds the songs from a library backup with their charts, keeps the better of each best score, and takes over the backup’s settings. Songs you already have stay as they are. The game restarts afterwards.',
+        },
+      ],
+    },
+    {
+      title: 'Song analysis',
+      rows: [
+        // A button only while there is something to press it for.
+        m.state === 'absent' || m.state === 'error'
+          ? { kind: 'action', id: 'stemModel', label: 'Analysis model', help: modelHelp, button: m.state === 'error' ? 'Try again' : 'Download', disabled: unsupported, run: () => void stemModel.ensure().catch(() => {}), note: modelNote }
+          : { kind: 'info', id: 'stemModel', label: 'Analysis model', help: modelHelp, body: modelNote },
+        {
+          kind: 'info', id: 'analysisDevice', label: 'Runs on',
+          help: 'On a graphics card a song takes about a minute. Without one the processor does the work, which takes several minutes per song. Phones and tablets do not have the memory for it: they can play the demo track, but not analyze songs.',
+          body: c.device === 'gpu' ? 'Graphics card' : c.device === 'cpu' ? 'Processor (slower)' : c.device === 'none' ? 'Not available on this device' : 'Checking…',
+        },
+      ],
+    },
+  ];
 }
 
 /* ------------------------------------------------------------------------------------------- */

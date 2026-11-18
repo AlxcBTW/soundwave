@@ -1,44 +1,98 @@
 /**
- * Getting .festival files in and out: saving a song's file to disk to share it, and, in the desktop
- * app, the files the system opens the game with (a song file double-clicked in Explorer).
+ * Getting files in and out: saving a song's file or a library backup to disk, and, in the desktop
+ * app, the song files the system opens the game with (a song file double-clicked in Explorer).
  */
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { inDesktopApp } from '../game/displayMode';
+import { BACKUP_EXT, BACKUP_MIME } from './backup';
 import { FESTIVAL_EXT, FESTIVAL_MIME } from './festivalFile';
 
-/** Asks where to save a song file and writes it. False when the player cancelled. */
-export async function saveSongFile(file: Blob, name: string): Promise<boolean> {
+export type SaveKind = 'song' | 'backup';
+
+const TYPES: Record<SaveKind, { description: string; mime: string; ext: string }> = {
+  song: { description: 'Festival song', mime: FESTIVAL_MIME, ext: FESTIVAL_EXT },
+  backup: { description: 'Festival library backup', mime: BACKUP_MIME, ext: BACKUP_EXT },
+};
+
+/** How much is handed to the desktop app in one message. */
+const PIECE = 8 * 1024 * 1024;
+
+/** A file being saved where the player chose: written in order, then finished or abandoned. */
+export interface SaveTarget {
+  write(data: Blob): Promise<void>;
+  /** Finishes the file. */
+  close(): Promise<void>;
+  /** Gives up part way: an unfinished file is removed where that is possible. */
+  abort(): Promise<void>;
+}
+
+/**
+ * Asks where to save a file and opens it there; null when the player cancelled. Ask first, then
+ * produce the file: a browser shows its save dialog only straight after a press.
+ */
+export async function chooseSaveTarget(name: string, kind: SaveKind): Promise<SaveTarget | null> {
   if (inDesktopApp()) {
-    // The app's own command shows the system's save dialog and writes the file there.
-    const saved = await invoke<string | null>('save_song_file', new Uint8Array(await file.arrayBuffer()), {
-      headers: { 'x-file-name': encodeURIComponent(name) },
-    });
-    return saved !== null;
+    // The app's own commands show the system's save dialog and write the file in pieces.
+    const id = await invoke<number | null>('save_file_begin', { name, kind });
+    if (id === null) return null;
+    return {
+      async write(data) {
+        for (let at = 0; at < data.size; at += PIECE) {
+          const bytes = new Uint8Array(await data.slice(at, at + PIECE).arrayBuffer());
+          await invoke('save_file_write', bytes, { headers: { 'x-save-id': String(id) } });
+        }
+      },
+      close: () => invoke('save_file_end', { id, keep: true }).then(() => {}),
+      abort: () => invoke('save_file_end', { id, keep: false }).then(() => {}),
+    };
   }
+  const t = TYPES[kind];
   const picker = (window as { showSaveFilePicker?: (o: object) => Promise<FileSystemFileHandle> }).showSaveFilePicker;
   if (picker) {
     let handle: FileSystemFileHandle;
     try {
-      handle = await picker({ suggestedName: name, types: [{ description: 'Festival song', accept: { [FESTIVAL_MIME]: [FESTIVAL_EXT] } }] });
+      handle = await picker({ suggestedName: name, types: [{ description: t.description, accept: { [t.mime]: [t.ext] } }] });
     } catch (e) {
-      if ((e as DOMException).name === 'AbortError') return false;
+      if ((e as DOMException).name === 'AbortError') return null;
       throw e;
     }
     const out = await handle.createWritable();
-    await out.write(file);
-    await out.close();
-    return true;
+    return { write: (data) => out.write(data), close: () => out.close(), abort: () => out.abort() };
   }
-  // Browsers without a save dialog download it.
-  const url = URL.createObjectURL(file);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  // Browsers without a save dialog download it once it is complete.
+  const parts: Blob[] = [];
+  return {
+    async write(data) {
+      parts.push(data);
+    },
+    async close() {
+      const url = URL.createObjectURL(new Blob(parts, { type: t.mime }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    },
+    async abort() {
+      parts.length = 0;
+    },
+  };
+}
+
+/** Asks where to save a song file and writes it. False when the player cancelled. */
+export async function saveSongFile(file: Blob, name: string): Promise<boolean> {
+  const target = await chooseSaveTarget(name, 'song');
+  if (!target) return false;
+  try {
+    await target.write(file);
+    await target.close();
+  } catch (e) {
+    await target.abort().catch(() => {});
+    throw e;
+  }
   return true;
 }
 

@@ -27,6 +27,7 @@ pub fn run() {
     .manage(haptics::Haptics::default())
     .manage(touchpad::Touchpad::default())
     .manage(song_files::Opened::default())
+    .manage(song_files::Saving::default())
     .invoke_handler(tauri::generate_handler![
       exit_app,
       haptics::haptics_available,
@@ -37,7 +38,9 @@ pub fn run() {
       touchpad::touchpad_finger,
       song_files::take_opened_files,
       song_files::read_opened_file,
-      song_files::save_song_file
+      song_files::save_file_begin,
+      song_files::save_file_write,
+      song_files::save_file_end
     ])
     .setup(|app| {
       // A song file double-clicked in Explorer starts the game with its path.

@@ -1,10 +1,13 @@
 //! .festival song files on disk: the ones the system opens the app with (double-clicked in
-//! Explorer, or passed on by a second launch), and saving a song's file where the player chooses.
+//! Explorer, or passed on by a second launch), and saving a song's file or a library backup where
+//! the player chooses.
 //!
 //! The page only ever reads the files listed here, by the number given to each, so it cannot ask
 //! for any other file on the computer.
 
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -90,69 +93,88 @@ pub fn read_opened_file(state: State<Opened>, id: u32) -> Result<Response, Strin
   std::fs::read(&path).map(Response::new).map_err(|e| format!("could not read {}: {e}", path.display()))
 }
 
-fn percent_decode(s: &str) -> String {
-  let bytes = s.as_bytes();
-  let mut out = Vec::with_capacity(bytes.len());
-  let mut i = 0;
-  while i < bytes.len() {
-    if bytes[i] == b'%' && i + 2 < bytes.len() {
-      let hex = |b: u8| (b as char).to_digit(16);
-      if let (Some(hi), Some(lo)) = (hex(bytes[i + 1]), hex(bytes[i + 2])) {
-        out.push((hi * 16 + lo) as u8);
-        i += 3;
-        continue;
-      }
-    }
-    out.push(bytes[i]);
-    i += 1;
-  }
-  String::from_utf8_lossy(&out).into_owned()
+/// Files being written for the page, piece by piece, by the number `save_file_begin` gave them.
+#[derive(Default)]
+pub struct Saving {
+  inner: Mutex<SavingInner>,
 }
 
-/// Asks where to save a song file (the request body; its suggested name in `x-file-name`) and
-/// writes it there. The path it was saved to, or none when the player cancelled.
+#[derive(Default)]
+struct SavingInner {
+  next: u32,
+  open: HashMap<u32, (PathBuf, File)>,
+}
+
+/// What a saved file is, for the save dialog's file type: (description, extension).
+fn file_kind(kind: &str) -> Result<(&'static str, &'static str), String> {
+  match kind {
+    "song" => Ok(("Festival song", EXT)),
+    "backup" => Ok(("Festival library backup", "festival-backup")),
+    _ => Err(format!("unknown kind of file: {kind}")),
+  }
+}
+
+/// Asks where to save a file (a song, or a library backup) and creates it there. The number to
+/// write it by with `save_file_write`, or none when the player cancelled. The page then sends the
+/// file in pieces, so a library of several gigabytes never has to be held in memory at once.
 #[tauri::command]
-pub async fn save_song_file(app: AppHandle, window: WebviewWindow, request: Request<'_>) -> Result<Option<String>, String> {
-  let InvokeBody::Raw(bytes) = request.body() else {
-    return Err("no song file was sent".into());
-  };
-  let name = request
-    .headers()
-    .get("x-file-name")
-    .and_then(|v| v.to_str().ok())
-    .map(percent_decode)
-    .unwrap_or_else(|| format!("song.{EXT}"));
+pub async fn save_file_begin(app: AppHandle, window: WebviewWindow, saving: State<'_, Saving>, name: String, kind: String) -> Result<Option<u32>, String> {
+  let (description, ext) = file_kind(&kind)?;
+  let title = if kind == "backup" { "Export library" } else { "Export song" };
   let Some(chosen) = app
     .dialog()
     .file()
     .set_parent(&window)
-    .set_title("Export song")
+    .set_title(title)
     .set_file_name(&name)
-    .add_filter("Festival song", &[EXT])
+    .add_filter(description, &[ext])
     .blocking_save_file()
   else {
     return Ok(None);
   };
   let mut path = chosen.into_path().map_err(|e| e.to_string())?;
-  if !path.extension().is_some_and(|e| e.eq_ignore_ascii_case(EXT)) {
+  if !path.extension().is_some_and(|e| e.eq_ignore_ascii_case(ext)) {
     let mut s = path.into_os_string();
-    s.push(format!(".{EXT}"));
+    s.push(format!(".{ext}"));
     path = s.into();
   }
-  std::fs::write(&path, bytes).map_err(|e| format!("could not write {}: {e}", path.display()))?;
+  let file = File::create(&path).map_err(|e| format!("could not write {}: {e}", path.display()))?;
+  let mut inner = saving.inner.lock().unwrap();
+  inner.next += 1;
+  let id = inner.next;
+  inner.open.insert(id, (path, file));
+  Ok(Some(id))
+}
+
+/// Appends a piece (the request body) to the file numbered in the `x-save-id` header.
+#[tauri::command]
+pub fn save_file_write(saving: State<Saving>, request: Request<'_>) -> Result<(), String> {
+  let InvokeBody::Raw(bytes) = request.body() else {
+    return Err("nothing was sent to write".into());
+  };
+  let id: u32 = request.headers().get("x-save-id").and_then(|v| v.to_str().ok()).and_then(|v| v.parse().ok()).ok_or("no file to write to")?;
+  let mut inner = saving.inner.lock().unwrap();
+  let (path, file) = inner.open.get_mut(&id).ok_or("that file is not open")?;
+  file.write_all(bytes).map_err(|e| format!("could not write {}: {e}", path.display()))
+}
+
+/// Closes a file begun with `save_file_begin`. With `keep` false (the page failed part way), the
+/// unfinished file is deleted. The path it was saved to, when kept.
+#[tauri::command]
+pub fn save_file_end(saving: State<Saving>, id: u32, keep: bool) -> Result<Option<String>, String> {
+  let (path, mut file) = saving.inner.lock().unwrap().open.remove(&id).ok_or("that file is not open")?;
+  if !keep {
+    drop(file);
+    let _ = std::fs::remove_file(&path);
+    return Ok(None);
+  }
+  file.flush().and_then(|_| file.sync_all()).map_err(|e| format!("could not finish {}: {e}", path.display()))?;
   Ok(Some(path.to_string_lossy().into_owned()))
 }
 
 #[cfg(test)]
 mod tests {
   use super::*;
-
-  #[test]
-  fn decodes_percent_escapes() {
-    assert_eq!(percent_decode("AC%2FDC%20-%20T.N.T.festival"), "AC/DC - T.N.T.festival");
-    assert_eq!(percent_decode("B%C3%BCcher.festival"), "Bücher.festival");
-    assert_eq!(percent_decode("100%"), "100%");
-  }
 
   #[test]
   fn finds_song_files_on_a_command_line() {
