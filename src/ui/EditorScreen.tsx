@@ -491,7 +491,10 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
   const partRow = useSlide<HTMLDivElement>(snap?.part);
   const diffRow = useSlide<HTMLDivElement>(snap?.difficulty);
   const toolRow = useSlide<HTMLDivElement>(snap?.tool);
-  const pointer = mode === 'mouse' || mode === 'touch';
+  // The Draw and Select tools, and the bar for the selected notes, are for the mouse and touch. They
+  // stay while the keyboard is in use too (Space to play, Ctrl+Z ...), which on a desktop goes with
+  // the mouse; only a controller, which marks notes its own way, puts them away.
+  const pointer = mode !== 'pad';
 
   // The toolbar stays on one line: while what is in it is wider than the bar, it gives things away
   // in steps (see data-tight in the styles). Measured again whenever its content or its width changes.
