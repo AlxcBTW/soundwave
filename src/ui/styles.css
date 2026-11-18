@@ -28,6 +28,10 @@
   /* Blur only, no colour boost: the blur can only start once a screen has finished coming in, and
      a boosted stage would show as the panes suddenly changing colour then. */
   --glass-blur: blur(22px);
+  /* A pane's blur fades in once the screen it is on has come in: until then the browser has nothing
+     behind the pane to blur (an animating screen hides what is behind it), and a blur that waited
+     would appear all at once. */
+  --glass-in: glass-in 0.6s ease-in 0.4s backwards;
   --violet: #5b3ee0;
 
   /* Ink, tinted from the night */
@@ -844,7 +848,9 @@ img.cover {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.1),
     0 -18px 50px -10px rgb(0 0 0 / 0.6);
-  animation: vk-up 0.34s var(--ease) backwards;
+  animation:
+    vk-up 0.34s var(--ease) backwards,
+    var(--glass-in);
 }
 @keyframes vk-up {
   from {
@@ -1101,7 +1107,8 @@ img.cover {
   text-align: left;
   animation:
     tile-rise 0.9s var(--ease-soft) backwards,
-    tile-fade 0.5s ease-out backwards;
+    tile-fade 0.5s ease-out backwards,
+    var(--glass-in);
   animation-delay: calc(var(--i, 0) * 90ms + 140ms);
   transition:
     transform 0.28s var(--ease),
@@ -1128,7 +1135,8 @@ img.cover {
   animation:
     tile-rise 0.9s var(--ease-soft) 0.2s backwards,
     tile-fade 0.5s ease-out 0.2s backwards,
-    tile-open 0.6s var(--ease) backwards;
+    tile-open 0.6s var(--ease) backwards,
+    var(--glass-in);
 }
 .tile .mosaic {
   flex: 1;
@@ -1720,6 +1728,25 @@ img.cover {
     0 24px 48px -24px rgb(0 0 0 / 0.65);
 }
 
+@keyframes glass-in {
+  from {
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+  }
+}
+/* Panes with no entrance of their own. */
+.now,
+.setlist,
+.ready-panel,
+.results-main,
+.results-side,
+.song-list,
+.hud-songbox,
+.hud-scorepanel,
+.hud-pause {
+  animation: var(--glass-in);
+}
+
 /* The long lists (songs, tracks, settings) stand on a pane of their own, so their rows read over a
    bright stage the way rows on a panel do. */
 .song-list,
@@ -2048,7 +2075,9 @@ img.cover {
   padding: 0.6rem 1.1rem 0.6rem 0.8rem;
   border-radius: var(--r-l);
   background: var(--panel);
-  animation: rise-in 0.45s var(--ease) backwards;
+  animation:
+    rise-in 0.45s var(--ease) backwards,
+    var(--glass-in);
   animation-delay: calc(var(--i, 0) * 60ms + 80ms);
 }
 .set-card .cover {
@@ -2392,10 +2421,12 @@ img.cover {
   padding: 0.3rem 0.4rem 1.4rem;
   margin: 0 -0.4rem;
   scroll-padding-block: 3rem;
-  animation: scene-fwd 0.35s var(--ease) backwards;
+  animation:
+    scene-fwd 0.35s var(--ease) backwards,
+    var(--glass-in);
 }
 .set-list.back {
-  animation-name: scene-back;
+  animation-name: scene-back, glass-in;
 }
 .set-heading {
   font-size: 1.15rem;
@@ -2687,7 +2718,9 @@ input.text {
   padding: 1.2rem;
   border-radius: var(--r-l);
   background: var(--panel);
-  animation: fade-in 0.25s var(--ease);
+  animation:
+    fade-in 0.25s var(--ease),
+    var(--glass-in);
 }
 .detail-help {
   color: var(--ink-2);
@@ -4885,7 +4918,9 @@ input.text {
   border-radius: var(--r-l);
   background: var(--panel);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1);
-  animation: rise-in 0.45s var(--ease) backwards;
+  animation:
+    rise-in 0.45s var(--ease) backwards,
+    var(--glass-in);
 }
 .editor-card:nth-child(2) {
   animation-delay: 60ms;
