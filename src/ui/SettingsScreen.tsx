@@ -134,7 +134,7 @@ type Row =
   | (Base & { kind: 'choice'; value: string; options: Option[]; set(v: string): void })
   | (Base & { kind: 'slider'; value: number; min: number; max: number; step: number; format(v: number): string; set(v: number): void })
   | (Base & { kind: 'action'; button: string; run(): void; note?: ReactNode; danger?: boolean })
-  | (Base & { kind: 'keys'; caps: Cap[]; /** One cap per lane, not a key, a button and a mouse button. */ lanes?: boolean })
+  | (Base & { kind: 'keys'; caps: Cap[] })
   | (Base & { kind: 'text'; value: string; set(v: string): void; note?: ReactNode })
   | (Base & { kind: 'info'; body: ReactNode });
 interface Section {
@@ -934,39 +934,20 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
       content: <PadGlyph input={input} style={style} />,
       bind: () => c.setBinding({ kind: 'pad', group, index }),
     });
-    const lanes: Row[] = [
-      {
-        kind: 'keys',
-        lanes: true,
-        id: 'keys5',
-        label: 'Lane keys, Expert',
-        help: `Five lanes. ${laneHelp}`,
-        caps: s.keys5.map((k, i) => laneKey('keys5', i, k, i)),
-      },
-      {
-        kind: 'keys',
-        lanes: true,
-        id: 'pad5',
-        label: 'Lane buttons, Expert',
-        help: `Five lanes. ${laneHelp}`,
-        caps: s.pad5.map((b, i) => lanePad('pad5', i, b, i)),
-      },
-      {
-        kind: 'keys',
-        lanes: true,
-        id: 'keys4',
-        label: 'Lane keys, Easy to Hard',
-        help: `Four lanes. ${laneHelp}`,
-        caps: s.keys4.map((k, i) => laneKey('keys4', i, k, i)),
-      },
-      {
-        kind: 'keys',
-        lanes: true,
-        id: 'pad4',
-        label: 'Lane buttons, Easy to Hard',
-        help: `Four lanes. ${laneHelp}`,
-        caps: s.pad4.map((b, i) => lanePad('pad4', i, b, i)),
-      },
+    /** One lane: its key and its controller button, in the lane's colour (no mouse button). */
+    const laneRow = (layout: 5 | 4, i: number): Row => ({
+      kind: 'keys',
+      id: `lane${layout}-${i}`,
+      label: `Lane ${i + 1}`,
+      help: `${layout === 5 ? 'Expert, five lanes' : 'Easy, Medium and Hard, four lanes'}. ${laneHelp}`,
+      caps: [
+        laneKey(layout === 5 ? 'keys5' : 'keys4', i, (layout === 5 ? s.keys5 : s.keys4)[i], i),
+        lanePad(layout === 5 ? 'pad5' : 'pad4', i, (layout === 5 ? s.pad5 : s.pad4)[i], i),
+        { id: 'mouse', name: `Lane ${i + 1}: no mouse button`, content: none },
+      ],
+    });
+    const expert: Row[] = [
+      ...s.keys5.map((_, i) => laneRow(5, i)),
       {
         kind: 'keys',
         id: 'overdrive',
@@ -979,11 +960,17 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
         ],
       },
     ];
-    // A song's controls first: they are what is changed most.
-    return [...AREAS.filter((a) => a.id === 'song'), ...AREAS.filter((a) => a.id !== 'song')].map((a) => ({
-      title: a.label,
-      rows: [...(a.id === 'song' ? lanes : []), ...COMMANDS.filter((cmd) => cmd.area === a.id).map(rowFor)],
-    }));
+    // A song's controls first: they are what is changed most. Expert's lanes stand with overdrive and
+    // pause; the four lanes of the easier difficulties, bound apart, follow.
+    const song = AREAS.find((a) => a.id === 'song')!;
+    return [
+      { title: song.label, rows: [...expert, ...COMMANDS.filter((cmd) => cmd.area === 'song').map(rowFor)] },
+      { title: 'Lanes on Easy to Hard', rows: s.keys4.map((_, i) => laneRow(4, i)) },
+      ...AREAS.filter((a) => a.id !== 'song').map((a) => ({
+        title: a.label,
+        rows: COMMANDS.filter((cmd) => cmd.area === a.id).map(rowFor),
+      })),
+    ];
   }
 
   if (tab === 'controller') {
@@ -1382,7 +1369,7 @@ function RowView({ row, active, first, touch, onActive }: { row: Row; active: bo
 
   const common = {
     ref,
-    className: `set-row ${row.kind} ${row.kind === 'keys' && row.lanes ? 'lanes' : ''} ${active ? 'active' : ''} ${row.disabled ? 'disabled' : ''}`,
+    className: `set-row ${row.kind} ${active ? 'active' : ''} ${row.disabled ? 'disabled' : ''}`,
     onFocus: onActive,
     onPointerEnter: (e: React.PointerEvent) => e.pointerType === 'mouse' && onActive(),
     onPointerDown: onActive,
