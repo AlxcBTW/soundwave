@@ -1,7 +1,8 @@
 import { loadSongBuffer } from '../audio/songAudio';
 import { generateAll } from '../chart/generator';
 import type { Chart, Difficulty, Part } from '../chart/types';
-import { analysisKey, deleteAnalyses, getAnalysis, putAnalysis, putStems } from '../storage/db';
+import { chartFromNotes, chartKey, editedCount, resolveGrid, songDuration, standsAlone, type SongEdits } from '../editor/edits';
+import { analysisKey, deleteAnalyses, deleteEdits, getAnalysis, getEdits, putAnalysis, putEdits, putStems } from '../storage/db';
 import { writeAnalysisToFile } from '../storage/songFile';
 import { stemAnalyzer, type StemAnalyzer } from './separation/analyzer';
 import { ANALYSIS_SAMPLE_RATE, ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult, type AnalysisStep, type PartLines, type StemName, type StemNotes } from './types';
@@ -12,6 +13,10 @@ export interface AnalysisStatus {
   progress?: number;
   step?: string;
   error?: string;
+  /** How many of the song's charts were made or changed by hand in the track editor. */
+  edited?: number;
+  /** The song has a beat grid of its own (it was started from scratch), so it plays without an analysis. */
+  manual?: boolean;
 }
 
 const STEP_LABEL: Record<AnalysisStep, string> = {
@@ -57,6 +62,8 @@ export class AnalysisManager {
   private current: { id: string; abort: AbortController } | null = null;
   private results = new Map<string, AnalysisResult>();
   private charts = new Map<string, Chart>();
+  /** Each song's hand-edited charts, once asked for (`null`: it has none). */
+  private edits = new Map<string, SongEdits | null>();
   private queue: string[] = [];
   private running = false;
   private listeners = new Set<Listener>();
@@ -83,15 +90,22 @@ export class AnalysisManager {
   snapshot = () => this.status;
 
   private set(id: string, s: AnalysisStatus) {
-    this.status = { ...this.status, [id]: s };
+    // What the editor made for the song rides along with whatever the analysis is doing.
+    const e = this.edits.get(id) ?? undefined;
+    const edited = editedCount(e);
+    this.status = { ...this.status, [id]: { state: s.state, progress: s.progress, step: s.step, error: s.error, ...(edited ? { edited } : {}), ...(standsAlone(e) ? { manual: true } : {}) } };
     for (const l of this.listeners) l();
   }
 
   /** Loads a cached analysis if there is one; otherwise queues the song when `autoQueue` is set. */
   async check(id: string, autoQueue: boolean) {
     if (this.status[id]?.state === 'analyzing' || this.status[id]?.state === 'queued') return;
-    const cached = await this.loadCached(id);
-    if (cached) this.set(id, { state: 'ready' });
+    const [cached, edits] = await Promise.all([this.loadCached(id), this.editsOf(id)]);
+    // It may have been queued while the storage was read.
+    const now = this.status[id]?.state as AnalysisStatus['state'] | undefined;
+    if (now === 'analyzing' || now === 'queued') return;
+    // A song with a grid of its own (started from scratch in the editor) is playable as it is.
+    if (cached || standsAlone(edits)) this.set(id, { state: 'ready' });
     else if (autoQueue) this.enqueue(id);
     else this.set(id, { state: 'idle' });
   }
@@ -132,6 +146,7 @@ export class AnalysisManager {
     this.generation.set(id, (this.generation.get(id) ?? 0) + 1);
     this.queue = this.queue.filter((q) => q !== id);
     this.results.delete(id);
+    this.edits.delete(id);
     for (const k of [...this.charts.keys()]) if (k.startsWith(`${id}:`)) this.charts.delete(k);
     if (this.current?.id === id) this.current.abort.abort();
     const { [id]: _, ...rest } = this.status;
@@ -227,16 +242,84 @@ export class AnalysisManager {
     return this.loadCached(id);
   }
 
-  async chart(id: string, part: Part, difficulty: Difficulty): Promise<Chart | undefined> {
-    const key = `${id}:${part}:${difficulty}`;
+  /** The song's hand-edited charts and grid, if it has any. */
+  async editsOf(id: string): Promise<SongEdits | undefined> {
+    const mem = this.edits.get(id);
+    if (mem !== undefined) return mem ?? undefined;
+    let stored: SongEdits | undefined;
+    try {
+      stored = await getEdits(id);
+    } catch {
+      /* storage unavailable */
+    }
+    // Something may have been saved while this was reading.
+    if (this.edits.get(id) === undefined) this.edits.set(id, stored ?? null);
+    return this.edits.get(id) ?? undefined;
+  }
+
+  /**
+   * Stores what the editor made for a song (or, with `null`, removes it all). The song's charts are
+   * rebuilt from it the next time they are asked for.
+   */
+  async saveEdits(id: string, edits: SongEdits | null): Promise<void> {
+    this.edits.set(id, edits);
+    for (const k of [...this.charts.keys()]) if (k.startsWith(`${id}:`)) this.charts.delete(k);
+    const now = this.status[id];
+    // A song that stands on its own grid is ready; otherwise the status keeps what the analysis says.
+    if (standsAlone(edits ?? undefined) && (!now || now.state === 'idle' || now.state === 'error')) this.set(id, { state: 'ready' });
+    else if (now) this.set(id, now);
+    try {
+      if (edits) await putEdits(id, edits);
+      else await deleteEdits(id);
+    } catch {
+      /* storage unavailable: the edits last as long as the game is open */
+    }
+  }
+
+  /**
+   * Takes a song out of the queue and stops its analysis, without forgetting what else is known
+   * about it (it is about to be charted by hand instead).
+   */
+  cancel(id: string) {
+    const s = this.status[id]?.state;
+    if (s !== 'queued' && s !== 'analyzing') return;
+    this.generation.set(id, (this.generation.get(id) ?? 0) + 1);
+    this.queue = this.queue.filter((q) => q !== id);
+    if (this.current?.id === id) this.current.abort.abort();
+    this.set(id, { state: 'idle' });
+  }
+
+  /** The chart the game writes from the analysis, whatever was edited by hand. */
+  async generated(id: string, part: Part, difficulty: Difficulty): Promise<Chart | undefined> {
+    const key = `${id}:${part}:${difficulty}:generated`;
     const hit = this.charts.get(key);
     if (hit) return hit;
     const a = await this.loadCached(id);
     if (!a) return undefined;
     // All difficulties are derived from expert in one pass, so build and cache them together.
     const all = generateAll(a, part, id);
-    for (const [d, c] of Object.entries(all)) this.charts.set(`${id}:${part}:${d}`, c);
+    for (const [d, c] of Object.entries(all)) this.charts.set(`${id}:${part}:${d}:generated`, c);
     return all[difficulty];
+  }
+
+  /** The chart to play: the one edited by hand when there is one, else the one written from the analysis. */
+  async chart(id: string, part: Part, difficulty: Difficulty): Promise<Chart | undefined> {
+    const key = `${id}:${part}:${difficulty}`;
+    const hit = this.charts.get(key);
+    if (hit) return hit;
+    const edits = await this.editsOf(id);
+    const custom = edits?.charts[chartKey(part, difficulty)];
+    const a = await this.loadCached(id);
+    let chart: Chart | undefined;
+    if (custom || (!a && standsAlone(edits))) {
+      const duration = songDuration(edits, a);
+      const grid = resolveGrid(edits, a, duration);
+      // A part of a hand-made song that has no chart yet is an empty one.
+      if (grid) chart = chartFromNotes(custom ?? [], part, difficulty, grid, duration);
+    }
+    chart ??= await this.generated(id, part, difficulty);
+    if (chart) this.charts.set(key, chart);
+    return chart;
   }
 }
 
@@ -270,7 +353,7 @@ const localAnalyzer: LocalAnalyzer = async (id, onProgress, signal, assist) => {
 };
 
 /** Mono, 22.05 kHz copy of the song for analysis. */
-async function toAnalysisSignal(buffer: AudioBuffer): Promise<Float32Array> {
+export async function toAnalysisSignal(buffer: AudioBuffer): Promise<Float32Array> {
   const length = Math.ceil(buffer.duration * ANALYSIS_SAMPLE_RATE);
   const ctx = new OfflineAudioContext(1, length, ANALYSIS_SAMPLE_RATE);
   const src = ctx.createBufferSource();

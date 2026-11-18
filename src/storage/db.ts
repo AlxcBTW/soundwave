@@ -2,6 +2,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { StemName } from '../analysis/types';
 import type { Annotation } from '../debug/annotations';
 import type { Difficulty, Part } from '../chart/types';
+import type { SongEdits } from '../editor/edits';
 import { festivalAudio, isFestival } from './festivalFile';
 
 export interface SongMeta {
@@ -44,12 +45,14 @@ interface FestivalDB extends DBSchema {
   stems: { key: string; value: { key: string; songId: string; name: StemName; blob: Blob }; indexes: { songId: string } };
   /** Chart problem reports made in the debug view. */
   annotations: { key: string; value: Annotation; indexes: { songId: string } };
+  /** What the track editor made for a song: hand-edited charts and their beat grid, keyed by song id. */
+  edits: { key: string; value: { songId: string; data: SongEdits } };
 }
 
 let dbPromise: Promise<IDBPDatabase<FestivalDB>> | null = null;
 
 function db() {
-  dbPromise ??= openDB<FestivalDB>('festival', 3, {
+  dbPromise ??= openDB<FestivalDB>('festival', 4, {
     upgrade(d, oldVersion) {
       if (oldVersion < 1) {
         d.createObjectStore('songs', { keyPath: 'id' }).createIndex('addedAt', 'addedAt');
@@ -59,6 +62,7 @@ function db() {
       }
       if (oldVersion < 2) d.createObjectStore('stems', { keyPath: 'key' }).createIndex('songId', 'songId');
       if (oldVersion < 3) d.createObjectStore('annotations', { keyPath: 'id' }).createIndex('songId', 'songId');
+      if (oldVersion < 4) d.createObjectStore('edits', { keyPath: 'songId' });
     },
   });
   return dbPromise;
@@ -98,9 +102,10 @@ export async function getAudio(id: string): Promise<Blob | undefined> {
 
 export async function deleteSong(id: string) {
   const d = await db();
-  const tx = d.transaction(['songs', 'audio', 'analysis', 'scores', 'stems'], 'readwrite');
+  const tx = d.transaction(['songs', 'audio', 'analysis', 'scores', 'stems', 'edits'], 'readwrite');
   await tx.objectStore('songs').delete(id);
   await tx.objectStore('audio').delete(id);
+  await tx.objectStore('edits').delete(id);
   const analysis = tx.objectStore('analysis');
   for (let c = await analysis.openCursor(); c; c = await c.continue()) {
     if (c.value.songId === id) await c.delete();
@@ -147,6 +152,19 @@ export async function deleteAnalyses(songId: string) {
 
 export async function putAnalysis(key: string, songId: string, data: unknown) {
   await (await db()).put('analysis', { key, songId, data });
+}
+
+/** A song's hand-edited charts and beat grid (see src/editor/edits.ts). */
+export async function getEdits(songId: string): Promise<SongEdits | undefined> {
+  return (await (await db()).get('edits', songId))?.data;
+}
+
+export async function putEdits(songId: string, data: SongEdits) {
+  await (await db()).put('edits', { songId, data });
+}
+
+export async function deleteEdits(songId: string) {
+  await (await db()).delete('edits', songId);
 }
 
 export const scoreKey = (songId: string, part: Part, d: Difficulty) => `${songId}:${part}:${d}`;

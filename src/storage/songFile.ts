@@ -4,7 +4,8 @@
  * list and the analysis cache in the database are indexes of it, for listing and playing quickly.
  */
 import { ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult } from '../analysis/types';
-import { analysisKey, getAnalysis, getSong, getStoredFile, listSongs, putAnalysis, putSong, putStoredFile, type SongMeta } from './db';
+import { EDITS_VERSION, sanitizeEdits, type SongEdits } from '../editor/edits';
+import { analysisKey, getAnalysis, getEdits, getSong, getStoredFile, listSongs, putAnalysis, putEdits, putSong, putStoredFile, type SongMeta } from './db';
 import { isFestival, readFestival, writeFestival, type FestivalAnalysis } from './festivalFile';
 import { hashBytes } from './hash';
 
@@ -25,11 +26,15 @@ async function cachedAnalysis(id: string): Promise<AnalysisResult | undefined> {
   return undefined;
 }
 
-function build(meta: SongMeta, audio: Blob, analysis?: AnalysisResult) {
+/** The charts edited by hand for a song, if any. */
+const storedEdits = (id: string) => getEdits(id).catch(() => undefined);
+
+function build(meta: SongMeta, audio: Blob, analysis?: AnalysisResult, edits?: SongEdits) {
   return writeFestival({
     meta: { title: meta.title, artist: meta.artist, album: meta.album, duration: meta.duration, fileName: meta.fileName, addedAt: meta.addedAt },
     cover: meta.cover,
     analysis: analysis ? { version: ANALYSIS_VERSION, data: analysis } : undefined,
+    edits: edits ? { version: EDITS_VERSION, data: edits } : undefined,
     audio: audio.type ? audio : new Blob([audio], { type: meta.mime }),
   });
 }
@@ -40,9 +45,13 @@ async function audioOf(stored: Blob, meta: SongMeta): Promise<Blob> {
   return (await readFestival(stored)).audio;
 }
 
-/** Adds a song from an audio file: it is stored as a .festival file. */
-export async function storeNewSong(meta: SongMeta, audio: Blob) {
-  await putSong(meta, await build(meta, audio));
+/**
+ * Adds a song from an audio file: it is stored as a .festival file. `edits` come with a song that is
+ * started from scratch in the track editor (its beat grid), and are stored before the song is.
+ */
+export async function storeNewSong(meta: SongMeta, audio: Blob, edits?: SongEdits) {
+  if (edits) await putEdits(meta.id, edits);
+  await putSong(meta, await build(meta, audio, undefined, edits));
 }
 
 /** Writes a finished analysis into the song's file, so the file carries its charts. */
@@ -50,22 +59,27 @@ export function writeAnalysisToFile(id: string, analysis: AnalysisResult): Promi
   return serial(async () => {
     const [meta, stored] = await Promise.all([getSong(id), getStoredFile(id)]);
     if (!meta || !stored) return;
-    await putStoredFile(id, await build(meta, await audioOf(stored, meta), analysis));
+    await putStoredFile(id, await build(meta, await audioOf(stored, meta), analysis, await storedEdits(id)));
   });
 }
 
-/** A song's .festival file, for exporting: with its cover and current analysis. */
+/**
+ * A song's .festival file, for exporting: with its cover, its current analysis and the charts edited
+ * by hand. (The editor saves those to the database as it goes; they are written into the file here.)
+ */
 export function songFile(id: string): Promise<Blob> {
   return serial(async () => {
     const [meta, stored] = await Promise.all([getSong(id), getStoredFile(id)]);
     if (!meta || !stored) throw new Error('This song is no longer in your library.');
-    const analysis = await cachedAnalysis(id);
+    const [analysis, edits] = await Promise.all([cachedAnalysis(id), storedEdits(id)]);
     if (await isFestival(stored)) {
-      // The stored file is current unless the analysis changed since it was written.
-      const has = (await readFestival(stored)).analysis;
-      if (!analysis || (has?.version === ANALYSIS_VERSION && JSON.stringify(has.data) === JSON.stringify(analysis))) return stored;
+      // The stored file is current unless the analysis or the edited charts changed since it was written.
+      const has = await readFestival(stored);
+      const sameAnalysis = !analysis || (has.analysis?.version === ANALYSIS_VERSION && JSON.stringify(has.analysis.data) === JSON.stringify(analysis));
+      const sameEdits = JSON.stringify(has.edits?.data ?? null) === JSON.stringify(edits ?? null);
+      if (sameAnalysis && sameEdits) return stored;
     }
-    const file = await build(meta, await audioOf(stored, meta), analysis);
+    const file = await build(meta, await audioOf(stored, meta), analysis, edits);
     await putStoredFile(id, file);
     return file;
   });
@@ -83,7 +97,7 @@ export async function convertLibrary(): Promise<number> {
       const done = await serial(async () => {
         const stored = await getStoredFile(meta.id);
         if (!stored || (await isFestival(stored))) return false;
-        await putStoredFile(meta.id, await build(meta, await audioOf(stored, meta), await cachedAnalysis(meta.id)));
+        await putStoredFile(meta.id, await build(meta, await audioOf(stored, meta), await cachedAnalysis(meta.id), await storedEdits(meta.id)));
         return true;
       });
       if (done) converted++;
@@ -100,11 +114,18 @@ function usableAnalysis(a: FestivalAnalysis | undefined): AnalysisResult | undef
   return r.source === 'ml' || r.source === 'local' ? r : undefined;
 }
 
+export interface SongPackage {
+  meta: SongMeta;
+  audio: Blob;
+  analysis?: AnalysisResult;
+  edits?: SongEdits;
+}
+
 /**
  * Reads a .festival file from elsewhere. The song's id is worked out from its audio again (never
  * taken from the file), and its analysis is kept only when this version of the game charts from it.
  */
-export async function readSongPackage(file: Blob, fileName: string): Promise<{ meta: SongMeta; audio: Blob; analysis?: AnalysisResult }> {
+export async function readSongPackage(file: Blob, fileName: string): Promise<SongPackage> {
   const c = await readFestival(file);
   const id = await hashBytes(await c.audio.arrayBuffer());
   const meta: SongMeta = {
@@ -119,11 +140,15 @@ export async function readSongPackage(file: Blob, fileName: string): Promise<{ m
     addedAt: Date.now(),
     cover: c.cover,
   };
-  return { meta, audio: c.audio, analysis: usableAnalysis(c.analysis) };
+  // Charts edited by hand come along; what is malformed in them is left out.
+  const edits = c.edits && c.edits.version <= EDITS_VERSION ? sanitizeEdits(c.edits.data) : undefined;
+  return { meta, audio: c.audio, analysis: usableAnalysis(c.analysis), edits };
 }
 
-/** Adds a song read from a .festival file, with its analysis when it came with a usable one. */
-export async function storeSongPackage(p: { meta: SongMeta; audio: Blob; analysis?: AnalysisResult }) {
-  await putSong(p.meta, await build(p.meta, p.audio, p.analysis));
+/** Adds a song read from a .festival file, with its analysis and edited charts when it came with usable ones. */
+export async function storeSongPackage(p: SongPackage) {
+  // The edits first: with them stored, a song that needs no analysis is never queued for one.
+  if (p.edits) await putEdits(p.meta.id, p.edits);
+  await putSong(p.meta, await build(p.meta, p.audio, p.analysis, p.edits));
   if (p.analysis) await putAnalysis(analysisKey(p.meta.id, ANALYSIS_VERSION, p.analysis.source), p.meta.id, p.analysis);
 }

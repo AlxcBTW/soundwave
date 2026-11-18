@@ -2,7 +2,7 @@
  * The .festival song file: one file that carries a song whole, so it can be kept, moved and shared.
  *
  * It holds the song's details (title, artist, album, length), its cover, the analysis its charts are
- * built from, and the original audio file byte for byte. A friend who opens it plays the same charts
+ * built from, any charts edited by hand, and the original audio file byte for byte. A friend who opens it plays the same charts
  * without analyzing the song again, and because the song's id is the hash of its audio, the same song
  * imported twice is recognised.
  *
@@ -24,6 +24,8 @@
  *     META  required. UTF-8 JSON: { title, artist, album?, duration, fileName, addedAt? }.
  *     COVR  optional. The cover image: u8 length m, m bytes of ASCII MIME type, then the image.
  *     ANLS  optional. The analysis: u16 analysis version, then gzip-compressed UTF-8 JSON of it.
+ *     EDIT  optional. Charts made or changed by hand in the track editor, and the beat grid they sit
+ *           on: u16 edits version, then gzip-compressed UTF-8 JSON (src/editor/edits.ts).
  *     AUDI  required. The audio: u8 length m, m bytes of ASCII MIME type, then the audio file.
  *
  * Readers skip chunk types they do not know, so later versions can add chunks. AUDI is written
@@ -41,7 +43,7 @@ const CRC = 4;
 
 /** Longest text kept from a file's details; anything past it is cut. */
 const MAX_TEXT = 300;
-/** Largest META or ANLS payload read (analysis JSON of a long song is well under this, compressed). */
+/** Largest META, ANLS or EDIT payload read (analysis JSON of a long song is well under this, compressed). */
 const MAX_SMALL_CHUNK = 32 * 1024 * 1024;
 const COVER_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
@@ -59,10 +61,17 @@ export interface FestivalAnalysis {
   data: unknown;
 }
 
+/** Hand-edited charts, as the editor stores them. Readers check `data` before using it. */
+export interface FestivalEdits {
+  version: number;
+  data: unknown;
+}
+
 export interface FestivalContents {
   meta: FestivalMeta;
   cover?: Blob;
   analysis?: FestivalAnalysis;
+  edits?: FestivalEdits;
   /** The original audio file, typed with its MIME type. */
   audio: Blob;
 }
@@ -120,6 +129,25 @@ async function bytesOf(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> 
 const gzip = (data: Uint8Array) => bytesOf(new Blob([data as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new CompressionStream('gzip')));
 const gunzip = (data: Uint8Array) => bytesOf(new Blob([data as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new DecompressionStream('gzip')));
 
+/** A payload that starts with a version and carries gzip-compressed JSON (ANLS, EDIT). */
+async function versioned(v: { version: number; data: unknown }): Promise<Uint8Array> {
+  const json = await gzip(utf8.encode(JSON.stringify(v.data)));
+  const payload = new Uint8Array(2 + json.length);
+  new DataView(payload.buffer).setUint16(0, v.version, true);
+  payload.set(json, 2);
+  return payload;
+}
+
+async function readVersioned(data: Uint8Array): Promise<{ version: number; data: unknown } | undefined> {
+  try {
+    const version = new DataView(data.buffer, data.byteOffset, 2).getUint16(0, true);
+    const json = await gunzip(data.subarray(2));
+    return { version, data: JSON.parse(new TextDecoder().decode(json)) };
+  } catch {
+    return undefined;
+  }
+}
+
 /** Builds a .festival file. */
 export async function writeFestival(c: FestivalContents): Promise<Blob> {
   const header = new Uint8Array(HEADER);
@@ -135,13 +163,8 @@ export async function writeFestival(c: FestivalContents): Promise<Blob> {
   };
   const parts: Uint8Array[] = [header, chunk('META', utf8.encode(JSON.stringify(meta)))];
   if (c.cover) parts.push(chunk('COVR', typed(c.cover.type || 'image/jpeg', new Uint8Array(await c.cover.arrayBuffer()))));
-  if (c.analysis) {
-    const json = await gzip(utf8.encode(JSON.stringify(c.analysis.data)));
-    const payload = new Uint8Array(2 + json.length);
-    new DataView(payload.buffer).setUint16(0, c.analysis.version, true);
-    payload.set(json, 2);
-    parts.push(chunk('ANLS', payload));
-  }
+  if (c.analysis) parts.push(chunk('ANLS', await versioned(c.analysis)));
+  if (c.edits) parts.push(chunk('EDIT', await versioned(c.edits)));
   parts.push(chunk('AUDI', typed(c.audio.type || 'application/octet-stream', new Uint8Array(await c.audio.arrayBuffer()))));
   return new Blob(parts as Uint8Array<ArrayBuffer>[], { type: FESTIVAL_MIME });
 }
@@ -249,19 +272,15 @@ export async function readFestival(blob: Blob): Promise<FestivalContents> {
     if (COVER_TYPES.includes(c.mime.toLowerCase()) && c.body.length) cover = new Blob([c.body as Uint8Array<ArrayBuffer>], { type: c.mime.toLowerCase() });
   }
 
-  let analysis: FestivalAnalysis | undefined;
-  const anlsRef = find('ANLS');
-  if (anlsRef && anlsRef.length > 2 && anlsRef.length <= MAX_SMALL_CHUNK) {
-    const data = await payload(blob, anlsRef, true);
-    try {
-      const version = new DataView(data.buffer, data.byteOffset, 2).getUint16(0, true);
-      const json = await gunzip(data.subarray(2));
-      analysis = { version, data: JSON.parse(new TextDecoder().decode(json)) };
-    } catch {
-      // An analysis that cannot be read is made again when the song is played.
-    }
-  }
-  return { meta, cover, analysis, audio };
+  // An analysis or edits that cannot be read are left out: the song is analyzed again when played.
+  const small = async (type: string) => {
+    const ref = find(type);
+    if (!ref || ref.length <= 2 || ref.length > MAX_SMALL_CHUNK) return undefined;
+    return readVersioned(await payload(blob, ref, true));
+  };
+  const analysis: FestivalAnalysis | undefined = await small('ANLS');
+  const edits: FestivalEdits | undefined = await small('EDIT');
+  return { meta, cover, analysis, edits, audio };
 }
 
 /**
