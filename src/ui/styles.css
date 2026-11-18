@@ -1091,10 +1091,21 @@ input.text { width: min(100%, 16rem); min-height: 2.5rem; padding: 0.4rem 0.7rem
 
 /* The toolbar: which chart, the grid, the tool, undo and zoom. A controller reaches all of it
    through its buttons and the menu, so directions never leave the lanes. */
-.editor-bar { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 0.7rem; padding-bottom: 0.7rem; }
+.editor-bar { flex: none; display: flex; align-items: center; flex-wrap: nowrap; gap: 0.5rem 0.6rem; padding-bottom: 0.7rem; }
 .editor-chart-btn { display: none; }
 .editor-bar .tab-row { width: auto; flex: none; }
-.editor-bar .tab, .editor-bar .tab.on { flex: none; justify-content: center; padding: 0 0.75rem; }
+.editor-bar .tab, .editor-bar .tab.on { flex: none; justify-content: center; padding: 0 0.55rem; }
+.editor-snap, .editor-quick { flex: none; }
+/* The bar never breaks onto a second line. When what is in it is wider than the bar (long names, a
+   large interface size, a narrow window) it gives things away in steps, set by the screen as
+   data-tight: first the key marks beside undo and zoom, then the names beside the chosen part,
+   difficulty and tool, then the two rows of choices for the one button that names the chart. */
+.editor-bar:is([data-tight='1'], [data-tight='2'], [data-tight='3']) { column-gap: 0.4rem; }
+.editor-bar:is([data-tight='1'], [data-tight='2'], [data-tight='3']) .editor-quick .mark { display: none; }
+.editor-bar:is([data-tight='2'], [data-tight='3']) :is(.editor-pick, .editor-tools) .tab .tab-label { display: none; }
+.editor-bar[data-tight='3'] .editor-pick { display: none; }
+.editor-bar[data-tight='3'] .editor-chart-btn { display: inline-flex; flex: 0 1 auto; min-width: 8.5rem; justify-content: flex-start; padding-inline: 0.8rem; }
+.editor-bar[data-tight='3'] .editor-chart-btn .btn-label { overflow: hidden; text-overflow: ellipsis; }
 .editor-snap { display: flex; align-items: center; gap: 0.2rem; min-height: calc(var(--target) + 0.6rem); padding: 0 0.5rem; border-radius: calc(var(--r-m) + 0.3rem); background: var(--well); }
 .editor-snap .step { opacity: 1; font-size: 1.6rem; font-weight: 900; line-height: 1; }
 .editor-snap .step:disabled { opacity: 0.25; }
@@ -1231,7 +1242,7 @@ input.text { width: min(100%, 16rem); min-height: 2.5rem; padding: 0.4rem 0.7rem
 @media (max-width: 640px) {
   /* A phone: the song is the title. The chart and undo share a line, the grid and the tool the next. */
   .editor-head .page-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .editor-bar { gap: 0.4rem; padding-bottom: 0.5rem; }
+  .editor-bar { flex-wrap: wrap; gap: 0.4rem; padding-bottom: 0.5rem; }
   .editor-wide-only { display: none; }
   .editor-chart-btn { order: 0; flex: 1 1 6rem; }
   .editor-tools { order: 1; }

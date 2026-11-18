@@ -22,7 +22,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { DIFFICULTIES, PARTS, type Chart } from '../chart/types';
 import { EditorController, parkEditor, takeParked, type EditorSnapshot } from '../editor/EditorController';
 import { SNAP_LABEL, SNAP_NAME, SNAPS } from '../editor/grid';
@@ -268,6 +268,24 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
   const diffRow = useSlide<HTMLDivElement>(snap?.difficulty);
   const toolRow = useSlide<HTMLDivElement>(snap?.tool);
   const pointer = mode === 'mouse' || mode === 'touch';
+
+  // The toolbar stays on one line: while what is in it is wider than the bar, it gives things away
+  // in steps (see data-tight in the styles). Measured again whenever its content or its width changes.
+  const toolbar = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = toolbar.current;
+    if (!el) return;
+    const fit = () => {
+      let tight = 0;
+      el.dataset.tight = '0';
+      while (tight < 3 && el.scrollWidth > el.clientWidth + 1) el.dataset.tight = String(++tight);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    void document.fonts?.ready.then(fit);
+    return () => ro.disconnect();
+  }, [snap?.part, snap?.difficulty, snap?.snapMode, snap?.snap, snap?.tool, mode, style, ready]);
   const PartIcon = PART_ICON[snap?.part ?? 'lead'];
   const legend = <Legend rows={legendFor(mode, style, snap?.lanes ?? 5, settings)} />;
   const snapIndex = snap ? SNAPS.indexOf(snap.snap) : 0;
@@ -286,7 +304,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
         )}
       </header>
 
-      <div className="editor-bar" data-nav-skip role="toolbar" aria-label="Chart" inert={recording || !ready}>
+      <div className="editor-bar" ref={toolbar} data-nav-skip role="toolbar" aria-label="Chart" inert={recording || !ready}>
         {/* Which chart: on a phone one button that opens the menu, elsewhere the choices themselves. */}
         <button type="button" className="btn editor-chart-btn" onClick={() => setOpen('menu')}>
           <PartIcon strokeWidth={ICON_STROKE} aria-hidden />
