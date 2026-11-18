@@ -9,8 +9,9 @@ describe('setlist', () => {
     expect(partForSong('vocals', 'sung', thin)).toBe('vocals');
     expect(partForSong('vocals', 'instrumental', thin)).toBe('lead');
     expect(songParts('instrumental', thin)).toEqual(['lead', 'bass', 'drums']);
-    // A song that hardly has any part is never left without one.
-    expect(songParts('empty', thin)).toEqual(['vocals', 'lead', 'bass', 'drums']);
+    // A song without a note on any part has no part to play.
+    expect(songParts('empty', thin)).toEqual([]);
+    expect(partForSong('vocals', 'empty', thin)).toBeUndefined();
   });
 
   it('adds a song at the end and takes it out again', () => {

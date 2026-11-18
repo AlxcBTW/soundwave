@@ -13,7 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { AnalysisStatus } from '../analysis/manager';
+import { canPlay, type AnalysisStatus } from '../analysis/manager';
 import { playSfx } from '../audio/sfx';
 import { formatTime, SET_MAX, suggestSets, type SuggestedSet } from '../game/setlist';
 import type { SongMeta } from '../storage/db';
@@ -132,7 +132,8 @@ export function HomeScreen({
   }, [tab]);
 
   const byId = useMemo(() => new Map(songs.map((s) => [s.id, s])), [songs]);
-  const ready = useMemo(() => songs.filter((s) => status[s.id]?.state === 'ready'), [songs, status]);
+  // Suggested sets are made of songs that can be played: analysed, with notes on some part.
+  const ready = useMemo(() => songs.filter((s) => canPlay(status[s.id])), [songs, status]);
   const sets: SuggestedSet[] = useMemo(() => suggestSets(ready, played, seed), [ready, played, seed]);
   const own = songs.length;
 

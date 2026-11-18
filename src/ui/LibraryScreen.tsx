@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowUpDown, Check, CheckSquare, Ellipsis, Info, Play, Plus, Search, Upload, Volume2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { isTextField } from '../input/inputMode';
-import type { AnalysisStatus } from '../analysis/manager';
+import { canPlay, type AnalysisStatus } from '../analysis/manager';
 import { PARTS } from '../chart/types';
 import type { Settings } from '../game/settings';
 import { formatTime, SET_MAX } from '../game/setlist';
@@ -60,8 +60,14 @@ function loadSort(): Sort {
 export const analysisLabel = (status: SongStatus) =>
   status.state === 'queued' ? 'Waiting to analyze' : `${status.step ?? 'Analyzing'} · ${Math.round((status.progress ?? 0) * 100)}%`;
 
-/** Only problems get a pill: a ready song needs no label, and analysis shows as a lit bar. */
+/** Only problems get a pill: a playable song needs no label, and analysis shows as a lit bar. */
 export function StatusPill({ status }: { status: SongStatus }) {
+  if (status.state === 'ready' && status.noNotes)
+    return (
+      <span className="pill error" title="No notes were found on any part, so it cannot go in a set.">
+        No notes
+      </span>
+    );
   if (status.state === 'ready' || status.state === 'analyzing' || status.state === 'queued') return null;
   return (
     <span className={`pill ${status.state}`} title={status.error}>
@@ -315,7 +321,8 @@ export function LibraryScreen({
           {shown.map((s, i) => {
             const st = status[s.id] ?? { state: 'idle' };
             const slot = setlist.indexOf(s.id);
-            const ready = st.state === 'ready';
+            // Playable: analysed, with notes on some part. Only such a song goes in the setlist.
+            const ready = canPlay(st);
             const busy = st.state === 'analyzing' || st.state === 'queued';
             const full = setlist.length >= SET_MAX && slot < 0;
             const chosen = selected.has(s.id);
@@ -331,7 +338,7 @@ export function LibraryScreen({
                   className="song-row"
                   data-autofocus={i === 0 ? '' : undefined}
                   aria-pressed={ready ? slot >= 0 : undefined}
-                  aria-label={`${chosen ? 'Selected. ' : ''}${s.title} by ${s.artist}. ${!ready ? (busy ? 'Being analyzed.' : 'Not ready to play.') + ' Opens song details.' : slot >= 0 ? `In the setlist at ${slot + 1}. Press to remove.` : full ? 'The setlist is full.' : 'Press to add to the setlist.'}`}
+                  aria-label={`${chosen ? 'Selected. ' : ''}${s.title} by ${s.artist}. ${!ready ? (busy ? 'Being analyzed.' : st.noNotes ? 'No notes found.' : 'Not ready to play.') + ' Opens song details.' : slot >= 0 ? `In the setlist at ${slot + 1}. Press to remove.` : full ? 'The setlist is full.' : 'Press to add to the setlist.'}`}
                   onFocus={() => setCurrentId(s.id)}
                   onPointerEnter={(e) => e.pointerType === 'mouse' && setCurrentId(s.id)}
                   onClick={(e) => {

@@ -78,12 +78,15 @@ export function partPresence(a: AnalysisResult): Record<Part, number> {
 }
 
 /**
- * The parts the song hardly has, compared with the rest of it. None when no part stands out as
- * present (nothing to compare with), so a song is never left without a part to play.
+ * The parts the song hardly has, compared with the rest of it. When no part stands out as present
+ * (nothing to compare with), only the parts without a single note: a sparse song still has its
+ * parts, and a song with no notes at all has none to play.
  */
 export function thinParts(a: AnalysisResult): Part[] {
   const presence = partPresence(a);
   const busiest = Math.max(...PARTS.map((p) => presence[p]));
   const thin = PARTS.filter((p) => presence[p] < MIN_SHARE || presence[p] < MIN_OF_BUSIEST * busiest);
-  return thin.length === PARTS.length ? [] : thin;
+  if (thin.length < PARTS.length) return thin;
+  const notes: Record<Part, number> = { vocals: a.vocals?.length ?? 0, lead: a.lead.length, bass: a.bass.length, drums: a.drums.length };
+  return PARTS.filter((p) => notes[p] === 0);
 }

@@ -77,8 +77,12 @@ describe('parts a song hardly has', () => {
     expect(thinParts(song({ vocals: (b) => b % 4 === 0, lead: always, bass: always, drums: (b) => b > 26 }))).toEqual([]);
   });
 
-  it('names nothing when no part stands out', () => {
-    expect(thinParts(song({}))).toEqual([]);
+  it('when no part stands out, names only the parts without a note', () => {
+    // A sparse song: every part plays in a bar or two, none stands out, all are kept.
+    expect(thinParts(song({ vocals: (b) => b === 3, lead: (b) => b === 5, bass: (b) => b === 7, drums: (b) => b === 9 }))).toEqual([]);
+    expect(thinParts(song({ lead: (b) => b === 5 }))).toEqual(['vocals', 'bass', 'drums']);
+    // Not a note anywhere: no part to play.
+    expect(thinParts(song({}))).toEqual(PARTS);
   });
 });
 
@@ -90,8 +94,8 @@ describe('the parts a set is played on', () => {
     expect(setParts(['a', 'c'], thin)).toEqual(PARTS);
   });
 
-  it('never leaves a set without a part', () => {
-    expect(setParts(['a'], { a: PARTS })).toEqual(PARTS);
+  it('opens no part for a set of songs without notes', () => {
+    expect(setParts(['a'], { a: PARTS })).toEqual([]);
   });
 
   it('plays the chosen part, or the first open one when the set hardly has it', () => {

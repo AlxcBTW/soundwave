@@ -1,4 +1,5 @@
 import { ListMinus, ListPlus, PencilRuler, RotateCcw, Share, Star, Trash2, Volume2 } from 'lucide-react';
+import { canPlay } from '../analysis/manager';
 import { useState } from 'react';
 import { DIFFICULTIES, PARTS } from '../chart/types';
 import { formatTime } from '../game/setlist';
@@ -44,7 +45,8 @@ export function SongSheet({
   onClose,
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const ready = status.state === 'ready';
+  // Playable: analysed, with notes on some part (only such a song goes in the setlist).
+  const ready = canPlay(status);
   const busy = status.state === 'analyzing' || status.state === 'queued';
   const mine = scores.filter((s) => s.songId === song.id);
 

@@ -16,30 +16,29 @@ export interface Pick {
 /** Per song, the parts it hardly has (see chart/presence): they are not offered for playing. */
 export type ThinParts = Record<string, readonly Part[] | undefined>;
 
-/**
- * The parts a set can be played on: every part that at least one of its songs really has. A set
- * never ends up without one: if no part is left, all are open.
- */
+/** The parts a set can be played on: every part that at least one of its songs really has. */
 export function setParts(ids: readonly string[], thin: ThinParts): Part[] {
-  const open = PARTS.filter((p) => ids.some((id) => !thin[id]?.includes(p)));
-  return open.length ? open : [...PARTS];
+  return PARTS.filter((p) => ids.some((id) => !thin[id]?.includes(p)));
 }
 
 /** The part a set is played on: the chosen one, or the first open one when the set does not have it. */
 export function partFor(pick: Pick, open: readonly Part[]): Part {
-  return open.includes(pick.part) ? pick.part : open[0];
+  return open.includes(pick.part) ? pick.part : (open[0] ?? pick.part);
 }
 
-/** The parts a song really has: all of them when it hardly has any (it is never left without one). */
+/** The parts a song really has (none, for a song without notes). */
 export function songParts(id: string, thin: ThinParts): Part[] {
-  const own = PARTS.filter((p) => !thin[id]?.includes(p));
-  return own.length ? own : [...PARTS];
+  return PARTS.filter((p) => !thin[id]?.includes(p));
+}
+
+/** The part a song is played on, of those it has: the set's part when it is one, else the first. */
+export function partAmong(part: Part, own: readonly Part[]): Part | undefined {
+  return own.includes(part) ? part : own[0];
 }
 
 /** The part a song of a set is played on: the set's part when the song has it, else its first own. */
-export function partForSong(part: Part, id: string, thin: ThinParts): Part {
-  const own = songParts(id, thin);
-  return own.includes(part) ? part : own[0];
+export function partForSong(part: Part, id: string, thin: ThinParts): Part | undefined {
+  return partAmong(part, songParts(id, thin));
 }
 
 /** Adds the song to the setlist, or takes it out when it is already in. A full setlist stays as it is. */

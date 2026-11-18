@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { analysisManager } from '../analysis/manager';
 import { DIFFICULTIES, lanesFor, PARTS, type Difficulty, type Part } from '../chart/types';
 import type { Settings } from '../game/settings';
-import { formatTime, partFor, partForSong, setParts, type Pick, type ThinParts } from '../game/setlist';
+import { formatTime, partAmong, partFor, songParts, type Pick, type ThinParts } from '../game/setlist';
 import { PadGlyph } from '../input/glyphs';
 import { TAB_EVENT } from '../input/menuNav';
 import { confirmInput } from '../input/pads';
@@ -29,7 +29,8 @@ interface Props {
   onBack(): void;
 }
 
-type Counts = Record<string, number | undefined>;
+/** Per song, its notes on each part at the chosen difficulty, as they are counted. */
+type Counts = Record<string, Partial<Record<Part, number>> | undefined>;
 
 /** What a song has almost none of, in a sentence. */
 const PART_STUFF: Record<Part, string> = { vocals: 'vocals', lead: 'lead instrument', bass: 'bass', drums: 'drums' };
@@ -39,32 +40,36 @@ const list = (words: string[]) => (words.length <= 1 ? words.join('') : `${words
 export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onStart, onBack }: Props) {
   const hints = useHints(settings);
   const [counts, setCounts] = useState<Counts>({});
-  // The parts this set can be played on, and the one it is on: the chosen one, unless the set
-  // hardly has it (the choice itself is kept for the next set).
-  const open = setParts(
-    songs.map((s) => s.id),
-    thin,
-  );
+  // The parts each song has: those it does not hardly have, less any without a note at this
+  // difficulty (once counted).
+  const own = (s: SongMeta) => songParts(s.id, thin).filter((p) => (counts[s.id]?.[p] ?? 1) > 0);
+  // The parts this set can be played on, and the one it is on: the chosen one, unless no song of
+  // the set has it (the choice itself is kept for the next set).
+  const open = PARTS.filter((p) => songs.some((s) => own(s).includes(p)));
   const part = partFor(pick, open);
   const closed = PARTS.filter((p) => !open.includes(p));
-  // A song that hardly has the part is played on one it has instead.
-  const partOf = (s: SongMeta) => partForSong(part, s.id, thin);
+  // A song without the part is played on one it has instead.
+  const partOf = (s: SongMeta) => partAmong(part, own(s));
 
-  // Notes each song has on the part it is played on, at the chosen difficulty.
+  // The notes each song has on each of its parts, at the chosen difficulty.
   useEffect(() => {
     let cancelled = false;
     setCounts({});
     void (async () => {
       for (const s of songs) {
-        const chart = await analysisManager.chart(s.id, partForSong(part, s.id, thin), pick.difficulty).catch(() => undefined);
-        if (cancelled) return;
-        setCounts((c) => ({ ...c, [s.id]: chart?.notes.length ?? 0 }));
+        const n: Partial<Record<Part, number>> = {};
+        for (const p of songParts(s.id, thin)) {
+          const chart = await analysisManager.chart(s.id, p, pick.difficulty).catch(() => undefined);
+          if (cancelled) return;
+          n[p] = chart?.notes.length ?? 0;
+        }
+        setCounts((c) => ({ ...c, [s.id]: n }));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [songs, part, pick.difficulty, thin]);
+  }, [songs, pick.difficulty, thin]);
 
   // Shoulder buttons (Q and E) step through the difficulties.
   useEffect(() => {
@@ -114,7 +119,11 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
   const diffRow = useSlide<HTMLDivElement>(pick.difficulty);
   const lanes = lanesFor(pick.difficulty);
   const known = songs.every((s) => counts[s.id] !== undefined);
-  const playable = songs.filter((s) => (counts[s.id] ?? 0) > 0).length;
+  const notesOf = (s: SongMeta) => {
+    const p = partOf(s);
+    return counts[s.id] === undefined ? undefined : p ? (counts[s.id]?.[p] ?? 0) : 0;
+  };
+  const playable = songs.filter((s) => (notesOf(s) ?? 0) > 0).length;
   const total = formatTime(songs.reduce((t, s) => t + s.duration, 0));
   const best = (s: SongMeta) => scores.find((b) => b.songId === s.id && b.part === partOf(s) && b.difficulty === pick.difficulty);
 
@@ -130,9 +139,9 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
       <div className="lobby-body">
         <ol className="set-cards" aria-label="Setlist">
           {songs.map((s, i) => {
-            const n = counts[s.id];
+            const n = notesOf(s);
             const b = best(s);
-            const own = partOf(s);
+            const on = partOf(s);
             return (
               <li key={s.id} className={`set-card ${n === 0 ? 'skipped' : ''}`} style={{ ['--i' as string]: i }}>
                 <span className="slot-num" aria-hidden>
@@ -151,12 +160,12 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
                     ) : n === 0 ? (
                       <span className="warn">
                         <TriangleAlert strokeWidth={ICON_STROKE} aria-hidden />
-                        No {PART_LABEL[own].toLowerCase()} notes found. This song will be skipped.
+                        No notes found. This song will be skipped.
                       </span>
-                    ) : own !== part ? (
+                    ) : on && on !== part ? (
                       <span className="warn">
                         <TriangleAlert strokeWidth={ICON_STROKE} aria-hidden />
-                        Almost no {PART_STUFF[part]} in this song: it plays on {PART_LABEL[own].toLowerCase()} ({n.toLocaleString()} notes).
+                        No {PART_STUFF[part]} in this song: it plays on {PART_LABEL[on].toLowerCase()} ({n.toLocaleString()} notes).
                       </span>
                     ) : (
                       `${n.toLocaleString()} notes`

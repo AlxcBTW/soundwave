@@ -1,4 +1,5 @@
 import { Circle, Info, ListMinus, ListPlus, PencilRuler, RotateCcw, Share, Trash2, X, type LucideIcon } from 'lucide-react';
+import { canPlay } from '../analysis/manager';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { SET_MAX } from '../game/setlist';
 import { getInputMode, usesFocus } from '../input/inputMode';
@@ -54,7 +55,8 @@ export function SongMenu({ songs, status, setlist, at, actions, onClose }: Props
 
   const one = songs.length === 1 ? songs[0] : null;
   const st = (s: SongMeta) => status[s.id] ?? { state: 'idle' as const };
-  const ready = songs.filter((s) => st(s).state === 'ready');
+  // Only songs with notes on some part go in the setlist.
+  const ready = songs.filter((s) => canPlay(st(s)));
   const inSet = songs.filter((s) => setlist.includes(s.id));
   const busy = (s: SongMeta) => st(s).state === 'analyzing' || st(s).state === 'queued';
   const room = SET_MAX - setlist.length;

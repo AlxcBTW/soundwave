@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { analysisManager } from '../analysis/manager';
+import { analysisManager, canPlay } from '../analysis/manager';
 import { stemModel } from '../analysis/separation/model';
 import { analysisDevice, type AnalysisDevice } from '../analysis/separation/support';
 import { getEngine } from '../audio/engine';
@@ -17,8 +17,8 @@ import { applyDisplayMode, canExit, exitApp, inDesktopApp, isFullscreenToggle, t
 import {
   loadPick,
   loadSetlist,
+  partAmong,
   partFor,
-  partForSong,
   pruneSetlist,
   savePick,
   saveSetlist,
@@ -84,6 +84,8 @@ interface Run {
   index: number;
   results: SetResult[];
   pick: Pick;
+  /** Per song, the parts with notes at the set's difficulty: the next song's part is chosen among them. */
+  parts?: Part[][];
   lobby: LobbyView;
   /** A chart played from the track editor: where to go back to, and where in the song it starts. */
   test?: { back: EditorView; startAt: number };
@@ -504,6 +506,8 @@ export function App() {
   }, [takesDrops, importFiles]);
 
   const toggle = (song: SongMeta) => {
+    if (!setlist.includes(song.id) && !canPlay(analysisStatus[song.id]))
+      return toast('No notes were found in this song, so it cannot go in a set.');
     if (!setlist.includes(song.id) && setlist.length >= SET_MAX)
       return toast(`The setlist holds ${SET_MAX} songs. Take one out to add another.`);
     setSetlist(toggleSong(setlist, song.id));
@@ -514,7 +518,7 @@ export function App() {
     details: (song) => setSheet(song),
     addToSet: (list) => {
       const next = [...setlist];
-      for (const song of list) if (next.length < SET_MAX && !next.includes(song.id)) next.push(song.id);
+      for (const song of list) if (next.length < SET_MAX && !next.includes(song.id) && canPlay(analysisStatus[song.id])) next.push(song.id);
       if (next.length !== setlist.length) setSetlist(next);
       if (list.some((song) => !next.includes(song.id))) toast(`The setlist holds ${SET_MAX} songs. Take one out to add another.`);
     },
@@ -574,22 +578,37 @@ export function App() {
     menuPulse('launch');
     setLaunch('in');
     try {
-      // Each song is played on the chosen part, or on the first one it has when it hardly has that
-      // one (the next song's part can be changed between songs).
-      const ids = lobby.ids.filter((id) => byId.has(id));
+      // Each song is played on the chosen part, or on the first one it has notes on when it has
+      // none on that one (the next song's part can be changed between songs). A song without a
+      // note on any part sits the set out.
+      const ids = lobby.ids.filter((id) => byId.has(id) && canPlay(analysisStatus[id]));
       const use: Pick = { ...pick, part: partFor(pick, setParts(ids, thin)) };
-      const entries: { song: SongMeta; chart: Chart }[] = [];
+      const entries: { song: SongMeta; chart: Chart; parts: Part[] }[] = [];
       for (const id of ids) {
         const song = byId.get(id)!;
-        const chart = await analysisManager.chart(id, partForSong(use.part, id, thin), use.difficulty);
-        if (chart && chart.notes.length > 0) entries.push({ song, chart });
+        const charts = new Map<Part, Chart>();
+        for (const p of songParts(id, thin)) {
+          const chart = await analysisManager.chart(id, p, use.difficulty);
+          if (chart && chart.notes.length > 0) charts.set(p, chart);
+        }
+        const parts = [...charts.keys()];
+        const part = partAmong(use.part, parts);
+        if (part) entries.push({ song, chart: charts.get(part)!, parts });
       }
       if (!entries.length) {
         setLaunch(null);
-        return toast('No notes were found for this part. Try another part.');
+        return toast('No notes were found in these songs at this difficulty.');
       }
       await playAt(
-        { songs: entries.map((e) => e.song), charts: entries.map((e) => e.chart), index: 0, results: [], pick: use, lobby },
+        {
+          songs: entries.map((e) => e.song),
+          charts: entries.map((e) => e.chart),
+          parts: entries.map((e) => e.parts),
+          index: 0,
+          results: [],
+          pick: use,
+          lobby,
+        },
         0,
         true,
       );
@@ -831,7 +850,8 @@ export function App() {
         />
       );
     } else if (view.name === 'lobby') {
-      const list = view.ids.map((id) => byId.get(id)).filter((s): s is SongMeta => !!s);
+      // A song without a note on any part cannot be played, so it is not in the set.
+      const list = view.ids.map((id) => byId.get(id)).filter((s): s is SongMeta => !!s && canPlay(analysisStatus[s.id]));
       screen = (
         <LobbyScreen
           songs={list}
@@ -857,7 +877,7 @@ export function App() {
           total={run.songs.length}
           next={run.songs[run.index + 1]}
           nextPart={run.charts[run.index + 1]?.part}
-          nextParts={run.songs[run.index + 1] ? songParts(run.songs[run.index + 1].id, thin) : undefined}
+          nextParts={run.parts?.[run.index + 1]}
           onNextPart={(p: Part) => void setNextPart(run, p)}
           settings={settings}
           onRetry={() => void playAt(run, run.index)}

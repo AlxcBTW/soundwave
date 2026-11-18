@@ -1,7 +1,7 @@
 import { loadSongBuffer } from '../audio/songAudio';
 import { generateAll } from '../chart/generator';
 import { thinParts } from '../chart/presence';
-import { DIFFICULTIES, type Chart, type Difficulty, type Part } from '../chart/types';
+import { DIFFICULTIES, PARTS, type Chart, type Difficulty, type Part } from '../chart/types';
 import { chartFromNotes, chartKey, editedCount, resolveGrid, songDuration, standsAlone, type SongEdits } from '../editor/edits';
 import { analysisKey, deleteAnalyses, deleteEdits, getAnalysis, getEdits, putAnalysis, putEdits, putStems } from '../storage/db';
 import { writeAnalysisToFile } from '../storage/songFile';
@@ -32,7 +32,12 @@ export interface AnalysisStatus {
    * offered for playing. A part the player wrote a chart for is never among them.
    */
   thin?: Part[];
+  /** Analysed, and not a note on any part: it cannot be played or put in a set. */
+  noNotes?: boolean;
 }
+
+/** Whether a song can be played and put in a set: analysed, with notes on at least one part. */
+export const canPlay = (s: AnalysisStatus | undefined): boolean => s?.state === 'ready' && !s.noNotes;
 
 const STEP_LABEL: Record<AnalysisStep, string> = {
   decoding: 'Decoding',
@@ -128,6 +133,7 @@ export class AnalysisManager {
         ...(edited ? { edited } : {}),
         ...(standsAlone(e) ? { manual: true } : {}),
         ...(thin.length ? { thin } : {}),
+        ...(thin.length >= PARTS.length ? { noNotes: true } : {}),
       },
     };
     for (const l of this.listeners) l();
