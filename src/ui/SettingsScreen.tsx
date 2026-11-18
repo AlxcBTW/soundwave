@@ -35,21 +35,21 @@ import { APP_VERSION } from '../app/release';
 import { checkForUpdates, updates, type UpdateStatus } from '../app/updates';
 import { UpdateCard } from './AppUpdates';
 
-/** What the Updates row says about the update, in a word or two. */
-function updateNote(u: UpdateStatus): string {
+/** The update check's button, saying where things stand. */
+function updateButton(u: UpdateStatus, upToDate: boolean): string {
   switch (u.state) {
     case 'available':
-      return `${u.version} is out`;
+      return `Install ${u.version}`;
     case 'downloading':
-      return u.total ? `Downloading ${Math.round((u.received / u.total) * 100)}%` : 'Downloading';
+      return u.total ? `Downloading ${Math.round((u.received / u.total) * 100)}%` : 'Downloading…';
     case 'installing':
-      return 'Installing';
+      return 'Installing…';
     case 'checking':
-      return 'Checking';
-    case 'error':
-      return 'Check failed';
+      return 'Checking…';
+    case 'current':
+      return upToDate ? 'Up to date' : 'Check now';
     default:
-      return APP_VERSION;
+      return 'Check now';
   }
 }
 import { useSlide } from './useSlide';
@@ -1048,24 +1048,14 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
             kind: 'action',
             id: 'checkForUpdates',
             label: 'Updates',
-            button:
-              u.state === 'available'
-                ? 'Install'
-                : u.state === 'checking'
-                  ? 'Checking…'
-                  : u.state === 'current' && c.upToDate
-                    ? 'Up to date'
-                    : 'Check now',
+            // The button says where things stand (nothing stands beside it): what was found, how far the
+            // download is, and for a moment after a check that found nothing, that it is up to date.
+            button: updateButton(u, c.upToDate),
             disabled: u.state === 'checking' || u.state === 'downloading' || u.state === 'installing',
             run:
               u.state === 'available' || u.state === 'downloading' || u.state === 'installing'
                 ? c.showUpdate
                 : () => void checkForUpdates(),
-            // Being up to date is said on the button, for a moment (see upToDate), not beside it.
-            note:
-              u.state === 'current' ? undefined : (
-                <span className={`pill ${u.state === 'available' ? 'lit' : u.state === 'error' ? 'error' : ''}`}>{updateNote(u)}</span>
-              ),
             help: `You have version ${APP_VERSION}. The game looks for a newer release on GitHub and, when you say so, downloads it, checks that it is genuine, installs it and starts again. Your library, scores and settings stay.${u.state === 'error' ? ` ${u.message}` : ''}`,
           },
           toggle(
