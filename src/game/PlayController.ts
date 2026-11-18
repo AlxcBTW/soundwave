@@ -59,6 +59,11 @@ export class PlayController {
    * for it. The highway stands before the plain night until it is built.
    */
   private stage: StageView | null = null;
+  /** The stage on screen; while a rebuilt one (new graphics settings) is still being built, the old one. */
+  private shownStage: StageView | null = null;
+  private stageHost: HTMLElement | null = null;
+  /** The graphics the newest stage was built with, as JSON. */
+  private graphicsKey = '';
   private readonly barLevels: number[];
   private readonly input: KeyboardInput;
   private readonly padInput: GamepadInput;
@@ -102,6 +107,7 @@ export class PlayController {
     if (on === this.isFrozen) return;
     this.isFrozen = on;
     this.stage?.setRate(on ? 'frozen' : 'full');
+    if (this.shownStage !== this.stage) this.shownStage?.setRate(on ? 'frozen' : 'full');
   }
 
   onPhase: (p: PlayPhase, countdown?: number) => void = () => {};
@@ -132,16 +138,14 @@ export class PlayController {
     this.highway.attach(this.session);
     this.meter.setAnalyser(engine.analyser);
     this.barLevels = barIntensity(chart);
-    const graphics = resolveGraphics(settings.graphics);
+    this.graphicsKey = JSON.stringify(resolveGraphics(settings.graphics));
     if (stageHost) {
       // Built once the highway is ready to draw: both compile their shaders in the same GPU process,
       // and the highway, which the player needs first, should not queue behind the stage's.
       void this.highway.ready.then(() => {
         if (this.disposed) return;
-        const stage = new StageView(stageHost, graphics, { mode: 'play', part: chart.part });
-        stage.ready.catch((err) => console.warn('3D stage unavailable', err));
-        if (this.isFrozen) stage.setRate('frozen');
-        this.stage = stage;
+        this.stageHost = stageHost;
+        this.buildStage();
       });
     }
 
@@ -284,13 +288,43 @@ export class PlayController {
   }
 
   /**
-   * Takes over the settings that can change in the middle of a song: volume, audio offset and note
-   * speed. Bindings, rumble and the stage's graphics are read when a song starts.
+   * Takes over the settings that can change in the middle of a song: volume, audio offset, note
+   * speed and the stage's graphics. Bindings and rumble are read when a song starts.
    */
   applySettings(s: Settings) {
     this.engine.offset = s.offsetMs / 1000;
     this.engine.volume = s.volume;
     this.highway.speed = s.noteSpeed;
+    const key = JSON.stringify(resolveGraphics(s.graphics));
+    if (key === this.graphicsKey) return;
+    this.graphicsKey = key;
+    if (this.stageHost) this.buildStage();
+  }
+
+  /**
+   * Builds the stage with the newest graphics settings. A stage already on screen stays there until
+   * the new one has drawn, so changing the graphics in the middle of a song never shows a black
+   * frame; a new one still being built when the settings change again is dropped for the next.
+   */
+  private buildStage() {
+    const pending = this.stage !== this.shownStage ? this.stage : null;
+    pending?.dispose();
+    const stage = new StageView(this.stageHost!, JSON.parse(this.graphicsKey), { mode: 'play', part: this.chart.part });
+    if (this.isFrozen) stage.setRate('frozen');
+    this.stage = stage;
+    stage.ready.then(
+      () => {
+        if (this.stage !== stage) return;
+        if (this.shownStage !== stage) this.shownStage?.dispose();
+        this.shownStage = stage;
+      },
+      (err) => {
+        console.warn('3D stage unavailable', err);
+        if (this.stage !== stage) return;
+        stage.dispose();
+        this.stage = this.shownStage;
+      },
+    );
   }
 
   /** Starts the run with its countdown. `from`: song time of its first moment, for a chart tested from the middle. */
@@ -530,5 +564,6 @@ export class PlayController {
     this.engine.onEnded = null;
     this.highway.dispose();
     this.stage?.dispose();
+    this.shownStage?.dispose();
   }
 }

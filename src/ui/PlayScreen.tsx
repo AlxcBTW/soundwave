@@ -375,12 +375,7 @@ export function PlayScreen({
       )}
       {/* wasPaused: the render that resumes keeps it too, before the effect above has run. */}
       {(paused || pauseLeaving || wasPaused.current) && (
-        <div
-          className={`overlay card ${paused ? '' : 'leaving'}`}
-          data-modal={paused ? '' : undefined}
-          inert={!paused}
-          ref={pauseRef}
-        >
+        <div className={`overlay card ${paused ? '' : 'leaving'}`} data-modal={paused ? '' : undefined} inert={!paused} ref={pauseRef}>
           <div className="dialog pause-card" role="dialog" aria-modal="true" aria-label="Paused">
             <h2 className="display pause-title">Paused</h2>
             <p className="pause-song">
