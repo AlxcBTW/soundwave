@@ -7,6 +7,7 @@ import { analyzeSignal } from '../src/analysis/pipeline';
 import { ANALYSIS_SAMPLE_RATE as SR } from '../src/analysis/types';
 
 const midiHz = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
+type Add = (t0: number, dur: number, fn: (t: number) => number) => void;
 
 /** Kick on every beat, snare on 2 & 4, hats on 8ths, a bass note per beat and a lead melody per beat. */
 function song(bpm: number, seconds: number, opts: { drums?: boolean; bass?: number[]; lead?: number[] } = {}) {
@@ -87,49 +88,77 @@ describe('dsp', () => {
 });
 
 describe('drum detection', () => {
-  it('does not mistake off-beat bass notes for kicks', async () => {
-    // Four-on-the-floor kick plus a sustained bass note on every off-beat.
+  /** Sixteen seconds of a four-on-the-floor kick at 120 BPM, with `extra` laid over each beat. */
+  const kicks = (gain: (beat: number) => number, extra?: (add: Add, t: number, beat: number) => void) => {
     const x = new Float32Array(16 * SR);
-    const add = (t0: number, dur: number, fn: (t: number) => number) => {
+    const add: Add = (t0, dur, fn) => {
       const a = Math.floor(t0 * SR);
       for (let i = 0; i < dur * SR && a + i < x.length; i++) x[a + i] += fn(i / SR);
     };
     for (let b = 0; b < 30; b++) {
       const t = 0.5 + b * 0.5;
-      add(t, 0.2, (s) => Math.sin(2 * Math.PI * (50 + 80 * Math.exp(-s * 30)) * s) * Math.exp(-s * 15) * 0.8);
-      const f = midiHz([33, 36, 31, 33][b % 4]);
-      add(t + 0.25, 0.24, (s) => Math.sin(2 * Math.PI * f * s) * 0.35 * Math.min(1, s * 300) * Math.min(1, (0.24 - s) * 100));
+      const g = gain(b);
+      add(t, 0.2, (s) => Math.sin(2 * Math.PI * (50 + 80 * Math.exp(-s * 30)) * s) * Math.exp(-s * 15) * 0.8 * g);
+      extra?.(add, t, b);
     }
-    const a = await analyzeSignal(x);
-    const kicks = a.drums.filter((d) => d.kind === 'kick' && d.t > 1 && d.t < 15);
-    const offBeat = kicks.filter((k) => {
+    return x;
+  };
+  /** The kicks found between 1 and 15 s, and those of them off the beat. */
+  const found = (drums: { t: number; kind: string; strength: number }[]) => {
+    const all = drums.filter((d) => d.kind === 'kick' && d.t > 1 && d.t < 15);
+    const offBeat = all.filter((k) => {
       const o = (((k.t - 0.5) % 0.5) + 0.5) % 0.5;
       return Math.min(o, 0.5 - o) > 0.08;
     });
-    expect(kicks.length).toBeGreaterThan(20);
+    return { all, offBeat, onBeat: all.length - offBeat.length };
+  };
+
+  it('does not mistake off-beat bass notes for kicks', async () => {
+    const x = kicks(
+      () => 1,
+      (add, t, b) => {
+        const f = midiHz([33, 36, 31, 33][b % 4]);
+        add(t + 0.25, 0.24, (s) => Math.sin(2 * Math.PI * f * s) * 0.35 * Math.min(1, s * 300) * Math.min(1, (0.24 - s) * 100));
+      },
+    );
+    const { all, offBeat } = found((await analyzeSignal(x)).drums);
+    expect(all.length).toBeGreaterThan(20);
     expect(offBeat.length).toBeLessThanOrEqual(2);
   }, 60_000);
 
+  // A floor tom left ringing at an eighth of the kick's level on every off-beat, in the drum stem.
+  const tom = (scale: (b: number) => number) => (add: Add, t: number, b: number) =>
+    add(t + 0.25, 0.3, (s) => Math.sin(2 * Math.PI * (85 + 25 * Math.exp(-s * 20)) * s) * Math.exp(-s * 9) * 0.1 * scale(b));
+
   it('does not take quiet low thumps between the kicks for kicks', async () => {
-    // Four-on-the-floor kick, and on every off-beat a floor tom left ringing at an eighth of its level.
-    const x = new Float32Array(16 * SR);
-    const add = (t0: number, dur: number, fn: (t: number) => number) => {
-      const a = Math.floor(t0 * SR);
-      for (let i = 0; i < dur * SR && a + i < x.length; i++) x[a + i] += fn(i / SR);
-    };
-    for (let b = 0; b < 30; b++) {
-      const t = 0.5 + b * 0.5;
-      add(t, 0.2, (s) => Math.sin(2 * Math.PI * (50 + 80 * Math.exp(-s * 30)) * s) * Math.exp(-s * 15) * 0.8);
-      add(t + 0.25, 0.3, (s) => Math.sin(2 * Math.PI * (85 + 25 * Math.exp(-s * 20)) * s) * Math.exp(-s * 9) * 0.1);
-    }
-    const a = await analyzeSignal(x);
-    const kicks = a.drums.filter((d) => d.kind === 'kick' && d.t > 1 && d.t < 15);
-    const offBeat = kicks.filter((k) => {
-      const o = (((k.t - 0.5) % 0.5) + 0.5) % 0.5;
-      return Math.min(o, 0.5 - o) > 0.08;
-    });
-    expect(kicks.length - offBeat.length).toBeGreaterThan(20);
+    const x = kicks(
+      () => 1,
+      tom(() => 1),
+    );
+    const { onBeat, offBeat } = found((await analyzeSignal(x, { drumSignal: x })).drums);
+    expect(onBeat).toBeGreaterThan(20);
     expect(offBeat.length).toBeLessThanOrEqual(2);
+  }, 60_000);
+
+  it('keeps the kicks of a quiet section, judged against the kicks around them', async () => {
+    // The first half sixteen decibels down: kick and tom alike, as in a quiet verse.
+    const quiet = (b: number) => (b < 15 ? 0.16 : 1);
+    const x = kicks(quiet, tom(quiet));
+    const { all, onBeat, offBeat } = found((await analyzeSignal(x, { drumSignal: x })).drums);
+    // Away from where it gets loud again (the kicks there are judged against the loud ones too).
+    const verse = all.filter((k) => k.t < 4.6);
+    expect(verse.length).toBeGreaterThanOrEqual(7);
+    expect(onBeat).toBeGreaterThan(24);
+    expect(offBeat.length).toBeLessThanOrEqual(2);
+  }, 60_000);
+
+  it('spreads the kicks it keeps over the strengths the chart expects', async () => {
+    // Every other kick softer: the softer ones stay below the generator's chord threshold.
+    const x = kicks((b) => (b % 2 ? 0.6 : 1));
+    const { all } = found((await analyzeSignal(x, { drumSignal: x })).drums);
+    expect(all.length).toBeGreaterThan(24);
+    expect(Math.min(...all.map((k) => k.strength))).toBeLessThan(0.45);
+    expect(Math.max(...all.map((k) => k.strength))).toBe(1);
   }, 60_000);
 });
 
