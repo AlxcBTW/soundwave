@@ -1,5 +1,6 @@
 import { gpuFound, type GraphicsSettings } from '../../game/graphics';
 import type { StageOptions } from '../aurora/AuroraStage';
+import { serveWorkerFetch } from '../../app/workerFetch';
 import type { Beat, FromStage, StageInput, StageRate, ToStage } from './protocol';
 
 /**
@@ -66,7 +67,10 @@ function getWorker(): Worker | null {
   if (!canHandOver()) return (worker = null);
   try {
     const w = new Worker(new URL('./stage.worker.ts', import.meta.url), { type: 'module', name: 'stage' });
-    w.onmessage = (e: MessageEvent<FromStage>) => receive(e.data);
+    w.onmessage = (e: MessageEvent<FromStage>) => {
+      // The worker's fetches, where it cannot make them itself (see fetchProxy).
+      if (!serveWorkerFetch(w, e.data)) receive(e.data);
+    };
     // The worker's script would not load or run: every stage it holds goes to the page instead.
     w.onerror = (e) => {
       console.warn('Stage worker failed; drawing the stage on the page', e.message);

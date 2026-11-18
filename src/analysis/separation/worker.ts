@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 import * as ort from 'onnxruntime-web/webgpu';
+import { proxyWorkerFetch } from '../../app/workerFetch';
 import { transcribeOnnx } from '../pitch/basicPitchOnnx';
 import type { StemName, StemNotes } from '../types';
 import type { LoadedModel } from './model';
@@ -88,7 +89,11 @@ function runner(session: ort.InferenceSession): SegmentModel {
 /** Set by the separation step for the transcription step. */
 let pitch: { url: string; device: 'gpu' | 'cpu' } | null = null;
 
+// Where a worker cannot fetch the game's files itself (the macOS app), the page fetches them.
+const fetched = proxyWorkerFetch((m) => (self as unknown as DedicatedWorkerGlobalScope).postMessage(m));
+
 self.onmessage = async (e: MessageEvent<SeparationRequest>) => {
+  if (fetched(e.data)) return;
   const req = e.data;
   if (req.type === 'transcribe') return transcribeStems(req.stems);
   try {

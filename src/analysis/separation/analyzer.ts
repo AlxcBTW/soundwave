@@ -1,4 +1,5 @@
 import { loadSongBuffer } from '../../audio/songAudio';
+import { serveWorkerFetch } from '../../app/workerFetch';
 import { wavBytes } from '../../audio/wav';
 import { ANALYSIS_SAMPLE_RATE, STEM_NAMES, type StemName, type StemNotes } from '../types';
 import { stemModel } from './model';
@@ -90,6 +91,8 @@ export const stemAnalyzer: StemAnalyzer = async (songId, onProgress, signal) => 
       worker.terminate();
     };
     worker.onmessage = (e: MessageEvent<SeparationResponse>) => {
+      // The worker's fetches, where it cannot make them itself (see app/workerFetch).
+      if (serveWorkerFetch(worker, e.data)) return;
       const m = e.data;
       if (m.type === 'progress') onProgress(m.progress, m.step);
       else if (m.type === 'log') console.info('[analysis]', m.message);

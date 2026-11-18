@@ -1,7 +1,13 @@
 /// <reference lib="webworker" />
 import type { FromStage, ToStage } from './protocol';
+import { proxyWorkerFetch } from '../../app/workerFetch';
 import { createStageHost } from './stageHost';
 
 /** The 3D stage's own thread: it draws on canvases the page hands over (see StageView). */
-const host = createStageHost((m: FromStage) => (self as unknown as DedicatedWorkerGlobalScope).postMessage(m));
-self.onmessage = (e: MessageEvent<ToStage>) => host.handle(e.data);
+const scope = self as unknown as DedicatedWorkerGlobalScope;
+// Where a worker cannot fetch the game's files itself (the macOS app), the page fetches them.
+const fetched = proxyWorkerFetch((m) => scope.postMessage(m));
+const host = createStageHost((m: FromStage) => scope.postMessage(m));
+self.onmessage = (e: MessageEvent<ToStage>) => {
+  if (!fetched(e.data)) host.handle(e.data);
+};
