@@ -499,9 +499,10 @@ export function App() {
     else setView(run.lobby.from === 'library' ? { name: 'library' } : { name: 'home' });
   };
 
-  // A song previews by itself: the one whose page is open, else the one highlighted in a list.
+  // A song previews by itself (unless that is switched off): the one whose page is open, else the one
+  // highlighted in a list.
   const sheetOpen = !!sheet && inMenus && view.name !== 'editor';
-  const previewId = launch !== null ? null : sheetOpen ? sheet.id : view.name === 'library' || view.name === 'home' ? highlight : null;
+  const previewId = launch !== null || !settings.songPreviews ? null : sheetOpen ? sheet.id : view.name === 'library' || view.name === 'home' ? highlight : null;
   useEffect(() => previewSong(previewId), [previewId]);
   useEffect(() => () => previewSong(null), []);
   useEffect(() => setPreviewVolume(settings.volume), [settings.volume]);

@@ -52,7 +52,7 @@ const RESERVED = new Set(['Escape', 'Enter', 'Tab']);
 /** The settings each tab's Restore defaults puts back. */
 const FIELDS: Record<Tab, readonly (keyof Settings)[]> = {
   video: ['graphics', 'displayMode', 'uiScale', 'motion'],
-  audio: ['volume', 'musicVolume', 'sfxVolume', 'muteUnfocused', 'outputDevice', 'outputDeviceName'],
+  audio: ['volume', 'musicVolume', 'sfxVolume', 'songPreviews', 'muteUnfocused', 'outputDevice', 'outputDeviceName'],
   game: ['noteSpeed', 'offsetMs'],
   keyboard: ['keys4', 'keys5', 'overdriveKey'],
   controller: ['pad4', 'pad5', 'padOverdrive', 'glyphs', 'rumble', 'rumbleHits', 'rumbleMisses', 'rumbleSustains', 'rumbleOverdrive'],
@@ -482,6 +482,12 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
           volume('volume', 'Songs', 'The songs you play and their previews.'),
           volume('musicVolume', 'Menu music', 'The theme behind the menus.'),
           volume('sfxVolume', 'Interface sounds', 'Moves, presses and the results fanfare.'),
+        ],
+      },
+      {
+        title: 'Menus',
+        rows: [
+          toggle('songPreviews', 'Song previews', 'Plays a part of a song while you are on it in the music library or on the Edit tab, or while its page is open. Off, the menu music keeps playing there.', s.songPreviews, (v) => set({ songPreviews: v })),
         ],
       },
       {

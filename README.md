@@ -13,7 +13,7 @@ You play them on a 3D note highway with the keyboard, a controller or a touchscr
 
 You pick up to four songs as a setlist, choose a part and a difficulty for the set and play the songs back to back, with a result after each and a total at the end. The main menu has two tabs: **Play**, with your setlist and a few sets dealt from your library (a shuffle, your newest songs, songs without a score), and **Edit**, with your tracks to open in the track editor. `Q` and `E`, or a controller's shoulder buttons, switch between them.
 
-A song previews by itself: stay on its row in the music library or on the Edit tab (or point at it with the mouse), or open its page, and after a moment it plays from a third of the way in (at the songs' volume, with the menu music making way). It stops as soon as you are on something else, such as the search field.
+A song previews by itself: stay on its row in the music library or on the Edit tab (or point at it with the mouse), or open its page, and after a moment it plays from a third of the way in (at the songs' volume, with the menu music making way). It stops as soon as you are on something else, such as the search field. Previews can be switched off under Settings → Audio.
 
 Every chart can be changed, or written from nothing, in the **track editor**: with a keyboard, a mouse, a touchscreen or a controller. See [Track editor](#track-editor).
 

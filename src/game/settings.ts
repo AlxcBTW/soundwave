@@ -11,6 +11,8 @@ export interface Settings {
   musicVolume: number;
   /** Menu and interface sound effects, 0..1 (separate from the music). */
   sfxVolume: number;
+  /** A song plays a preview by itself while its row is highlighted or its page is open. */
+  songPreviews: boolean;
   /** Silence while the game's window is not the focused one. */
   muteUnfocused: boolean;
   /** The audio output to play through: a device id of this browser, or '' for the system's default. */
@@ -66,6 +68,7 @@ export const DEFAULT_SETTINGS: Settings = {
   volume: 0.9,
   musicVolume: 0.3,
   sfxVolume: 0.9,
+  songPreviews: true,
   muteUnfocused: true,
   outputDevice: '',
   outputDeviceName: '',
@@ -121,6 +124,7 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
   if (!['system', 'reduced', 'full'].includes(s.motion)) s.motion = 'system';
   s.touchHaptics = Boolean(s.touchHaptics);
   s.muteUnfocused = Boolean(s.muteUnfocused);
+  s.songPreviews = Boolean(s.songPreviews);
   if (typeof s.outputDevice !== 'string') s.outputDevice = '';
   if (typeof s.outputDeviceName !== 'string' || !s.outputDevice) s.outputDeviceName = '';
   if (s.touchOverdriveSide !== 'left') s.touchOverdriveSide = 'right';

@@ -19,6 +19,18 @@ describe('display mode setting', () => {
   });
 });
 
+describe('song previews setting', () => {
+  it('is on by default, also for settings stored before the option existed', () => {
+    expect(DEFAULT_SETTINGS.songPreviews).toBe(true);
+    const { songPreviews: _, ...stored } = DEFAULT_SETTINGS;
+    expect(normalizeSettings(stored).songPreviews).toBe(true);
+  });
+
+  it('keeps a stored choice', () => {
+    expect(normalizeSettings({ songPreviews: false }).songPreviews).toBe(false);
+  });
+});
+
 describe('volume defaults', () => {
   it('moves volumes still at the first defaults to the current ones', () => {
     const s = normalizeSettings({ volume: 0.5, musicVolume: 0.6, sfxVolume: 0.7 });
