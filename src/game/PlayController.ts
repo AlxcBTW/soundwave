@@ -78,8 +78,6 @@ export class PlayController {
   private hudCache = { score: -1, mult: -1, streak: -1, od: -1, stars: -1, starP: -1, odActive: false, breakSec: -1, songP: -1, left: -1 };
   private readonly breaks: Break[];
   /** A beat fell in the frame being drawn, and how much bass there is right now (0..1). */
-  private beatNow = false;
-  private bassNow = 0;
   private readonly barTimes: number[];
   private feedbackTimer = 0;
   private disposed = false;
@@ -426,8 +424,6 @@ export class PlayController {
       });
     }
     this.highway.render(t, this.session, beatPulse * 0.5 + low * 0.5);
-    this.beatNow = beat !== 'none';
-    this.bassNow = low;
     this.updateHud(t);
   };
 
@@ -500,8 +496,9 @@ export class PlayController {
 
   /**
    * The break countdown: bars left until the next note, with a ring that drains until the note is
-   * due. It jumps on every beat by as much as there is bass, bounces and glows on every bar line,
-   * and takes its last two beats to leave, gone just before the notes kick in.
+   * due. It floats gently while it is up (an even sway, whatever the music does), its number pops and
+   * its ring glows on every bar line, and it takes its last two beats to leave, gone just before the
+   * notes kick in.
    */
   private updateBreak(t: number) {
     const b = this.phase === 'playing' || this.phase === 'paused' ? this.breaks.find((x) => t >= x.from && t < x.to) : undefined;
@@ -509,7 +506,7 @@ export class PlayController {
     const c = this.hudCache;
     if (!b) {
       if (c.breakSec !== -1) {
-        el.classList.remove('on', 'final', 'leaving', 'beat', 'bounce');
+        el.classList.remove('on', 'final', 'leaving', 'bounce');
         c.breakSec = -1;
       }
       return;
@@ -527,23 +524,14 @@ export class PlayController {
     };
     // Without a bar grid, fall back to seconds.
     const bars = this.barTimes.length > 1 ? barsLeft(t, b.next, this.barTimes) : Math.max(1, Math.ceil(b.next - t));
-    if (bars === c.breakSec) {
-      // A beat inside the bar: a jump as big as the bass is loud, next to nothing in a quiet passage.
-      if (this.beatNow && !leaving) {
-        el.style.setProperty('--break-kick', Math.max(0, Math.min(1, 0.06 + this.bassNow * 1.15)).toFixed(2));
-        el.classList.remove('bounce');
-        restart(el, 'beat');
-      }
-      return;
-    }
+    if (bars === c.breakSec) return;
     const first = c.breakSec === -1;
     c.breakSec = bars;
     this.hud.breakNumber.textContent = String(bars);
     el.classList.add('on');
     el.classList.toggle('final', bars <= 1);
-    // A new bar: the number pops and the whole timer bounces.
+    // A new bar: the number pops and the ring glows.
     if (!first && !leaving) {
-      el.classList.remove('beat');
       restart(this.hud.breakNumber, 'tick');
       restart(el, 'bounce');
     }

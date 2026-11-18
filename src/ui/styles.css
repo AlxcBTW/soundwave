@@ -3885,30 +3885,21 @@ input.text {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
 }
-.hud-break.on.bounce {
-  animation: break-bounce 0.55s cubic-bezier(0.25, 1.6, 0.45, 1);
+/* While it is up it floats: a slow, even sway of its own, not the music's. It moves by `translate`
+   and `scale`, apart from the `transform` that places it, so its leaving can run over it without
+   a jump (the sway carries on into it). */
+.hud-break.on {
+  animation: break-float 3.2s ease-in-out infinite;
 }
-@keyframes break-bounce {
-  0% {
-    transform: translate(-50%, -50%) scale(1.12);
-  }
+@keyframes break-float {
+  0%,
   100% {
-    transform: translate(-50%, -50%) scale(1);
+    translate: 0 0;
+    scale: 1;
   }
-}
-/* A jump on every beat between the bar lines, as big as the bass is loud (--break-kick, 0..1). */
-.hud-break.on.beat {
-  animation: break-beat 0.3s ease-out;
-}
-@keyframes break-beat {
-  0% {
-    transform: translate(-50%, -50%) scale(1);
-  }
-  35% {
-    transform: translate(-50%, calc(-50% - 3% * var(--break-kick, 0.2))) scale(calc(1 + 0.06 * var(--break-kick, 0.2)));
-  }
-  100% {
-    transform: translate(-50%, -50%) scale(1);
+  50% {
+    translate: 0 -6px;
+    scale: 1.025;
   }
 }
 /* On the bar line it also lights up for a moment. */
@@ -3917,7 +3908,7 @@ input.text {
 }
 .hud-break.on.bounce .hud-break-num {
   animation:
-    break-tick 0.5s cubic-bezier(0.2, 1.4, 0.4, 1),
+    break-tick 0.6s cubic-bezier(0.22, 1, 0.36, 1),
     break-shine 0.7s ease-out;
 }
 @keyframes break-glow {
@@ -3957,7 +3948,9 @@ input.text {
   border-color: var(--gold);
 }
 .hud-break.on.leaving {
-  animation: break-leave var(--break-fade, 1s) cubic-bezier(0.3, 0, 0.3, 1) forwards;
+  animation:
+    break-float 3.2s ease-in-out infinite,
+    break-leave var(--break-fade, 1s) cubic-bezier(0.3, 0, 0.3, 1) forwards;
   transition: none;
 }
 .hud-break.on.leaving::after {
@@ -4087,7 +4080,7 @@ input.text {
   z-index: 1;
 }
 .hud-break-num.tick {
-  animation: break-tick 0.5s cubic-bezier(0.2, 1.4, 0.4, 1);
+  animation: break-tick 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .hud-break.final .fill {
   color: var(--gold);
@@ -4100,8 +4093,8 @@ input.text {
 }
 @keyframes break-tick {
   0% {
-    transform: scale(1.45);
-    opacity: 0.4;
+    transform: scale(1.25);
+    opacity: 0.5;
   }
   100% {
     transform: scale(1);
@@ -4770,13 +4763,7 @@ input.text {
   transition-duration: 0.01ms !important;
 }
 :root[data-motion='reduced']
-  :is(
-    .hud-break-num.tick,
-    .hud-break.on.bounce,
-    .hud-break.on.beat,
-    .hud-break.on.bounce .hud-break-ring .fill,
-    .hud-break.on.bounce .hud-break-num
-  ) {
+  :is(.hud-break-num.tick, .hud-break.on, .hud-break.on.bounce .hud-break-ring .fill, .hud-break.on.bounce .hud-break-num) {
   animation: none;
 }
 :root[data-motion='reduced'] .hud-break {
