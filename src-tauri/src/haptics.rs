@@ -67,7 +67,9 @@ impl Voice {
     fn done(&self) -> bool {
         match self.kind {
             Kind::Buzz => self.released_at.is_some_and(|r| self.t > r + 0.05),
-            Kind::Rumble if self.hold.is_some() => self.released_at.is_some_and(|r| self.t > r + 0.05),
+            Kind::Rumble if self.hold.is_some() => {
+                self.released_at.is_some_and(|r| self.t > r + 0.05)
+            }
             Kind::Rumble => self.t > self.dur + 0.05,
             _ => self.t > self.dur,
         }
@@ -106,7 +108,9 @@ impl Voice {
             Kind::Rumble => {
                 // A motor: up to speed in 20 ms, even while it runs, down in 50 ms.
                 let attack = (t / 0.02).min(1.0);
-                let end = self.released_at.or(self.hold.map_or(Some(self.dur), |_| None));
+                let end = self
+                    .released_at
+                    .or(self.hold.map_or(Some(self.dur), |_| None));
                 let release = end.map_or(1.0, |r| (1.0 - (t - r) / 0.05).clamp(0.0, 1.0));
                 (65.0, attack * release)
             }
