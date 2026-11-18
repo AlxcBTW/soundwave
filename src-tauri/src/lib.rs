@@ -1,4 +1,5 @@
 mod audio_out;
+mod discord;
 mod haptics;
 mod song_files;
 mod touchpad;
@@ -65,6 +66,7 @@ pub fn run() {
             responder.respond(audio_out::handle(&audio, &request));
         })
         .manage(audio_out::NativeAudio::default())
+        .manage(discord::Discord::default())
         .manage(haptics::Haptics::default())
         .manage(touchpad::Touchpad::default())
         .manage(song_files::Opened::default())
@@ -73,6 +75,7 @@ pub fn run() {
             exit_app,
             audio_out::audio_devices,
             audio_out::audio_set_device,
+            discord::discord_presence,
             haptics::haptics_available,
             haptics::haptics_play,
             haptics::haptics_update,

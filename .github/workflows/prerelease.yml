@@ -65,6 +65,8 @@ jobs:
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The Discord application the profile status belongs to (src-tauri/src/discord.rs); unset = no status.
+          SOUNDWAVE_DISCORD_CLIENT_ID: ${{ vars.SOUNDWAVE_DISCORD_CLIENT_ID }}
         with:
           tauriScript: pnpm tauri
           args: ${{ matrix.args }}
