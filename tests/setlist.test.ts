@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { GOLD_THRESHOLD, starProgress, STAR_THRESHOLDS } from '../src/game/scoring';
-import { formatTime, pruneSetlist, SET_MAX, suggestSets, toggleSong } from '../src/game/setlist';
+import { formatTime, partForSong, pruneSetlist, SET_MAX, songParts, suggestSets, toggleSong } from '../src/game/setlist';
 import { modeForKey, modeForPointer } from '../src/input/inputMode';
 
 describe('setlist', () => {
+  it('plays each song on the set’s part, or on one it has when it hardly has that one', () => {
+    const thin = { instrumental: ['vocals'] as const, empty: ['vocals', 'lead', 'bass', 'drums'] as const };
+    expect(partForSong('vocals', 'sung', thin)).toBe('vocals');
+    expect(partForSong('vocals', 'instrumental', thin)).toBe('lead');
+    expect(songParts('instrumental', thin)).toEqual(['lead', 'bass', 'drums']);
+    // A song that hardly has any part is never left without one.
+    expect(songParts('empty', thin)).toEqual(['vocals', 'lead', 'bass', 'drums']);
+  });
+
   it('adds a song at the end and takes it out again', () => {
     expect(toggleSong(['a'], 'b')).toEqual(['a', 'b']);
     expect(toggleSong(['a', 'b'], 'a')).toEqual(['b']);

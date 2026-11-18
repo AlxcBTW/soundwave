@@ -1,14 +1,18 @@
 import { ArrowRight, Flag, Home, Repeat } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { playSfx } from '../audio/sfx';
+import { PARTS, type Part } from '../chart/types';
 import type { Results } from '../game/GameSession';
+import type { Settings } from '../game/settings';
+import { PadGlyph } from '../input/glyphs';
 import { menuPulse } from '../input/rumble';
 import type { SongMeta } from '../storage/db';
-import { useActions } from './actions';
+import { Hint, useActions, useHints } from './actions';
 import { Cover } from './Cover';
 import { shownStars, isGold } from '../game/scoring';
-import { Stars } from './icons';
+import { ICON_STROKE, PART_ICON, PART_LABEL, Stars } from './icons';
 import { keysOf } from '../input/bindings';
+import { useSlide } from './useSlide';
 
 /** One song of a set once it has been played (or skipped). */
 export interface SetResult {
@@ -50,13 +54,34 @@ interface Props {
   total: number;
   /** The song that follows, if any. */
   next?: SongMeta;
+  /** The part the next song is played on, the parts it has, and changing it (between songs of a set). */
+  nextPart?: Part;
+  nextParts?: Part[];
+  onNextPart?(part: Part): void;
+  settings: Settings;
   onRetry(): void;
   onNext(): void;
   /** Ends the set here (only offered while songs remain). */
   onEnd(): void;
 }
 
-export function ResultsScreen({ song, subtitle, results: r, best, position, total, next, onRetry, onNext, onEnd }: Props) {
+export function ResultsScreen({
+  song,
+  subtitle,
+  results: r,
+  best,
+  position,
+  total,
+  next,
+  nextPart,
+  nextParts,
+  onNextPart,
+  settings,
+  onRetry,
+  onNext,
+  onEnd,
+}: Props) {
+  const hints = useHints(settings);
   const newBest = r.score > 0 && (best === undefined || r.score > best);
   const score = useCountUp(r.score);
   // (The crowd has already had its say: it claps through the finale before this screen comes up.)
@@ -82,7 +107,29 @@ export function ResultsScreen({ song, subtitle, results: r, best, position, tota
   }, [r.stars, newBest]);
 
   const last = !next;
+  // The next song's part: the left face button (or P) steps through the parts it has, 1 to 4 pick one.
+  const choosing = !!next && !!nextPart && !!nextParts && !!onNextPart;
+  const cyclePart = () => {
+    if (!choosing || nextParts!.length < 2) return;
+    playSfx('tab');
+    menuPulse('tab-right');
+    onNextPart!(nextParts![(nextParts!.indexOf(nextPart!) + 1) % nextParts!.length]);
+  };
+  const partRow = useSlide<HTMLDivElement>(nextPart ?? '');
   useActions([
+    ...(choosing
+      ? [
+          { id: 'next-part', label: 'Next part', icon: PART_ICON[nextPart!], ...keysOf('results.part'), bar: false, run: cyclePart },
+          ...PARTS.map((p, i) => ({
+            id: `next-part-${p}`,
+            label: PART_LABEL[p],
+            icon: PART_ICON[p],
+            ...keysOf(`results.part${i + 1}`),
+            bar: false,
+            run: () => nextParts!.includes(p) && onNextPart!(p),
+          })),
+        ]
+      : []),
     ...(last ? [] : [{ id: 'end', label: 'End the set', icon: Flag, kbd: 'Escape', sfx: 'back', run: onEnd }]),
     { id: 'retry', label: 'Play again', icon: Repeat, ...keysOf('results.retry'), sfx: 'launch', run: onRetry },
     {
@@ -173,6 +220,49 @@ export function ResultsScreen({ song, subtitle, results: r, best, position, tota
                 <span className="song-title">{next.title}</span>
                 <span className="song-artist">{next.artist}</span>
               </span>
+              {choosing && (
+                <div className="next-part" data-nav-group="next-part">
+                  <span className="label" id="next-part-label">
+                    Part
+                  </span>
+                  {/* On a controller the button that steps through the row sits to its left. */}
+                  <div className="pick-line">
+                    {hints.mode === 'pad' && (
+                      <span className="pick-hint" aria-hidden>
+                        <PadGlyph input={keysOf('results.part').pad ?? 'b2'} style={hints.style} />
+                      </span>
+                    )}
+                    <div className="part-row slide" ref={partRow} role="radiogroup" aria-labelledby="next-part-label">
+                      <span className="sel" aria-hidden />
+                      {PARTS.map((p, i) => {
+                        const Icon = PART_ICON[p];
+                        const on = nextPart === p;
+                        const off = !nextParts!.includes(p);
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            className={`choice part ${on ? 'on' : ''}`}
+                            data-on={on}
+                            data-action={`next-part-${p}`}
+                            role="radio"
+                            aria-checked={on}
+                            disabled={off}
+                            title={off ? `This song has almost no ${PART_LABEL[p].toLowerCase()}` : undefined}
+                            onClick={() => onNextPart!(p)}
+                          >
+                            <Icon strokeWidth={ICON_STROKE} aria-hidden />
+                            <span>{PART_LABEL[p]}</span>
+                            {!off && hints.mode !== 'pad' && (
+                              <Hint kbd={keysOf(`results.part${i + 1}`).kbd} mode={hints.mode} style={hints.style} />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </section>

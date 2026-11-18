@@ -2965,6 +2965,20 @@ input.text {
 .next-up .cover {
   width: 3rem;
 }
+/* The next song's part, under it: a smaller row of the same choices as the lobby's. */
+.next-part {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.4rem;
+}
+.next-part .choice.part {
+  min-height: 3.6rem;
+  font-size: 0.85rem;
+}
+.next-part .choice.part svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
 .summary-body {
   flex: 1;
   min-height: 0;

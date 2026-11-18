@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { analysisManager } from '../analysis/manager';
 import { DIFFICULTIES, lanesFor, PARTS, type Difficulty, type Part } from '../chart/types';
 import type { Settings } from '../game/settings';
-import { formatTime, partFor, setParts, type Pick, type ThinParts } from '../game/setlist';
+import { formatTime, partFor, partForSong, setParts, type Pick, type ThinParts } from '../game/setlist';
 import { PadGlyph } from '../input/glyphs';
 import { TAB_EVENT } from '../input/menuNav';
 import { confirmInput } from '../input/pads';
@@ -47,15 +47,16 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
   );
   const part = partFor(pick, open);
   const closed = PARTS.filter((p) => !open.includes(p));
-  const sitsOut = (s: SongMeta) => !!thin[s.id]?.includes(part);
+  // A song that hardly has the part is played on one it has instead.
+  const partOf = (s: SongMeta) => partForSong(part, s.id, thin);
 
-  // Notes each song has on the chosen part and difficulty.
+  // Notes each song has on the part it is played on, at the chosen difficulty.
   useEffect(() => {
     let cancelled = false;
     setCounts({});
     void (async () => {
       for (const s of songs) {
-        const chart = await analysisManager.chart(s.id, part, pick.difficulty).catch(() => undefined);
+        const chart = await analysisManager.chart(s.id, partForSong(part, s.id, thin), pick.difficulty).catch(() => undefined);
         if (cancelled) return;
         setCounts((c) => ({ ...c, [s.id]: chart?.notes.length ?? 0 }));
       }
@@ -63,7 +64,7 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
     return () => {
       cancelled = true;
     };
-  }, [songs, part, pick.difficulty]);
+  }, [songs, part, pick.difficulty, thin]);
 
   // Shoulder buttons (Q and E) step through the difficulties.
   useEffect(() => {
@@ -113,9 +114,9 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
   const diffRow = useSlide<HTMLDivElement>(pick.difficulty);
   const lanes = lanesFor(pick.difficulty);
   const known = songs.every((s) => counts[s.id] !== undefined);
-  const playable = songs.filter((s) => (counts[s.id] ?? 0) > 0 && !sitsOut(s)).length;
+  const playable = songs.filter((s) => (counts[s.id] ?? 0) > 0).length;
   const total = formatTime(songs.reduce((t, s) => t + s.duration, 0));
-  const best = (s: SongMeta) => scores.find((b) => b.songId === s.id && b.part === part && b.difficulty === pick.difficulty);
+  const best = (s: SongMeta) => scores.find((b) => b.songId === s.id && b.part === partOf(s) && b.difficulty === pick.difficulty);
 
   return (
     <div className="page lobby">
@@ -131,9 +132,9 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
           {songs.map((s, i) => {
             const n = counts[s.id];
             const b = best(s);
-            const out = sitsOut(s);
+            const own = partOf(s);
             return (
-              <li key={s.id} className={`set-card ${n === 0 || out ? 'skipped' : ''}`} style={{ ['--i' as string]: i }}>
+              <li key={s.id} className={`set-card ${n === 0 ? 'skipped' : ''}`} style={{ ['--i' as string]: i }}>
                 <span className="slot-num" aria-hidden>
                   {i + 1}
                 </span>
@@ -145,17 +146,17 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
                     {s.duration > 0 && ` · ${formatTime(s.duration)}`}
                   </span>
                   <span className="set-notes">
-                    {out ? (
-                      <span className="warn">
-                        <TriangleAlert strokeWidth={ICON_STROKE} aria-hidden />
-                        Almost no {PART_STUFF[part]} in this song. It will be skipped.
-                      </span>
-                    ) : n === undefined ? (
+                    {n === undefined ? (
                       'Counting notes…'
                     ) : n === 0 ? (
                       <span className="warn">
                         <TriangleAlert strokeWidth={ICON_STROKE} aria-hidden />
-                        No {PART_LABEL[part].toLowerCase()} notes found. This song will be skipped.
+                        No {PART_LABEL[own].toLowerCase()} notes found. This song will be skipped.
+                      </span>
+                    ) : own !== part ? (
+                      <span className="warn">
+                        <TriangleAlert strokeWidth={ICON_STROKE} aria-hidden />
+                        Almost no {PART_STUFF[part]} in this song: it plays on {PART_LABEL[own].toLowerCase()} ({n.toLocaleString()} notes).
                       </span>
                     ) : (
                       `${n.toLocaleString()} notes`

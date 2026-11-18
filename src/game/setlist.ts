@@ -1,6 +1,8 @@
 /**
- * Setlists: up to four songs played back to back with one part and difficulty. The player's own
- * setlist is stored between visits; the home screen also offers a few made from the library.
+ * Setlists: up to four songs played back to back on one difficulty. Each song is played on the
+ * set's part, or on one it has when it hardly has that one; between songs the player can change
+ * the part of the next. The player's own setlist is stored between visits; the home screen also
+ * offers a few made from the library.
  */
 import { DIFFICULTIES, PARTS, type Difficulty, type Part } from '../chart/types';
 
@@ -26,6 +28,18 @@ export function setParts(ids: readonly string[], thin: ThinParts): Part[] {
 /** The part a set is played on: the chosen one, or the first open one when the set does not have it. */
 export function partFor(pick: Pick, open: readonly Part[]): Part {
   return open.includes(pick.part) ? pick.part : open[0];
+}
+
+/** The parts a song really has: all of them when it hardly has any (it is never left without one). */
+export function songParts(id: string, thin: ThinParts): Part[] {
+  const own = PARTS.filter((p) => !thin[id]?.includes(p));
+  return own.length ? own : [...PARTS];
+}
+
+/** The part a song of a set is played on: the set's part when the song has it, else its first own. */
+export function partForSong(part: Part, id: string, thin: ThinParts): Part {
+  const own = songParts(id, thin);
+  return own.includes(part) ? part : own[0];
 }
 
 /** Adds the song to the setlist, or takes it out when it is already in. A full setlist stays as it is. */

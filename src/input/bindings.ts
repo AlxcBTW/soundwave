@@ -81,7 +81,14 @@ export const COMMANDS: Command[] = [
     { id: 'lobby.part3', label: 'Bass', key: 'Digit3' },
     { id: 'lobby.part4', label: 'Drums', key: 'Digit4' },
   ]),
-  ...cmd('results', [{ id: 'results.retry', label: 'Play again', key: 'KeyR', pad: 'b3' }]),
+  ...cmd('results', [
+    { id: 'results.retry', label: 'Play again', key: 'KeyR', pad: 'b3' },
+    { id: 'results.part', label: 'Next song: next part', key: 'KeyP', pad: 'b2' },
+    { id: 'results.part1', label: 'Next song: vocals', key: 'Digit1' },
+    { id: 'results.part2', label: 'Next song: lead', key: 'Digit2' },
+    { id: 'results.part3', label: 'Next song: bass', key: 'Digit3' },
+    { id: 'results.part4', label: 'Next song: drums', key: 'Digit4' },
+  ]),
   ...cmd('settings', [{ id: 'settings.reset', label: 'Restore defaults', key: 'KeyR', pad: 'b3' }]),
   ...cmd('song', [{ id: 'song.pause', label: 'Pause', key: 'KeyP', pad: 'b9' }]),
   ...cmd('editor', [

@@ -8,7 +8,7 @@ import { menuMusicStatus, setMenuMusic, setMusicVolume } from '../audio/menuMusi
 import { isPreviewing, previewSong, previewStatus, setPreviewVolume, watchPreview } from '../audio/preview';
 import { loadSfx, playSfx, setSfxVolume, sfxStatus } from '../audio/sfx';
 import { forgetSongBuffer, loadSongBuffer } from '../audio/songAudio';
-import type { Chart } from '../chart/types';
+import type { Chart, Part } from '../chart/types';
 import { detectGrid } from '../editor/detect';
 import { emptyEdits } from '../editor/edits';
 import type { Results } from '../game/GameSession';
@@ -18,11 +18,13 @@ import {
   loadPick,
   loadSetlist,
   partFor,
+  partForSong,
   pruneSetlist,
   savePick,
   saveSetlist,
   SET_MAX,
   setParts,
+  songParts,
   toggleSong,
   type Pick,
   type ThinParts,
@@ -572,15 +574,14 @@ export function App() {
     menuPulse('launch');
     setLaunch('in');
     try {
-      // The set is played on the chosen part, or on the first one it has when it hardly has that
-      // one; a song that hardly has the part sits the set out.
+      // Each song is played on the chosen part, or on the first one it has when it hardly has that
+      // one (the next song's part can be changed between songs).
       const ids = lobby.ids.filter((id) => byId.has(id));
       const use: Pick = { ...pick, part: partFor(pick, setParts(ids, thin)) };
       const entries: { song: SongMeta; chart: Chart }[] = [];
       for (const id of ids) {
         const song = byId.get(id)!;
-        if (thin[id]?.includes(use.part)) continue;
-        const chart = await analysisManager.chart(id, use.part, use.difficulty);
+        const chart = await analysisManager.chart(id, partForSong(use.part, id, thin), use.difficulty);
         if (chart && chart.notes.length > 0) entries.push({ song, chart });
       }
       if (!entries.length) {
@@ -627,7 +628,7 @@ export function App() {
     try {
       best = await submitScore({
         songId: song.id,
-        part: run.pick.part,
+        part: run.charts[run.index].part,
         difficulty: run.pick.difficulty,
         score: results.score,
         stars: results.stars,
@@ -744,7 +745,27 @@ export function App() {
     return () => cancelAnimationFrame(raf);
   }, [songSettings]);
 
-  const subtitle = (run: Run) => `${PART_LABEL[run.pick.part]} · ${DIFFICULTY_LABEL[run.pick.difficulty]}`;
+  const subtitle = (run: Run, index = run.index) =>
+    `${PART_LABEL[run.charts[index]?.part ?? run.pick.part]} · ${DIFFICULTY_LABEL[run.pick.difficulty]}`;
+
+  /** Between songs: the next song is to be played on another part. Its chart for that part is fetched first. */
+  const setNextPart = async (run: Run, part: Part) => {
+    const index = run.index + 1;
+    const song = run.songs[index];
+    if (!song || run.charts[index]?.part === part) return;
+    try {
+      const chart = await analysisManager.chart(song.id, part, run.pick.difficulty);
+      if (!chart || chart.notes.length === 0) return toast(`No ${PART_LABEL[part].toLowerCase()} notes were found in ${song.title}.`);
+      const charts = [...run.charts];
+      charts[index] = chart;
+      // Still on this screen (the player may have moved on while the chart was fetched).
+      setView((v) =>
+        v.name === 'results' && v.run.songs === run.songs && v.run.index === run.index ? { ...v, run: { ...v.run, charts } } : v,
+      );
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
 
   let content: React.ReactNode;
   if (view.name === 'play') {
@@ -835,6 +856,10 @@ export function App() {
           position={run.index + 1}
           total={run.songs.length}
           next={run.songs[run.index + 1]}
+          nextPart={run.charts[run.index + 1]?.part}
+          nextParts={run.songs[run.index + 1] ? songParts(run.songs[run.index + 1].id, thin) : undefined}
+          onNextPart={(p: Part) => void setNextPart(run, p)}
+          settings={settings}
           onRetry={() => void playAt(run, run.index)}
           onNext={() => advance(run)}
           onEnd={() => setView({ name: 'summary', run: filled(run) })}
