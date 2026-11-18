@@ -68,7 +68,8 @@ export class PlayController {
   private raf = 0;
   private phase: PlayPhase = 'countdown';
   private lastBeat = -1;
-  private beatPulse = 0;
+  /** When the latest beat landed (performance.now ms), for the highway's swell of light. */
+  private beatAt = -Infinity;
   private hudCache = { score: -1, mult: -1, streak: -1, od: -1, stars: -1, starP: -1, odActive: false, breakSec: -1, songP: -1, left: -1 };
   private readonly breaks: Break[];
   /** A beat fell in the frame being drawn, and how much bass there is right now (0..1). */
@@ -364,15 +365,18 @@ export class PlayController {
     let beat: 'none' | 'beat' | 'downbeat' = 'none';
     while (this.lastBeat + 1 < beats.length && beats[this.lastBeat + 1] <= t) {
       this.lastBeat++;
-      this.beatPulse = 1;
+      this.beatAt = performance.now();
       beat = this.downbeats.has(this.lastBeat) ? 'downbeat' : 'beat';
     }
     const stage = this.stage;
     if (this.phase === 'playing' && this.session.overdriveActive)
       this.rumble.overdriveTick(this.session.overdrive / this.odMeterAtStart, beat);
-    this.beatPulse = Math.max(0, this.beatPulse - 0.08);
-
     const now = performance.now();
+    // Each beat swells the highway's light in quickly and lets it ebb away softly: a rise of a few
+    // hundredths of a second and a long fall, on the clock, so it is the same at any frame rate and
+    // dies away during a pause. The curve peaks at 1, about 0.05 s after the beat.
+    const since = (now - this.beatAt) / 1000;
+    const beatPulse = since >= 0 && since < 1.5 ? ((1 - Math.exp(-since / 0.02)) * Math.exp(-since / 0.2)) / 0.715 : 0;
     const bands = this.meter.update(Math.min(0.1, (now - this.meterAt) / 1000));
     this.meterAt = now;
     const low = bands.low;
@@ -387,7 +391,7 @@ export class PlayController {
         bands,
       });
     }
-    this.highway.render(t, this.session, this.beatPulse * 0.5 + low * 0.5);
+    this.highway.render(t, this.session, beatPulse * 0.5 + low * 0.5);
     this.beatNow = beat !== 'none';
     this.bassNow = low;
     this.updateHud(t);

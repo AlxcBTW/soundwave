@@ -169,6 +169,10 @@ const highwayFragment = /* glsl */ `
   uniform float uTravel;
   varying vec2 vUv;
   float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+  float noise(vec2 p) {
+    vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+  }
   void main() {
     float x = vUv.x * uLanes;
     float lane = fract(x);
@@ -192,12 +196,27 @@ const highwayFragment = /* glsl */ `
     float side = 1.0 - min(vUv.x, 1.0 - vUv.x) * 2.0;
     base += vec3(0.085, 0.06, 0.2) * pow(side, 2.4);
     // Its surface is cut in large facets that travel with the notes; each catches the light a little
-    // differently, and all of them answer the beat.
+    // differently and brightens and fades on its own, a slow wave of light rolls across them toward
+    // the player, and all of them answer the beat.
     vec2 g = vec2(x * 0.5 + 0.25, (z + uTravel) * 0.5);
     vec2 cell = floor(g);
     vec2 f = fract(g);
-    float facet = hash(vec2(cell.x, mod(cell.y, 8.0)) + step(f.x + f.y, 1.0) * 7.3);
-    base *= 1.0 + (facet - 0.5) * (0.16 + 0.2 * uPulse);
+    vec2 id = vec2(cell.x, mod(cell.y, 8.0)) + step(f.x + f.y, 1.0) * 7.3;
+    float facet = hash(id);
+    float tone = hash(id + 17.7);
+    float own = sin(uTime * (0.8 + 1.2 * tone) + tone * 6.2832);
+    // The wave's phase steps a whole turn over the 8 rows the pattern repeats in, so it never jumps.
+    float wave = sin(uTime * 1.6 + id.y * 0.7854 - cell.x * 1.1);
+    base *= 1.0 + (facet - 0.5) * (0.16 + 0.2 * uPulse) + 0.13 * own + 0.09 * wave;
+    // The glass is never quite still: soft patches of stage light drift slowly across it, sideways and
+    // toward the player, on the clock rather than the song, so it lives on through a pause or a break.
+    vec2 q = vec2(x * 0.8, z * 0.24);
+    float drift = noise(q + vec2(uTime * 0.09, uTime * 0.16)) * 0.6 + noise(q * 2.3 + vec2(-uTime * 0.06, uTime * 0.27)) * 0.4;
+    base += vec3(0.05, 0.034, 0.13) * smoothstep(0.42, 0.9, drift) * (0.45 + 0.55 * depth);
+    // Every few seconds a faint, leaning glint runs down the deck, as if a light swept over it.
+    float sweep = 1.25 - fract(uTime / 7.5) * 2.2;
+    float glint = exp(-pow((depth + (vUv.x - 0.5) * 0.35 - sweep) * 9.0, 2.0));
+    base += vec3(0.07, 0.06, 0.15) * glint * ahead;
     vec3 od = vec3(0.35, 0.65, 1.0);
     // The rails are violet, gold while the streak holds the top multiplier, and overdrive's blue over both.
     vec3 railCol = mix(mix(vec3(0.74, 0.47, 1.0), vec3(1.0, 0.9, 0.56), uGold), od, uOverdrive) * (1.0 + 0.55 * uPulse + 0.55 * uGold);
@@ -356,6 +375,8 @@ export class Highway {
   private lastFrame = performance.now();
   private shake = 0;
   private pulse = 0;
+  /** The music's push on the deck's light, eased (see render). */
+  private beatGlow = 0;
   private readonly lanes: number;
   private readonly width: number;
   private unsub: (() => void) | null = null;
@@ -910,7 +931,12 @@ export class Highway {
     // The facets move with the notes; 16 units is a whole number of their repeats.
     u.uTravel.value = (t * speed) % 16;
     this.pulse = Math.max(0, this.pulse - dt * 2);
-    u.uPulse.value = this.pulse + beatPulse * 0.6;
+    // The music's push (beats and bass) is eased before it reaches the deck: it rises over a few
+    // hundredths of a second and settles over a few tenths, so the light swells and ebbs with the
+    // song instead of flickering with every jump in the bass level.
+    const ease = beatPulse > this.beatGlow ? 22 : 5;
+    this.beatGlow += (beatPulse - this.beatGlow) * (1 - Math.exp(-dt * ease));
+    u.uPulse.value = this.pulse + this.beatGlow * 0.6;
     this.flare = Math.max(0, this.flare - dt * 1.1);
     // A streak long enough for the top multiplier turns the rails a light, glowing gold and sets
     // motes of light floating up from them. Overdrive takes the rails over in its own blue, and
