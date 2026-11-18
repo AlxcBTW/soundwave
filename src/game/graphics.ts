@@ -9,8 +9,6 @@ export type CameraMode = 'auto' | 'calm' | 'fixed';
 
 export interface GraphicsSettings {
   preset: GraphicsPreset;
-  /** The 3D stage; off falls back to the light 2D backdrop. */
-  stage3d: boolean;
   /** Stage render resolution relative to the screen, 0.5..1. */
   resolution: number;
   /** Lowers the stage resolution on the fly when frames run long. */
@@ -33,10 +31,10 @@ export interface GraphicsSettings {
 export type Tier = Exclude<GraphicsPreset, 'auto' | 'custom'>;
 
 export const PRESETS: Record<Tier, Omit<GraphicsSettings, 'preset' | 'camera'>> = {
-  low: { stage3d: true, resolution: 0.6, dynamicResolution: true, fpsCap: 30, crowd: 'low', beams: 'low', lights: 'low', effects: 'low', glow: false, antialias: false },
-  medium: { stage3d: true, resolution: 0.75, dynamicResolution: true, fpsCap: 60, crowd: 'medium', beams: 'medium', lights: 'medium', effects: 'medium', glow: true, antialias: false },
-  high: { stage3d: true, resolution: 1, dynamicResolution: true, fpsCap: 0, crowd: 'high', beams: 'high', lights: 'high', effects: 'high', glow: true, antialias: true },
-  ultra: { stage3d: true, resolution: 1, dynamicResolution: false, fpsCap: 0, crowd: 'high', beams: 'high', lights: 'high', effects: 'high', glow: true, antialias: true },
+  low: { resolution: 0.6, dynamicResolution: true, fpsCap: 30, crowd: 'low', beams: 'low', lights: 'low', effects: 'low', glow: false, antialias: false },
+  medium: { resolution: 0.75, dynamicResolution: true, fpsCap: 60, crowd: 'medium', beams: 'medium', lights: 'medium', effects: 'medium', glow: true, antialias: false },
+  high: { resolution: 1, dynamicResolution: true, fpsCap: 0, crowd: 'high', beams: 'high', lights: 'high', effects: 'high', glow: true, antialias: true },
+  ultra: { resolution: 1, dynamicResolution: false, fpsCap: 0, crowd: 'high', beams: 'high', lights: 'high', effects: 'high', glow: true, antialias: true },
 };
 
 export const DEFAULT_GRAPHICS: GraphicsSettings = { preset: 'auto', camera: 'auto', ...PRESETS.medium };
@@ -103,6 +101,8 @@ export function normalizeGraphics(raw: unknown): GraphicsSettings {
   if (![0, 30, 60, 120].includes(g.fpsCap)) g.fpsCap = DEFAULT_GRAPHICS.fpsCap;
   if (!['auto', 'calm', 'fixed'].includes(g.camera)) g.camera = 'auto';
   g.resolution = Math.min(1, Math.max(0.5, Number(g.resolution) || DEFAULT_GRAPHICS.resolution));
-  for (const k of ['stage3d', 'dynamicResolution', 'glow', 'antialias'] as const) g[k] = Boolean(g[k]);
+  for (const k of ['dynamicResolution', 'glow', 'antialias'] as const) g[k] = Boolean(g[k]);
+  // The switch for the 2D backdrop went with the backdrop.
+  delete (g as unknown as Record<string, unknown>).stage3d;
   return g;
 }

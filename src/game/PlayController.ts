@@ -1,6 +1,6 @@
 import type { Chart } from '../chart/types';
 import { AudioEngine } from '../audio/AudioEngine';
-import { Background2D } from '../render/Background2D';
+import { BandMeter } from '../audio/bands';
 import { Highway } from '../render/Highway';
 import { AuroraStage } from '../render/aurora/AuroraStage';
 import { barAt, barIntensity } from '../render/stage/LightShow';
@@ -51,8 +51,10 @@ export const FINALE_SECONDS = 4;
 export class PlayController {
   readonly session: GameSession;
   private readonly highway: Highway;
-  private readonly background: Background2D;
-  /** The 3D stage, once loaded (the 2D backdrop runs until then, or instead when it is off). */
+  /** How loud the song is, for the highway's glow, until the stage is there to say (it meters too). */
+  private readonly meter = new BandMeter();
+  private meterAt = performance.now();
+  /** The 3D stage, once loaded (the highway stands before the plain night until then). */
   private stage: AuroraStage | null = null;
   private readonly barLevels: number[];
   private readonly input: KeyboardInput;
@@ -98,7 +100,6 @@ export class PlayController {
     private readonly chart: Chart,
     settings: Settings,
     highwayCanvas: HTMLCanvasElement,
-    backgroundCanvas: HTMLCanvasElement,
     private readonly hud: HudRefs,
     stageHost?: HTMLElement,
   ) {
@@ -116,18 +117,17 @@ export class PlayController {
     this.breaks = findBreaks(chart);
     this.barTimes = chart.downbeats.map((i) => chart.beats[i]).filter((x) => x !== undefined);
     this.highway.attach(this.session);
-    this.background = new Background2D(backgroundCanvas);
-    this.background.setAnalyser(engine.analyser);
+    this.meter.setAnalyser(engine.analyser);
     this.barLevels = barIntensity(chart);
     const graphics = resolveGraphics(settings.graphics);
-    if (graphics.stage3d && stageHost) {
+    if (stageHost) {
       AuroraStage.create(stageHost, graphics, { mode: 'play', part: chart.part })
         .then((stage) => {
           if (this.disposed) return stage.dispose();
           stage.setAnalyser(engine.analyser);
           this.stage = stage;
         })
-        .catch((err) => console.warn('3D stage unavailable, using the 2D backdrop', err));
+        .catch((err) => console.warn('3D stage unavailable', err));
     }
 
     const padBindings = chart.lanes === 5 ? settings.pad5 : settings.pad4;
@@ -148,7 +148,6 @@ export class PlayController {
         this.rumble.miss(e.lane);
       } else if (e.type === 'sustain-end') this.rumble.sustainEnd(e.lane);
       else if (e.type === 'overdrive-start') {
-        this.background.kick(1.2);
         this.stage?.overdriveStart();
         this.odMeterAtStart = Math.max(this.session.overdrive, 0.01);
         this.rumble.overdrive();
@@ -198,7 +197,6 @@ export class PlayController {
 
   private readonly resize = () => {
     this.highway.resize();
-    this.background.resize();
     this.stage?.resize();
     this.placeKeys();
   };
@@ -344,7 +342,6 @@ export class PlayController {
       this.lastBeat++;
       this.beatPulse = 1;
       beat = this.downbeats.has(this.lastBeat) ? 'downbeat' : 'beat';
-      if (beat === 'downbeat') this.background.kick(0.6);
     }
     const stage = this.stage;
     if (this.phase === 'playing' && this.session.overdriveActive) this.rumble.overdriveTick(this.session.overdrive / this.odMeterAtStart, beat);
@@ -357,8 +354,9 @@ export class PlayController {
       low = stage.bands.low;
       stage.render({ beat, intensity: busy * 0.75 + low * 0.25, overdrive: this.session.overdriveActive, barSeconds: this.chart.secondsPerBeat * 4 });
     } else {
-      this.background.render();
-      low = this.background.bands.low;
+      const now = performance.now();
+      low = this.meter.update(Math.min(0.1, (now - this.meterAt) / 1000)).low;
+      this.meterAt = now;
     }
     this.highway.render(t, this.session, this.beatPulse * 0.5 + low * 0.5);
     this.beatNow = beat !== 'none';

@@ -56,7 +56,6 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, star
   const covered = settingsOpen || ask !== null;
   const coveredRef = useRef(covered);
   coveredRef.current = covered;
-  const bgRef = useRef<HTMLCanvasElement>(null);
   const hwRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const hudRef = useRef<HTMLDivElement>(null);
@@ -73,7 +72,7 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, star
   useEffect(() => {
     const root = hudRef.current!;
     const q = (s: string) => root.querySelector<HTMLElement>(s)!;
-    const ctrl = new PlayController(getEngine(), buffer, chart, settingsRef.current, hwRef.current!, bgRef.current!, {
+    const ctrl = new PlayController(getEngine(), buffer, chart, settingsRef.current, hwRef.current!, {
       root,
       score: q('[data-hud=score]'),
       multiplier: q('[data-hud=mult]'),
@@ -193,7 +192,6 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, star
 
   return (
     <div className={`play ${paused ? 'is-paused' : ''} ${settingsOpen ? 'under-settings' : ''}`} data-lanes={chart.lanes} data-od-side={settings.touchOverdriveSide} data-nav-off={paused ? undefined : ''} inert={settingsOpen}>
-      <canvas ref={bgRef} className="layer" />
       <div ref={stageRef} className="layer stage-host" />
       <canvas ref={hwRef} className="layer highway" />
       <div ref={hudRef} className="hud">

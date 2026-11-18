@@ -372,9 +372,8 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
     // Auto shows what it picked; touching any option turns that into a custom setup.
     const shown = resolveGraphics(g);
     const setG = (patch: Partial<GraphicsSettings>) => set({ graphics: { ...shown, ...patch, preset: 'custom', camera: patch.camera ?? g.camera } });
-    const off = !shown.stage3d;
     const level = (id: 'crowd' | 'beams' | 'lights' | 'effects', label: string, help: string): Row => ({
-      kind: 'choice', id, label, help, disabled: off, value: shown[id], options: LEVELS, set: (v) => setG({ [id]: v as Level }),
+      kind: 'choice', id, label, help, value: shown[id], options: LEVELS, set: (v) => setG({ [id]: v as Level }),
     });
     const presets: Option[] = [
       { value: 'auto', label: `Auto (${PRESET_LABEL[autoTier()]})`, help: 'Picked for this device’s graphics hardware.' },
@@ -416,22 +415,21 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
         title: 'Stage',
         rows: [
           { kind: 'choice', id: 'preset', label: 'Quality', help: 'The highway always runs at full quality. These settings only change the stage behind it.', value: g.preset, options: presets, set: (v) => set({ graphics: applyPreset(g, v as GraphicsPreset) }) },
-          toggle('stage3d', '3D stage', 'The stage, band and crowd behind the highway. Off shows a light 2D backdrop instead.', shown.stage3d, (v) => setG({ stage3d: v })),
-          { kind: 'slider', id: 'resolution', label: 'Stage resolution', help: 'Render size of the stage relative to the screen. Lower is faster and softer.', disabled: off, value: shown.resolution, min: 0.5, max: 1, step: 0.05, format: pct, set: (v) => setG({ resolution: v }) },
-          toggle('dynamicResolution', 'Adaptive resolution', 'Lowers the stage resolution for a moment when frames run long.', shown.dynamicResolution, (v) => setG({ dynamicResolution: v }), off),
+          { kind: 'slider', id: 'resolution', label: 'Stage resolution', help: 'Render size of the stage relative to the screen. Lower is faster and softer.', value: shown.resolution, min: 0.5, max: 1, step: 0.05, format: pct, set: (v) => setG({ resolution: v }) },
+          toggle('dynamicResolution', 'Adaptive resolution', 'Lowers the stage resolution for a moment when frames run long.', shown.dynamicResolution, (v) => setG({ dynamicResolution: v })),
           {
-            kind: 'choice', id: 'fpsCap', label: 'Stage frame rate', help: 'Caps how often the stage redraws. The highway is never capped.', disabled: off, value: String(shown.fpsCap),
+            kind: 'choice', id: 'fpsCap', label: 'Stage frame rate', help: 'Caps how often the stage redraws. The highway is never capped.', value: String(shown.fpsCap),
             options: [{ value: '0', label: 'Display' }, { value: '30', label: '30' }, { value: '60', label: '60' }, { value: '120', label: '120' }],
             set: (v) => setG({ fpsCap: Number(v) as GraphicsSettings['fpsCap'] }),
           },
-          toggle('antialias', 'Smooth edges', 'Removes jagged edges on the stage.', shown.antialias, (v) => setG({ antialias: v }), off),
-          toggle('glow', 'Glow', 'A bloom around bright lights.', shown.glow, (v) => setG({ glow: v }), off),
+          toggle('antialias', 'Smooth edges', 'Removes jagged edges on the stage.', shown.antialias, (v) => setG({ antialias: v })),
+          toggle('glow', 'Glow', 'A bloom around bright lights.', shown.glow, (v) => setG({ glow: v })),
           level('crowd', 'Crowd', 'How many people fill the field.'),
           level('beams', 'Beams', 'Moving light beams in the haze.'),
           level('lights', 'Lights and bulbs', 'Washes, bulbs and glowing details.'),
           level('effects', 'Fireworks and smoke', 'Fireworks and smoke jets on big moments.'),
           {
-            kind: 'choice', id: 'camera', label: 'Camera', help: 'How the camera moves around the stage.', disabled: off, value: g.camera,
+            kind: 'choice', id: 'camera', label: 'Camera', help: 'How the camera moves around the stage.', value: g.camera,
             options: [
               { value: 'auto', label: 'Director', help: 'Cuts between shots with the music.' },
               { value: 'calm', label: 'Calm', help: 'Slow wide shots, few cuts.' },

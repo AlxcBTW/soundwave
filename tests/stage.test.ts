@@ -21,6 +21,12 @@ describe('graphics settings', () => {
     expect(applyPreset(g, 'custom')).toMatchObject({ ...PRESETS.low, preset: 'custom' });
   });
 
+  it('drops the switch for the 2D backdrop from stored settings', () => {
+    const g = normalizeGraphics({ preset: 'custom', stage3d: false });
+    expect(g).not.toHaveProperty('stage3d');
+    expect(g.preset).toBe('custom');
+  });
+
   it('repairs stored graphics settings', () => {
     const g = normalizeGraphics({ preset: 'nope', crowd: 'lots', fpsCap: 45, resolution: 3, glow: 1 });
     expect(g.preset).toBe('auto');
