@@ -46,7 +46,7 @@ import {
 } from '../storage/db';
 import { soundwaveFileName, isSoundwaveFile } from '../storage/soundwaveFile';
 import { saveSongFile, watchOpenedFiles } from '../storage/share';
-import { readSongPackage, songFile, storeNewSong, storeSongPackage } from '../storage/songFile';
+import { readSongPackage, songFile, storeNewSong, storeSongPackage, updateSongMeta } from '../storage/songFile';
 import { ActionBar, useActions } from './actions';
 import { Dialog } from './Dialog';
 import type { PickedSong } from './TrackPicker';
@@ -67,6 +67,7 @@ import { ResultsScreen, SummaryScreen, type SetResult } from './ResultsScreen';
 import { SettingsScreen } from './SettingsScreen';
 import type { SongActions } from './SongMenu';
 import { SongSheet } from './SongSheet';
+import { MetadataSheet } from './MetadataSheet';
 import { Toasts, useToasts } from './Toasts';
 import { VirtualKeyboard } from './VirtualKeyboard';
 import { installUiSounds } from './uiSounds';
@@ -126,6 +127,8 @@ export function App() {
   const [pick, setPickState] = useState<Pick>(loadPick);
   const [seed, setSeed] = useState(() => Date.now());
   const [sheet, setSheet] = useState<SongMeta | null>(null);
+  /** The song whose details are being edited (see MetadataSheet). */
+  const [metaSong, setMetaSong] = useState<SongMeta | null>(null);
   /** The song highlighted in the library or the track list: its preview plays. */
   const [highlight, setHighlight] = useState<string | null>(null);
   const [exitAsk, setExitAsk] = useState(false);
@@ -523,6 +526,7 @@ export function App() {
     removeFromSet: (list) => setSetlist(setlist.filter((id) => !list.some((song) => song.id === id))),
     analyze: (list) => list.forEach((song) => analysisManager.enqueue(song.id, true)),
     exportSong: (song) => void exportSong(byId.get(song.id) ?? song),
+    editMeta: (song) => setMetaSong(song),
     edit: (song) => {
       setSheet(null);
       getEngine().stop();
@@ -954,6 +958,16 @@ export function App() {
           onEdit={() => songActions.edit(sheet)}
           onDelete={() => void songActions.remove([sheet])}
           onClose={() => setSheet(null)}
+        />
+      )}
+      {metaSong && (
+        <MetadataSheet
+          song={byId.get(metaSong.id) ?? metaSong}
+          onSave={async (change) => {
+            await updateSongMeta(metaSong.id, change);
+            await refresh();
+          }}
+          onClose={() => setMetaSong(null)}
         />
       )}
       {songSettings && view.name === 'play' && (

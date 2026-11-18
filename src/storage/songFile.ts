@@ -96,6 +96,37 @@ export function songFile(id: string): Promise<Blob> {
   });
 }
 
+/** A song's details as the player can change them: `cover` null takes the cover away, absent keeps it. */
+export interface MetaChange {
+  title: string;
+  artist: string;
+  album?: string;
+  cover?: Blob | null;
+}
+
+/**
+ * Changes a song's details. They are written into the song's own .soundwave file (and the library's
+ * index of it), never into the audio file it was made from: the audio, its analysis and the charts
+ * edited by hand go along unchanged.
+ */
+export function updateSongMeta(id: string, change: MetaChange): Promise<SongMeta> {
+  return serial(async () => {
+    const [meta, stored] = await Promise.all([getSong(id), getStoredFile(id)]);
+    if (!meta || !stored) throw new Error('This song is no longer in your library.');
+    const next: SongMeta = {
+      ...meta,
+      title: change.title.trim() || meta.title,
+      artist: change.artist.trim(),
+      album: change.album?.trim() || undefined,
+      cover: change.cover === null ? undefined : (change.cover ?? meta.cover),
+    };
+    const has = await readSoundwave(stored);
+    const [analysis, edits] = await Promise.all([cachedAnalysis(id), storedEdits(id)]);
+    await putSong(next, await build(next, has.audio, analysis ?? usableAnalysis(has.analysis), edits));
+    return next;
+  });
+}
+
 function usableAnalysis(a: SoundwaveAnalysis | undefined): AnalysisResult | undefined {
   if (!a || a.version !== ANALYSIS_VERSION || !isAnalysisResult(a.data)) return undefined;
   const r = a.data as AnalysisResult;

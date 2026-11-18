@@ -1,4 +1,4 @@
-import { Circle, Info, ListMinus, ListPlus, PencilRuler, RotateCcw, Share, Trash2, X, type LucideIcon } from 'lucide-react';
+import { Circle, Info, ListMinus, ListPlus, PencilRuler, RotateCcw, Share, Trash2, X, type LucideIcon, Tag } from 'lucide-react';
 import { canPlay } from '../analysis/manager';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { SET_MAX } from '../game/setlist';
@@ -17,6 +17,8 @@ export interface SongActions {
   removeFromSet(songs: SongMeta[]): void;
   analyze(songs: SongMeta[]): void;
   edit(song: SongMeta): void;
+  /** Title, artist, album and artwork, kept in the game's copy of the song. */
+  editMeta(song: SongMeta): void;
   exportSong(song: SongMeta): void;
   remove(songs: SongMeta[]): Promise<void>;
 }
@@ -100,6 +102,7 @@ export function SongMenu({ songs, status, setlist, at, actions, onClose }: Props
               },
             ]),
         { id: 'edit', label: 'Edit charts', icon: PencilRuler, disabled: st(one).state !== 'ready', run: () => actions.edit(one) },
+        { id: 'meta', label: 'Edit metadata', icon: Tag, run: () => actions.editMeta(one) },
         { id: 'export', label: 'Export', icon: Share, run: () => actions.exportSong(one) },
         { id: 'remove', label: 'Remove…', icon: Trash2, danger: true, run: () => setConfirm(true) },
       ].map(item)
