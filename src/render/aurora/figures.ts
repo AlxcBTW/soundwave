@@ -15,7 +15,10 @@ export interface Person {
   yaw: number;
   scale: number;
   character: string;
-  /** Use the character's lighter mesh (people far from every camera). */
+  /**
+   * Always the character's lighter mesh (people far from every camera). The others get the detailed
+   * mesh only while the camera is close to them (see Figures.focus).
+   */
   far?: boolean;
   calm: string;
   hype: string;
@@ -170,6 +173,32 @@ void main() {
   ${OUTPUT}
 }`;
 
+/** Per-person data the shaders read, in the order of the people in an instanced draw. */
+interface Columns {
+  matrix: Float32Array;
+  clipA: Float32Array;
+  clipB: Float32Array;
+  clipC: Float32Array;
+  vary: Float32Array;
+  top: Float32Array;
+  bottom: Float32Array;
+}
+const WIDTH: Record<keyof Columns, number> = { matrix: 16, clipA: 3, clipB: 3, clipC: 3, vary: 4, top: 3, bottom: 3 };
+
+/** One character's people that can be drawn either way, and the two draws that share them out. */
+interface Switchable {
+  people: Person[];
+  /** Each person's data, in the order of `people`. */
+  data: Columns;
+  near: THREE.InstancedMesh[];
+  far: THREE.InstancedMesh[];
+}
+
+/** People within this distance of the camera are drawn with the detailed mesh, metres. */
+const NEAR_FOCUS = 12;
+/** The camera moves this far before the people are shared out again, metres. */
+const REFOCUS = 3;
+
 export class Figures {
   /** 1 while these figures applaud (see the vertex shader), 0 otherwise. */
   readonly clap = { value: 0 };
@@ -179,8 +208,12 @@ export class Figures {
   private readonly owned: { dispose(): void }[] = [];
   /** Where people added with `movable` are drawn, so they can be moved later. */
   private readonly placed = new Map<Person, { mesh: THREE.InstancedMesh; index: number; matrix: THREE.Matrix4 }[]>();
+  private readonly switchable: Switchable[] = [];
+  private readonly focusedAt = new THREE.Vector3(Infinity, 0, 0);
   count = 0;
   triangles = 0;
+  /** People drawn with the detailed mesh at the moment. */
+  detailed = 0;
 
   constructor(private readonly set: FigureSet) {
     this.texture = new THREE.DataTexture(set.anim, set.data.joints * 3, set.data.frames, THREE.RGBAFormat, THREE.HalfFloatType);
@@ -193,67 +226,119 @@ export class Figures {
     return Object.keys(this.set.data.characters);
   }
 
-  /** Adds people; one instanced draw per character mesh part. `movable` people can be raised later. */
+  /**
+   * Adds people; one instanced draw per character mesh part. `movable` people can be raised later.
+   * People not marked `far`, of a character with a lighter mesh, can be drawn either way: both
+   * meshes are made for them, and `focus` shares them out by how close the camera is.
+   */
   add(people: Person[], movable = false) {
     const groups = new Map<string, Person[]>();
     for (const p of people) {
       const key = `${p.character}|${p.far ? 'far' : 'near'}`;
       groups.set(key, [...(groups.get(key) ?? []), p]);
     }
+    for (const [key, list] of groups) {
+      const far = key.endsWith('|far');
+      const info = this.set.data.characters[list[0].character];
+      const detailed = info && this.set.scene.getObjectByName(info.mesh);
+      const light = info?.far ? this.set.scene.getObjectByName(info.far) : undefined;
+      if (!info || !detailed) continue;
+      const data = this.columns(list, info);
+      if (far || !light || movable) {
+        // Always drawn one way.
+        const meshes = this.meshes(far && light ? light : detailed, far && !!light, data, list.length);
+        if (movable)
+          for (const mesh of meshes)
+            list.forEach((p, i) => {
+              const matrix = new THREE.Matrix4().fromArray(data.matrix, i * 16);
+              this.placed.set(p, [...(this.placed.get(p) ?? []), { mesh, index: i, matrix }]);
+            });
+      } else {
+        // Drawn up close or from afar, as the camera moves (see focus): from afar to begin with.
+        const near = this.meshes(detailed, false, data, list.length);
+        const away = this.meshes(light, true, data, list.length);
+        for (const m of near) m.count = 0;
+        this.switchable.push({ people: list, data, near, far: away });
+      }
+      this.count += list.length;
+    }
+  }
+
+  /** The data the shaders read for each of `list`, in its order. */
+  private columns(list: Person[], info: { clips: Clip[] }): Columns {
+    const clips = new Map(info.clips.map((cl) => [cl.name, cl]));
+    const n = list.length;
+    const out = Object.fromEntries(Object.entries(WIDTH).map(([k, w]) => [k, new Float32Array(n * w)])) as unknown as Columns;
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const pos = new THREE.Vector3();
     const scl = new THREE.Vector3();
     const c = new THREE.Color();
-    for (const [key, list] of groups) {
-      const far = key.endsWith('|far');
-      const info = this.set.data.characters[list[0].character];
-      const source = info && this.set.scene.getObjectByName((far && info.far) || info.mesh);
-      if (!info || !source) continue;
-      const clips = new Map(info.clips.map((cl) => [cl.name, cl]));
-      const n = list.length;
-      const clipA = new Float32Array(n * 3);
-      const clipB = new Float32Array(n * 3);
-      const clipC = new Float32Array(n * 3);
-      const vary = new Float32Array(n * 4);
-      const top = new Float32Array(n * 3);
-      const bottom = new Float32Array(n * 3);
-      const matrices: THREE.Matrix4[] = [];
-      list.forEach((p, i) => {
-        const a: Clip = clips.get(p.calm) ?? info.clips[0];
-        const b: Clip = clips.get(p.hype) ?? a;
-        clipA.set([a.start, a.frames, a.beats], i * 3);
-        clipB.set([b.start, b.frames, b.beats], i * 3);
-        // What they do when the whole crowd celebrates: most clap, the rest cheer with their arms up
-        // (and whoever lacks one of the two loops does the other).
-        const c3: Clip = (i % 5 < 3 ? clips.get('clap') : clips.get('cheer')) ?? clips.get('clap') ?? clips.get('cheer') ?? b;
-        clipC.set([c3.start, c3.frames, c3.beats], i * 3);
-        vary.set([p.phase, p.threshold, p.recolor ?? 0, p.spot ?? 0], i * 4);
-        top.set(c.set(p.top ?? '#ffffff').toArray(), i * 3);
-        bottom.set(c.set(p.bottom ?? '#ffffff').toArray(), i * 3);
-        matrices.push(m.compose(pos.set(...p.pos), q.setFromAxisAngle(UP, p.yaw), scl.setScalar(p.scale)).clone());
+    list.forEach((p, i) => {
+      const a: Clip = clips.get(p.calm) ?? info.clips[0];
+      const b: Clip = clips.get(p.hype) ?? a;
+      out.clipA.set([a.start, a.frames, a.beats], i * 3);
+      out.clipB.set([b.start, b.frames, b.beats], i * 3);
+      // What they do when the whole crowd celebrates: most clap, the rest cheer with their arms up
+      // (and whoever lacks one of the two loops does the other).
+      const c3: Clip = (i % 5 < 3 ? clips.get('clap') : clips.get('cheer')) ?? clips.get('clap') ?? clips.get('cheer') ?? b;
+      out.clipC.set([c3.start, c3.frames, c3.beats], i * 3);
+      out.vary.set([p.phase, p.threshold, p.recolor ?? 0, p.spot ?? 0], i * 4);
+      out.top.set(c.set(p.top ?? '#ffffff').toArray(), i * 3);
+      out.bottom.set(c.set(p.bottom ?? '#ffffff').toArray(), i * 3);
+      m.compose(pos.set(...p.pos), q.setFromAxisAngle(UP, p.yaw), scl.setScalar(p.scale)).toArray(out.matrix, i * 16);
+    });
+    return out;
+  }
+
+  /** One instanced draw per part of `source`, each with its own copy of `data` (n people). */
+  private meshes(source: THREE.Object3D, far: boolean, data: Columns, n: number): THREE.InstancedMesh[] {
+    const made: THREE.InstancedMesh[] = [];
+    source.traverse((o) => {
+      const part = o as THREE.Mesh;
+      if (!part.isMesh) return;
+      const geo = part.geometry.clone();
+      const inst = (arr: Float32Array, size: number) => new THREE.InstancedBufferAttribute(arr.slice(), size);
+      geo.setAttribute('aClipA', inst(data.clipA, 3));
+      geo.setAttribute('aClipB', inst(data.clipB, 3));
+      geo.setAttribute('aClipC', inst(data.clipC, 3));
+      geo.setAttribute('aVar', inst(data.vary, 4));
+      geo.setAttribute('aTop', inst(data.top, 3));
+      geo.setAttribute('aBottom', inst(data.bottom, 3));
+      const mesh = new THREE.InstancedMesh(geo, this.materialFor(part, far), n);
+      (mesh.instanceMatrix.array as Float32Array).set(data.matrix);
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.frustumCulled = false;
+      this.group.add(mesh);
+      this.owned.push(geo, mesh);
+      this.triangles += n * ((geo.index ? geo.index.count : geo.attributes.position.count) / 3);
+      made.push(mesh);
+    });
+    return made;
+  }
+
+  /**
+   * Shares out the people who can be drawn either way: the detailed mesh for those within a few
+   * metres of the camera, the light one for the rest. Nearly the whole cost of drawing the crowd is
+   * its detailed meshes, so only the handful of people the camera is actually close to get one.
+   * Cheap to call every frame: it only does anything once the camera has moved a few metres.
+   */
+  focus(camera: THREE.Vector3) {
+    if (!this.switchable.length || camera.distanceToSquared(this.focusedAt) < REFOCUS * REFOCUS) return;
+    this.focusedAt.copy(camera);
+    this.detailed = 0;
+    for (const sw of this.switchable) {
+      let near = 0;
+      let far = 0;
+      sw.people.forEach((p, i) => {
+        const close = Math.hypot(p.pos[0] - camera.x, p.pos[1] - camera.y, p.pos[2] - camera.z) < NEAR_FOCUS;
+        for (const mesh of close ? sw.near : sw.far) copyPerson(sw.data, i, mesh, close ? near : far);
+        if (close) near++;
+        else far++;
       });
-      source.traverse((o) => {
-        const part = o as THREE.Mesh;
-        if (!part.isMesh) return;
-        const geo = part.geometry.clone();
-        const inst = (arr: Float32Array, size: number) => new THREE.InstancedBufferAttribute(arr, size);
-        geo.setAttribute('aClipA', inst(clipA, 3));
-        geo.setAttribute('aClipB', inst(clipB, 3));
-        geo.setAttribute('aClipC', inst(clipC, 3));
-        geo.setAttribute('aVar', inst(vary, 4));
-        geo.setAttribute('aTop', inst(top, 3));
-        geo.setAttribute('aBottom', inst(bottom, 3));
-        const mesh = new THREE.InstancedMesh(geo, this.materialFor(part, far), n);
-        matrices.forEach((mat, i) => mesh.setMatrixAt(i, mat));
-        if (movable) list.forEach((p, i) => this.placed.set(p, [...(this.placed.get(p) ?? []), { mesh, index: i, matrix: matrices[i] }]));
-        mesh.instanceMatrix.needsUpdate = true;
-        mesh.frustumCulled = false;
-        this.group.add(mesh);
-        this.owned.push(geo, mesh);
-        this.triangles += n * ((geo.index ? geo.index.count : geo.attributes.position.count) / 3);
-      });
-      this.count += n;
+      for (const mesh of sw.near) finish(mesh, near);
+      for (const mesh of sw.far) finish(mesh, far);
+      this.detailed += near;
     }
   }
 
@@ -309,6 +394,36 @@ export class Figures {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
+
+const ATTRIBUTES: [Exclude<keyof Columns, 'matrix'>, string][] = [
+  ['clipA', 'aClipA'],
+  ['clipB', 'aClipB'],
+  ['clipC', 'aClipC'],
+  ['vary', 'aVar'],
+  ['top', 'aTop'],
+  ['bottom', 'aBottom'],
+];
+
+/** Writes person `from` of `data` into instance `to` of `mesh`. */
+function copyPerson(data: Columns, from: number, mesh: THREE.InstancedMesh, to: number) {
+  (mesh.instanceMatrix.array as Float32Array).set(data.matrix.subarray(from * 16, from * 16 + 16), to * 16);
+  for (const [column, name] of ATTRIBUTES) {
+    const w = WIDTH[column];
+    (mesh.geometry.getAttribute(name).array as Float32Array).set(data[column].subarray(from * w, from * w + w), to * w);
+  }
+}
+
+/** Draws the first `count` instances of `mesh`, uploading only those. */
+function finish(mesh: THREE.InstancedMesh, count: number) {
+  mesh.count = count;
+  if (!count) return;
+  const attrs = [mesh.instanceMatrix, ...ATTRIBUTES.map(([, name]) => mesh.geometry.getAttribute(name) as THREE.InstancedBufferAttribute)];
+  for (const a of attrs) {
+    a.clearUpdateRanges();
+    a.addUpdateRange(0, count * a.itemSize);
+    a.needsUpdate = true;
+  }
+}
 
 /** Small deterministic generator, so the same crowd turns up every time. */
 function rng(seed: number) {

@@ -2,7 +2,7 @@ import type { Chart } from '../chart/types';
 import { AudioEngine } from '../audio/AudioEngine';
 import { BandMeter } from '../audio/bands';
 import { Highway } from '../render/Highway';
-import { AuroraStage } from '../render/aurora/AuroraStage';
+import { StageView } from '../render/stage/StageView';
 import { barAt, barIntensity } from '../render/stage/LightShow';
 import { resolveGraphics } from './graphics';
 import { GameSession, type Results } from './GameSession';
@@ -51,11 +51,14 @@ export const FINALE_SECONDS = 4;
 export class PlayController {
   readonly session: GameSession;
   private readonly highway: Highway;
-  /** How loud the song is, for the highway's glow, until the stage is there to say (it meters too). */
+  /** How loud the song is in the bass, middle and treble: for the highway's glow and the stage. */
   private readonly meter = new BandMeter();
   private meterAt = performance.now();
-  /** The 3D stage, once loaded (the highway stands before the plain night until then). */
-  private stage: AuroraStage | null = null;
+  /**
+   * The 3D stage, drawn in a worker of its own (see StageView): the highway and the input never wait
+   * for it. The highway stands before the plain night until it is built.
+   */
+  private stage: StageView | null = null;
   private readonly barLevels: number[];
   private readonly input: KeyboardInput;
   private readonly padInput: GamepadInput;
@@ -83,13 +86,22 @@ export class PlayController {
 
   /** Keeps the song paused whatever is pressed (while the settings are open over the pause menu). */
   holdPause = false;
+  private isFrozen = false;
+  private frozenFrame = 0;
+
   /**
    * All but stops drawing the stage and the highway while the song is paused (the settings are open
    * over it): the picture stays on screen and the screen on top gets the machine to itself. A frame
    * is still drawn now and then, so a resized window is not left blank.
    */
-  frozen = false;
-  private frozenFrame = 0;
+  get frozen() {
+    return this.isFrozen;
+  }
+  set frozen(on: boolean) {
+    if (on === this.isFrozen) return;
+    this.isFrozen = on;
+    this.stage?.setRate(on ? 'frozen' : 'full');
+  }
 
   onPhase: (p: PlayPhase, countdown?: number) => void = () => {};
   onFinish: (r: Results) => void = () => {};
@@ -121,13 +133,15 @@ export class PlayController {
     this.barLevels = barIntensity(chart);
     const graphics = resolveGraphics(settings.graphics);
     if (stageHost) {
-      AuroraStage.create(stageHost, graphics, { mode: 'play', part: chart.part })
-        .then((stage) => {
-          if (this.disposed) return stage.dispose();
-          stage.setAnalyser(engine.analyser);
-          this.stage = stage;
-        })
-        .catch((err) => console.warn('3D stage unavailable', err));
+      // Built once the highway is ready to draw: both compile their shaders in the same GPU process,
+      // and the highway, which the player needs first, should not queue behind the stage's.
+      void this.highway.ready.then(() => {
+        if (this.disposed) return;
+        const stage = new StageView(stageHost, graphics, { mode: 'play', part: chart.part });
+        stage.ready.catch((err) => console.warn('3D stage unavailable', err));
+        if (this.isFrozen) stage.setRate('frozen');
+        this.stage = stage;
+      });
     }
 
     const padBindings = chart.lanes === 5 ? settings.pad5 : settings.pad4;
@@ -208,7 +222,6 @@ export class PlayController {
 
   private readonly resize = () => {
     this.highway.resize();
-    this.stage?.resize();
     this.placeKeys();
   };
 
@@ -359,21 +372,20 @@ export class PlayController {
       this.rumble.overdriveTick(this.session.overdrive / this.odMeterAtStart, beat);
     this.beatPulse = Math.max(0, this.beatPulse - 0.08);
 
-    let low: number;
+    const now = performance.now();
+    const bands = this.meter.update(Math.min(0.1, (now - this.meterAt) / 1000));
+    this.meterAt = now;
+    const low = bands.low;
     if (stage) {
       const bar = barAt(this.barTimes, t);
       const busy = bar >= 0 ? (this.barLevels[bar] ?? 0.3) : 0.15;
-      low = stage.bands.low;
-      stage.render({
-        beat,
+      if (beat !== 'none') stage.beat(beat);
+      stage.input({
         intensity: busy * 0.75 + low * 0.25,
         overdrive: this.session.overdriveActive,
         barSeconds: this.chart.secondsPerBeat * 4,
+        bands,
       });
-    } else {
-      const now = performance.now();
-      low = this.meter.update(Math.min(0.1, (now - this.meterAt) / 1000)).low;
-      this.meterAt = now;
     }
     this.highway.render(t, this.session, this.beatPulse * 0.5 + low * 0.5);
     this.beatNow = beat !== 'none';

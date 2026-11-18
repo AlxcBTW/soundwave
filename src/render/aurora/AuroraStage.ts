@@ -3,7 +3,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { BandMeter, type BandLevels } from '../../audio/bands';
+import type { BandLevels } from '../../audio/bands';
 import type { Part } from '../../chart/types';
 import { LEVEL_SHARE, type GraphicsSettings, type Level } from '../../game/graphics';
 import { Director, buildShots } from '../stage/Director';
@@ -73,20 +73,19 @@ function swell(age: number, attack: number, decay: number): number {
  * the first 3D stage, so the game and the menus can drive either.
  */
 export class AuroraStage {
-  static async create(host: HTMLElement, g: GraphicsSettings, opts: StageOptions): Promise<AuroraStage> {
-    const canvas = document.createElement('canvas');
-    canvas.className = 'stage3d';
-    host.appendChild(canvas);
-    try {
-      return new AuroraStage(canvas, await loadVenue(), g, opts);
-    } catch (err) {
-      canvas.remove();
-      throw err;
-    }
+  /**
+   * Builds the stage on `canvas`: a page's own canvas, or one handed to a worker (see stageHost),
+   * where it runs beside the page instead of in it. Nothing here touches the page.
+   */
+  static async create(canvas: HTMLCanvasElement | OffscreenCanvas, g: GraphicsSettings, opts: StageOptions): Promise<AuroraStage> {
+    return new AuroraStage(canvas, await loadVenue(), g, opts);
   }
 
-  readonly meter = new BandMeter();
   readonly director: Director;
+  /** Bass, middle and treble as the page meters them (see BandMeter). */
+  private readonly bandsIn: BandLevels = { low: 0.25, mid: 0.25, high: 0.2 };
+  /** The canvas's size on the page, in CSS pixels, and the screen's pixel ratio. */
+  private size = { width: 1280, height: 720, dpr: 1 };
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(50, 1, 0.3, 4000);
@@ -152,11 +151,10 @@ export class AuroraStage {
   /** How far the clock is from the beat last heard, still to be made up. */
   private beatDrift = 0;
   private pendingBeat: StageFrame['beat'] = 'none';
-  private shown = false;
   private disposed = false;
 
   private constructor(
-    private readonly canvas: HTMLCanvasElement,
+    private readonly canvas: HTMLCanvasElement | OffscreenCanvas,
     assets: VenueAssets,
     private g: GraphicsSettings,
     opts: StageOptions,
@@ -169,7 +167,7 @@ export class AuroraStage {
     // A graphics context can be taken away (driver reset, GPU under pressure). Asking to keep it
     // lets the browser hand it back, and the renderer rebuilds what it needs.
     canvas.addEventListener('webglcontextlost', this.onContextLost);
-    canvas.addEventListener('webglcontextrestored', this.onContextRestored);
+    canvas.addEventListener('webglcontextrestored', this.onContextRestored as EventListener);
     const menu = opts.mode === 'menu';
     this.show = new LightShow(menu);
     this.director = new Director(buildShots(this.data.cameras, this.data.band, opts.part), menu ? 'calm' : g.camera, 7, menu);
@@ -282,15 +280,58 @@ export class AuroraStage {
 
     this.setLook(LOOKS[0], 1);
     if (g.glow) this.buildComposer();
-    this.resize();
+    this.applySize();
   }
 
-  get bands(): Readonly<BandLevels> {
-    return this.meter.levels;
+  /**
+   * Compiles every shader the stage uses, in parallel where the browser can, so the first frame does
+   * not stop for them. A shader the first frame had to compile itself would hold up the whole GPU
+   * process for the time it takes, and with it every other picture on the page (the menus, the
+   * loading screen), not only this worker.
+   *
+   * Shaders are compiled for where they draw: with glow on, the scene is drawn into the glow's
+   * buffer rather than the screen (no tone mapping there, linear colour: different shaders), and the
+   * lake's mirror into a buffer of its own. The glow's passes are compiled too.
+   */
+  async prepare(): Promise<void> {
+    const r = this.renderer;
+    const hidden: THREE.Object3D[] = [];
+    this.scene.traverse((o) => {
+      if (!o.visible) {
+        hidden.push(o);
+        o.visible = true;
+      }
+    });
+    const jobs: Promise<unknown>[] = [];
+    const compile = (scene: THREE.Object3D, camera: THREE.Camera, target: THREE.WebGLRenderTarget | null) => {
+      r.setRenderTarget(target);
+      jobs.push(r.compileAsync(scene, camera));
+    };
+    compile(this.scene, this.camera, this.composer ? this.composer.renderTarget1 : null);
+    if (this.mirror) compile(this.scene, this.camera, this.mirror);
+    for (const o of hidden) o.visible = false;
+    if (this.composer) {
+      // Each pass draws a full-screen quad: into the glow's buffers, and the last one onto the screen.
+      const quad = new THREE.PlaneGeometry(2, 2);
+      const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+      const intoBuffers = new THREE.Scene();
+      const ontoScreen = new THREE.Scene();
+      for (const pass of this.composer.passes)
+        for (const material of passMaterials(pass))
+          (pass instanceof OutputPass ? ontoScreen : intoBuffers).add(new THREE.Mesh(quad, material));
+      compile(intoBuffers, camera, this.composer.renderTarget1);
+      compile(ontoScreen, camera, null);
+      jobs.push(Promise.all(jobs).finally(() => quad.dispose()));
+    }
+    r.setRenderTarget(null);
+    await Promise.all(jobs).catch(() => undefined);
   }
 
-  setAnalyser(a: AnalyserNode | null) {
-    this.meter.setAnalyser(a);
+  /** The latest levels of whatever is playing (see BandMeter). */
+  setBands(b: Readonly<BandLevels>) {
+    this.bandsIn.low = b.low;
+    this.bandsIn.mid = b.mid;
+    this.bandsIn.high = b.high;
   }
 
   setCameraMode(mode: GraphicsSettings['camera']) {
@@ -313,18 +354,18 @@ export class AuroraStage {
   }
 
   private readonly onContextLost = (e: Event) => e.preventDefault();
-  private readonly onContextRestored = () => this.resize();
+  private readonly onContextRestored = () => this.applySize();
 
-  /** Moves the stage's canvas into another host (the stage keeps running as it is). */
-  attach(host: HTMLElement) {
-    if (this.canvas.parentElement !== host) host.appendChild(this.canvas);
-    this.resize();
+  /** The canvas's size on the page (CSS pixels) and the screen's pixel ratio. */
+  setSize(width: number, height: number, dpr: number) {
+    if (width === this.size.width && height === this.size.height && dpr === this.size.dpr) return;
+    this.size = { width: Math.max(1, width), height: Math.max(1, height), dpr: dpr || 1 };
+    this.applySize();
   }
 
-  resize() {
-    const w = this.canvas.clientWidth || window.innerWidth;
-    const h = this.canvas.clientHeight || window.innerHeight;
-    const ratio = Math.min(2, window.devicePixelRatio || 1) * this.g.resolution * this.dynScale;
+  private applySize() {
+    const { width: w, height: h, dpr } = this.size;
+    const ratio = Math.min(2, dpr) * this.g.resolution * this.dynScale;
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(w, h, false);
     this.composer?.setPixelRatio(ratio);
@@ -367,7 +408,7 @@ export class AuroraStage {
     this.beatDrift -= advance - step;
     this.beatClock += advance;
     this.beats = Math.floor(this.beatClock);
-    const bands = this.meter.update(dt);
+    const bands = this.bandsIn;
     for (const e of this.show.update({ dt, beat, intensity: f.intensity, bands, overdrive: f.overdrive })) {
       if (e.type === 'fireworks') this.fireworks(e.which);
       else this.co2(e.strength);
@@ -427,6 +468,7 @@ export class AuroraStage {
       this.camera.updateProjectionMatrix();
     }
     this.camera.updateMatrixWorld();
+    this.crowd.focus(this.camera.position);
     const scale = this.renderer.domElement.height / (2 * Math.tan((this.camera.fov * Math.PI) / 360));
     this.beams.update(this.camera, scale);
     this.sparks.setScale(scale);
@@ -434,10 +476,6 @@ export class AuroraStage {
     this.renderMirror(pose.pos, pose.target);
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);
-    if (!this.shown) {
-      this.shown = true;
-      this.canvas.classList.add('on');
-    }
   }
 
   /**
@@ -478,6 +516,7 @@ export class AuroraStage {
     return {
       frameMs: +this.frameAvg.toFixed(1),
       people: this.crowd.count,
+      detailed: this.crowd.detailed,
       peopleTriangles: Math.round(this.crowd.triangles + this.band.triangles),
       shot: this.director.shot.name,
       level: this.show.state.level,
@@ -490,12 +529,11 @@ export class AuroraStage {
     if (this.disposed) return;
     this.disposed = true;
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
-    this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
+    this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored as EventListener);
     for (const o of this.owned) o.dispose();
     this.composer?.dispose();
     this.renderer.dispose();
     this.renderer.forceContextLoss();
-    this.canvas.remove();
   }
 
   // ------------------------------------------------------------------ show → scene
@@ -683,7 +721,7 @@ export class AuroraStage {
     if (next !== this.dynScale) {
       this.dynScale = next;
       this.sinceResize = 0;
-      this.resize();
+      this.applySize();
     }
   }
 
@@ -696,6 +734,13 @@ export class AuroraStage {
     composer.addPass(new OutputPass());
     this.composer = composer;
   }
+}
+
+/** The materials a post-processing pass draws with (its own fields, and arrays of them). */
+function passMaterials(pass: object): THREE.Material[] {
+  return Object.values(pass).flatMap((v: unknown) =>
+    v instanceof THREE.Material ? [v] : Array.isArray(v) ? v.filter((m): m is THREE.Material => m instanceof THREE.Material) : [],
+  );
 }
 
 const TMP_C = new THREE.Color();

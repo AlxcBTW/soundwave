@@ -54,7 +54,7 @@ import { HomeScreen } from './HomeScreen';
 import { DIFFICULTY_LABEL, PART_LABEL } from './icons';
 import { LibraryScreen, type SongStatus } from './LibraryScreen';
 import { LobbyScreen } from './LobbyScreen';
-import { watchVenue } from '../render/aurora/assets';
+import { watchStageLoading } from '../render/stage/StageView';
 import { bootDone, bootStep } from './boot';
 import { MenuBackground } from './MenuBackground';
 import { InstallAppCard, UpdateCard } from './AppUpdates';
@@ -285,7 +285,7 @@ export function App() {
   useEffect(() => {
     if (booted) return bootDone();
     if (!libraryReady) return bootStep(0.2, 'Opening your library');
-    if (!known) return watchVenue((share) => bootStep(0.35 + share * 0.5, share < 1 ? 'Loading the stage' : 'Building the stage'));
+    if (!known) return watchStageLoading((share) => bootStep(0.35 + share * 0.5, share < 1 ? 'Loading the stage' : 'Building the stage'));
     bootStep(1, 'Ready');
   }, [booted, libraryReady, known]);
   useEffect(() => {

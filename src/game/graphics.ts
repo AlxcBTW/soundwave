@@ -98,10 +98,15 @@ export function tierForGpu(name: string | null): Tier {
   return 'medium';
 }
 
-/** The GPU's name as WebGL reports it, when the browser allows it. */
+/**
+ * The GPU's name as WebGL reports it, when the browser allows it. Opening a graphics context costs
+ * the better part of a second on the thread that does it, so the game asks the stage's worker, which
+ * opens one anyway (see gpuFound), and only falls back to this on the page.
+ */
 export function detectGpu(): string | null {
   try {
-    const gl = document.createElement('canvas').getContext('webgl2') ?? document.createElement('canvas').getContext('webgl');
+    const canvas = () => (typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(1, 1) : document.createElement('canvas'));
+    const gl = (canvas().getContext('webgl2') ?? canvas().getContext('webgl')) as WebGLRenderingContext | WebGL2RenderingContext | null;
     if (!gl) return null;
     const ext = gl.getExtension('WEBGL_debug_renderer_info');
     const name = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
@@ -112,18 +117,56 @@ export function detectGpu(): string | null {
   }
 }
 
+/** Where the GPU's name is remembered between starts (not carried by backups: see preferenceKeys). */
+const GPU_KEY = 'soundwave.cache.gpu';
 let detected: Tier | null = null;
+let found: () => void = () => {};
+const foundGpu = new Promise<void>((resolve) => (found = resolve));
+
+function rememberedGpu(): string | null {
+  try {
+    return localStorage.getItem(GPU_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** The GPU's name, as the stage's worker found it: used from now on and remembered for next time. */
+export function gpuFound(name: string | null) {
+  detected = tierForGpu(name);
+  try {
+    if (name) localStorage.setItem(GPU_KEY, name);
+  } catch {
+    /* storage unavailable: found again next time */
+  }
+  found();
+}
+
+/**
+ * Resolves once the Auto tier can be told without opening a graphics context on the page: at once
+ * when this machine's GPU is remembered from before, else when the stage's worker has found it (or,
+ * should it never say, after `ms`).
+ */
+export function gpuKnown(ms = 2000): Promise<void> {
+  if (detected || rememberedGpu()) return Promise.resolve();
+  return Promise.race([foundGpu, new Promise<void>((resolve) => setTimeout(resolve, ms))]);
+}
+
+function tier(): Tier {
+  if (detected) return detected;
+  const remembered = rememberedGpu();
+  detected = tierForGpu(remembered ?? detectGpu());
+  return detected;
+}
 
 /** The settings actually used: Auto resolves to a tier for this machine, the rest are explicit. */
 export function resolveGraphics(g: GraphicsSettings): GraphicsSettings {
   if (g.preset !== 'auto') return g;
-  detected ??= tierForGpu(detectGpu());
-  return { ...g, ...PRESETS[detected] };
+  return { ...g, ...PRESETS[tier()] };
 }
 
 export function autoTier(): Tier {
-  detected ??= tierForGpu(detectGpu());
-  return detected;
+  return tier();
 }
 
 /** Applying a preset sets every individual option; changing one afterwards makes it Custom. */

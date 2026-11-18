@@ -1,14 +1,16 @@
 import { useEffect, useRef } from 'react';
+import { BandMeter } from '../audio/bands';
 import { getEngine } from '../audio/engine';
-import { resolveGraphics, type GraphicsSettings } from '../game/graphics';
-import type { AuroraStage } from '../render/aurora/AuroraStage';
+import { gpuKnown, resolveGraphics, type GraphicsSettings } from '../game/graphics';
 import { acquireMenuStage, releaseMenuStage } from '../render/aurora/menuStage';
+import type { StageView } from '../render/stage/StageView';
 
 /**
  * The backdrop behind menus: the 3D stage idling with slow camera moves, reacting to whatever the
  * engine plays (e.g. previews). Until it is built, and where it cannot be, the menus stand before
  * the plain night. The stage is shared between mounts (see menuStage), so remounting this never
- * shows a black frame.
+ * shows a black frame, and it draws in a worker of its own (see StageView), so it never slows the
+ * menus down.
  *
  * `onReady` is told once the stage has drawn (or cannot be built): the loading screen waits for it.
  */
@@ -17,48 +19,42 @@ export function MenuBackground({ graphics, onReady }: { graphics: GraphicsSettin
   const readyRef = useRef(onReady);
   readyRef.current = onReady;
   useEffect(() => {
-    let stage: AuroraStage | null = null;
     let live = true;
-    let drawn = false;
-    let late = 0;
+    let acquired = false;
+    let raf = 0;
     const ready = () => live && readyRef.current?.();
-    const g = resolveGraphics(graphics);
-    // Menus never need the full show: cap the frame rate so the UI stays light.
-    acquireMenuStage(stageRef.current!, { ...g, fpsCap: g.fpsCap && g.fpsCap < 60 ? g.fpsCap : 60, effects: 'off' })
-      .then((s) => {
-        if (!live) return;
-        s.setAnalyser(getEngine().analyser);
-        stage = s;
-        if (import.meta.env.DEV) (window as unknown as { __stage?: AuroraStage }).__stage = s;
-        // A window that is not showing draws no frames: it does not hold the game back for ever.
-        late = window.setTimeout(ready, 1500);
-      })
-      .catch((err) => {
+    const start = () => {
+      if (!live) return;
+      acquired = true;
+      const g = resolveGraphics(graphics);
+      // Menus never need the full show: cap the frame rate so the machine stays light.
+      const stage = acquireMenuStage(stageRef.current!, { ...g, fpsCap: g.fpsCap && g.fpsCap < 60 ? g.fpsCap : 60, effects: 'off' });
+      stage.ready.then(ready, (err) => {
         console.warn('3D stage unavailable', err);
         ready();
       });
-    let raf = 0;
-    const loop = () => {
-      raf = requestAnimationFrame(loop);
-      if (!stage) return;
-      const b = stage.bands;
-      stage.render({ beat: 'none', intensity: Math.min(1, (b.low + b.mid) * 0.7), overdrive: false, barSeconds: 2 });
-      if (!drawn) {
-        // The first frame compiles the stage's shaders; it is on screen one frame later.
-        drawn = true;
-        requestAnimationFrame(ready);
-      }
+      if (import.meta.env.DEV) (window as unknown as { __stage?: StageView }).__stage = stage;
+      // The stage moves with whatever plays (previews, the menu music): metered here, where the audio is.
+      const meter = new BandMeter();
+      meter.setAnalyser(getEngine().analyser);
+      let last = performance.now();
+      const loop = () => {
+        raf = requestAnimationFrame(loop);
+        const now = performance.now();
+        const b = meter.update(Math.min(0.1, (now - last) / 1000));
+        last = now;
+        stage.input({ intensity: Math.min(1, (b.low + b.mid) * 0.7), overdrive: false, barSeconds: 2, bands: b });
+      };
+      loop();
     };
-    loop();
-    const onResize = () => stage?.resize();
-    window.addEventListener('resize', onResize);
+    // Auto graphics go by the GPU, which the stage's worker names (on the very first start only is
+    // there anything to wait for): asking on the page would hold up the loading screen.
+    if (graphics.preset === 'auto') void gpuKnown().then(start);
+    else start();
     return () => {
       live = false;
       cancelAnimationFrame(raf);
-      clearTimeout(late);
-      window.removeEventListener('resize', onResize);
-      stage = null;
-      releaseMenuStage();
+      if (acquired) releaseMenuStage();
     };
   }, [graphics]);
   return <div ref={stageRef} className="layer stage-host" />;

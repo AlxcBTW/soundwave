@@ -359,6 +359,13 @@ export class Highway {
   private readonly lanes: number;
   private readonly width: number;
   private unsub: (() => void) | null = null;
+  /**
+   * Resolves once every shader the highway uses is compiled. Until then nothing is drawn: compiled
+   * on the first frame instead, they would hold the page up for a good part of a second as the song
+   * starts. Compiled in parallel, they are done well inside the countdown.
+   */
+  readonly ready: Promise<void>;
+  private compiled = false;
 
   /** Highway units per second. */
   speed = 9;
@@ -639,6 +646,25 @@ export class Highway {
     this.root.add(this.motes);
 
     this.resize();
+    this.ready = this.compile();
+  }
+
+  private compile(): Promise<void> {
+    // Three only compiles what is visible: what starts hidden (the overdrive glow, the motes) is
+    // shown just while the materials are gathered (that part is immediate).
+    const hidden: THREE.Object3D[] = [];
+    this.scene.traverse((o) => {
+      if (!o.visible) {
+        hidden.push(o);
+        o.visible = true;
+      }
+    });
+    const done = this.renderer.compileAsync(this.scene, this.camera);
+    for (const o of hidden) o.visible = false;
+    return done.then(
+      () => void (this.compiled = true),
+      () => void (this.compiled = true),
+    );
   }
 
   attach(session: GameSession) {
@@ -867,6 +893,7 @@ export class Highway {
   }
   /** Renders the frame for song time `t`. `beatPulse` (0..1) lets the music drive the track glow. */
   render(t: number, session: GameSession, beatPulse = 0) {
+    if (!this.compiled) return;
     const now = performance.now();
     const dt = Math.min(0.05, (now - this.lastFrame) / 1000);
     this.lastFrame = now;

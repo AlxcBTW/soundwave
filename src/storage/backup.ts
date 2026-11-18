@@ -89,9 +89,12 @@ async function chunk(type: string, payload: Blob): Promise<BlobPart[]> {
 
 const json = (v: unknown) => new Blob([utf8.encode(JSON.stringify(v))]);
 
-/** The game's own stored preferences: settings, setlist, sort orders. Not developer overrides. */
+/**
+ * The game's own stored preferences: settings, setlist, sort orders. Not developer overrides, and
+ * not what is only remembered about this machine (`soundwave.cache.`, such as its graphics card).
+ */
 export function preferenceKeys(keys: Iterable<string>): string[] {
-  return [...keys].filter((k) => k.startsWith('soundwave.') && !k.startsWith('soundwave.dev.'));
+  return [...keys].filter((k) => k.startsWith('soundwave.') && !k.startsWith('soundwave.dev.') && !k.startsWith('soundwave.cache.'));
 }
 
 function readPreferences(): Record<string, string> {

@@ -211,7 +211,9 @@ blender -b --factory-startup -P tools/stage/aurora/build_cast.py -- --out public
 - Ultimate Modular Women, as `modular-women`
 - Universal Animation Library (the free standard version), as `ual1`
 
-During development, `/#stage?preset=high&shot=hero&level=0.9` shows the stage alone with a simulated song.
+The game draws the stage in a worker of its own (`src/render/stage/StageView.ts`): the page hands the canvas over (`OffscreenCanvas`) and only tells the stage what the music is doing, so however long a stage frame takes, the menus, the highway and the input never wait for it. Where a worker cannot draw with WebGL, the same code runs on the page instead. Its shaders are compiled in parallel before its first frame, and only the few people close to the camera are drawn with the detailed figure.
+
+During development, `/#stage?preset=high&shot=hero&level=0.9` shows the stage alone with a simulated song (drawn on the page, so `window.__stage` can be reached from the console).
 
 ### Optional: downloaded characters
 

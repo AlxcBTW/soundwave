@@ -10,14 +10,15 @@ export async function runStagePreview(root: HTMLElement) {
   const q = new URLSearchParams(location.hash.split('?')[1] ?? '');
   const preset = (q.get('preset') ?? 'high') as GraphicsPreset;
   const g = applyPreset({ ...DEFAULT_GRAPHICS, camera: 'auto' }, preset);
-  const host = document.createElement('div');
-  host.style.cssText = 'position:fixed;inset:0;background:#000';
-  root.replaceChildren(host);
-  const stage = await AuroraStage.create(host, g, { mode: q.get('mode') === 'menu' ? 'menu' : 'play', part: 'lead' });
-  (window as unknown as { __stage: AuroraStage }).__stage = stage;
+  // Drawn on the page, not in the worker the game uses, so the console can reach into the stage.
+  const canvas = document.createElement('canvas');
   // No fade-in here: a capture right after loading should show the stage, not the fade.
-  const canvas = host.querySelector('canvas');
-  if (canvas) canvas.style.cssText += ';opacity:1;transition:none';
+  canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;display:block;background:#000';
+  root.replaceChildren(canvas);
+  const stage = await AuroraStage.create(canvas, g, { mode: q.get('mode') === 'menu' ? 'menu' : 'play', part: 'lead' });
+  const fit = () => stage.setSize(innerWidth, innerHeight, devicePixelRatio);
+  fit();
+  (window as unknown as { __stage: AuroraStage }).__stage = stage;
   const shot = q.get('shot');
   if (shot) {
     const d = stage.director as unknown as { shots: { name: string }[]; current: unknown; update: () => boolean };
@@ -53,6 +54,6 @@ export async function runStagePreview(root: HTMLElement) {
     stage.render({ beat: ev, intensity, overdrive: odOn && t < od + 12, barSeconds: spb * 4 });
   };
   loop();
-  addEventListener('resize', () => stage.resize());
+  addEventListener('resize', fit);
   document.title = 'stage ready';
 }

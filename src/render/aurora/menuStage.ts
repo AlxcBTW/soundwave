@@ -1,5 +1,5 @@
 import type { GraphicsSettings } from '../../game/graphics';
-import { AuroraStage } from './AuroraStage';
+import { StageView } from '../stage/StageView';
 
 /**
  * The menus' stage, kept alive across remounts.
@@ -13,7 +13,7 @@ import { AuroraStage } from './AuroraStage';
  */
 interface Held {
   key: string;
-  stage: Promise<AuroraStage>;
+  stage: StageView;
   users: number;
   timer: ReturnType<typeof setTimeout> | null;
 }
@@ -24,19 +24,19 @@ let held: Held | null = null;
 
 function drop(h: Held) {
   if (h.timer) clearTimeout(h.timer);
-  h.stage.then((s) => s.dispose()).catch(() => undefined);
+  h.stage.dispose();
 }
 
 /** The menu stage for these settings, shown in `host`. Pair every call with `releaseMenuStage`. */
-export function acquireMenuStage(host: HTMLElement, g: GraphicsSettings): Promise<AuroraStage> {
+export function acquireMenuStage(host: HTMLElement, g: GraphicsSettings): StageView {
   const key = JSON.stringify(g);
   if (held && held.key !== key) {
     drop(held);
     held = null;
   }
   if (!held) {
-    const mine: Held = { key, users: 0, timer: null, stage: AuroraStage.create(host, g, { mode: 'menu' }) };
-    mine.stage.catch(() => {
+    const mine: Held = { key, users: 0, timer: null, stage: new StageView(host, g, { mode: 'menu' }) };
+    mine.stage.ready.catch(() => {
       if (held === mine) held = null;
     });
     held = mine;
@@ -47,10 +47,8 @@ export function acquireMenuStage(host: HTMLElement, g: GraphicsSettings): Promis
     h.timer = null;
   }
   h.users++;
-  return h.stage.then((s) => {
-    if (held === h) s.attach(host);
-    return s;
-  });
+  h.stage.attach(host);
+  return h.stage;
 }
 
 export function releaseMenuStage() {

@@ -41,10 +41,9 @@ describe('library backups', () => {
   });
 
   it('take only the game’s own preferences, never developer overrides or other sites’ keys', async () => {
-    expect(preferenceKeys(['soundwave.settings.v1', 'soundwave.dev.stem-model', 'other', 'soundwave.setlist'])).toEqual([
-      'soundwave.settings.v1',
-      'soundwave.setlist',
-    ]);
+    expect(
+      preferenceKeys(['soundwave.settings.v1', 'soundwave.dev.stem-model', 'other', 'soundwave.cache.gpu', 'soundwave.setlist']),
+    ).toEqual(['soundwave.settings.v1', 'soundwave.setlist']);
     const file = await packBackup({
       createdAt: 1,
       preferences: { 'soundwave.dev.analysis-device': 'none', evil: 'x', 'soundwave.home-tab': 'sets' },

@@ -4,12 +4,21 @@ import type { Person } from './figures';
 /** The stretch of ground the map covers, in metres: its corner (x, z) and its size. */
 export const CROWD_RECT = { x: -136, z: -18, w: 272, d: 156 };
 
+type Canvas = HTMLCanvasElement | OffscreenCanvas;
+type Context = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+/** A 2D canvas: off-screen where there is one (always, in the stage's worker), else on the page. */
+function canvas2d(width: number, height: number): [Canvas, Context] {
+  const c: Canvas = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(width, height) : document.createElement('canvas');
+  c.width = width;
+  c.height = height;
+  return [c, c.getContext('2d') as Context];
+}
+
 /** A soft round stamp in red, fading from `alpha` at the middle to nothing. */
-function stamp(radius: number, alpha: number): HTMLCanvasElement {
+function stamp(radius: number, alpha: number): Canvas {
   const size = Math.max(2, Math.ceil(radius * 2));
-  const c = document.createElement('canvas');
-  c.width = c.height = size;
-  const ctx = c.getContext('2d')!;
+  const [c, ctx] = canvas2d(size, size);
   const fade = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
   fade.addColorStop(0, `rgba(255,0,0,${alpha})`);
   fade.addColorStop(0.45, `rgba(255,0,0,${alpha * 0.55})`);
@@ -27,7 +36,7 @@ const PACKED = 1.05;
  * several metres so a gap of a few steps (around a camera, say) still counts as crowd. `share` is
  * the part of the audience drawn: the grass is as worn on settings that show fewer people.
  */
-function density(people: Person[], share: number): HTMLCanvasElement {
+function density(people: Person[], share: number): Canvas {
   const w = Math.ceil(CROWD_RECT.w);
   const h = Math.ceil(CROWD_RECT.d);
   let cells = new Float32Array(w * h);
@@ -55,10 +64,7 @@ function density(people: Person[], share: number): HTMLCanvasElement {
       cells = out;
     }
   }
-  const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
-  const ctx = c.getContext('2d')!;
+  const [c, ctx] = canvas2d(w, h);
   const image = ctx.createImageData(w, h);
   for (let i = 0; i < cells.length; i++) {
     image.data[i * 4 + 1] = Math.min(255, (cells[i] / (PACKED * share)) * 255);
@@ -75,10 +81,7 @@ function density(people: Person[], share: number): HTMLCanvasElement {
  */
 export function buildCrowdMap(people: Person[], share = 1, width = 2048): THREE.Texture {
   const perMetre = width / CROWD_RECT.w;
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = Math.round(CROWD_RECT.d * perMetre);
-  const ctx = canvas.getContext('2d')!;
+  const [canvas, ctx] = canvas2d(width, Math.round(CROWD_RECT.d * perMetre));
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(density(people, Math.max(0.05, share)), 0, 0, canvas.width, canvas.height);
