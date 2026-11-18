@@ -1,5 +1,6 @@
 // Sets the app's version everywhere it is written down: package.json (which the desktop app reads
-// through src-tauri/tauri.conf.json) and src-tauri/Cargo.toml. Used by the release workflows.
+// through src-tauri/tauri.conf.json), src-tauri/Cargo.toml and src-tauri/Cargo.lock. Used by the
+// release workflows.
 //
 //   node scripts/set-version.mjs 1.2.3
 //   node scripts/set-version.mjs 1.2.4-57
@@ -28,4 +29,9 @@ if (updated === cargo && !cargo.includes(`version = "${version}"`)) {
   process.exit(1);
 }
 writeFileSync(cargoPath, updated);
+
+// The lockfile records the app's own version too; left alone, the next Rust build rewrites it.
+const lockPath = join(root, 'src-tauri', 'Cargo.lock');
+const lock = readFileSync(lockPath, 'utf8');
+writeFileSync(lockPath, lock.replace(/(\[\[package\]\]\r?\nname = "soundwave"\r?\nversion = )"[^"]*"/, `$1"${version}"`));
 console.log(`version ${version}`);
