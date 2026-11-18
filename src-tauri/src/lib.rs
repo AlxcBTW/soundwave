@@ -1,4 +1,5 @@
 mod haptics;
+mod song_files;
 mod touchpad;
 
 use std::time::Duration;
@@ -12,11 +13,36 @@ fn exit_app(app: tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  tauri::Builder::default()
+  let mut builder = tauri::Builder::default();
+  // One game at a time: opening a song file while it runs hands the file to the running game
+  // instead of starting another. Not in development builds, so a second dev build can run beside one.
+  if !cfg!(debug_assertions) {
+    builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+      song_files::open(app, song_files::song_files(argv, std::path::Path::new(&cwd)));
+      song_files::focus(app);
+    }));
+  }
+  builder
+    .plugin(tauri_plugin_dialog::init())
     .manage(haptics::Haptics::default())
     .manage(touchpad::Touchpad::default())
-    .invoke_handler(tauri::generate_handler![exit_app, haptics::haptics_available, haptics::haptics_play, haptics::haptics_update, haptics::haptics_release, touchpad::touchpad_watch, touchpad::touchpad_finger])
+    .manage(song_files::Opened::default())
+    .invoke_handler(tauri::generate_handler![
+      exit_app,
+      haptics::haptics_available,
+      haptics::haptics_play,
+      haptics::haptics_update,
+      haptics::haptics_release,
+      touchpad::touchpad_watch,
+      touchpad::touchpad_finger,
+      song_files::take_opened_files,
+      song_files::read_opened_file,
+      song_files::save_song_file
+    ])
     .setup(|app| {
+      // A song file double-clicked in Explorer starts the game with its path.
+      let cwd = std::env::current_dir().unwrap_or_default();
+      song_files::open(app.handle(), song_files::song_files(std::env::args(), &cwd));
       if cfg!(debug_assertions) {
         app.handle().plugin(
           tauri_plugin_log::Builder::default()

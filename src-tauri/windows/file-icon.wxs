@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The MSI installer (bundle.windows.wix in tauri.conf.json): Tauri registers .festival files under
+  the class Festival.festival with the app's own icon; song files get theirs
+  (src-tauri/icons/festival-file.ico, installed beside the app as a bundle resource).
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="FestivalSongFileIcon" Guid="5d2f7b0e-8c1a-4f3e-9b6d-2a4c8e1f0b37">
+        <RegistryValue Root="HKCR" Key="Festival.festival\DefaultIcon" Type="string" Value="[INSTALLDIR]festival-file.ico" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>

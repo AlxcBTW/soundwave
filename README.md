@@ -142,6 +142,18 @@ The script reduces the crowd characters to a few hundred triangles, bakes their 
 
 Both scripts write the same format: plain meshes whose vertices carry up to four joints and weights, and a small texture of joint matrices per animation frame, which the game uses to animate thousands of instances in a vertex shader.
 
+## Song files (`.festival`)
+
+Every song in the library is stored as a `.festival` file: one file holding the song's details, its cover, the analysis its charts are made from, and the original audio byte for byte. **Export** on a song's page saves that file, to keep or to send to a friend; dropping it on the game, or picking it with **Add songs**, adds the song with its charts ready, without analyzing it again. The song's id is the hash of its audio, so the same song arrives as the same song, with the same charts. Scores and separated stems stay on the device that made them.
+
+The installers register the extension: double-clicking a song file opens it in the game, or hands it to the game already running. The layout of the file is described at the top of `src/storage/festivalFile.ts`; songs stored before the format existed are converted the first time the game starts.
+
+Song files have their own icon, a page with the note highway on it. A script draws it and writes every size into `src-tauri/icons/festival-file.ico`, which the installers set on the file type (`src-tauri/windows/`):
+
+```
+node tools/icon/build_file_icon.mjs
+```
+
 ## The app icon
 
 The icon is a render of the note highway, built from the same measurements the game draws it with. One script makes the picture, and Tauri's tool cuts every size from it:

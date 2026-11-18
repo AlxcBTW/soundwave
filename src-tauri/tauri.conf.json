@@ -41,6 +41,33 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": {
+      "icons/festival-file.ico": "festival-file.ico"
+    },
+    "fileAssociations": [
+      {
+        "ext": [
+          "festival"
+        ],
+        "name": "Festival.Song",
+        "description": "Festival song",
+        "mimeType": "application/x-festival",
+        "role": "Viewer"
+      }
+    ],
+    "windows": {
+      "nsis": {
+        "installerHooks": "windows/hooks.nsh"
+      },
+      "wix": {
+        "fragmentPaths": [
+          "windows/file-icon.wxs"
+        ],
+        "componentRefs": [
+          "FestivalSongFileIcon"
+        ]
+      }
+    }
   }
 }
