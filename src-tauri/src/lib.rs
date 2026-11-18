@@ -1,3 +1,4 @@
+mod audio_out;
 mod haptics;
 mod song_files;
 mod touchpad;
@@ -58,12 +59,20 @@ pub fn run() {
     }
     builder
         .plugin(tauri_plugin_dialog::init())
+        // The game's sound, streamed from the page and played by this process (audio_out.rs).
+        .register_asynchronous_uri_scheme_protocol("swaudio", |ctx, request, responder| {
+            let audio = ctx.app_handle().state::<audio_out::NativeAudio>();
+            responder.respond(audio_out::handle(&audio, &request));
+        })
+        .manage(audio_out::NativeAudio::default())
         .manage(haptics::Haptics::default())
         .manage(touchpad::Touchpad::default())
         .manage(song_files::Opened::default())
         .manage(song_files::Saving::default())
         .invoke_handler(tauri::generate_handler![
             exit_app,
+            audio_out::audio_devices,
+            audio_out::audio_set_device,
             haptics::haptics_available,
             haptics::haptics_play,
             haptics::haptics_update,

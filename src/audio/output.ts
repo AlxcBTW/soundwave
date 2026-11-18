@@ -2,8 +2,13 @@
  * Where the game's sound goes: which output device it plays through, and whether it is silenced
  * while the window is in the background. Songs, menu music and interface sounds share one
  * AudioContext (see AudioEngine), so both apply to all of them at once.
+ *
+ * In the desktop app the app itself plays the sound (src/audio/native/): it lists the outputs by
+ * name, with no permission to ask for, and follows the chosen one as it comes and goes. In a browser
+ * the AudioContext plays through the device it is given.
  */
 import { getEngine } from './engine';
+import { isNative, nativeDevices, setNativeDevice, whenNative } from './native/nativeOutput';
 
 export interface OutputDevice {
   id: string;
@@ -16,19 +21,31 @@ export interface OutputList {
   listed: boolean;
 }
 
+/** Whether the app plays the sound (the engine, which starts that, is made first if need be). */
+const native = () => (getEngine(), whenNative());
+
 type SinkContext = AudioContext & { setSinkId?(id: string): Promise<void>; sinkId?: unknown };
 
-/** Whether this browser can send the game's sound to a chosen device at all. */
+/** Whether the game's sound can be sent to a chosen device at all. */
 export const canPickOutput = () =>
-  typeof AudioContext !== 'undefined' &&
-  'setSinkId' in AudioContext.prototype &&
-  typeof navigator.mediaDevices?.enumerateDevices === 'function';
+  isNative() ||
+  (typeof AudioContext !== 'undefined' &&
+    'setSinkId' in AudioContext.prototype &&
+    typeof navigator.mediaDevices?.enumerateDevices === 'function');
 
 /** The system's own aliases: "System default" stands for them. */
 const ALIASES = new Set(['', 'default', 'communications']);
 
-/** The outputs the browser lets the game see, without the system's default aliases. */
+/** The outputs the game can play through, without the system's default aliases. */
 export async function listOutputs(): Promise<OutputList> {
+  if (await native()) {
+    try {
+      const { devices } = await nativeDevices();
+      return { devices: devices.map((name) => ({ id: name, label: name })), listed: true };
+    } catch {
+      return { devices: [], listed: false };
+    }
+  }
   if (!canPickOutput()) return { devices: [], listed: false };
   try {
     const all = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput');
@@ -59,6 +76,7 @@ export async function allowOutputList(): Promise<boolean> {
  * (unplugged, or forgotten by the browser) falls back to the default; returns whether `id` is in use.
  */
 export async function setOutputDevice(id: string): Promise<boolean> {
+  if (await native()) return setNativeDevice(id).catch(() => false);
   if (!canPickOutput()) return id === '';
   const ctx = getEngine().ctx as SinkContext;
   const current = typeof ctx.sinkId === 'string' ? ctx.sinkId : '';
@@ -78,6 +96,21 @@ export async function setOutputDevice(id: string): Promise<boolean> {
  * that stops following.
  */
 export function followOutputDevice(id: string): () => void {
+  let live = true;
+  let stopWeb = () => {};
+  // The app follows the device itself; a browser is told about every change.
+  void native().then((inApp) => {
+    if (!live) return;
+    if (inApp) void setNativeDevice(id).catch(() => {});
+    else stopWeb = followInBrowser(id);
+  });
+  return () => {
+    live = false;
+    stopWeb();
+  };
+}
+
+function followInBrowser(id: string): () => void {
   if (!canPickOutput()) return () => {};
   let live = true;
   const apply = async () => {
