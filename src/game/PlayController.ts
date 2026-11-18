@@ -597,10 +597,20 @@ function breakBar(timer: HTMLElement, num: HTMLElement, fill: SVGCircleElement, 
     ghost.classList.add('ghost');
     ghost.setAttribute('aria-hidden', 'true');
     num.after(ghost);
-    ghost.animate([{ transform: 'none' }, { transform: `translateY(-${step})` }], { ...roll, fill: 'forwards' }).finished.then(
-      () => ghost.remove(),
-      () => ghost.remove(),
-    );
+    // It fades as it goes, so its tail does not linger at the top edge as the roll eases out.
+    ghost
+      .animate(
+        [
+          { transform: 'none', opacity: 1 },
+          { opacity: 1, offset: 0.45 },
+          { transform: `translateY(-${step})`, opacity: 0 },
+        ],
+        { ...roll, fill: 'forwards' },
+      )
+      .finished.then(
+        () => ghost.remove(),
+        () => ghost.remove(),
+      );
   }
   fill.animate(
     [
