@@ -16,7 +16,7 @@
   --deep: #1a0f4c;
   /* Dark frosted glass over the live stage: panels are smoked glass that blurs what is behind them
      (see the glass surfaces under Dialogs), and what sits on them is lit from within with white. */
-  --panel: rgb(8 6 18 / 0.52);
+  --panel: rgb(8 6 18 / 0.6);
   --panel-solid: rgb(9 7 20 / 0.84);
   --raised: rgb(255 255 255 / 0.09);
   --raised-hi: rgb(255 255 255 / 0.17);
@@ -25,7 +25,9 @@
   --well: rgb(0 0 0 / 0.32);
   --line: rgb(255 255 255 / 0.12);
   --glass-edge: rgb(255 255 255 / 0.11);
-  --glass-blur: blur(22px) saturate(1.5);
+  /* Blur only, no colour boost: the blur can only start once a screen has finished coming in, and
+     a boosted stage would show as the panes suddenly changing colour then. */
+  --glass-blur: blur(22px);
   --violet: #5b3ee0;
 
   /* Ink, tinted from the night */
@@ -1754,8 +1756,8 @@ img.cover {
   border: 1px solid rgb(255 255 255 / 0.12);
   border-radius: var(--r-m);
   background: linear-gradient(to bottom, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.015) 40%), rgb(6 4 14 / 0.62);
-  backdrop-filter: blur(22px) saturate(1.5);
-  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.1),
     0 22px 48px -14px rgb(0 0 0 / 0.8);
@@ -3130,8 +3132,8 @@ input.text {
 .hud-scorepanel,
 .hud-pause,
 :root[data-input='touch'] .hud-od {
-  backdrop-filter: blur(14px) saturate(1.4);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   box-shadow:
     inset 0 0 0 1px var(--glass-edge),
     inset 0 1px 0 rgb(255 255 255 / 0.08);
