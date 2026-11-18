@@ -1,6 +1,7 @@
 import { loadSongBuffer } from '../audio/songAudio';
 import { generateAll } from '../chart/generator';
-import type { Chart, Difficulty, Part } from '../chart/types';
+import { thinParts } from '../chart/presence';
+import { DIFFICULTIES, type Chart, type Difficulty, type Part } from '../chart/types';
 import { chartFromNotes, chartKey, editedCount, resolveGrid, songDuration, standsAlone, type SongEdits } from '../editor/edits';
 import { analysisKey, deleteAnalyses, deleteEdits, getAnalysis, getEdits, putAnalysis, putEdits, putStems } from '../storage/db';
 import { writeAnalysisToFile } from '../storage/songFile';
@@ -17,6 +18,11 @@ export interface AnalysisStatus {
   edited?: number;
   /** The song has a beat grid of its own (it was started from scratch), so it plays without an analysis. */
   manual?: boolean;
+  /**
+   * Parts the song hardly has compared with the rest of it (almost no vocals, say): they are not
+   * offered for playing. A part the player wrote a chart for is never among them.
+   */
+  thin?: Part[];
 }
 
 const STEP_LABEL: Record<AnalysisStep, string> = {
@@ -64,6 +70,8 @@ export class AnalysisManager {
   private charts = new Map<string, Chart>();
   /** Each song's hand-edited charts, once asked for (`null`: it has none). */
   private edits = new Map<string, SongEdits | null>();
+  /** Each analyzed song's thin parts, as its analysis has them (before the player's own charts count). */
+  private thin = new Map<string, Part[]>();
   private queue: string[] = [];
   private running = false;
   private listeners = new Set<Listener>();
@@ -93,9 +101,25 @@ export class AnalysisManager {
     // What the editor made for the song rides along with whatever the analysis is doing.
     const e = this.edits.get(id) ?? undefined;
     const edited = editedCount(e);
-    this.status = { ...this.status, [id]: { state: s.state, progress: s.progress, step: s.step, error: s.error, ...(edited ? { edited } : {}), ...(standsAlone(e) ? { manual: true } : {}) } };
+    const thin = s.state === 'ready' ? this.thinOf(id, e) : [];
+    this.status = { ...this.status, [id]: { state: s.state, progress: s.progress, step: s.step, error: s.error, ...(edited ? { edited } : {}), ...(standsAlone(e) ? { manual: true } : {}), ...(thin.length ? { thin } : {}) } };
     for (const l of this.listeners) l();
   }
+
+  /** The parts the song hardly has, less those the player wrote a chart for. */
+  private thinOf(id: string, edits: SongEdits | undefined): Part[] {
+    const a = this.results.get(id);
+    if (!a) return [];
+    let thin = this.thinFor.get(id) === a ? this.thin.get(id) : undefined;
+    if (!thin) {
+      thin = thinParts(a);
+      this.thin.set(id, thin);
+      this.thinFor.set(id, a);
+    }
+    return thin.filter((p) => !DIFFICULTIES.some((d) => (edits?.charts[chartKey(p, d)]?.length ?? 0) > 0));
+  }
+  /** The analysis each entry of `thin` was worked out from: a new analysis is measured again. */
+  private thinFor = new Map<string, AnalysisResult>();
 
   /** Loads a cached analysis if there is one; otherwise queues the song when `autoQueue` is set. */
   async check(id: string, autoQueue: boolean) {
@@ -147,6 +171,8 @@ export class AnalysisManager {
     this.queue = this.queue.filter((q) => q !== id);
     this.results.delete(id);
     this.edits.delete(id);
+    this.thin.delete(id);
+    this.thinFor.delete(id);
     for (const k of [...this.charts.keys()]) if (k.startsWith(`${id}:`)) this.charts.delete(k);
     if (this.current?.id === id) this.current.abort.abort();
     const { [id]: _, ...rest } = this.status;

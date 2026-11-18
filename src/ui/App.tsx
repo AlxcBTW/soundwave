@@ -14,7 +14,7 @@ import { emptyEdits } from '../editor/edits';
 import type { Results } from '../game/GameSession';
 import { demoChart } from '../game/demo';
 import { applyDisplayMode, canExit, exitApp, inDesktopApp } from '../game/displayMode';
-import { loadPick, loadSetlist, pruneSetlist, savePick, saveSetlist, SET_MAX, toggleSong, type Pick } from '../game/setlist';
+import { loadPick, loadSetlist, partFor, pruneSetlist, savePick, saveSetlist, SET_MAX, setParts, toggleSong, type Pick, type ThinParts } from '../game/setlist';
 import { loadSettings, saveSettings, type Settings } from '../game/settings';
 import { getInputMode, installInputMode, setInputMode, usesFocus } from '../input/inputMode';
 import { EDIT_EVENT, focusStart, installMenuNav } from '../input/menuNav';
@@ -269,6 +269,8 @@ export function App() {
   }, [known, booted]);
 
   const byId = useMemo(() => new Map(songs.map((s) => [s.id, s])), [songs]);
+  /** Per song, the parts it hardly has: they are not offered for playing. */
+  const thin: ThinParts = useMemo(() => Object.fromEntries(Object.entries(status).map(([id, s]) => [id, s.thin])), [status]);
   // Songs that were removed leave the setlist with them.
   useEffect(() => {
     if (!songs.length) return;
@@ -455,18 +457,22 @@ export function App() {
     menuPulse('launch');
     setLaunch('in');
     try {
+      // The set is played on the chosen part, or on the first one it has when it hardly has that
+      // one; a song that hardly has the part sits the set out.
+      const ids = lobby.ids.filter((id) => byId.has(id));
+      const use: Pick = { ...pick, part: partFor(pick, setParts(ids, thin)) };
       const entries: { song: SongMeta; chart: Chart }[] = [];
-      for (const id of lobby.ids) {
-        const song = byId.get(id);
-        if (!song) continue;
-        const chart = id === DEMO_ID ? { ...demoChart(pick.difficulty), part: pick.part } : await analysisManager.chart(id, pick.part, pick.difficulty);
+      for (const id of ids) {
+        const song = byId.get(id)!;
+        if (thin[id]?.includes(use.part)) continue;
+        const chart = id === DEMO_ID ? { ...demoChart(use.difficulty), part: use.part } : await analysisManager.chart(id, use.part, use.difficulty);
         if (chart && chart.notes.length > 0) entries.push({ song, chart });
       }
       if (!entries.length) {
         setLaunch(null);
         return toast('No notes were found for this part. Try another part.');
       }
-      await playAt({ songs: entries.map((e) => e.song), charts: entries.map((e) => e.chart), index: 0, results: [], pick, lobby }, 0, true);
+      await playAt({ songs: entries.map((e) => e.song), charts: entries.map((e) => e.chart), index: 0, results: [], pick: use, lobby }, 0, true);
     } catch (e) {
       setLaunch(null);
       toast((e as Error).message);
@@ -630,7 +636,7 @@ export function App() {
     } else if (view.name === 'lobby') {
       const list = view.ids.map((id) => byId.get(id)).filter((s): s is SongMeta => !!s);
       screen = (
-        <LobbyScreen songs={list} pick={pick} scores={scores} settings={settings} onPick={setPick} onStart={() => void start(view)} onBack={() => (view.from === 'library' ? setView({ name: 'library' }) : goHome())} />
+        <LobbyScreen songs={list} pick={pick} thin={thin} scores={scores} settings={settings} onPick={setPick} onStart={() => void start(view)} onBack={() => (view.from === 'library' ? setView({ name: 'library' }) : goHome())} />
       );
     } else if (view.name === 'results') {
       const { run } = view;

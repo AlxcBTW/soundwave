@@ -5,7 +5,7 @@ import { DEMO_ID } from '../audio/songAudio';
 import { DIFFICULTIES, lanesFor, PARTS, type Difficulty, type Part } from '../chart/types';
 import { demoChart } from '../game/demo';
 import type { Settings } from '../game/settings';
-import { formatTime, type Pick } from '../game/setlist';
+import { formatTime, partFor, setParts, type Pick, type ThinParts } from '../game/setlist';
 import { PadGlyph } from '../input/glyphs';
 import { TAB_EVENT } from '../input/menuNav';
 import { confirmInput } from '../input/pads';
@@ -21,6 +21,8 @@ import { useSlide } from './useSlide';
 interface Props {
   songs: SongMeta[];
   pick: Pick;
+  /** Per song, the parts it hardly has: a part no song of the set has cannot be chosen. */
+  thin: ThinParts;
   scores: BestScore[];
   settings: Settings;
   onPick(pick: Pick): void;
@@ -30,10 +32,20 @@ interface Props {
 
 type Counts = Record<string, number | undefined>;
 
+/** What a song has almost none of, in a sentence. */
+const PART_STUFF: Record<Part, string> = { vocals: 'vocals', lead: 'lead instrument', bass: 'bass', drums: 'drums' };
+const list = (words: string[]) => (words.length <= 1 ? words.join('') : `${words.slice(0, -1).join(', ')} or ${words[words.length - 1]}`);
+
 /** Ready up: the set in order, the part and difficulty to play it on, and the button that starts it. */
-export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, onBack }: Props) {
+export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onStart, onBack }: Props) {
   const hints = useHints(settings);
   const [counts, setCounts] = useState<Counts>({});
+  // The parts this set can be played on, and the one it is on: the chosen one, unless the set
+  // hardly has it (the choice itself is kept for the next set).
+  const open = setParts(songs.map((s) => s.id), thin);
+  const part = partFor(pick, open);
+  const closed = PARTS.filter((p) => !open.includes(p));
+  const sitsOut = (s: SongMeta) => !!thin[s.id]?.includes(part);
 
   // Notes each song has on the chosen part and difficulty.
   useEffect(() => {
@@ -41,7 +53,7 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
     setCounts({});
     void (async () => {
       for (const s of songs) {
-        const chart = s.id === DEMO_ID ? demoChart(pick.difficulty) : await analysisManager.chart(s.id, pick.part, pick.difficulty).catch(() => undefined);
+        const chart = s.id === DEMO_ID ? demoChart(pick.difficulty) : await analysisManager.chart(s.id, part, pick.difficulty).catch(() => undefined);
         if (cancelled) return;
         setCounts((c) => ({ ...c, [s.id]: chart?.notes.length ?? 0 }));
       }
@@ -49,7 +61,7 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
     return () => {
       cancelled = true;
     };
-  }, [songs, pick.part, pick.difficulty]);
+  }, [songs, part, pick.difficulty]);
 
   // Shoulder buttons (Q and E) step through the difficulties.
   useEffect(() => {
@@ -65,11 +77,12 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
     return () => window.removeEventListener(TAB_EVENT, onTab);
   }, [pick, onPick]);
 
-  // The top face button (Triangle, Y, X on a Switch pad) steps to the next part, round and round.
+  // The top face button (Triangle, Y, X on a Switch pad) steps to the next part the set has, round and round.
   const nextPart = () => {
+    if (open.length < 2) return;
     playSfx('tab');
     menuPulse('tab-right');
-    onPick({ ...pick, part: PARTS[(PARTS.indexOf(pick.part) + 1) % PARTS.length] });
+    onPick({ ...pick, part: open[(open.indexOf(part) + 1) % open.length] });
   };
 
   // The left face button (Square, X, Y on a Switch pad) does the same for the difficulty.
@@ -81,19 +94,19 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
 
   useActions([
     { id: 'back', label: 'Back', icon: ArrowLeft, kbd: 'Escape', sfx: 'back', run: onBack },
-    { id: 'part-next', label: 'Next part', icon: PART_ICON[pick.part], pad: 'b3', bar: false, run: nextPart },
+    { id: 'part-next', label: 'Next part', icon: PART_ICON[part], pad: 'b3', bar: false, run: nextPart },
     { id: 'difficulty-next', label: 'Next difficulty', icon: Gauge, pad: 'b2', bar: false, run: nextDifficulty },
-    ...PARTS.map((p, i) => ({ id: `part-${p}`, label: PART_LABEL[p], icon: PART_ICON[p], kbd: `Digit${i + 1}`, bar: false, run: () => onPick({ ...pick, part: p }) })),
+    ...PARTS.map((p, i) => ({ id: `part-${p}`, label: PART_LABEL[p], icon: PART_ICON[p], kbd: `Digit${i + 1}`, bar: false, run: () => open.includes(p) && onPick({ ...pick, part: p }) })),
   ]);
 
   const pad = hints.mode === 'pad';
-  const partRow = useSlide<HTMLDivElement>(pick.part);
+  const partRow = useSlide<HTMLDivElement>(part);
   const diffRow = useSlide<HTMLDivElement>(pick.difficulty);
   const lanes = lanesFor(pick.difficulty);
   const known = songs.every((s) => counts[s.id] !== undefined);
-  const playable = songs.filter((s) => (counts[s.id] ?? 0) > 0).length;
+  const playable = songs.filter((s) => (counts[s.id] ?? 0) > 0 && !sitsOut(s)).length;
   const total = formatTime(songs.reduce((t, s) => t + s.duration, 0));
-  const best = (s: SongMeta) => scores.find((b) => b.songId === s.id && b.part === pick.part && b.difficulty === pick.difficulty);
+  const best = (s: SongMeta) => scores.find((b) => b.songId === s.id && b.part === part && b.difficulty === pick.difficulty);
 
   return (
     <div className="page lobby">
@@ -109,8 +122,9 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
           {songs.map((s, i) => {
             const n = counts[s.id];
             const b = best(s);
+            const out = sitsOut(s);
             return (
-              <li key={s.id} className={`set-card ${n === 0 ? 'skipped' : ''}`} style={{ ['--i' as string]: i }}>
+              <li key={s.id} className={`set-card ${n === 0 || out ? 'skipped' : ''}`} style={{ ['--i' as string]: i }}>
                 <span className="slot-num" aria-hidden>{i + 1}</span>
                 <Cover blob={s.cover} title={s.title} />
                 <span className="song-text">
@@ -120,12 +134,17 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
                     {s.duration > 0 && ` · ${formatTime(s.duration)}`}
                   </span>
                   <span className="set-notes">
-                    {n === undefined ? (
+                    {out ? (
+                      <span className="warn">
+                        <TriangleAlert strokeWidth={ICON_STROKE} aria-hidden />
+                        Almost no {PART_STUFF[part]} in this song. It will be skipped.
+                      </span>
+                    ) : n === undefined ? (
                       'Counting notes…'
                     ) : n === 0 ? (
                       <span className="warn">
                         <TriangleAlert strokeWidth={ICON_STROKE} aria-hidden />
-                        No {PART_LABEL[pick.part].toLowerCase()} notes found. This song will be skipped.
+                        No {PART_LABEL[part].toLowerCase()} notes found. This song will be skipped.
                       </span>
                     ) : (
                       `${n.toLocaleString()} notes`
@@ -162,17 +181,24 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
               <span className="sel" aria-hidden />
               {PARTS.map((p, i) => {
                 const Icon = PART_ICON[p];
-                const on = pick.part === p;
+                const on = part === p;
+                const off = !open.includes(p);
+                const why = `${songs.length === 1 ? 'This song has' : 'These songs have'} almost no ${PART_STUFF[p]}`;
                 return (
-                  <button key={p} type="button" className={`choice part ${on ? 'on' : ''}`} data-on={on} data-action={`part-${p}`} role="radio" aria-checked={on} onClick={() => onPick({ ...pick, part: p })}>
+                  <button key={p} type="button" className={`choice part ${on ? 'on' : ''}`} data-on={on} data-action={`part-${p}`} role="radio" aria-checked={on} disabled={off} title={off ? why : undefined} aria-label={off ? `${PART_LABEL[p]}: not available. ${why}.` : undefined} onClick={() => onPick({ ...pick, part: p })}>
                     <Icon strokeWidth={ICON_STROKE} aria-hidden />
                     <span>{PART_LABEL[p]}</span>
-                    <Hint kbd={`Digit${i + 1}`} mode={pad ? 'touch' : hints.mode} style={hints.style} />
+                    {!off && <Hint kbd={`Digit${i + 1}`} mode={pad ? 'touch' : hints.mode} style={hints.style} />}
                   </button>
                 );
               })}
             </div>
           </div>
+          {closed.length > 0 && (
+            <p className="part-note">
+              {songs.length === 1 ? 'This song has' : 'These songs have'} almost no {list(closed.map((p) => PART_STUFF[p]))}, so {closed.length === 1 ? 'that part is' : 'those parts are'} off. A chart you write for {closed.length === 1 ? 'it' : 'one'} in the editor turns it on.
+            </p>
+          )}
 
           <h2 className="label" id="diff-label">
             Difficulty
@@ -209,7 +235,7 @@ export function LobbyScreen({ songs, pick, scores, settings, onPick, onStart, on
           </p>
 
           <HoldButton
-            label={(PART_LABEL[pick.part] as Part | string) + ' · ' + DIFFICULTY_LABEL[pick.difficulty]}
+            label={(PART_LABEL[part] as Part | string) + ' · ' + DIFFICULTY_LABEL[pick.difficulty]}
             hint={!known ? 'Getting the charts ready…' : playable === 0 ? 'No notes on this part. Pick another one.' : hints.mode === 'keyboard' ? 'Hold Enter to start' : 'Hold to start'}
             disabled={!known || playable === 0}
             glyph={pad ? <PadGlyph input={confirmInput(hints.style)} style={hints.style} /> : undefined}

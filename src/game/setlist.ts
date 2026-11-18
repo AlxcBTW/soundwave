@@ -11,6 +11,23 @@ export interface Pick {
   difficulty: Difficulty;
 }
 
+/** Per song, the parts it hardly has (see chart/presence): they are not offered for playing. */
+export type ThinParts = Record<string, readonly Part[] | undefined>;
+
+/**
+ * The parts a set can be played on: every part that at least one of its songs really has. A set
+ * never ends up without one: if no part is left, all are open.
+ */
+export function setParts(ids: readonly string[], thin: ThinParts): Part[] {
+  const open = PARTS.filter((p) => ids.some((id) => !thin[id]?.includes(p)));
+  return open.length ? open : [...PARTS];
+}
+
+/** The part a set is played on: the chosen one, or the first open one when the set does not have it. */
+export function partFor(pick: Pick, open: readonly Part[]): Part {
+  return open.includes(pick.part) ? pick.part : open[0];
+}
+
 /** Adds the song to the setlist, or takes it out when it is already in. A full setlist stays as it is. */
 export function toggleSong(list: readonly string[], id: string): string[] {
   if (list.includes(id)) return list.filter((x) => x !== id);
