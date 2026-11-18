@@ -11,6 +11,7 @@
  * legend of shortcuts, except on a screen marked `data-nav-bar` (the main menu), where its buttons
  * can be moved onto like any other, and on a screen with no controls of its own.
  */
+import { bound, mouseInput, pressed } from './bindings';
 import { isTextField, setInputMode } from './inputMode';
 import { backInput, confirmInput, pads, type GlyphStyle } from './pads';
 
@@ -262,18 +263,27 @@ export function installMenuNav(style: () => GlyphStyle): () => void {
       return true;
     }
     const s = style();
+    // The tab buttons are the player's (shoulder buttons unless they chose others).
+    const prev = bound('menus.tabPrev').pad;
+    const next = bound('menus.tabNext').pad;
     // Every other button is left to whoever listens underneath (the action bar's own shortcuts).
-    if (e.input !== confirmInput(s) && e.input !== backInput(s) && e.input !== 'b4' && e.input !== 'b5') return false;
+    if (e.input !== confirmInput(s) && e.input !== backInput(s) && e.input !== prev && e.input !== next) return false;
     if (!e.down) return true;
     if (e.input === confirmInput(s)) confirm();
     else if (e.input === backInput(s)) back();
-    else if (e.input === 'b4' || e.input === 'b5') tab(e.input === 'b4' ? -1 : 1);
+    else tab(e.input === prev ? -1 : 1);
     return true;
   });
 
   const key = (e: KeyboardEvent) => {
-    if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || !navLive()) return;
+    if (e.defaultPrevented || !navLive()) return;
     const target = e.target as HTMLElement | null;
+    // The tab keys (Q and E unless the player chose others, with Ctrl, Alt or Shift if they did).
+    if ((pressed(e, 'menus.tabPrev') || pressed(e, 'menus.tabNext')) && !e.repeat && !isTextField(target)) {
+      tab(pressed(e, 'menus.tabPrev') ? -1 : 1);
+      return;
+    }
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
     const dir = ARROWS[e.key];
     if (dir) {
       const horizontal = dir === 'left' || dir === 'right';
@@ -282,9 +292,14 @@ export function installMenuNav(style: () => GlyphStyle): () => void {
       if (horizontal && (isTextField(target) || (target instanceof HTMLInputElement && target.type === 'range'))) return;
       e.preventDefault();
       navMove(dir);
-    } else if ((e.code === 'KeyQ' || e.code === 'KeyE') && !e.repeat && !isTextField(target)) {
-      tab(e.code === 'KeyQ' ? -1 : 1);
     }
+  };
+  // A mouse button the player gave a tab switch.
+  const mouse = (e: MouseEvent) => {
+    const input = mouseInput(e.button);
+    if (!input || !navLive()) return;
+    if (input === bound('menus.tabPrev').mouse) tab(-1);
+    else if (input === bound('menus.tabNext').mouse) tab(1);
   };
   const focusin = (e: FocusEvent) => {
     const el = e.target as HTMLElement | null;
@@ -292,11 +307,13 @@ export function installMenuNav(style: () => GlyphStyle): () => void {
     if (el && group) remembered.set(group, el);
   };
   window.addEventListener('keydown', key);
+  window.addEventListener('mousedown', mouse);
   window.addEventListener('focusin', focusin);
   return () => {
     stopRepeat();
     release();
     window.removeEventListener('keydown', key);
+    window.removeEventListener('mousedown', mouse);
     window.removeEventListener('focusin', focusin);
   };
 }

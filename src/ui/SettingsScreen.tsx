@@ -53,6 +53,7 @@ function updateButton(u: UpdateStatus, upToDate: boolean): string {
   }
 }
 import { useSlide } from './useSlide';
+import { keysOf } from '../input/bindings';
 
 interface Props {
   settings: Settings;
@@ -327,7 +328,7 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
 
   useActions([
     { id: 'back', label: 'Back', icon: ArrowLeft, kbd: 'Escape', sfx: 'back', run: onBack },
-    { id: 'reset', label: 'Restore defaults', icon: RotateCcw, kbd: 'KeyR', pad: 'b3', run: () => setAskReset(true) },
+    { id: 'reset', label: 'Restore defaults', icon: RotateCcw, ...keysOf('settings.reset'), run: () => setAskReset(true) },
   ]);
 
   const sections = buildSections(tab, {
@@ -362,7 +363,7 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
           {tabName}
         </p>
         <div className="tabs">
-          <Hint kbd="KeyQ" pad="b4" {...hints} />
+          <Hint {...keysOf('menus.tabPrev')} {...hints} />
           <div className="tab-row slide" role="tablist" aria-label="Settings sections" ref={tabRow} data-nav-group="tabs">
             <span className="sel" aria-hidden />
             {TABS.map(([id, label, Icon]) => (
@@ -384,7 +385,7 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
               </button>
             ))}
           </div>
-          <Hint kbd="KeyE" pad="b5" {...hints} />
+          <Hint {...keysOf('menus.tabNext')} {...hints} />
         </div>
       </header>
 

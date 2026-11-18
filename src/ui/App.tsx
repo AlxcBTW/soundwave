@@ -32,6 +32,7 @@ import { getInputMode, installInputMode, setInputMode, usesFocus } from '../inpu
 import { EDIT_EVENT, focusStart, installMenuNav } from '../input/menuNav';
 import { followOutputDevice, muteWhileUnfocused } from '../audio/output';
 import { pads, resolveStyle } from '../input/pads';
+import { setBindings } from '../input/bindings';
 import { menuPulse, setMenuRumble } from '../input/rumble';
 import {
   deleteSong,
@@ -117,6 +118,8 @@ export function App() {
   const onStage = useCallback(() => setStageReady(true), []);
   const [importing, setImporting] = useState(0);
   const [settings, setSettings] = useState<Settings>(loadSettings);
+  // The player's shortcuts, for every screen drawn from here (they read them as they draw).
+  setBindings(settings.bindings);
   const [setlist, setSetlistState] = useState<string[]>(loadSetlist);
   const [pick, setPickState] = useState<Pick>(loadPick);
   const [seed, setSeed] = useState(() => Date.now());

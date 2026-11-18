@@ -1,3 +1,4 @@
+import { bound, pressed } from '../input/bindings';
 import { pads, PAUSE_INPUT, type PadInput } from '../input/pads';
 
 export interface InputHandlers {
@@ -23,7 +24,8 @@ export class KeyboardInput {
   }
 
   private readonly down = (e: KeyboardEvent) => {
-    if (e.code === 'Escape') {
+    // Esc always pauses; so does the player's pause key, unless it is one of their lanes.
+    if (e.code === 'Escape' || (!this.map.has(e.code) && e.code !== this.overdriveKey && pressed(e, 'song.pause') && !e.repeat)) {
       e.preventDefault();
       this.h.pause();
       return;
@@ -75,7 +77,10 @@ export class GamepadInput {
   ) {
     bindings.forEach((b, i) => this.map.set(b, i));
     this.release = pads.capture((e) => {
-      if (e.input === PAUSE_INPUT) {
+      // The player's pause button, unless it is also one of their lanes or overdrive (then the menu button).
+      const mine = bound('song.pause').pad;
+      const pause = mine && !this.map.has(mine) && mine !== this.overdriveInput ? mine : PAUSE_INPUT;
+      if (e.input === pause) {
         if (e.down) this.h.pause();
         return true;
       }

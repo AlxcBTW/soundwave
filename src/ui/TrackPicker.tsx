@@ -15,6 +15,7 @@ import { Dialog } from './Dialog';
 import { DIFFICULTY_LABEL, ICON_STROKE, PART_ICON, PART_LABEL } from './icons';
 import { analysisLabel, type SongStatus } from './LibraryScreen';
 import { usePreviewRows } from './usePreviewRows';
+import { keysOf } from '../input/bindings';
 
 /** An audio file that was picked and read, but is not in the library yet. */
 export interface PickedSong {
@@ -179,7 +180,11 @@ export function TrackPicker({
                     <X strokeWidth={ICON_STROKE} aria-hidden />
                   </button>
                 ) : (
-                  <Hint kbd="Slash" mode={hints.mode === 'keyboard' || hints.mode === 'mouse' ? hints.mode : 'touch'} style={hints.style} />
+                  <Hint
+                    kbd={keysOf('home.search').kbd}
+                    mode={hints.mode === 'keyboard' || hints.mode === 'mouse' ? hints.mode : 'touch'}
+                    style={hints.style}
+                  />
                 )}
               </label>
             </div>

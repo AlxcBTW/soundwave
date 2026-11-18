@@ -7,6 +7,7 @@
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import type { Settings } from '../game/settings';
+import { bound, chordOf, mouseInput, type MouseInput } from '../input/bindings';
 import { PadGlyph } from '../input/glyphs';
 import { isTextField, useInputMode, type InputMode } from '../input/inputMode';
 import { backInput, confirmInput, pads, type GlyphStyle, type PadInput } from '../input/pads';
@@ -17,10 +18,12 @@ export interface Action {
   id: string;
   label: string;
   icon: LucideIcon;
-  /** `KeyboardEvent.code` of its key (Escape for back). */
+  /** Its key: a `KeyboardEvent.code`, after any Ctrl+, Alt+, Shift+ it needs (Escape for back). */
   kbd?: string;
   /** Controller button by position (see input/pads). Back needs none: it follows Escape. */
   pad?: PadInput;
+  /** Mouse button (middle, back, forward). Back needs none: it follows the player's back binding. */
+  mouse?: MouseInput;
   /** False for an action whose button lives on the screen itself (marked `data-action`) instead of in the bar. */
   bar?: boolean;
   /** The screen's one forward step. */
@@ -92,9 +95,28 @@ const KEY_NAMES: Record<string, string> = {
   Tab: 'Tab',
 };
 
-/** A key as printed on its cap. */
-export const keyName = (code: string) =>
-  KEY_NAMES[code] ?? (code.startsWith('Key') ? code.slice(3) : code.startsWith('Digit') ? code.slice(5) : code);
+const oneKey = (code: string) =>
+  KEY_NAMES[code] ??
+  (code.startsWith('Key')
+    ? code.slice(3)
+    : code.startsWith('Digit')
+      ? code.slice(5)
+      : code.startsWith('Numpad')
+        ? `Num ${code.slice(6).replace('Add', '+').replace('Subtract', '−')}`
+        : code.startsWith('Arrow')
+          ? { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }[code]!
+          : code === 'Equal'
+            ? '='
+            : code === 'Minus'
+              ? '−'
+              : code.replace(/^Page/, 'Pg'));
+
+/** A key (or a key with Ctrl, Alt, Shift) as printed on its cap. */
+export const keyName = (chord: string) => {
+  const parts = chord.split('+');
+  const mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+  return parts.map((p, i) => (i < parts.length - 1 ? (p === 'Ctrl' && mac ? '⌘' : p) : oneKey(p))).join(' ');
+};
 
 /** The hint for a control in the input in use: a keycap, a controller glyph, or nothing on touch. */
 export function Hint({ kbd, pad, mode, style }: { kbd?: string; pad?: PadInput; mode: InputMode; style: GlyphStyle }) {
@@ -126,12 +148,25 @@ export function ActionBar({ settings }: { settings: Settings }) {
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.defaultPrevented || e.repeat) return;
       // Typing never triggers a letter shortcut; Escape still leaves the field's screen.
       if (isTextField(e.target) && e.code !== 'Escape') return;
       // Enter on a focused control presses that control, not the bar's Enter action.
       if (e.code === 'Enter' && e.target instanceof HTMLElement && e.target.closest('button, a, input, [role="slider"]')) return;
-      const a = top().find((x) => x.kbd === e.code);
+      // The key with whatever is held: a plain shortcut does not answer to Ctrl, Alt or Shift with it.
+      const chord = chordOf(e);
+      const a = top().find((x) => x.kbd === chord);
+      if (a && trigger(a)) e.preventDefault();
+    };
+    // The mouse's middle, back and forward buttons. Back and forward never take a browser tab back a
+    // page here: the game is one page.
+    const mouse = (e: MouseEvent) => {
+      const input = mouseInput(e.button);
+      if (!input) return;
+      if (input !== 'm1') e.preventDefault();
+      if (e.type !== 'mousedown') return;
+      const back = bound('menus.back').mouse === input;
+      const a = top().find((x) => x.mouse === input || (back && x.kbd === 'Escape'));
       if (a && trigger(a)) e.preventDefault();
     };
     const release = pads.capture((e) => {
@@ -140,9 +175,13 @@ export function ActionBar({ settings }: { settings: Settings }) {
       return a ? (trigger(a), true) : false;
     });
     window.addEventListener('keydown', key);
+    window.addEventListener('mousedown', mouse);
+    window.addEventListener('mouseup', mouse);
     return () => {
       release();
       window.removeEventListener('keydown', key);
+      window.removeEventListener('mousedown', mouse);
+      window.removeEventListener('mouseup', mouse);
     };
   }, []);
 

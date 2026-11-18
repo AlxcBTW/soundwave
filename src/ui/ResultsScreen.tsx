@@ -8,6 +8,7 @@ import { useActions } from './actions';
 import { Cover } from './Cover';
 import { shownStars, isGold } from '../game/scoring';
 import { Stars } from './icons';
+import { keysOf } from '../input/bindings';
 
 /** One song of a set once it has been played (or skipped). */
 export interface SetResult {
@@ -83,7 +84,7 @@ export function ResultsScreen({ song, subtitle, results: r, best, position, tota
   const last = !next;
   useActions([
     ...(last ? [] : [{ id: 'end', label: 'End the set', icon: Flag, kbd: 'Escape', sfx: 'back', run: onEnd }]),
-    { id: 'retry', label: 'Play again', icon: Repeat, kbd: 'KeyR', pad: 'b3', sfx: 'launch', run: onRetry },
+    { id: 'retry', label: 'Play again', icon: Repeat, ...keysOf('results.retry'), sfx: 'launch', run: onRetry },
     {
       id: 'next',
       label: last ? (total > 1 ? 'Set summary' : 'Done') : 'Next song',
@@ -199,7 +200,7 @@ export function SummaryScreen({ set, subtitle, onAgain, onDone }: SummaryProps) 
   }, [stars, played.length]);
 
   useActions([
-    { id: 'again', label: 'Play the set again', icon: Repeat, kbd: 'KeyR', pad: 'b3', sfx: 'launch', run: onAgain },
+    { id: 'again', label: 'Play the set again', icon: Repeat, ...keysOf('results.retry'), sfx: 'launch', run: onAgain },
     { id: 'done', label: 'Done', icon: Home, kbd: 'Enter', primary: true, run: onDone },
   ]);
 

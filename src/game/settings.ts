@@ -1,3 +1,4 @@
+import { normalizeBindings, type BindingOverrides } from '../input/bindings';
 import type { GlyphStyle, PadInput } from '../input/pads';
 import { DEFAULT_GRAPHICS, normalizeGraphics, type GraphicsSettings } from './graphics';
 
@@ -35,6 +36,8 @@ export interface Settings {
   rumbleOverdrive: boolean;
   /** A PS5 controller's own haptics (desktop app, by cable) instead of its plain rumble. */
   ps5Haptics: boolean;
+  /** The player's own keys, buttons and mouse buttons for the game's shortcuts (see input/bindings). */
+  bindings: BindingOverrides;
   /** The 3D stage behind the highway. */
   graphics: GraphicsSettings;
   /** How the desktop app's window fills the screen. */
@@ -92,6 +95,7 @@ export const DEFAULT_SETTINGS: Settings = {
   rumbleSustains: true,
   rumbleOverdrive: true,
   ps5Haptics: true,
+  bindings: {},
   graphics: DEFAULT_GRAPHICS,
   displayMode: 'borderless',
   uiScale: 1,
@@ -130,6 +134,7 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
   if (!['system', 'reduced', 'full'].includes(s.motion)) s.motion = 'system';
   s.touchHaptics = Boolean(s.touchHaptics);
   s.ps5Haptics = Boolean(s.ps5Haptics);
+  s.bindings = normalizeBindings(s.bindings);
   s.muteUnfocused = Boolean(s.muteUnfocused);
   s.songPreviews = Boolean(s.songPreviews);
   s.checkUpdates = Boolean(s.checkUpdates);

@@ -11,6 +11,7 @@ import { Cover } from './Cover';
 import { DIFFICULTY_LABEL, ICON_STROKE, PART_ICON, PART_LABEL, Stars } from './icons';
 import { SongMenu, type SongActions } from './SongMenu';
 import { usePreviewRows } from './usePreviewRows';
+import { keysOf } from '../input/bindings';
 
 export type SongStatus = AnalysisStatus;
 
@@ -223,7 +224,7 @@ export function LibraryScreen({
       id: 'details',
       label: 'Song details',
       icon: Info,
-      kbd: 'KeyD',
+      ...keysOf('library.details'),
       bar: false,
       disabled: !current,
       run: () => current && onDetails(current),
@@ -232,8 +233,7 @@ export function LibraryScreen({
       id: 'options',
       label: selecting ? `Options for ${selected.size}` : 'Options',
       icon: Ellipsis,
-      kbd: 'KeyO',
-      pad: 'b2',
+      ...keysOf('library.options'),
       disabled: !current && !selecting,
       run: () => openMenu(),
     },
@@ -241,15 +241,14 @@ export function LibraryScreen({
       id: 'select',
       label: isSelected ? 'Deselect' : 'Select',
       icon: CheckSquare,
-      kbd: 'KeyX',
-      pad: 'b3',
+      ...keysOf('library.select'),
       disabled: !current,
       run: () => current && pick(current.id),
     },
-    { id: 'search', label: 'Search', icon: Search, kbd: 'Slash', bar: false, run: () => search.current?.focus() },
-    { id: 'sort', label: 'Sort', icon: ArrowUpDown, kbd: 'KeyS', pad: 'b7', bar: false, run: cycleSort },
-    { id: 'add', label: 'Add songs', icon: Upload, kbd: 'KeyA', pad: 'b8', bar: false, run: onAdd },
-    { id: 'ready', label: 'Ready up', icon: Play, kbd: 'KeyR', pad: 'b9', primary: true, disabled: picked.length === 0, run: onReady },
+    { id: 'search', label: 'Search', icon: Search, ...keysOf('library.search'), bar: false, run: () => search.current?.focus() },
+    { id: 'sort', label: 'Sort', icon: ArrowUpDown, ...keysOf('library.sort'), bar: false, run: cycleSort },
+    { id: 'add', label: 'Add songs', icon: Upload, ...keysOf('library.add'), bar: false, run: onAdd },
+    { id: 'ready', label: 'Ready up', icon: Play, ...keysOf('library.ready'), primary: true, disabled: picked.length === 0, run: onReady },
   ]);
 
   const sortLabel = SORTS.find(([id]) => id === sort)![1];
@@ -286,11 +285,15 @@ export function LibraryScreen({
               <X strokeWidth={ICON_STROKE} aria-hidden />
             </button>
           ) : (
-            <Hint kbd="Slash" mode={hints.mode === 'keyboard' || hints.mode === 'mouse' ? hints.mode : 'touch'} style={hints.style} />
+            <Hint
+              kbd={keysOf('library.search').kbd}
+              mode={hints.mode === 'keyboard' || hints.mode === 'mouse' ? hints.mode : 'touch'}
+              style={hints.style}
+            />
           )}
         </label>
         <button type="button" className="btn" data-action="sort" onClick={cycleSort} aria-label={`Sort by ${sortLabel}. Press to change.`}>
-          <Hint kbd="KeyS" pad="b7" {...hints} />
+          <Hint {...keysOf('library.sort')} {...hints} />
           <ArrowUpDown strokeWidth={ICON_STROKE} aria-hidden />
           <span className="btn-label">{sortLabel}</span>
         </button>
@@ -301,7 +304,7 @@ export function LibraryScreen({
           aria-label={importing ? `Importing ${importing} songs` : 'Add songs'}
           onClick={onAdd}
         >
-          <Hint kbd="KeyA" pad="b8" {...hints} />
+          <Hint {...keysOf('library.add')} {...hints} />
           <Upload strokeWidth={ICON_STROKE} aria-hidden />
           <span className="btn-label">{importing ? `Importing ${importing}…` : 'Add songs'}</span>
         </button>

@@ -28,6 +28,7 @@ import { Mosaic } from './Cover';
 import { ICON_STROKE } from './icons';
 import { TrackPicker, type TrackPickerProps } from './TrackPicker';
 import { useSlide } from './useSlide';
+import { keysOf } from '../input/bindings';
 
 interface Props {
   songs: SongMeta[];
@@ -144,21 +145,25 @@ export function HomeScreen({
 
   useActions([
     ...(tab === 'play'
-      ? [{ id: 'add', label: importing ? `Importing ${importing}…` : 'Add songs', icon: Upload, kbd: 'KeyA', pad: 'b3', run: onAdd }]
+      ? [{ id: 'add', label: importing ? `Importing ${importing}…` : 'Add songs', icon: Upload, ...keysOf('home.add'), run: onAdd }]
       : [
           {
             id: 'search',
             label: 'Search',
             icon: Search,
-            kbd: 'Slash',
+            ...keysOf('home.search'),
             bar: false,
             run: () => document.querySelector<HTMLInputElement>('.track-picker input[type=search]')?.focus(),
           },
-          { id: 'new', label: 'New track', icon: FilePlus2, kbd: 'KeyN', pad: 'b3', primary: true, run: () => setPicks((n) => n + 1) },
+          { id: 'new', label: 'New track', icon: FilePlus2, ...keysOf('home.new'), primary: true, run: () => setPicks((n) => n + 1) },
         ]),
-    { id: 'settings', label: 'Settings', icon: SettingsIcon, kbd: 'KeyS', pad: 'b9', run: onSettings },
-    ...(update ? [{ id: 'update', label: `Update to ${update}`, icon: Download, kbd: 'KeyU', bar: false, run: onUpdate }] : []),
-    ...(onInstallApp ? [{ id: 'install-app', label: 'Get the app', icon: MonitorDown, kbd: 'KeyI', bar: false, run: onInstallApp }] : []),
+    { id: 'settings', label: 'Settings', icon: SettingsIcon, ...keysOf('home.settings'), run: onSettings },
+    ...(update
+      ? [{ id: 'update', label: `Update to ${update}`, icon: Download, ...keysOf('home.update'), bar: false, run: onUpdate }]
+      : []),
+    ...(onInstallApp
+      ? [{ id: 'install-app', label: 'Get the app', icon: MonitorDown, ...keysOf('home.install'), bar: false, run: onInstallApp }]
+      : []),
     // Esc and the controller's back button: there is nowhere further back than out.
     ...(onExit ? [{ id: 'exit', label: 'Exit', icon: Power, kbd: 'Escape', bar: false, run: onExit }] : []),
   ]);
@@ -170,7 +175,7 @@ export function HomeScreen({
       <header className="page-head home-head">
         <h1 className="wordmark">Soundwave</h1>
         <div className="tabs home-tabs">
-          <Hint kbd="KeyQ" pad="b4" mode={mode} style={style} />
+          <Hint {...keysOf('menus.tabPrev')} mode={mode} style={style} />
           <div className="tab-row slide" role="tablist" aria-label="Main menu" ref={tabRow} data-nav-group="home-tabs">
             <span className="sel" aria-hidden />
             {TABS.map(([id, label, Icon]) => (
@@ -190,18 +195,18 @@ export function HomeScreen({
               </button>
             ))}
           </div>
-          <Hint kbd="KeyE" pad="b5" mode={mode} style={style} />
+          <Hint {...keysOf('menus.tabNext')} mode={mode} style={style} />
         </div>
         {update && (
           <button type="button" className="btn head-btn update-btn" data-action="update" onClick={onUpdate}>
-            <Hint kbd="KeyU" mode={mode} style={style} />
+            <Hint kbd={keysOf('home.update').kbd} mode={mode} style={style} />
             <Download strokeWidth={ICON_STROKE} aria-hidden />
             Update to {update}
           </button>
         )}
         {onInstallApp && (
           <button type="button" className="btn head-btn install-btn" data-action="install-app" onClick={onInstallApp}>
-            <Hint kbd="KeyI" mode={mode} style={style} />
+            <Hint kbd={keysOf('home.install').kbd} mode={mode} style={style} />
             <MonitorDown strokeWidth={ICON_STROKE} aria-hidden />
             Get the app
           </button>

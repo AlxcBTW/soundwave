@@ -15,6 +15,7 @@ import { Cover } from './Cover';
 import { HoldButton } from './HoldButton';
 import { DIFFICULTY_LABEL, ICON_STROKE, PART_ICON, PART_LABEL, Pips, Stars } from './icons';
 import { useSlide } from './useSlide';
+import { keysOf } from '../input/bindings';
 
 interface Props {
   songs: SongMeta[];
@@ -95,13 +96,13 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
 
   useActions([
     { id: 'back', label: 'Back', icon: ArrowLeft, kbd: 'Escape', sfx: 'back', run: onBack },
-    { id: 'part-next', label: 'Next part', icon: PART_ICON[part], pad: 'b3', bar: false, run: nextPart },
-    { id: 'difficulty-next', label: 'Next difficulty', icon: Gauge, pad: 'b2', bar: false, run: nextDifficulty },
+    { id: 'part-next', label: 'Next part', icon: PART_ICON[part], ...keysOf('lobby.part'), bar: false, run: nextPart },
+    { id: 'difficulty-next', label: 'Next difficulty', icon: Gauge, ...keysOf('lobby.difficulty'), bar: false, run: nextDifficulty },
     ...PARTS.map((p, i) => ({
       id: `part-${p}`,
       label: PART_LABEL[p],
       icon: PART_ICON[p],
-      kbd: `Digit${i + 1}`,
+      ...keysOf(`lobby.part${i + 1}`),
       bar: false,
       run: () => open.includes(p) && onPick({ ...pick, part: p }),
     })),
@@ -184,7 +185,7 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
           <div className="pick-line">
             {pad && (
               <span className="pick-hint" aria-hidden>
-                <PadGlyph input="b3" style={hints.style} />
+                <PadGlyph input={keysOf('lobby.part').pad ?? 'b3'} style={hints.style} />
               </span>
             )}
             <div className="part-row slide" ref={partRow} role="radiogroup" aria-labelledby="part-label">
@@ -210,7 +211,7 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
                   >
                     <Icon strokeWidth={ICON_STROKE} aria-hidden />
                     <span>{PART_LABEL[p]}</span>
-                    {!off && <Hint kbd={`Digit${i + 1}`} mode={pad ? 'touch' : hints.mode} style={hints.style} />}
+                    {!off && <Hint kbd={keysOf(`lobby.part${i + 1}`).kbd} mode={pad ? 'touch' : hints.mode} style={hints.style} />}
                   </button>
                 );
               })}
@@ -228,15 +229,15 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
             Difficulty
             {!pad && (
               <span className="label-hints" aria-hidden>
-                <Hint kbd="KeyQ" {...hints} />
-                <Hint kbd="KeyE" {...hints} />
+                <Hint kbd={keysOf('menus.tabPrev').kbd} {...hints} />
+                <Hint kbd={keysOf('menus.tabNext').kbd} {...hints} />
               </span>
             )}
           </h2>
           <div className="pick-line">
             {pad && (
               <span className="pick-hint" aria-hidden>
-                <PadGlyph input="b2" style={hints.style} />
+                <PadGlyph input={keysOf('lobby.difficulty').pad ?? 'b2'} style={hints.style} />
               </span>
             )}
             <div className="diff-row slide" ref={diffRow} role="radiogroup" aria-labelledby="diff-label">
