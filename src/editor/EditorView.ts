@@ -121,12 +121,13 @@ export class EditorView {
     this.g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const u = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     const narrow = w < u * 30;
+    const wide = w > u * 46;
     const labelW = u * (narrow ? 1.7 : 2.2);
-    const waveW = u * (narrow ? 2 : 3.2);
-    const guideW = guide ? u * (narrow ? 1.9 : 3.2) : 0;
+    const waveW = u * (narrow ? 2 : wide ? 4.4 : 3.2);
+    const guideW = guide ? u * (narrow ? 1.9 : wide ? 4.4 : 3.2) : 0;
     const gap = u * 0.45;
     const room = w - labelW - waveW - guideW - gap * (guide ? 2 : 1) - 4;
-    const laneW = Math.max(u * 1.6, Math.min(u * 5.2, room / lanes));
+    const laneW = Math.max(u * 1.6, Math.min(u * 6.6, room / lanes));
     const deckW = laneW * lanes;
     const total = labelW + waveW + gap + deckW + (guide ? gap + guideW : 0);
     const x0 = Math.max(2, (w - total) / 2);
@@ -228,6 +229,18 @@ export class EditorView {
     for (let l = 0; l < this.lanes; l++) {
       g.fillStyle = l % 2 ? 'rgb(44 28 136 / 0.94)' : 'rgb(37 23 118 / 0.94)';
       g.fillRect(L.deckX + l * L.laneW, 0, L.laneW, L.h);
+    }
+    // Violet glass: a little lighter toward both rails, darkest down the middle.
+    const glass = g.createLinearGradient(L.deckX, 0, L.deckX + L.deckW, 0);
+    glass.addColorStop(0, 'rgb(150 128 255 / 0.16)');
+    glass.addColorStop(0.5, 'rgb(8 5 26 / 0.14)');
+    glass.addColorStop(1, 'rgb(150 128 255 / 0.16)');
+    g.fillStyle = glass;
+    g.fillRect(L.deckX, 0, L.deckW, L.h);
+    // The lane the cursor is in is a touch lighter all the way up, so it reads from across a room.
+    if (s.lane !== null && !s.recording) {
+      g.fillStyle = 'rgb(239 234 255 / 0.07)';
+      g.fillRect(L.deckX + s.lane * L.laneW, 0, L.laneW, L.h);
     }
     // Outside the song there is nothing to chart.
     g.fillStyle = 'rgb(8 5 26 / 0.62)';
@@ -482,7 +495,7 @@ export class EditorView {
     const { g } = this;
     const L = this.lay;
     const r = L.u * 0.45;
-    g.fillStyle = 'rgb(12 7 40 / 0.62)';
+    g.fillStyle = 'rgb(46 30 132 / 0.42)';
     g.beginPath();
     g.roundRect(L.waveX, 0, L.waveW, L.h, r);
     g.fill();
@@ -523,14 +536,15 @@ export class EditorView {
       const bottom = this.posAt(L.h, s);
       const inner = L.guideW - L.u * 0.7;
       const x0 = L.guideX + L.u * 0.35;
-      const bar = Math.max(3, L.u * 0.28);
+      const bar = Math.max(4, L.u * 0.36);
       for (const m of s.guide) {
         if (m.pos + m.len < bottom || m.pos > top) continue;
         const yy = this.y(m.pos, s);
-        const hgt = Math.max(3, m.len * s.pxPerBeat);
-        g.fillStyle = `rgb(210 201 250 / ${(0.3 + 0.6 * m.strength).toFixed(2)})`;
+        // A mark is at least a dot, so a drum hit shows as clearly as a held note.
+        const hgt = Math.max(bar, m.len * s.pxPerBeat);
+        g.fillStyle = `rgb(226 219 255 / ${(0.45 + 0.5 * m.strength).toFixed(2)})`;
         g.beginPath();
-        g.roundRect(x0 + m.x * (inner - bar), yy - hgt, bar, hgt, 1.5);
+        g.roundRect(x0 + m.x * (inner - bar), yy - hgt + bar / 2, bar, hgt, bar / 2);
         g.fill();
       }
     }

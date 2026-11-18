@@ -13,6 +13,8 @@ You play them on a 3D note highway with the keyboard, a controller or a touchscr
 
 You pick up to four songs as a setlist, choose a part and a difficulty for the set and play the songs back to back, with a result after each and a total at the end. The home screen also deals a few sets from your library (a shuffle, your newest songs, songs without a score).
 
+Every chart can be changed, or written from nothing, in the **track editor**: with a keyboard, a mouse, a touchscreen or a controller. See [Track editor](#track-editor).
+
 It runs in the browser and as a desktop app (Tauri). Phones and tablets can play, but cannot analyze songs (see How analysis works). The desktop window has no title bar: Exit is at the top right of the home screen (or Esc, or the controller's back button, there), and in Window mode the window is moved by its top edge.
 
 ## Quick start (browser)
@@ -33,6 +35,37 @@ Text fields (the library search) open an on-screen keyboard when they are presse
 Under Settings → Audio the game can play through a chosen output device instead of the system's default, and it is muted while its window is in the background unless that is switched off. Browsers list output devices by name only after microphone access has been allowed; the game asks when you press Show devices, closes the microphone again at once and records nothing. Browsers that cannot choose an output (Safari, Firefox) always use the system default.
 
 Controllers (Xbox, PlayStation 4 and 5, Nintendo Switch and most others) work in the menus and in songs: the D-pad or left stick moves the focus ring, the shoulder buttons switch tabs, on the ready-up screen the top face button steps through the parts and the left face button through the difficulties, and the action bar shows the controller's own button symbols. By default the lanes are D-pad left, D-pad right and the left, top and right face buttons (four-lane difficulties skip the top one), the right trigger triggers overdrive and Start/Options/+ pauses. Every lane and overdrive can be rebound to any button, trigger or stick direction in Settings → Controller, where the button glyphs follow the connected controller or can be fixed to one style. Rumble is off, weak or strong. In the desktop app, a PS5 DualSense connected by USB automatically plays each hit on its left or right haptic motor, following the lane.
+
+## Track editor
+
+**Track editor** on the home screen (`E`, or the left face button) lists your songs. Pick one to edit its charts, or bring in a new one with **New track** and choose how it gets its first charts:
+
+- **Analyze** – the game charts the song as usual and you change what you like.
+- **Start from scratch** – no analysis. The game only listens for the tempo (a few seconds, on any device, phones included) and you get empty lanes with the bar lines in place.
+
+A song has sixteen charts: four parts at four difficulties. Each is edited on its own; a chart you never touch stays the one the game wrote. The game plays your chart in place of its own, charts save as you change them, and **Put back the game's chart** in the menu drops your version again.
+
+The editor shows the lanes from above, as they run in a song: later is higher, and one line across them is the edit position and the playhead. The chart moves past the line. Beside the lanes stand the song's waveform and, for an analyzed song, a guide to what the game heard in that part.
+
+| | Keyboard | Controller | Mouse or touch |
+|---|---|---|---|
+| Move | arrow keys; `PgUp` `PgDn` a bar; `Home` `End` | D-pad or left stick; triggers a bar; right stick runs through the song | wheel or drag; pinch or `Ctrl`+wheel to zoom |
+| Note | `Enter`, or `1` to `5` for a lane | confirm | click or tap a lane; again to take it away |
+| Long note | hold `Enter`, move up | hold confirm, move up | drag up from the note (on touch: hold, then drag) |
+| Mark a stretch | `Shift` + arrows, then `Enter` | left face button, move, then confirm | Select tool, or `Shift`+drag |
+| Grid | `Q` `E` | shoulder buttons | the arrows beside Grid |
+| Play | `Space` | top face button | the play button |
+| Undo, redo | `Ctrl`+`Z`, `Ctrl`+`Shift`+`Z` | View / Create; redo in the menu | the arrows in the toolbar |
+| Everything else | `M` | Options / Menu | Menu |
+
+A marked stretch can be copied, cut, repeated after itself (the quick way to write a bar four times), mirrored, deleted, or made an overdrive phrase; long notes in it can be made hold-and-release notes. What is copied can be pasted into another part or difficulty (a fifth lane folds onto the fourth).
+
+- **Record** (`R`) plays the song from a bar before the cursor and turns every lane press into a note on the grid, with the keys, buttons and lanes you play the game with. A press that is held becomes a long note. It can be done at half or three-quarter speed.
+- **Test play** (`T`) runs the chart in the game itself from the bar the cursor is in, and returns to the editor, undo history and all. It keeps no score.
+- **Tempo and bars** sets the grid notes snap to: following the beats heard in the song, or one tempo with a first beat and a number of beats in a bar. Tap the beat, put a bar line at the cursor, or let the game listen again. Notes stay on their beats when the grid changes.
+- **Listening**: a click on every note and a metronome, half and three-quarter speed, and any of the song's separated stems on its own.
+
+The code is in `src/editor` (the grid, the chart being edited, the canvas, the controller behind the screen) and `src/ui/Editor*.tsx`.
 
 ## Desktop app
 
@@ -109,7 +142,8 @@ Unit tests cover:
 - HPSS;
 - bass and lead pitch extraction;
 - chart invariants: lanes, gaps, chords, sustains, determinism, density by difficulty;
-- judging, scoring and overdrive.
+- judging, scoring and overdrive;
+- the track editor: beat grids and snapping, finding a tempo by listening, every edit and its undo, edited charts in storage, in song files and in play.
 
 ## The 3D stage
 
@@ -144,7 +178,7 @@ Both scripts write the same format: plain meshes whose vertices carry up to four
 
 ## Song files (`.festival`)
 
-Every song in the library is stored as a `.festival` file: one file holding the song's details, its cover, the analysis its charts are made from, and the original audio byte for byte. **Export** on a song's page saves that file, to keep or to send to a friend; dropping it on the game, or picking it with **Add songs**, adds the song with its charts ready, without analyzing it again. The song's id is the hash of its audio, so the same song arrives as the same song, with the same charts. Scores and separated stems stay on the device that made them.
+Every song in the library is stored as a `.festival` file: one file holding the song's details, its cover, the analysis its charts are made from, the charts edited by hand in the track editor, and the original audio byte for byte. **Export** on a song's page saves that file, to keep or to send to a friend; dropping it on the game, or picking it with **Add songs**, adds the song with its charts ready, without analyzing it again. The song's id is the hash of its audio, so the same song arrives as the same song, with the same charts. Scores and separated stems stay on the device that made them.
 
 The installers register the extension: double-clicking a song file opens it in the game, or hands it to the game already running. The layout of the file is described at the top of `src/storage/festivalFile.ts`; songs stored before the format existed are converted the first time the game starts.
 

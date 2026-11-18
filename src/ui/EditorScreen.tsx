@@ -223,7 +223,8 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
           // What the confirm button does here, beside Back.
           { id: CONFIRM_HINT, label: snap?.selected || snap?.ranged ? 'Selection' : 'Note', icon: Circle, bar: false, run: () => {} },
           { id: 'mark', label: snap?.marking ? 'Stop marking' : 'Mark', icon: SquareDashedMousePointer, kbd: 'KeyX', pad: 'b2', bar: mode === 'pad', disabled: !ready, sfx: 'none', run: () => ctrl?.toggleMark() },
-          { id: 'play', label: snap?.playing ? 'Pause' : 'Play', icon: snap?.playing ? Pause : Play, kbd: 'Space', pad: 'b3', disabled: !ready, sfx: 'none', run: () => ctrl?.togglePlay() },
+          // Under a finger the play button beside the lanes is the one to press.
+          { id: 'play', label: snap?.playing ? 'Pause' : 'Play', icon: snap?.playing ? Pause : Play, kbd: 'Space', pad: 'b3', bar: mode !== 'touch', disabled: !ready, sfx: 'none', run: () => ctrl?.togglePlay() },
           { id: 'record', label: 'Record', icon: Circle, kbd: 'KeyR', bar: false, disabled: !ready, sfx: 'none', run: record },
           { id: 'phrase', label: 'Overdrive phrase', icon: Zap, kbd: 'KeyO', bar: false, disabled: !ready, sfx: 'none', run: () => ctrl?.togglePhrase() },
           { id: 'release', label: 'Let go on time', icon: Zap, kbd: 'KeyH', bar: false, disabled: !ready, sfx: 'none', run: () => ctrl?.toggleRelease() },
@@ -344,7 +345,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
                 {song.artist}
                 {snap && snap.duration > 0 && ` · ${formatTime(snap.duration)}`}
               </p>
-              {ready && <span className={`pill ${snap.edited ? 'lit' : ''}`}>{snap.edited ? 'Edited by hand' : snap.hasAnalysis ? 'Written by the game' : 'Not charted yet'}</span>}
+              {ready && <span className={`pill ${snap.edited ? 'lit' : ''}`}>{snap.edited ? 'Edited by hand' : snap.hasAnalysis ? 'Game’s chart' : 'Not charted yet'}</span>}
             </div>
           </section>
           {ready && (

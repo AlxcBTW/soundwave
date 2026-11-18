@@ -1155,14 +1155,15 @@ input.text { width: min(100%, 16rem); min-height: 2.5rem; padding: 0.4rem 0.7rem
 .editor .icon-btn:disabled { opacity: 0.32; }
 
 .editor-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr) minmax(15rem, 19rem); gap: clamp(0.8rem, 1.6vw, 1.6rem); padding-bottom: 0.4rem; }
-.editor-side, .editor-help { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.7rem; }
+.editor-side, .editor-help { min-height: 0; overflow: hidden auto; display: flex; flex-direction: column; gap: 0.7rem; }
 .editor-card { display: flex; flex-direction: column; align-items: flex-start; gap: 0.55rem; padding: 0.9rem; border-radius: var(--r-l); background: var(--panel); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1); animation: rise-in 0.45s var(--ease) backwards; }
 .editor-card:nth-child(2) { animation-delay: 60ms; }
 .editor-card:nth-child(3) { animation-delay: 120ms; }
 .editor-card .label svg { width: 1.15rem; height: 1.15rem; }
 .editor-now { display: grid; grid-template-columns: 4.2rem minmax(0, 1fr); gap: 0.8rem; align-items: start; }
 .editor-now .cover { width: 100%; }
-.editor-now .pill { align-self: flex-start; margin-top: 0.2rem; }
+.editor-now .pill { align-self: flex-start; margin-top: 0.2rem; white-space: normal; }
+.editor-card > * { max-width: 100%; }
 /* Something of the player's own making. */
 .pill.lit { background: rgb(210 201 250 / 0.3); color: var(--ink); }
 .editor-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; width: 100%; }
@@ -1256,36 +1257,54 @@ input.text { width: min(100%, 16rem); min-height: 2.5rem; padding: 0.4rem 0.7rem
   .editor-body { grid-template-columns: minmax(0, 1fr); }
   .editor-side { display: none; }
 }
-@media (max-width: 640px) {
-  /* A phone: the song is the title, one button names the chart and opens the menu. */
-  .editor-head .page-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .editor-bar { flex-wrap: nowrap; gap: 0.4rem; padding-bottom: 0.5rem; }
-  .editor-pick, .editor-wide-only { display: none; }
-  .editor-chart-btn { display: inline-flex; flex: 1 1 0; min-width: 0; justify-content: flex-start; padding-inline: 0.8rem; }
+/* Where room is short (a phone either way up, a small window) one button names the chart and
+   opens the menu, in place of the two rows of choices. */
+@media (max-width: 640px), (max-height: 560px) {
+  .editor-pick { display: none; }
+  .editor-chart-btn { display: inline-flex; flex: 1 1 8rem; min-width: 0; justify-content: flex-start; padding-inline: 0.8rem; }
   .editor-chart-btn .btn-label { overflow: hidden; text-overflow: ellipsis; }
-  .editor-snap { padding: 0 0.15rem; }
-  .editor-snap-value { min-width: 3.9rem; }
-  .editor-snap-value .num { font-size: 0.86rem; }
-  .editor-bar .tab, .editor-bar .tab.on { padding: 0 0.6rem; }
+  .editor-quick { margin-left: 0; }
+}
+@media (max-width: 640px) {
+  /* A phone: the song is the title. The chart and undo share a line, the grid and the tool the next. */
+  .editor-head .page-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .editor-bar { gap: 0.4rem; padding-bottom: 0.5rem; }
+  .editor-wide-only { display: none; }
+  .editor-chart-btn { order: 0; flex-basis: calc(100% - 4rem); }
+  .editor-quick { order: 1; }
+  .editor-snap { order: 2; flex: 1 1 auto; justify-content: space-between; padding: 0 0.15rem; }
+  .editor-tools { order: 3; }
+  .editor-bar .tab, .editor-bar .tab.on { padding: 0 0.7rem; }
   .editor-overview { height: 2rem; }
   .editor-track { border-radius: var(--r-m); }
+  .editor-transport { gap: 0.3rem; }
   .editor-readout .label { display: none; }
   .editor-readout .num { font-size: 1.15rem; }
+  .editor-record { margin-left: 0.2rem; padding-inline: 0.8rem; }
+  .editor-record .btn-label { display: none; }
   .editor-selbar .btn-label { display: none; }
   .menu-grid { grid-template-columns: 1fr; }
 }
-/* A phone on its side, a small window: the head goes, and the transport stands beside the lanes. */
+/* A phone on its side, a small window: the head goes, everything about the chart is one line, and
+   the transport stands beside the lanes. */
 @media (max-height: 560px) {
   .editor-head { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); padding: 0; }
   .page.editor { padding-top: calc(var(--safe-t) + 0.4rem); }
-  .editor-bar { padding-bottom: 0.4rem; }
+  .editor-bar { flex-wrap: nowrap; padding-bottom: 0.4rem; }
+  .editor-chart-btn { flex: 0 1 auto; }
+  .editor-quick { margin-left: auto; }
   .editor-stage { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); gap: 0.4rem; }
   .editor-overview { grid-column: 1 / -1; height: 1.6rem; }
-  .editor-transport { grid-template-columns: auto; grid-template-rows: auto 1fr auto; justify-items: center; align-content: space-between; }
+  .editor-transport { grid-template-columns: auto; grid-template-rows: auto 1fr auto; justify-items: center; align-content: space-between; gap: 0.2rem; min-width: 3.6rem; }
   .editor-transport-mid { flex-direction: column; }
+  /* Fingers and the wheel move through the song: the bar buttons give their room to the lanes. */
+  .editor-transport-mid .icon-btn:not(.editor-play) { display: none; }
+  .editor-play { width: 2.9rem; height: 2.9rem; }
   .editor-readout { flex-direction: column; align-items: center; gap: 0; }
   .editor-readout.end { justify-content: center; }
-  .editor-record { margin: 0.3rem 0 0; }
+  .editor-readout .label { font-size: 0.7rem; }
+  .editor-readout .num { font-size: 1.1rem; }
+  .editor-record { margin: 0.3rem 0 0; padding-inline: 0.8rem; }
   .editor-record .btn-label { display: none; }
   .editor-card { padding: 0.7rem; }
 }

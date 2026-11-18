@@ -357,7 +357,7 @@ function TrackSetup({ subject, status, canAnalyze, onNew, onAnalyze, onScratch, 
 
   const work = finding || analyzing || (waiting && !failed);
   return (
-    <Dialog title={`Chart ${song.title}`} variant="card" className="wide-card" closeLabel={work ? 'Wait in the background' : 'Cancel'} onClose={onClose}>
+    <Dialog title={`Chart ${song.title}`} variant="card" className="wide-card" closeLabel={finding ? 'Close' : work ? 'Wait in the background' : 'Cancel'} onClose={onClose}>
       {(close) => (
         <div className="pause-card setup-card">
           <div className="setup-song">

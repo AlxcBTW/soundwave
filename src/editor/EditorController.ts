@@ -132,6 +132,15 @@ type Gesture =
   | { kind: 'move'; pos: number; lane: number; dPos: number; dLane: number; moved: boolean; id: number; wasSelected: boolean }
   | { kind: 'pinch'; dist: number; px: number };
 
+/** Keeps a pointer's moves coming to an element. A pointer that is already gone cannot be held on to. */
+const hold = (el: Element, id: number) => {
+  try {
+    el.setPointerCapture(id);
+  } catch {
+    /* the pointer ended before this ran */
+  }
+};
+
 const fmtTime = (t: number) => {
   const s = Math.max(0, t);
   return `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
@@ -1507,14 +1516,14 @@ export class EditorController {
     const hit = this.view.hit(x, y, scene);
     if (this.recording) {
       if (hit.lane >= 0) {
-        this.els!.canvas.setPointerCapture(e.pointerId);
+        hold(this.els!.canvas, e.pointerId);
         this.pointers.set(e.pointerId, { x: hit.lane, y });
         this.recordPress(hit.lane, e.timeStamp);
         if (e.pointerType !== 'mouse' && this.settings.touchHaptics) navigator.vibrate?.(8);
       }
       return;
     }
-    this.els!.canvas.setPointerCapture(e.pointerId);
+    hold(this.els!.canvas, e.pointerId);
     this.pointers.set(e.pointerId, { x, y });
     this.momentum = 0;
     this.target = null;
@@ -1741,12 +1750,12 @@ export class EditorController {
 
   private overviewDown = (e: PointerEvent) => {
     if (this.phase !== 'ready' || this.recording) return;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    hold(e.currentTarget as HTMLElement, e.pointerId);
     this.overviewSeek(e);
   };
 
   private overviewMove = (e: PointerEvent) => {
-    if ((e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) this.overviewSeek(e);
+    if (e.buttons & 1 || e.pointerType !== 'mouse') this.overviewSeek(e);
   };
 
   private overviewSeek(e: PointerEvent) {

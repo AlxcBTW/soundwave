@@ -106,7 +106,9 @@ export function StepRow({ label, text, index, count, atMin, atMax, disabled, aut
     onStep(d, round);
   };
   useSideways(ref, (d) => step(d));
-  const value = touch ? ({ role: 'group', 'aria-label': `${label}: ${text}` } as const) : ({ role: 'slider', 'aria-label': label, 'aria-valuetext': text, 'aria-valuenow': index ?? 0 } as const);
+  const value = touch
+    ? ({ role: 'group', 'aria-label': `${label}: ${text}` } as const)
+    : ({ role: 'slider', 'aria-label': label, 'aria-valuetext': text, 'aria-valuenow': index ?? 0, 'aria-valuemin': 0, 'aria-valuemax': count !== undefined ? count - 1 : undefined } as const);
   return (
     <div
       ref={ref}
@@ -513,13 +515,14 @@ export function CopyFromCard({ ctrl, snap, onClose }: { ctrl: EditorController; 
                     {DIFFICULTIES.map((d: Difficulty) => {
                       const key = chartKey(p, d);
                       const c = info?.[key];
-                      const off = key === here || !c || c.notes === 0;
+                      // Still being counted, a chart can be picked already; an empty one has nothing to give.
+                      const off = key === here || c?.notes === 0;
                       return (
                         <td key={d} className={off ? 'none' : ''}>
                           <button
                             type="button"
                             className="copy-cell"
-                            data-autofocus={p === snap.part && !off ? '' : undefined}
+                            data-autofocus={!off && (p === snap.part || (p === 'lead' && d === 'expert')) ? '' : undefined}
                             disabled={off}
                             aria-label={`${PART_LABEL[p]}, ${DIFFICULTY_LABEL[d]}: ${key === here ? 'this chart' : c ? `${c.notes} notes${c.edited ? ', edited by hand' : ''}` : 'counting'}`}
                             onClick={() => {

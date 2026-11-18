@@ -305,7 +305,7 @@ export function App() {
   const openedRef = useRef<(files: File[]) => void>(() => {});
   openedRef.current = (files) =>
     void importFiles(files).then((got) => {
-      if (got.length === 1 && view.name !== 'play' && view.name !== 'debug') setSheet(got[0]);
+      if (got.length === 1 && view.name !== 'play' && view.name !== 'debug' && view.name !== 'editor') setSheet(got[0]);
     });
   useEffect(() => watchOpenedFiles((files) => openedRef.current(files)), []);
   const exportSong = useCallback(
@@ -678,7 +678,7 @@ export function App() {
   return (
     <div className="app">
       {content}
-      {sheet && inMenus && (
+      {sheet && inMenus && view.name !== 'editor' && (
         <SongSheet
           song={byId.get(sheet.id) ?? sheet}
           builtin={sheet.id === DEMO_ID}
