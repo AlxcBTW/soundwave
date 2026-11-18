@@ -36,10 +36,13 @@ export const updates = {
 };
 
 /**
- * How long a check may take, ms. Without a limit a request that never answers (a stalled connection)
- * left the check "checking" for good, and the button with it.
+ * A check fetches one small file (latest.json) through GitHub's download servers, which now and then
+ * stall a request: most answer in a second or two, an unlucky one hangs (without a limit, the check
+ * stayed "checking" for good). So a check is a few short tries: each gives up after ATTEMPT_TIMEOUT
+ * ms and the next starts, which nearly always gets through at once.
  */
-const CHECK_TIMEOUT = 20_000;
+const ATTEMPT_TIMEOUT = 6_000;
+const ATTEMPTS = 3;
 
 /** Fails with a "timed out" error when `p` has not settled within `ms`. */
 function within<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -59,9 +62,17 @@ export async function checkForUpdates(quiet = false): Promise<void> {
   const before = status;
   set({ state: 'checking' });
   try {
-    // The request itself gives up after CHECK_TIMEOUT; the race is the backstop should it not.
     const { check } = await import('@tauri-apps/plugin-updater');
-    const update = await within(check({ timeout: CHECK_TIMEOUT }), CHECK_TIMEOUT + 5_000);
+    // Each try's request gives up after ATTEMPT_TIMEOUT; the race is the backstop should it not.
+    let update: Update | null = null;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        update = await within(check({ timeout: ATTEMPT_TIMEOUT }), ATTEMPT_TIMEOUT + 2_000);
+        break;
+      } catch (e) {
+        if (attempt >= ATTEMPTS) throw e;
+      }
+    }
     pending = update;
     set(
       update
