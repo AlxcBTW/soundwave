@@ -1,3 +1,4 @@
+import { bound, keysOf } from '../input/bindings';
 import {
   ArrowLeft,
   Circle,
@@ -82,6 +83,14 @@ const Key = ({ children }: { children: ReactNode }) => <kbd className="keycap-hi
  * The mark on a control: how to reach it without pointing at it. A keycap for the keyboard and the
  * mouse, the controller's own symbol for a controller, nothing under a finger.
  */
+/** A command's key (or two commands' keys, side by side) and controller button, for a Mark. */
+function markOf(id: string, also?: string): { keys?: string; pad?: string } {
+  const a = bound(id);
+  const b = also ? bound(also) : null;
+  const keys = [a.key, b?.key].filter((k): k is string => !!k).map(keyName);
+  return { keys: keys.length ? keys.join(' ') : undefined, pad: (b?.pad ?? a.pad) || undefined };
+}
+
 function Mark({ keys, pad, mode, style }: { keys?: string; pad?: string; mode: InputMode; style: GlyphStyle }) {
   if (mode === 'touch') return null;
   if (mode === 'pad') return pad ? <PadGlyph input={pad} style={style} className="hint-glyph mark" /> : null;
@@ -92,6 +101,19 @@ const SNAP_WORD = { grid: 'Grid', sounds: 'Sounds', off: 'Off' } as const;
 
 /** How the editor is worked with the input in use. */
 function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: Settings): [ReactNode, string][] {
+  // Every key and button below is the player's (see input/bindings), except moving, confirm and Enter.
+  const pads = (...ids: string[]) =>
+    ids
+      .map((id) => bound(id).pad)
+      .filter((p): p is string => !!p)
+      .map((p, i) => <PadGlyph key={i} input={p} style={style} />);
+  const keys = (...ids: string[]) =>
+    ids
+      .map((id) => bound(id).key)
+      .filter((k): k is string => !!k)
+      .map((k, i) => <Key key={i}>{keyName(k)}</Key>);
+  /** A row only when something is bound to it. */
+  const row = (shown: ReactNode[], what: string): [ReactNode, string][] => (shown.length ? [[<>{shown}</>, what]] : []);
   if (mode === 'pad') {
     const G = (input: string) => <PadGlyph input={input} style={style} />;
     const ok = confirmInput(style);
@@ -113,27 +135,16 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
         'Hold and move up for a long note',
       ],
       [G(ok), 'On a long note, or stretched into a tile: it must be let go there'],
-      [G('b2'), 'Mark a stretch, then press confirm to copy, repeat or delete it'],
-      [G('b3'), 'Play from here'],
-      [
-        <>
-          {G('b4')}
-          {G('b5')}
-        </>,
-        'Coarser or finer grid',
-      ],
-      [
-        <>
-          {G('b6')}
-          {G('b7')}
-        </>,
-        'A bar back, a bar on',
-      ],
-      [G('a3-'), 'Push to run through the song; sideways to zoom'],
-      [G('b10'), 'Notes snap to the grid, to sounds, or to nothing'],
-      [G('b11'), 'Loop the marked stretch'],
-      [G('b8'), 'Undo'],
-      [G('b9'), 'Menu: record, test play, tools, tempo, hold-and-release, and all of the above'],
+      ...row(pads('editor.mark'), 'Mark a stretch, then press confirm to copy, repeat or delete it'),
+      ...row(pads('editor.play'), 'Play from here'),
+      ...row(pads('menus.tabPrev', 'menus.tabNext'), 'Coarser or finer grid'),
+      ...row(pads('editor.barPrev', 'editor.barNext'), 'A bar back, a bar on'),
+      [G('a3-'), 'Push to run through the song'],
+      ...row(pads('editor.zoomOut', 'editor.zoomIn'), 'Zoom out, zoom in'),
+      ...row(pads('editor.snapMode'), 'Notes snap to the grid, to sounds, or to nothing'),
+      ...row(pads('editor.loop'), 'Loop the marked stretch'),
+      ...row(pads('editor.undo'), 'Undo'),
+      ...row(pads('editor.menu'), 'Menu: record, test play, tools, tempo, hold-and-release, and all of the above'),
     ];
   }
   if (mode === 'keyboard') {
@@ -150,7 +161,7 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
       [
         <>
           <Key>Enter</Key>
-          <Key>1</Key>–<Key>{lanes}</Key>
+          {keys(...Array.from({ length: lanes }, (_, i) => `editor.lane${i + 1}`))}
         </>,
         'Set a note down, or take it away',
       ],
@@ -162,12 +173,7 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
         </>,
         'Hold and move up for a long note',
       ],
-      [
-        <>
-          <Key>Enter</Key>
-        </>,
-        'On a long note, or stretched into a tile: it must be let go there',
-      ],
+      [<Key key="enter">Enter</Key>, 'On a long note, or stretched into a tile: it must be let go there'],
       [
         <>
           <Key>Shift</Key>
@@ -176,62 +182,13 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
         </>,
         'Mark a stretch; Enter for what to do with it',
       ],
-      [
-        <>
-          <Key>Q</Key>
-          <Key>E</Key>
-          <Key>S</Key>
-        </>,
-        'Coarser or finer grid; what notes snap to',
-      ],
-      [
-        <>
-          <Key>PgUp</Key>
-          <Key>PgDn</Key>
-        </>,
-        'A bar on, a bar back',
-      ],
-      [
-        <>
-          <Key>Ctrl</Key>
-          <span className="legend-plus">+</span>
-          <Key>↑</Key>
-        </>,
-        'To the next note; with Alt, the next sound',
-      ],
-      [
-        <>
-          <Key>Ctrl</Key>
-          <Key>Z</Key>
-        </>,
-        'Undo; with Shift, redo',
-      ],
-      [
-        <>
-          <Key>Ctrl</Key>
-          <Key>C</Key>
-          <Key>V</Key>
-          <Key>D</Key>
-          <Key>Q</Key>
-        </>,
-        'Copy, paste, repeat, snap to the grid',
-      ],
-      [
-        <>
-          <Key>O</Key>
-          <Key>H</Key>
-          <Key>L</Key>
-        </>,
-        'Overdrive phrase; let go on time; loop',
-      ],
-      [
-        <>
-          <Key>R</Key>
-          <Key>T</Key>
-          <Key>M</Key>
-        </>,
-        'Record; test play; menu',
-      ],
+      ...row(keys('menus.tabPrev', 'menus.tabNext', 'editor.snapMode'), 'Coarser or finer grid; what notes snap to'),
+      ...row(keys('editor.barNext', 'editor.barPrev'), 'A bar on, a bar back'),
+      ...row(keys('editor.noteUp', 'editor.soundNext'), 'Move the notes later; to the next sound'),
+      ...row(keys('editor.undo', 'editor.redo'), 'Undo, redo'),
+      ...row(keys('editor.copy', 'editor.paste', 'editor.repeat', 'editor.quantize'), 'Copy, paste, repeat, snap to the grid'),
+      ...row(keys('editor.phrase', 'editor.release', 'editor.loop'), 'Overdrive phrase; let go on time; loop'),
+      ...row(keys('editor.record', 'editor.test', 'editor.menu'), 'Record; test play; menu'),
     ];
   }
   if (mode === 'touch') {
@@ -244,7 +201,7 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
       ['Record', `plays the song; tap the lanes in time and every tap becomes a note`],
     ];
   }
-  const keys = (lanes === 5 ? settings.keys5 : settings.keys4).map(keyLabel).join(' ');
+  const laneKeys = (lanes === 5 ? settings.keys5 : settings.keys4).map(keyLabel).join(' ');
   return [
     ['Click', 'a lane to set a note down; click a note to take it away'],
     ['Drag', 'up from a note for a long note'],
@@ -258,25 +215,9 @@ function legendFor(mode: InputMode, style: GlyphStyle, lanes: number, settings: 
       </>,
       'or the Select tool: box notes in, then drag them',
     ],
-    [
-      <>
-        <Key>1</Key>–<Key>{lanes}</Key>
-      </>,
-      'A note in that lane at the line',
-    ],
-    [
-      <>
-        <Key>S</Key>
-        <Key>L</Key>
-      </>,
-      'What notes snap to; loop the marked stretch',
-    ],
-    [
-      <>
-        <Key>R</Key>
-      </>,
-      `Record: play ${keys} in time and every press becomes a note`,
-    ],
+    ...row(keys(...Array.from({ length: lanes }, (_, i) => `editor.lane${i + 1}`)), 'A note in that lane at the line'),
+    ...row(keys('editor.snapMode', 'editor.loop'), 'What notes snap to; loop the marked stretch'),
+    ...row(keys('editor.record'), `Record: play ${laneKeys} in time and every press becomes a note`),
   ];
 }
 
@@ -412,8 +353,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
             id: 'mark',
             label: snap?.marking ? 'Stop marking' : 'Mark',
             icon: SquareDashedMousePointer,
-            kbd: 'KeyX',
-            pad: 'b2',
+            ...keysOf('editor.mark'),
             bar: mode === 'pad',
             disabled: !ready,
             sfx: 'none',
@@ -424,19 +364,27 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
             id: 'play',
             label: snap?.playing ? 'Pause' : 'Play',
             icon: snap?.playing ? Pause : Play,
-            kbd: 'Space',
-            pad: 'b3',
+            ...keysOf('editor.play'),
             bar: mode !== 'touch',
             disabled: !ready,
             sfx: 'none',
             run: () => ctrl?.togglePlay(),
           },
-          { id: 'record', label: 'Record', icon: Circle, kbd: 'KeyR', bar: false, disabled: !ready, sfx: 'none', run: record },
+          {
+            id: 'record',
+            label: 'Record',
+            icon: Circle,
+            ...keysOf('editor.record'),
+            bar: false,
+            disabled: !ready,
+            sfx: 'none',
+            run: record,
+          },
           {
             id: 'phrase',
             label: 'Overdrive phrase',
             icon: Zap,
-            kbd: 'KeyO',
+            ...keysOf('editor.phrase'),
             bar: false,
             disabled: !ready,
             sfx: 'none',
@@ -446,7 +394,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
             id: 'release',
             label: 'Let go on time',
             icon: Zap,
-            kbd: 'KeyH',
+            ...keysOf('editor.release'),
             bar: false,
             disabled: !ready,
             sfx: 'none',
@@ -456,7 +404,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
             id: 'snap-mode',
             label: 'Snap to',
             icon: Magnet,
-            kbd: 'KeyS',
+            ...keysOf('editor.snapMode'),
             bar: false,
             disabled: !ready,
             sfx: 'none',
@@ -466,19 +414,19 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
             id: 'loop',
             label: 'Loop',
             icon: Repeat,
-            kbd: 'KeyL',
+            ...keysOf('editor.loop'),
             bar: false,
             disabled: !ready,
             sfx: 'tab',
             run: () => ctrl?.setLoop(!snap.loop),
           },
-          { id: 'menu', label: 'Menu', icon: Menu, kbd: 'KeyM', pad: 'b9', disabled: !ready, run: () => setOpen('menu') },
+          { id: 'menu', label: 'Menu', icon: Menu, ...keysOf('editor.menu'), disabled: !ready, run: () => setOpen('menu') },
           // On a controller the menu's first button is the test play; the bar would have no button to show for it.
           {
             id: 'test',
             label: 'Test play',
             icon: Gamepad2,
-            kbd: 'KeyT',
+            ...keysOf('editor.test'),
             primary: true,
             bar: mode !== 'pad',
             disabled: !ready || !snap.stats.notes,
@@ -541,7 +489,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
         </button>
         {mode === 'pad' && (
           <span className="editor-via" title="In the menu">
-            <PadGlyph input="b9" style={style} className="hint-glyph mark" />
+            <PadGlyph input={bound('editor.menu').pad ?? 'b9'} style={style} className="hint-glyph mark" />
           </span>
         )}
         <div className="tab-row slide editor-pick" ref={partRow} role="radiogroup" aria-label="Part">
@@ -601,7 +549,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
             title="What notes snap to: the grid, sounds in the song, or nothing"
             onClick={() => ctrl?.cycleSnapMode()}
           >
-            <Mark keys="S" pad="b10" mode={mode} style={style} />
+            <Mark {...markOf('editor.snapMode')} mode={mode} style={style} />
             <Magnet strokeWidth={ICON_STROKE} aria-hidden />
             <span className="snap-mode-text">
               <span className="label">Snap</span>
@@ -610,7 +558,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
               </span>
             </span>
           </button>
-          <Hint kbd="KeyQ" pad="b4" {...hints} />
+          <Hint {...keysOf('menus.tabPrev')} {...hints} />
           <button
             type="button"
             className="step"
@@ -637,7 +585,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
           >
             <span aria-hidden>›</span>
           </button>
-          <Hint kbd="KeyE" pad="b5" {...hints} />
+          <Hint {...keysOf('menus.tabNext')} {...hints} />
         </div>
 
         {pointer && (
@@ -675,7 +623,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
         )}
 
         <div className="editor-quick">
-          <Mark keys="Ctrl Z" pad="b8" mode={mode} style={style} />
+          <Mark {...markOf('editor.undo')} mode={mode} style={style} />
           <button
             type="button"
             className="icon-btn"
@@ -699,7 +647,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
             <Redo2 strokeWidth={ICON_STROKE} aria-hidden />
           </button>
           <span className="editor-wide-only">
-            <Mark keys="− +" pad="a2+" mode={mode} style={style} />
+            <Mark {...markOf('editor.zoomOut', 'editor.zoomIn')} mode={mode} style={style} />
           </span>
           <button
             type="button"
@@ -913,12 +861,12 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
               </span>
             </span>
             <span className="editor-transport-mid">
-              <Mark keys="PgDn" pad="b6" mode={mode} style={style} />
+              <Mark {...markOf('editor.barPrev')} mode={mode} style={style} />
               <button
                 type="button"
                 className="icon-btn"
                 aria-label="A bar back"
-                title={`A bar back (${keyName('PageDown')})`}
+                title={`A bar back${bound('editor.barPrev').key ? ` (${keyName(bound('editor.barPrev').key!)})` : ''}`}
                 disabled={recording}
                 onClick={() => ctrl?.moveBar(-1)}
               >
@@ -942,13 +890,13 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
                 type="button"
                 className="icon-btn"
                 aria-label="A bar on"
-                title={`A bar on (${keyName('PageUp')})`}
+                title={`A bar on${bound('editor.barNext').key ? ` (${keyName(bound('editor.barNext').key!)})` : ''}`}
                 disabled={recording}
                 onClick={() => ctrl?.moveBar(1)}
               >
                 <SkipForward strokeWidth={ICON_STROKE} aria-hidden />
               </button>
-              <Mark keys="PgUp" pad="b7" mode={mode} style={style} />
+              <Mark {...markOf('editor.barNext')} mode={mode} style={style} />
               <button
                 type="button"
                 className={`icon-btn editor-loop ${snap?.loop ? 'on' : ''}`}
@@ -961,7 +909,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
               >
                 <Repeat strokeWidth={ICON_STROKE} aria-hidden />
               </button>
-              <Mark keys="L" pad="b11" mode={mode} style={style} />
+              <Mark {...markOf('editor.loop')} mode={mode} style={style} />
               <button
                 type="button"
                 className={`btn small editor-record ${recording ? 'live' : ''}`}
@@ -971,7 +919,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
               >
                 {recording ? <Square strokeWidth={ICON_STROKE} aria-hidden /> : <Circle strokeWidth={ICON_STROKE} aria-hidden />}
                 <span className="btn-label">{recording ? 'Stop' : 'Record'}</span>
-                {!recording && <Mark keys="R" pad="b9" mode={mode} style={style} />}
+                {!recording && <Mark {...markOf('editor.record')} mode={mode} style={style} />}
               </button>
             </span>
             <span className="editor-readout end">

@@ -44,13 +44,15 @@ export interface Command {
   mouse?: MouseInput;
   /** The key cannot be changed (Esc): only the controller and mouse buttons can. */
   fixedKey?: boolean;
+  /** Nor the controller button: it follows the controller's own layout (back is B, or A on a Switch). */
+  fixedPad?: boolean;
 }
 
 const cmd = (area: Area, list: Omit<Command, 'area'>[]): Command[] => list.map((c) => ({ ...c, area }));
 
 export const COMMANDS: Command[] = [
   ...cmd('menus', [
-    { id: 'menus.back', label: 'Back', key: 'Escape', fixedKey: true, mouse: 'm3' },
+    { id: 'menus.back', label: 'Back', key: 'Escape', fixedKey: true, fixedPad: true, mouse: 'm3' },
     { id: 'menus.tabPrev', label: 'Previous tab', key: 'KeyQ', pad: 'b4' },
     { id: 'menus.tabNext', label: 'Next tab', key: 'KeyE', pad: 'b5' },
   ]),
@@ -182,6 +184,14 @@ export function commandFor(e: Pick<KeyboardEvent, 'code' | 'ctrlKey' | 'metaKey'
 /** The command of an area a controller input is for, if any. */
 export function padCommandFor(input: string, area: Area): string | null {
   for (const c of COMMANDS) if (c.area === area && bound(c.id).pad === input) return c.id;
+  return null;
+}
+
+/** The command of an area a mouse button is for, if any. */
+export function mouseCommandFor(button: number, area: Area): string | null {
+  const input = mouseInput(button);
+  if (!input) return null;
+  for (const c of COMMANDS) if (c.area === area && bound(c.id).mouse === input) return c.id;
   return null;
 }
 

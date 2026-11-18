@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  Command as CommandIcon,
   Gamepad2,
   Hand,
   Keyboard,
@@ -12,7 +13,7 @@ import {
   Volume2,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { stemModel, type ModelStatus } from '../analysis/separation/model';
 import type { AnalysisDevice } from '../analysis/separation/support';
 import { allowOutputList, canPickOutput, listOutputs, type OutputList } from '../audio/output';
@@ -23,10 +24,10 @@ import { DEFAULT_SETTINGS, keyLabel, type DisplayMode, type MotionPref, type Rum
 import { PadGlyph, STYLE_LABEL } from '../input/glyphs';
 import { getInputMode, usesFocus } from '../input/inputMode';
 import { focusEl, focusStart, NAV_EVENT, nearest, TAB_EVENT, type Dir } from '../input/menuNav';
-import { PAUSE_INPUT, pads, styleFor, SYSTEM_INPUT, type GlyphStyle } from '../input/pads';
+import { backInput, confirmInput, PAUSE_INPUT, pads, resolveStyle, styleFor, SYSTEM_INPUT, type GlyphStyle } from '../input/pads';
 import { dualSenseHaptics, menuPulse, Rumbler } from '../input/rumble';
 import { usePads } from '../input/usePads';
-import { Hint, useActions, useHints } from './actions';
+import { Hint, keyName, useActions, useHints } from './actions';
 import { Calibration } from './Calibration';
 import { Dialog } from './Dialog';
 import { ICON_STROKE } from './icons';
@@ -53,7 +54,19 @@ function updateButton(u: UpdateStatus, upToDate: boolean): string {
   }
 }
 import { useSlide } from './useSlide';
-import { keysOf } from '../input/bindings';
+import {
+  AREAS,
+  bound,
+  chordOf,
+  clashes,
+  COMMANDS,
+  keysOf,
+  MODIFIER_CODES,
+  MOUSE_NAMES,
+  mouseInput,
+  type BindingOverrides,
+  type Command,
+} from '../input/bindings';
 
 interface Props {
   settings: Settings;
@@ -66,7 +79,7 @@ interface Props {
   inSong?: boolean;
 }
 
-type Tab = 'video' | 'audio' | 'game' | 'keyboard' | 'controller' | 'touch' | 'advanced';
+type Tab = 'video' | 'audio' | 'game' | 'keyboard' | 'controller' | 'touch' | 'shortcuts' | 'advanced';
 const TABS: [Tab, string, LucideIcon][] = [
   ['video', 'Video', Monitor],
   ['audio', 'Audio', Volume2],
@@ -74,13 +87,18 @@ const TABS: [Tab, string, LucideIcon][] = [
   ['keyboard', 'Keyboard', Keyboard],
   ['controller', 'Controller', Gamepad2],
   ['touch', 'Touch', Hand],
+  ['shortcuts', 'Shortcuts', CommandIcon],
   ['advanced', 'Advanced', SlidersHorizontal],
 ];
 const TAB_KEY = 'soundwave.settings-tab';
 
 type KeyGroup = 'keys4' | 'keys5' | 'overdriveKey';
 type PadGroup = 'pad4' | 'pad5' | 'padOverdrive';
-type Binding = { kind: 'key'; group: KeyGroup; index: number } | { kind: 'pad'; group: PadGroup; index: number };
+type Binding =
+  | { kind: 'key'; group: KeyGroup; index: number }
+  | { kind: 'pad'; group: PadGroup; index: number }
+  /** A shortcut (see input/bindings): its key, controller button or mouse button. */
+  | { kind: 'cmd'; id: string; input: 'key' | 'pad' | 'mouse' };
 
 const RESERVED = new Set(['Escape', 'Enter', 'Tab']);
 
@@ -103,6 +121,7 @@ const FIELDS: Record<Tab, readonly (keyof Settings)[]> = {
     'ps5Haptics',
   ],
   touch: ['touchHaptics', 'touchOverdriveSide'],
+  shortcuts: ['bindings'],
   advanced: ['checkUpdates'],
 };
 
@@ -246,6 +265,21 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
     if (list && usesFocus(getInputMode())) focusStart(list);
   }, [tab]);
 
+  /** Sets (or with null, clears) a shortcut's key, button or mouse button, keeping only what differs from its default. */
+  const setShortcut = useCallback(
+    (id: string, input: 'key' | 'pad' | 'mouse', value: string | null) => {
+      const s = settingsRef.current;
+      const def = COMMANDS.find((c) => c.id === id)!;
+      const entry = { ...s.bindings[id], [input]: value };
+      if (value === (input === 'key' ? (def.key ?? null) : input === 'pad' ? (def.pad ?? null) : (def.mouse ?? null))) delete entry[input];
+      const next: BindingOverrides = { ...s.bindings, [id]: entry };
+      if (!Object.keys(entry).length) delete next[id];
+      onChange({ ...s, bindings: next });
+      setBinding(null);
+    },
+    [onChange],
+  );
+
   // A key press completes a key binding; Esc cancels the prompt. Nothing else hears the key.
   useEffect(() => {
     if (!binding) return;
@@ -253,6 +287,13 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
       e.preventDefault();
       e.stopImmediatePropagation();
       if (e.code === 'Escape') return setBinding(null);
+      if (binding.kind === 'cmd') {
+        // Backspace clears; Ctrl, Alt and Shift wait for the key they go with.
+        if (e.code === 'Backspace' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey)
+          return setShortcut(binding.id, binding.input, null);
+        if (binding.input !== 'key' || MODIFIER_CODES.has(e.code) || RESERVED.has(e.code)) return;
+        return setShortcut(binding.id, 'key', chordOf(e));
+      }
       if (binding.kind !== 'key' || RESERVED.has(e.code)) return;
       const s = settingsRef.current;
       if (binding.group === 'overdriveKey') onChange({ ...s, overdriveKey: e.code });
@@ -261,7 +302,47 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [binding, onChange]);
+  }, [binding, onChange, setShortcut]);
+
+  // A shortcut's controller button: the next one pressed after everything was let go. Back cancels;
+  // confirm and the directions stay the menus' own.
+  useEffect(() => {
+    if (binding?.kind !== 'cmd' || binding.input !== 'pad') return;
+    let armed = !pads.anyHeld();
+    return pads.capture((e) => {
+      if (!e.down) {
+        if (!pads.anyHeld()) armed = true;
+        return true;
+      }
+      const style = resolveStyle(settingsRef.current.glyphs, pads.snapshot().family);
+      if (e.input === backInput(style)) {
+        setBinding(null);
+        return true;
+      }
+      if (!armed || e.input === SYSTEM_INPUT || e.input === confirmInput(style) || /^(b1[2-5]|a[01][+-])$/.test(e.input)) return true;
+      setShortcut(binding.id, 'pad', e.input);
+      return true;
+    });
+  }, [binding, onChange, setShortcut]);
+
+  // A shortcut's mouse button: the middle, back or forward button. A left click elsewhere cancels.
+  useEffect(() => {
+    if (binding?.kind !== 'cmd' || binding.input !== 'mouse') return;
+    const onDown = (e: MouseEvent) => {
+      const input = mouseInput(e.button);
+      if (input) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setShortcut(binding.id, 'mouse', input);
+      } else if (e.button === 0 && !(e.target as Element | null)?.closest?.('.keycap.listening')) setBinding(null);
+    };
+    // The press that chose the cap must not end the prompt.
+    const start = window.setTimeout(() => window.addEventListener('mousedown', onDown, true), 0);
+    return () => {
+      clearTimeout(start);
+      window.removeEventListener('mousedown', onDown, true);
+    };
+  }, [binding, onChange, setShortcut]);
 
   // Controller binding prompt: the next input pressed after everything was let go.
   useEffect(() => {
@@ -283,7 +364,7 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
       setBinding(null);
       return true;
     });
-  }, [binding, onChange]);
+  }, [binding, onChange, setShortcut]);
 
   // A PS5 controller gets 3D haptics when the desktop app can reach it (USB); say which it is.
   const ps5 = snap.pads.some((p) => p.family === 'ps5');
@@ -823,6 +904,64 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
         ],
       },
     ];
+  }
+
+  if (tab === 'shortcuts') {
+    const style: GlyphStyle = s.glyphs === 'auto' ? styleFor(c.snap.family) : s.glyphs;
+    const listening = (id: string, input: 'key' | 'pad' | 'mouse') =>
+      c.binding?.kind === 'cmd' && c.binding.id === id && c.binding.input === input;
+    const none = <span className="dim">—</span>;
+    const prompt =
+      c.binding?.kind === 'cmd'
+        ? c.binding.input === 'key'
+          ? 'Press the key to use, with Ctrl, Alt or Shift if you like. Backspace clears it, Esc cancels.'
+          : c.binding.input === 'pad'
+            ? 'Press the button to use. Back cancels; Backspace on a keyboard clears it.'
+            : 'Press the mouse’s middle, back or forward button. Backspace clears it, Esc cancels.'
+        : 'Select the key, controller button or mouse button to change, then press the one to use instead.';
+    const rowFor = (cmd: Command): Row => {
+      const b = bound(cmd.id);
+      const also = [...new Set((['key', 'pad', 'mouse'] as const).flatMap((k) => clashes(cmd.id, k)).map((o) => o.label))];
+      const keyCap: Cap = cmd.fixedKey
+        ? { id: 'key', name: `${cmd.label}: ${keyName(b.key ?? '')} (fixed)`, content: keyName(b.key ?? '') }
+        : {
+            id: 'key',
+            name: `${cmd.label}, key: ${b.key ? keyName(b.key) : 'none'}`,
+            listening: listening(cmd.id, 'key'),
+            content: b.key ? keyName(b.key) : none,
+            bind: () => c.setBinding({ kind: 'cmd', id: cmd.id, input: 'key' }),
+          };
+      return {
+        kind: 'keys',
+        id: cmd.id,
+        label: cmd.label,
+        help: `${prompt}${also.length ? ` Also used by: ${also.join(', ')}.` : ''}`,
+        caps: [
+          keyCap,
+          cmd.fixedPad
+            ? {
+                id: 'pad',
+                name: `${cmd.label}: the controller's back button (fixed)`,
+                content: <PadGlyph input={backInput(style)} style={style} />,
+              }
+            : {
+                id: 'pad',
+                name: `${cmd.label}, controller button`,
+                listening: listening(cmd.id, 'pad'),
+                content: b.pad ? <PadGlyph input={b.pad} style={style} /> : none,
+                bind: () => c.setBinding({ kind: 'cmd', id: cmd.id, input: 'pad' }),
+              },
+          {
+            id: 'mouse',
+            name: `${cmd.label}, mouse button: ${b.mouse ? MOUSE_NAMES[b.mouse] : 'none'}`,
+            listening: listening(cmd.id, 'mouse'),
+            content: b.mouse ? MOUSE_NAMES[b.mouse].replace(' button', '') : none,
+            bind: () => c.setBinding({ kind: 'cmd', id: cmd.id, input: 'mouse' }),
+          },
+        ],
+      };
+    };
+    return AREAS.map((a) => ({ title: a.label, rows: COMMANDS.filter((cmd) => cmd.area === a.id).map(rowFor) }));
   }
 
   if (tab === 'controller') {

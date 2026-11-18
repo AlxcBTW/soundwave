@@ -4,6 +4,7 @@
  * controller, a mouse, fingers). It lives outside React, like the play controller: the screen draws
  * a small snapshot of it and calls its methods, and the frame loop never re-renders anything.
  */
+import { commandFor, mouseCommandFor, padCommandFor } from '../input/bindings';
 import { analysisManager } from '../analysis/manager';
 import type { AnalysisResult, StemName } from '../analysis/types';
 import { getEngine } from '../audio/engine';
@@ -566,6 +567,7 @@ export class EditorController {
     els.overview.addEventListener('pointerdown', this.overviewDown);
     els.overview.addEventListener('pointermove', this.overviewMove);
     window.addEventListener('keydown', this.keyDown);
+    window.addEventListener('mousedown', this.mouse);
     window.addEventListener('keyup', this.keyUp);
     window.addEventListener('keydown', this.modifiers, true);
     window.addEventListener('keyup', this.modifiers, true);
@@ -602,6 +604,7 @@ export class EditorController {
       els.overview.removeEventListener('pointermove', this.overviewMove);
     }
     window.removeEventListener('keydown', this.keyDown);
+    window.removeEventListener('mousedown', this.mouse);
     window.removeEventListener('keyup', this.keyUp);
     window.removeEventListener('keydown', this.modifiers, true);
     window.removeEventListener('keyup', this.modifiers, true);
@@ -1857,39 +1860,13 @@ export class EditorController {
       e.stopImmediatePropagation();
       return;
     }
-    const mod = e.ctrlKey || e.metaKey;
     let done = true;
-    if (e.altKey) {
-      // Alt and the arrows step from sound to sound.
-      if (e.code === 'ArrowUp') this.moveSound(1);
-      else if (e.code === 'ArrowDown') this.moveSound(-1);
-      else done = false;
-    } else if (mod) {
-      const k = e.key.toLowerCase();
-      if (e.code === 'ArrowUp') this.moveNote(1);
-      else if (e.code === 'ArrowDown') this.moveNote(-1);
-      else if (k === 'z') {
-        if (e.shiftKey) this.redo();
-        else this.undo();
-      } else if (k === 'y') this.redo();
-      else if (k === 'c') this.copy();
-      else if (k === 'x') this.cut();
-      else if (k === 'v') this.paste();
-      else if (k === 'a') this.selectAll();
-      else if (k === 'd') this.repeat();
-      else if (k === 's') void this.flush();
-      else if (k === 'q') this.quantizeNotes();
-      else done = false;
-    } else if (e.code === 'PageUp') this.moveBar(1);
-    else if (e.code === 'PageDown') this.moveBar(-1);
-    else if (e.code === 'Home') this.toStart();
-    else if (e.code === 'End') this.toEnd();
-    else if (e.code === 'Delete' || e.code === 'Backspace') this.remove();
-    else if (/^Digit[1-5]$/.test(e.code) || /^Numpad[1-5]$/.test(e.code)) {
-      if (!e.repeat) this.toggleLane(Number(e.code.slice(-1)) - 1);
-    } else if (e.code === 'Equal' || e.code === 'NumpadAdd') this.zoomBy(1);
-    else if (e.code === 'Minus' || e.code === 'NumpadSubtract') this.zoomBy(-1);
-    else if (e.code === 'Enter' && this.onTrack()) {
+    // The player's keys for the editing commands (see input/bindings); the screen's own commands
+    // (play, mark, the menu and the rest) are its action bar's.
+    const id = commandFor(e, 'editor');
+    if (id && this.run(id, e.repeat)) {
+      // Done.
+    } else if (e.code === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && this.onTrack()) {
       if (!e.repeat) this.noteDown();
     } else if (this.sel.size && e.shiftKey && e.code.startsWith('Arrow') && this.mark === null) {
       // Shift and the arrows move what the mouse selected.
@@ -1914,6 +1891,50 @@ export class EditorController {
     this.shift = false;
     this.noteUp();
     if (this.recording) for (const lane of Array.from(this.recHeld.keys())) this.recordRelease(lane, performance.now());
+  };
+
+  /** The commands the editor carries out itself, by their id in input/bindings. */
+  private static readonly COMMANDS: Record<string, (c: EditorController) => void> = {
+    'editor.undo': (c) => c.undo(),
+    'editor.redo': (c) => c.redo(),
+    'editor.copy': (c) => c.copy(),
+    'editor.cut': (c) => c.cut(),
+    'editor.paste': (c) => c.paste(),
+    'editor.selectAll': (c) => c.selectAll(),
+    'editor.repeat': (c) => c.repeat(),
+    'editor.quantize': (c) => c.quantizeNotes(),
+    'editor.save': (c) => void c.flush(),
+    'editor.delete': (c) => c.remove(),
+    'editor.noteUp': (c) => c.moveNote(1),
+    'editor.noteDown': (c) => c.moveNote(-1),
+    'editor.soundNext': (c) => c.moveSound(1),
+    'editor.soundPrev': (c) => c.moveSound(-1),
+    'editor.barNext': (c) => c.moveBar(1),
+    'editor.barPrev': (c) => c.moveBar(-1),
+    'editor.start': (c) => c.toStart(),
+    'editor.end': (c) => c.toEnd(),
+    'editor.zoomIn': (c) => c.zoomBy(1),
+    'editor.zoomOut': (c) => c.zoomBy(-1),
+  };
+
+  /** Carries out an editing command; false for one that is the screen's (or a held key's repeat of a lane). */
+  private run(id: string, repeat: boolean): boolean {
+    const lane = /^editor\.lane([1-5])$/.exec(id);
+    if (lane) {
+      if (!repeat) this.toggleLane(Number(lane[1]) - 1);
+      return true;
+    }
+    const fn = EditorController.COMMANDS[id];
+    if (!fn) return false;
+    fn(this);
+    return true;
+  }
+
+  /** A mouse button the player gave an editing command. */
+  private mouse = (e: MouseEvent) => {
+    if (!this.live() || this.recording) return;
+    const id = mouseCommandFor(e.button, 'editor');
+    if (id && this.run(id, false)) e.preventDefault();
   };
 
   /** A direction from the arrow keys or a controller, offered to the track before focus would move. */
@@ -1947,11 +1968,12 @@ export class EditorController {
       else this.noteUp();
       return true;
     }
-    if (e.input === 'b6' || e.input === 'b7') {
-      // The triggers step a bar at a time, and keep stepping while held.
+    const id = padCommandFor(e.input, 'editor');
+    if (id === 'editor.barPrev' || id === 'editor.barNext') {
+      // The bar buttons (the triggers) step a bar at a time, and keep stepping while held.
       clearTimeout(this.barRepeat);
       if (!e.down) return true;
-      const dir = e.input === 'b6' ? -1 : 1;
+      const dir = id === 'editor.barPrev' ? -1 : 1;
       this.moveBar(dir);
       const again = (delay: number) => {
         this.barRepeat = window.setTimeout(() => {
@@ -1962,24 +1984,9 @@ export class EditorController {
       again(360);
       return true;
     }
-    if (e.input === 'b8') {
-      if (e.down) this.undo();
-      return true;
-    }
-    // A click of the left stick changes what notes snap to; a click of the right one loops the marked stretch.
-    if (e.input === 'b10') {
-      if (e.down) this.cycleSnapMode();
-      return true;
-    }
-    if (e.input === 'b11') {
-      if (e.down) {
-        this.feedback('tab', 'tab-right');
-        this.setLoop(!this.looping);
-      }
-      return true;
-    }
-    if (e.input === 'a2-' || e.input === 'a2+') {
-      if (e.down) this.zoomBy(e.input === 'a2+' ? 1 : -1);
+    // The player's buttons for the other editing commands (the screen's own are its action bar's).
+    if (id && (EditorController.COMMANDS[id] || id.startsWith('editor.lane'))) {
+      if (e.down) this.run(id, false);
       return true;
     }
     // The right stick's up and down are read as a push, every frame.
