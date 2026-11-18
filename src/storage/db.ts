@@ -2,6 +2,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { StemName } from '../analysis/types';
 import type { Annotation } from '../debug/annotations';
 import type { Difficulty, Part } from '../chart/types';
+import { festivalAudio, isFestival } from './festivalFile';
 
 export interface SongMeta {
   id: string;
@@ -30,6 +31,11 @@ export interface BestScore {
 
 interface FestivalDB extends DBSchema {
   songs: { key: string; value: SongMeta; indexes: { addedAt: number } };
+  /**
+   * Each song's .festival file (src/storage/festivalFile.ts): its details, cover, analysis and
+   * audio in one. Libraries from before the format hold the bare audio file here until they are
+   * converted (src/storage/songFile.ts).
+   */
   audio: { key: string; value: { id: string; blob: Blob } };
   /** Cached analysis results keyed by `${songId}:${analyzerVersion}:${source}`. */
   analysis: { key: string; value: { key: string; songId: string; data: unknown } };
@@ -67,14 +73,27 @@ export async function getSong(id: string) {
   return (await db()).get('songs', id);
 }
 
-export async function putSong(meta: SongMeta, blob: Blob) {
+/** Stores a song: its entry in the list and its .festival file. */
+export async function putSong(meta: SongMeta, file: Blob) {
   const d = await db();
   const tx = d.transaction(['songs', 'audio'], 'readwrite');
-  await Promise.all([tx.objectStore('songs').put(meta), tx.objectStore('audio').put({ id: meta.id, blob }), tx.done]);
+  await Promise.all([tx.objectStore('songs').put(meta), tx.objectStore('audio').put({ id: meta.id, blob: file }), tx.done]);
 }
 
-export async function getAudio(id: string): Promise<Blob | undefined> {
+/** What is stored for a song: its .festival file, or the bare audio file of a library not yet converted. */
+export async function getStoredFile(id: string): Promise<Blob | undefined> {
   return (await (await db()).get('audio', id))?.blob;
+}
+
+export async function putStoredFile(id: string, file: Blob) {
+  await (await db()).put('audio', { id, blob: file });
+}
+
+/** A song's audio file, sliced out of its .festival file. */
+export async function getAudio(id: string): Promise<Blob | undefined> {
+  const stored = await getStoredFile(id);
+  if (!stored) return undefined;
+  return (await isFestival(stored)) ? festivalAudio(stored) : stored;
 }
 
 export async function deleteSong(id: string) {

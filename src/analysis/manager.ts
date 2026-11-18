@@ -2,6 +2,7 @@ import { loadSongBuffer } from '../audio/songAudio';
 import { generateAll } from '../chart/generator';
 import type { Chart, Difficulty, Part } from '../chart/types';
 import { analysisKey, deleteAnalyses, getAnalysis, putAnalysis, putStems } from '../storage/db';
+import { writeAnalysisToFile } from '../storage/songFile';
 import { stemAnalyzer, type StemAnalyzer } from './separation/analyzer';
 import { ANALYSIS_SAMPLE_RATE, ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult, type AnalysisStep, type PartLines, type StemName, type StemNotes } from './types';
 import type { WorkerRequest, WorkerResponse } from './worker';
@@ -165,6 +166,12 @@ export class AnalysisManager {
           await putAnalysis(analysisKey(id, ANALYSIS_VERSION, result.source), id, result);
         } catch {
           /* cache is best-effort */
+        }
+        try {
+          // The song's .festival file carries its analysis, so an exported song brings its charts.
+          if (!stale()) await writeAnalysisToFile(id, result);
+        } catch (e) {
+          console.warn('could not write the analysis into the song file', e);
         }
         if (stale()) continue;
         this.set(id, { state: 'ready' });
