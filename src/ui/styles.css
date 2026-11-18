@@ -4513,11 +4513,12 @@ input.text {
 }
 
 /* ------------------------------------------------------------------------------------------- */
-/* Calm motion when asked for: state changes stay, travel and bounce go.                       */
+/* Calm motion when asked for: state changes stay, travel and bounce go. The loading screen      */
+/* (#boot, in index.html) has a calm version of its own: its notes stand still on the highway.  */
 
-:root[data-motion='reduced'] *:not(.fb-tag, .countdown, .hud-break, .hud-break *),
-:root[data-motion='reduced'] *:not(.fb-tag, .countdown, .hud-break, .hud-break *)::before,
-:root[data-motion='reduced'] *:not(.fb-tag, .countdown, .hud-break, .hud-break *)::after {
+:root[data-motion='reduced'] *:not(.fb-tag, .countdown, .hud-break, .hud-break *, #boot, #boot *),
+:root[data-motion='reduced'] *:not(.fb-tag, .countdown, .hud-break, .hud-break *, #boot, #boot *)::before,
+:root[data-motion='reduced'] *:not(.fb-tag, .countdown, .hud-break, .hud-break *, #boot, #boot *)::after {
   animation-duration: 0.01ms !important;
   animation-delay: 0s !important;
   animation-iteration-count: 1 !important;
