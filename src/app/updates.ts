@@ -35,6 +35,23 @@ export const updates = {
   snapshot: () => status,
 };
 
+/**
+ * How long a check may take, ms. Without a limit a request that never answers (a stalled connection)
+ * left the check "checking" for good, and the button with it.
+ */
+const CHECK_TIMEOUT = 20_000;
+
+/** Fails with a "timed out" error when `p` has not settled within `ms`. */
+function within<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error('The update check timed out.')), ms);
+    p.then(
+      (v) => (clearTimeout(timer), resolve(v)),
+      (e) => (clearTimeout(timer), reject(e)),
+    );
+  });
+}
+
 /** Asks whether a newer release is out. Quiet about failures when `quiet` (the check on start). */
 export async function checkForUpdates(quiet = false): Promise<void> {
   if (status.state === 'unsupported' || status.state === 'checking' || status.state === 'downloading' || status.state === 'installing')
@@ -42,8 +59,9 @@ export async function checkForUpdates(quiet = false): Promise<void> {
   const before = status;
   set({ state: 'checking' });
   try {
+    // The request itself gives up after CHECK_TIMEOUT; the race is the backstop should it not.
     const { check } = await import('@tauri-apps/plugin-updater');
-    const update = await check();
+    const update = await within(check({ timeout: CHECK_TIMEOUT }), CHECK_TIMEOUT + 5_000);
     pending = update;
     set(
       update
