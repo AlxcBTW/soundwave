@@ -979,7 +979,8 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
         ],
       },
     ];
-    return AREAS.map((a) => ({
+    // A song's controls first: they are what is changed most.
+    return [...AREAS.filter((a) => a.id === 'song'), ...AREAS.filter((a) => a.id !== 'song')].map((a) => ({
       title: a.label,
       rows: [...(a.id === 'song' ? lanes : []), ...COMMANDS.filter((cmd) => cmd.area === a.id).map(rowFor)],
     }));
