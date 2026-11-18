@@ -5,6 +5,29 @@ mod touchpad;
 use std::time::Duration;
 use tauri::Manager;
 
+/// In a release build the webview is the game and nothing else: the browser's own shortcuts
+/// (reload with Ctrl+R or F5, print, find, the developer tools) do nothing, so a stray key press
+/// cannot reload the game in the middle of a song. Development builds keep them.
+#[cfg(all(windows, not(debug_assertions)))]
+fn lock_webview(app: &tauri::App) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3;
+    use windows_core::Interface;
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let _ = window.with_webview(|webview| unsafe {
+        let Ok(core) = webview.controller().CoreWebView2() else {
+            return;
+        };
+        let Ok(settings) = core.Settings() else {
+            return;
+        };
+        if let Ok(settings) = settings.cast::<ICoreWebView2Settings3>() {
+            let _ = settings.SetAreBrowserAcceleratorKeysEnabled(false);
+        }
+    });
+}
+
 /// Quits the game: every window closes and the process ends.
 #[tauri::command]
 fn exit_app(app: tauri::AppHandle) {
@@ -64,6 +87,8 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            #[cfg(all(windows, not(debug_assertions)))]
+            lock_webview(app);
             // The window starts hidden and the page shows it once it is in the stored display mode
             // (src/game/displayMode.ts). Should the page never get that far, show the window anyway.
             let handle = app.handle().clone();

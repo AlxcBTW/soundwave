@@ -31,3 +31,8 @@ hidapi = "2"
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-process = "2"
 tauri-plugin-updater = "2"
+
+# The Windows webview's own settings (browser shortcuts off in release builds: see lib.rs).
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
+windows-core = "0.62"
