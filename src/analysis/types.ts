@@ -1,7 +1,7 @@
 /**
  * Output of song analysis: what chart generation works from.
  */
-export const ANALYSIS_VERSION = 2;
+export const ANALYSIS_VERSION = 3;
 export const ANALYSIS_SAMPLE_RATE = 22050;
 
 export type DrumKind = 'kick' | 'snare' | 'hat';
@@ -9,7 +9,7 @@ export type DrumKind = 'kick' | 'snare' | 'hat';
 export interface DrumHit {
   t: number;
   kind: DrumKind;
-  /** 0..1, relative to the strongest hit of that kind. */
+  /** 0..1: the band's flux at the hit over its 99th-percentile frame in the song (clipped at 1). */
   strength: number;
 }
 

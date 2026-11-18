@@ -96,7 +96,7 @@ export async function analyzeSignal(signal: Float32Array, opts: PipelineOptions 
   if (opts.drumSignal) {
     // A separated drum stem is already "percussive": detect on its own spectrum.
     const drumSpec = stft(opts.drumSignal, sr, NFFT, HOP);
-    drums = detectDrums(drumSpec.mag, drumSpec, fps, opts.drumSignal, drumSpec.mag);
+    drums = detectDrums(drumSpec.mag, drumSpec, fps, opts.drumSignal, drumSpec.mag, { stem: true });
   } else {
     drums = detectDrums(percussive, spec, fps, signal, spec.mag);
   }
@@ -233,14 +233,62 @@ const roundNote = (n: PitchedNote): PitchedNote => ({
   ...(n.chord ? { chord: n.chord } : {}),
 });
 
-const BANDS: { kind: DrumKind; lo: number; hi: number; wait: number }[] = [
-  { kind: 'kick', lo: 30, hi: 150, wait: 0.1 },
-  { kind: 'snare', lo: 180, hi: 2500, wait: 0.08 },
-  { kind: 'hat', lo: 5000, hi: 10500, wait: 0.06 },
+/**
+ * A hit's strength is its band's flux at the hit over the band's 99th-percentile frame (clipped at
+ * 1): the weakest that counts is `min`.
+ */
+const BANDS: { kind: DrumKind; lo: number; hi: number; wait: number; min: number }[] = [
+  { kind: 'kick', lo: 30, hi: 150, wait: 0.1, min: 0.15 },
+  { kind: 'snare', lo: 180, hi: 2500, wait: 0.08, min: 0.15 },
+  { kind: 'hat', lo: 5000, hi: 10500, wait: 0.06, min: 0.15 },
 ];
+const BAND = Object.fromEntries(BANDS.map((b) => [b.kind, b])) as Record<DrumKind, (typeof BANDS)[number]>;
+
+/**
+ * On a separated drum stem the low band also moves with toms, the body of the snare and what is
+ * left of the bass. Against kicks marked by hand (MDB Drums, 23 recordings, on the stem) only 55%
+ * of what it finds down to 0.15 is a kick; from 0.55 of the strongest kicks up 81% is, for 88% of
+ * the kicks instead of 94% (measured with the floor taken of the whole song's strongest kicks).
+ *
+ * Here it is taken of the strongest kick nearby (KICK_NEAR seconds either side), so a quiet verse
+ * keeps its kicks: only what is far weaker than the kicks around it goes. A kick with no other kick
+ * that near (a lone low thump in a break) has nothing to be compared with there, so it is judged
+ * against the song's median kick instead. On the full mix (no stem) the floor was not measured,
+ * and kicks keep the plain `min`.
+ */
+const KICK_FLOOR = 0.55;
+const KICK_NEAR = 3;
+
+/**
+ * The kicks that stand out from what is around them on a drum stem (see KICK_FLOOR). Their
+ * strengths stay as measured, on the same scale as the snare's and the hi-hat's: the chart
+ * generator weighs them against each other.
+ */
+export function standOutKicks(kicks: DrumHit[]): DrumHit[] {
+  const sorted = kicks.map((k) => k.strength).sort((a, b) => a - b);
+  const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+  return kicks.filter((k) => {
+    let ref = k.strength;
+    let alone = true;
+    for (const o of kicks) {
+      if (o === k || Math.abs(o.t - k.t) > KICK_NEAR) continue;
+      alone = false;
+      ref = Math.max(ref, o.strength);
+    }
+    if (alone) ref = Math.max(ref, median);
+    return k.strength >= Math.max(BAND.kick.min, KICK_FLOOR * ref);
+  });
+}
 
 /** Kick / snare / hat hits from band-limited flux of the percussive component. */
-export function detectDrums(percussive: Float32Array, s: Spectrogram, fps: number, signal?: Float32Array, mag?: Float32Array): DrumHit[] {
+export function detectDrums(
+  percussive: Float32Array,
+  s: Spectrogram,
+  fps: number,
+  signal?: Float32Array,
+  mag?: Float32Array,
+  opts: { stem?: boolean } = {},
+): DrumHit[] {
   const curves = BANDS.map((b) => normalize(bandFlux(percussive, s, b.lo, b.hi)));
   const peaks = curves.map((c, i) =>
     pickPeaks(c, { maxWin: 2, avgWin: Math.round(0.25 * fps), delta: 0.12, wait: Math.max(2, Math.round(BANDS[i].wait * fps)) }),
@@ -264,7 +312,8 @@ export function detectDrums(percussive: Float32Array, s: Spectrogram, fps: numbe
     if (near(peaks[1], f) && hatC[f] < snareC[f] * 1.1) continue;
     hits.push({ t: f / fps, kind: 'hat', strength: Math.min(1, hatC[f]) });
   }
-  let kept = hits.filter((h) => h.strength >= 0.15);
+  let kept = hits.filter((h) => h.strength >= BAND[h.kind].min);
+  if (opts.stem) kept = [...kept.filter((h) => h.kind !== 'kick'), ...standOutKicks(kept.filter((h) => h.kind === 'kick'))];
   if (signal) {
     // Move each hit to the attack in a band-filtered copy of the signal.
     const sr = s.sr;
@@ -281,7 +330,7 @@ export function detectDrums(percussive: Float32Array, s: Spectrogram, fps: numbe
   const last: Partial<Record<DrumKind, DrumHit>> = {};
   for (const h of kept) {
     const prev = last[h.kind];
-    if (prev && h.t - prev.t < BANDS.find((b) => b.kind === h.kind)!.wait * 0.9) {
+    if (prev && h.t - prev.t < BAND[h.kind].wait * 0.9) {
       prev.strength = Math.max(prev.strength, h.strength);
       continue;
     }
