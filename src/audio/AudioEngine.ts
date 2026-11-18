@@ -1,3 +1,8 @@
+import { startNativeOutput, type NativeOutput } from './native/nativeOutput';
+
+/** Whether this is the desktop app, which plays the sound itself (src/audio/native/). */
+const inApp = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
 /**
  * Owns the AudioContext and playback of one song. The context's output clock is
  * the master game clock: everything else asks this class for song time.
@@ -20,6 +25,11 @@ export class AudioEngine {
   /** User calibration in seconds; positive = audio is heard later than reported. */
   offset = 0;
   onEnded: (() => void) | null = null;
+  /** In the desktop app: the app plays the sound, and this says when what is played is heard. */
+  private native: NativeOutput | null = null;
+  /** Seconds the sound is heard after the context's own output clock (the app's queue and device), smoothed. */
+  private lead: number | null = null;
+  private leadAt = 0;
 
   constructor() {
     this.ctx = new AudioContext({ latencyHint: 'interactive' });
@@ -30,7 +40,19 @@ export class AudioEngine {
     this.gain.connect(this.analyser);
     this.master = this.ctx.createGain();
     this.analyser.connect(this.master);
-    this.master.connect(this.ctx.destination);
+    if (!inApp()) {
+      this.master.connect(this.ctx.destination);
+      return;
+    }
+    // The desktop app plays the mix itself; should that not work, the webview plays it as in a browser.
+    const toWebview = () => {
+      this.native = null;
+      this.lead = null;
+      this.master.connect(this.ctx.destination);
+      const sink = this.ctx as AudioContext & { setSinkId?(id: string): Promise<void> };
+      void sink.setSinkId?.('').catch(() => {});
+    };
+    void startNativeOutput(this.ctx, this.master, toWebview).then((out) => (out ? (this.native = out) : toWebview()));
   }
 
   /** Silences or restores everything at once, with a short fade so nothing clicks. */
@@ -113,9 +135,28 @@ export class AudioEngine {
 
   /** Context time currently reaching the speakers, mapped to a performance.now() timestamp. */
   private heardContextTime(perfNow?: number) {
+    const now = perfNow ?? performance.now();
+    const base = this.outputContextTime(now);
+    // In the desktop app the context's output is the app's input: the sound is heard later by the
+    // app's queue and the device's latency, as the app reports them. That lag is smoothed, so the
+    // clock moves as evenly as the context's own and only the lag follows the reports.
+    const heard = this.native?.heard(now);
+    if (heard == null) return this.lead === null ? base : base - this.lead;
+    const lag = base - heard;
+    if (this.lead === null || Math.abs(lag - this.lead) > 0.25) {
+      this.lead = lag;
+      this.leadAt = now;
+    } else if (now - this.leadAt >= 4) {
+      this.lead += (lag - this.lead) * 0.03;
+      this.leadAt = now;
+    }
+    return base - this.lead;
+  }
+
+  /** Context time leaving the context for its output at `now` (a performance.now() time). */
+  private outputContextTime(now: number) {
     const ts = this.ctx.getOutputTimestamp?.();
     if (ts && ts.contextTime !== undefined && ts.performanceTime !== undefined && ts.performanceTime > 0) {
-      const now = perfNow ?? performance.now();
       return ts.contextTime + (now - ts.performanceTime) / 1000;
     }
     return this.ctx.currentTime - (this.ctx.outputLatency || this.ctx.baseLatency || 0);
