@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // A check that never answers: the request hangs on a stalled connection.
-vi.mock('@tauri-apps/plugin-updater', () => ({ check: vi.fn(() => new Promise(() => {})) }));
+vi.mock('@tauri-apps/plugin-updater', () => ({ check: vi.fn<() => Promise<never>>(() => new Promise(() => {})) }));
 
 describe('update check', () => {
   afterEach(() => vi.useRealTimers());
