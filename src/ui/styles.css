@@ -14,14 +14,18 @@
   /* Night */
   --night: #0e0828;
   --deep: #1a0f4c;
-  --panel: rgb(34 20 106 / 0.9);
-  --panel-solid: #22146a;
-  --raised: rgb(54 34 152 / 0.92);
-  --raised-hi: #4a31c4;
-  --row: rgb(66 44 176 / 0.5);
-  --row-hi: rgb(88 62 214 / 0.72);
-  --well: rgb(12 7 40 / 0.62);
-  --line: rgb(196 180 255 / 0.2);
+  /* Dark frosted glass over the live stage: panels are smoked glass that blurs what is behind them
+     (see the glass surfaces under Dialogs), and what sits on them is lit from within with white. */
+  --panel: rgb(8 6 18 / 0.52);
+  --panel-solid: rgb(9 7 20 / 0.84);
+  --raised: rgb(255 255 255 / 0.09);
+  --raised-hi: rgb(255 255 255 / 0.17);
+  --row: rgb(255 255 255 / 0.055);
+  --row-hi: rgb(255 255 255 / 0.13);
+  --well: rgb(0 0 0 / 0.32);
+  --line: rgb(255 255 255 / 0.12);
+  --glass-edge: rgb(255 255 255 / 0.11);
+  --glass-blur: blur(22px) saturate(1.5);
   --violet: #5b3ee0;
 
   /* Ink, tinted from the night */
@@ -331,7 +335,7 @@ ol {
   justify-content: flex-start;
 }
 :is(.btn, .act):disabled {
-  background: rgb(54 34 152 / 0.4);
+  background: rgb(255 255 255 / 0.04);
   color: rgb(171 161 230 / 0.75);
 }
 :is(.btn, .act).primary:disabled {
@@ -1369,7 +1373,7 @@ img.cover {
   transform: scale(0.99);
 }
 .song-item.picked .song-row {
-  background: rgb(96 70 226 / 0.78);
+  background: rgb(255 77 157 / 0.16);
 }
 .song-row.is-focus,
 :root[data-input='mouse'] .song-row:hover {
@@ -1684,6 +1688,47 @@ img.cover {
     transform: translateY(1rem) scale(0.96);
     opacity: 0;
   }
+}
+
+/* Glass: the large surfaces are panes of smoked glass over the stage, with a fine light edge and a
+   catch of light along the top. Only these blur what is behind them (each blur is drawn again with
+   every frame of the stage); rows and buttons on them are plain see-through layers. */
+:is(
+  .tile,
+  .now,
+  .setlist,
+  .set-card,
+  .ready-panel,
+  .detail-card,
+  .results-main,
+  .results-side,
+  .editor-card,
+  .vk,
+  .dialog,
+  .song-list,
+  .set-list
+) {
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow:
+    inset 0 0 0 1px var(--glass-edge),
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 24px 48px -24px rgb(0 0 0 / 0.65);
+}
+
+/* The long lists (songs, tracks, settings) stand on a pane of their own, so their rows read over a
+   bright stage the way rows on a panel do. */
+.song-list,
+.set-list {
+  margin: 0;
+  border-radius: var(--r-l);
+  background: var(--panel);
+}
+.song-list {
+  padding: 0.5rem 0.5rem 1rem;
+}
+.set-list {
+  padding: 0.5rem 0.6rem 1rem;
 }
 
 /* A song's menu: a small pane of dark frosted glass at the pointer (or beside the song), over the

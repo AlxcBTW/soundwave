@@ -4,13 +4,14 @@ description: A rhythm game that charts your own music; its menus are the night s
 colors:
   night: '#0e0828'
   deep: '#1a0f4c'
-  panel: 'rgb(34 20 106 / 0.9)'
-  panel-solid: '#22146a'
-  raised: 'rgb(54 34 152 / 0.92)'
-  row: 'rgb(66 44 176 / 0.5)'
-  row-hi: 'rgb(88 62 214 / 0.72)'
-  well: 'rgb(12 7 40 / 0.62)'
-  line: 'rgb(196 180 255 / 0.2)'
+  panel: 'rgb(8 6 18 / 0.52)'
+  panel-solid: 'rgb(9 7 20 / 0.84)'
+  raised: 'rgb(255 255 255 / 0.09)'
+  row: 'rgb(255 255 255 / 0.055)'
+  row-hi: 'rgb(255 255 255 / 0.13)'
+  well: 'rgb(0 0 0 / 0.32)'
+  line: 'rgb(255 255 255 / 0.12)'
+  glass-edge: 'rgb(255 255 255 / 0.11)'
   violet: '#5b3ee0'
   ink: '#f6f3ff'
   ink-2: '#d2c9fa'
@@ -406,7 +407,7 @@ components:
 
 **Creative North Star: "The Night Sky Over the Stage"**
 
-The menus are the night sky over an open-air stage. The live 3D stage idles behind every screen, a veil of deep indigo and violet lies over it with a faint band of aurora light across the top, and the interface floats in front as rounded violet sheets. One aurora-mint ring is the player's place on the screen: it travels from control to control as they move with the keyboard or a controller, taking each control's size and corner radius as it lands. What the player has chosen is a pale lavender sheet with dark ink on it, and when the choice changes that sheet slides to the new item. Hot pink is the single step forward on a screen. Gold is only ever something the player earned. The player's own cover art carries most of the colour; the panels stay violet so the covers and the one pink action read first.
+The menus are the night sky over an open-air stage. The live 3D stage idles behind every screen, a veil of deep indigo and violet lies over it with a faint band of aurora light across the top, and the interface floats in front as rounded panes of dark frosted glass: smoked black that blurs the stage behind it, with a fine light edge and a catch of light along the top. Only the large panes blur (panels, cards, dialogs and the long lists); rows and buttons on them are see-through white layers, lit brighter where the player is. One aurora-mint ring is the player's place on the screen: it travels from control to control as they move with the keyboard or a controller, taking each control's size and corner radius as it lands. What the player has chosen is a pale lavender sheet with dark ink on it, and when the choice changes that sheet slides to the new item. Hot pink is the single step forward on a screen. Gold is only ever something the player earned. The player's own cover art and the stage carry most of the colour; the glass stays colourless so the covers and the one pink action read first.
 
 The type does the shouting. Archivo is set wide, black, leaning and uppercase for titles, tile names and numbers; at normal width, leaning and uppercase for control labels; and at normal width and upright for everything a player reads as a sentence. Everything is rounded: three radii for sheets and controls, full circles for icon buttons, badges and the HUD's dials. Sizes are in rem off a root that grows with the window and is multiplied by the player's own interface-size setting, so the same layout reads on a phone, at a desk and from across a room.
 
