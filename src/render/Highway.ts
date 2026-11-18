@@ -397,7 +397,7 @@ void main() {
   vec3 lit = mix(uLane, vec3(1.0), 0.6);
   vec3 rimCol = mix(uBase * 1.3, vec3(1.0), uLight * 0.8);
   vec3 col = rimCol * rim * 1.25 + uBase * (glowIn * 0.5 + halo * 0.6 + inside * 0.05);
-  col += lit * uLight * (inside * 0.85 + halo * 1.1);
+  col += lit * uLight * (inside * 1.25 + rim * 0.6 + halo * 1.4);
   float a = clamp(inside * (0.6 + 0.35 * uLight) + rim * 0.65 + halo * 0.18, 0.0, 1.0);
   gl_FragColor = vec4(col, a);
   #include <colorspace_fragment>
