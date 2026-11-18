@@ -156,7 +156,7 @@ export function TrackPicker({
         <div className="track-column">
           {own.length > 0 && (
             <div className="toolbar" data-nav-group="toolbar">
-              <label className="search">
+              <label className="search" data-ring-box>
                 <Search strokeWidth={ICON_STROKE} aria-hidden />
                 <input
                   ref={search}

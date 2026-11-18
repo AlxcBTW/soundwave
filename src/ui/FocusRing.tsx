@@ -8,7 +8,9 @@ const GLIDE = 200;
  * The focus light: one ring that travels from control to control, taking each control's size and
  * corner radius as it lands. With the keyboard or a controller it follows focus; with a mouse it
  * follows the pointer, so pointing at a control looks the same as moving onto it. Touch players
- * never see it. The control it is on also carries `.is-focus` for its own lit state.
+ * never see it. The control it is on also carries `.is-focus` for its own lit state. A control
+ * inside a larger box that reads as one control (a search field with its icon and key) has the ring
+ * round that box: mark the box with `data-ring-box`.
  */
 export function FocusRing() {
   const ref = useRef<HTMLDivElement>(null);
@@ -75,7 +77,8 @@ export function FocusRing() {
         return;
       }
       if (ring.classList.contains('glide') && performance.now() - movedAt > GLIDE) ring.classList.remove('glide');
-      const r = el.getBoundingClientRect();
+      const box = el.closest<HTMLElement>('[data-ring-box]') ?? el;
+      const r = box.getBoundingClientRect();
       if (r.width === 0 && r.height === 0) return;
       const style = getComputedStyle(el);
       // A control that is still fading in gets its ring once it has arrived, not around thin air.
@@ -86,7 +89,7 @@ export function FocusRing() {
         }
         return;
       }
-      const radius = style.borderTopLeftRadius;
+      const radius = getComputedStyle(box).borderTopLeftRadius;
       const next = `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)},${radius}`;
       if (next !== last) {
         last = next;

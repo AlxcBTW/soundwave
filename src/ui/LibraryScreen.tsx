@@ -170,7 +170,7 @@ export function LibraryScreen({
         </p>
       </header>
       <div className="toolbar" data-nav-group="toolbar">
-        <label className="search">
+        <label className="search" data-ring-box>
           <Search strokeWidth={ICON_STROKE} aria-hidden />
           <input
             ref={search}
