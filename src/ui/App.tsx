@@ -436,12 +436,12 @@ export function App() {
       const buffer = await loadSongBuffer(run.songs[index].id);
       await minWipe;
       setView({ name: 'play', run: { ...run, index }, buffer, key: Date.now() });
-      // The sheets lift once the play screen has had a moment to build its highway behind them,
+      // The sheets part once the play screen has had a moment to build its highway behind them,
       // so the way out is as smooth as the way in.
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       await new Promise((r) => setTimeout(r, 140));
       setLaunch('out');
-      setTimeout(() => setLaunch(null), 760);
+      setTimeout(() => setLaunch(null), 860);
     } catch (e) {
       setLaunch(null);
       toast((e as Error).message);

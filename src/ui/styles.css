@@ -651,23 +651,32 @@ input.text { width: min(100%, 16rem); min-height: 2.5rem; padding: 0.4rem 0.7rem
 @keyframes toast-in { from { transform: translateY(0.8rem); opacity: 0; } }
 .drop-overlay { position: absolute; inset: 0; z-index: 65; display: grid; place-items: center; padding: 1.2rem; background: rgb(9 5 28 / 0.84); pointer-events: none; animation: fade-in 0.15s; }
 .drop-overlay span { display: grid; place-items: center; width: 100%; height: 100%; border: 3px dashed var(--pink-2); border-radius: var(--r-l); font-size: clamp(1.4rem, 3vw, 2.4rem); font-weight: 900; font-style: italic; font-stretch: 112%; text-transform: uppercase; text-align: center; }
-/* Launch: three sheets of light open from the foot of the screen while the song loads, then close upward. */
-.launch-wipe { position: absolute; inset: 0; z-index: 80; pointer-events: none; }
-.launch-wipe span { position: absolute; inset: 0; clip-path: circle(0% at 50% 100%); }
-.launch-wipe span:nth-child(1) { background: var(--pink); }
-.launch-wipe span:nth-child(2) { background: var(--violet); }
-.launch-wipe span:nth-child(3) { background: var(--night); }
+/* Launch: three sheets of light open from the foot of the screen while the song loads, then part like a curtain. */
+.launch-wipe { position: absolute; inset: 0; z-index: 80; pointer-events: none; overflow: hidden; }
+.launch-wipe span { position: absolute; inset: 0; background: var(--sheet); clip-path: circle(0% at 50% 100%); }
+.launch-wipe span:nth-child(1) { --sheet: var(--pink); }
+.launch-wipe span:nth-child(2) { --sheet: var(--violet); }
+.launch-wipe span:nth-child(3) { --sheet: var(--night); }
 .launch-wipe.in span { animation: iris-in 0.55s var(--ease) forwards; }
 .launch-wipe.in span:nth-child(2) { animation-delay: 0.06s; }
 .launch-wipe.in span:nth-child(3) { animation-delay: 0.12s; }
 @keyframes iris-in { to { clip-path: circle(150% at 50% 100%); } }
-/* Out: the sheets lift off one after another, night first and pink last, each with a curved lower
-   edge. They move by transform alone, which keeps going smoothly while the song's stage is still
-   being set up behind them. */
-.launch-wipe.out span { clip-path: none; border-radius: 0 0 50% 50% / 0 0 16% 16%; will-change: transform; animation: sheet-lift 0.55s var(--ease-in) forwards; }
-.launch-wipe.out span:nth-child(2) { animation-delay: 0.08s; }
-.launch-wipe.out span:nth-child(1) { animation-delay: 0.16s; }
-@keyframes sheet-lift { to { transform: translateY(-112%); } }
+/* Out: the light parts like a stage curtain. A flash runs down a leaning seam in the middle of the
+   screen, and each sheet splits along it and slides off to both sides, night first, then violet,
+   then pink: the opening is edged in bands of light, and the highway in the middle is the first
+   thing seen. Everything moves by transform and opacity alone, which keeps going smoothly while
+   the song's stage is still being set up behind it. */
+.launch-wipe.out span { clip-path: none; background: none; }
+.launch-wipe.out span::before, .launch-wipe.out span::after { content: ''; position: absolute; top: -2%; bottom: -2%; width: 90%; background: var(--sheet); transform: skewX(-10deg); will-change: transform; animation: 0.56s cubic-bezier(0.76, 0, 0.24, 1) var(--wait) forwards; }
+.launch-wipe.out span::before { right: 50%; animation-name: curtain-left; }
+.launch-wipe.out span::after { left: 50%; animation-name: curtain-right; }
+.launch-wipe.out span:nth-child(3) { --wait: 0.06s; }
+.launch-wipe.out span:nth-child(2) { --wait: 0.13s; }
+.launch-wipe.out span:nth-child(1) { --wait: 0.2s; }
+@keyframes curtain-left { to { transform: skewX(-10deg) translateX(-84%); } }
+@keyframes curtain-right { to { transform: skewX(-10deg) translateX(84%); } }
+.launch-wipe.out::after { content: ''; position: absolute; top: -2%; bottom: -2%; left: 50%; width: 0.5rem; margin-left: -0.25rem; background: #fff; box-shadow: 0 0 2rem 0.7rem var(--pink-2); transform: skewX(-10deg) scaleX(0); will-change: transform, opacity; animation: curtain-seam 0.52s var(--ease) forwards; }
+@keyframes curtain-seam { 0% { transform: skewX(-10deg) scaleX(0); opacity: 1; } 20% { transform: skewX(-10deg) scaleX(1); opacity: 1; } 100% { transform: skewX(-10deg) scaleX(10); opacity: 0; } }
 
 /* ------------------------------------------------------------------------------------------- */
 /* Play (sizes in px: they sit over the highway's own geometry)                                 */
