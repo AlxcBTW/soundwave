@@ -2,7 +2,7 @@ import { parseBlob } from 'music-metadata';
 import type { SongMeta } from '../storage/db';
 import { hashBytes } from '../storage/hash';
 
-export const ACCEPTED = '.festival,.mp3,.wav,.flac,.ogg,.oga,.opus,.m4a,.aac,.webm,audio/*';
+export const ACCEPTED = '.soundwave,.mp3,.wav,.flac,.ogg,.oga,.opus,.m4a,.aac,.webm,audio/*';
 const AUDIO_EXT = /\.(mp3|wav|wave|flac|ogg|oga|opus|m4a|aac|webm)$/i;
 
 export const isAudioFile = (f: File) => f.type.startsWith('audio/') || AUDIO_EXT.test(f.name);

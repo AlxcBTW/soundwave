@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#0e0828" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <title>Festival</title>
+    <title>Soundwave</title>
     <!-- The loading screen: drawn by the page itself, before any script or stylesheet has arrived.
          src/ui/boot.ts moves its progress line and takes it away once the game and its stage are ready. -->
     <style>
@@ -83,7 +83,7 @@
     <script>
       // The stored choice for menu motion counts on the loading screen too.
       try {
-        var m = JSON.parse(localStorage.getItem('festival.settings.v1') || '{}').motion;
+        var m = JSON.parse(localStorage.getItem('soundwave.settings.v1') || '{}').motion;
         if (m === 'reduced' || m === 'full') document.documentElement.dataset.motion = m;
       } catch (e) {}
     </script>
@@ -104,7 +104,7 @@
           <b style="--l:1;--t:7"></b><u style="--l:1;--t:7"></u>
         </div>
       </div>
-      <p class="boot-word">Festival</p>
+      <p class="boot-word">Soundwave</p>
       <div class="boot-line" aria-hidden="true"><span></span></div>
       <p class="boot-step">Loading the game</p>
     </div>

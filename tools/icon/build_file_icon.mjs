@@ -1,12 +1,12 @@
 /**
- * Renders the icon for .festival song files: a page with its corner folded over, and on it the
+ * Renders the icon for .soundwave song files: a page with its corner folded over, and on it the
  * game's note highway in small, five tiles in the lane colours on the strike line and the middle
  * one struck.
  *
  *     node tools/icon/build_file_icon.mjs
  *
- * Writes src-tauri/icons/festival-file.ico (every size Explorer asks for, 16 to 256 px) and
- * festival-file.png (256 px, for looking at). Plain Node, no packages: each size is drawn from
+ * Writes src-tauri/icons/soundwave-file.ico (every size Explorer asks for, 16 to 256 px) and
+ * soundwave-file.png (256 px, for looking at). Plain Node, no packages: each size is drawn from
  * the shapes below with 8×8 samples a pixel and stored as a PNG inside the .ico.
  */
 import { writeFileSync } from 'node:fs';
@@ -215,6 +215,6 @@ function ico(images) {
 
 const images = SIZES.map((size) => ({ size, data: png(size, render(size)) }));
 const icons = join(root, 'src-tauri', 'icons');
-writeFileSync(join(icons, 'festival-file.ico'), ico(images));
-writeFileSync(join(icons, 'festival-file.png'), images.at(-1).data);
-console.log('wrote src-tauri/icons/festival-file.ico and festival-file.png');
+writeFileSync(join(icons, 'soundwave-file.ico'), ico(images));
+writeFileSync(join(icons, 'soundwave-file.png'), images.at(-1).data);
+console.log('wrote src-tauri/icons/soundwave-file.ico and soundwave-file.png');

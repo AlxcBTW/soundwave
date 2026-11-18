@@ -1,5 +1,5 @@
 {
-  "name": "festival",
+  "name": "soundwave",
   "version": "0.1.0",
   "description": "Rhythm game that charts your own songs",
   "scripts": {
@@ -17,14 +17,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DavidNiessen/festival.git"
+    "url": "git+https://github.com/DavidNiessen/soundwave.git"
   },
   "license": "Apache-2.0",
   "type": "module",
   "bugs": {
-    "url": "https://github.com/DavidNiessen/festival/issues"
+    "url": "https://github.com/DavidNiessen/soundwave/issues"
   },
-  "homepage": "https://github.com/DavidNiessen/festival#readme",
+  "homepage": "https://github.com/DavidNiessen/soundwave#readme",
   "dependencies": {
     "@tauri-apps/api": "^2.12.5",
     "fft.js": "^4.0.4",

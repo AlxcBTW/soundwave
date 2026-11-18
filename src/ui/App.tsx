@@ -21,7 +21,7 @@ import { followOutputDevice, muteWhileUnfocused } from '../audio/output';
 import { pads, resolveStyle } from '../input/pads';
 import { menuPulse, setMenuRumble } from '../input/rumble';
 import { deleteSong, getSong, listAllScores, listSongs, StorageBlockedError, submitScore, type BestScore, type SongMeta } from '../storage/db';
-import { festivalFileName, isFestivalFile } from '../storage/festivalFile';
+import { soundwaveFileName, isSoundwaveFile } from '../storage/soundwaveFile';
 import { saveSongFile, watchOpenedFiles } from '../storage/share';
 import { convertLibrary, readSongPackage, songFile, storeNewSong, storeSongPackage } from '../storage/songFile';
 import { ActionBar, useActions } from './actions';
@@ -268,16 +268,16 @@ export function App() {
   const setSongs_ = useMemo(() => setlist.map((id) => byId.get(id)).filter((s): s is SongMeta => !!s), [setlist, byId]);
   const played = useMemo(() => new Set(scores.map((s) => s.songId)), [scores]);
 
-  /** Adds audio files and .festival song files to the library. Resolves to the songs they hold. */
+  /** Adds audio files and .soundwave song files to the library. Resolves to the songs they hold. */
   const importFiles = useCallback(
     async (files: File[]): Promise<SongMeta[]> => {
-      const usable = files.filter((f) => isFestivalFile(f) || isAudioFile(f));
-      if (usable.length < files.length) toast(`Skipped ${files.length - usable.length} file(s) that are not audio or Festival songs.`);
+      const usable = files.filter((f) => isSoundwaveFile(f) || isAudioFile(f));
+      if (usable.length < files.length) toast(`Skipped ${files.length - usable.length} file(s) that are not audio or Soundwave songs.`);
       setImporting((n) => n + usable.length);
       const got: SongMeta[] = [];
       for (const f of usable) {
         try {
-          const song = isFestivalFile(f) ? await readSongPackage(f, f.name) : await readSongFile(f);
+          const song = isSoundwaveFile(f) ? await readSongPackage(f, f.name) : await readSongFile(f);
           const { meta } = song;
           const had = await getSong(meta.id);
           if (had) {
@@ -303,7 +303,7 @@ export function App() {
     },
     [refresh, toast],
   );
-  // Songs stored before the .festival format are rewritten as song files, once, in the background.
+  // Songs stored before the .soundwave format are rewritten as song files, once, in the background.
   useEffect(() => {
     void convertLibrary().catch(() => {});
   }, []);
@@ -318,7 +318,7 @@ export function App() {
   const exportSong = useCallback(
     async (song: SongMeta) => {
       try {
-        if (await saveSongFile(await songFile(song.id), festivalFileName(song))) toast(`Saved "${song.title}" as a Festival song file.`);
+        if (await saveSongFile(await songFile(song.id), soundwaveFileName(song))) toast(`Saved "${song.title}" as a Soundwave song file.`);
       } catch (e) {
         toast(`Could not export "${song.title}": ${(e as Error).message}`);
       }
@@ -751,7 +751,7 @@ export function App() {
       <FocusRing />
       {dragging && (
         <div className="drop-overlay" aria-hidden>
-          <span>Drop songs or Festival song files to add them</span>
+          <span>Drop songs or Soundwave song files to add them</span>
         </div>
       )}
       {launch && (

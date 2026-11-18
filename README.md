@@ -1,4 +1,4 @@
-# festival
+# Soundwave
 
 A rhythm game for your own music. Drop in a song (MP3, WAV, FLAC, OGG, M4A). The game analyzes its percussive, melodic and harmonic content and generates **Lead**, **Bass**, **Drums** and **Vocals** charts at four difficulties:
 
@@ -115,7 +115,7 @@ A four-minute song takes about 20 seconds in all on a fast graphics card, most o
 
 The stem model is not part of the game's files. It is downloaded once (171 MB), the first time the game opens, checked against a known hash and kept in the browser's storage; Settings → Analysis shows its state. For now it comes from the copy Intel publishes for its Audacity plugins ([Intel/demucs-openvino](https://huggingface.co/Intel/demucs-openvino) on Hugging Face). This repository holds its own, smaller export of the same model (`models/htdemucs/htdemucs-v1.onnx`, 90 MB, made by `tools/analysis/export_stem_model.py`), and the download will move there once the repository can be read without signing in (`src/analysis/separation/model.ts` has both).
 
-Separating a song needs about 2.5 GB of memory, which phones and tablets do not give a web page: there the game plays songs that were analyzed elsewhere (brought in as Festival song files or a library backup) or charted by hand, and does not analyze new ones. The runtime's WebAssembly file (27 MiB) is shipped gzip-compressed (`public/ort/…wasm.gz`, about 7 MiB) and unpacked by the worker, so no file in the build is over the 25 MiB some hosts allow per file; `npm run build` fails if one is (`scripts/check-dist.mjs`). On the processor the model wants threads, which a browser only allows on pages served with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`; the dev and preview servers and the desktop app send both, and a host for the built game should too.
+Separating a song needs about 2.5 GB of memory, which phones and tablets do not give a web page: there the game plays songs that were analyzed elsewhere (brought in as Soundwave song files or a library backup) or charted by hand, and does not analyze new ones. The runtime's WebAssembly file (27 MiB) is shipped gzip-compressed (`public/ort/…wasm.gz`, about 7 MiB) and unpacked by the worker, so no file in the build is over the 25 MiB some hosts allow per file; `npm run build` fails if one is (`scripts/check-dist.mjs`). On the processor the model wants threads, which a browser only allows on pages served with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`; the dev and preview servers and the desktop app send both, and a host for the built game should too.
 
 The pipeline then works on the mix and the stems:
 
@@ -196,15 +196,15 @@ The script reduces the crowd characters to a few hundred triangles, bakes their 
 
 Both scripts write the same format: plain meshes whose vertices carry up to four joints and weights, and a small texture of joint matrices per animation frame, which the game uses to animate thousands of instances in a vertex shader.
 
-## Song files (`.festival`)
+## Song files (`.soundwave`)
 
-Every song in the library is stored as a `.festival` file: one file holding the song's details, its cover, the analysis its charts are made from, the charts edited by hand in the track editor, and the original audio byte for byte. **Export** on a song's page saves that file, to keep or to send to a friend; dropping it on the game, or picking it with **Add songs**, adds the song with its charts ready, without analyzing it again. The song's id is the hash of its audio, so the same song arrives as the same song, with the same charts. Scores and separated stems stay on the device that made them.
+Every song in the library is stored as a `.soundwave` file: one file holding the song's details, its cover, the analysis its charts are made from, the charts edited by hand in the track editor, and the original audio byte for byte. **Export** on a song's page saves that file, to keep or to send to a friend; dropping it on the game, or picking it with **Add songs**, adds the song with its charts ready, without analyzing it again. The song's id is the hash of its audio, so the same song arrives as the same song, with the same charts. Scores and separated stems stay on the device that made them.
 
-The installers register the extension: double-clicking a song file opens it in the game, or hands it to the game already running. The layout of the file is described at the top of `src/storage/festivalFile.ts`; songs stored before the format existed are converted the first time the game starts.
+The installers register the extension: double-clicking a song file opens it in the game, or hands it to the game already running. The layout of the file is described at the top of `src/storage/soundwaveFile.ts`; songs stored before the format existed are converted the first time the game starts.
 
-**Settings › Advanced** exports the whole library as one `.festival-backup` file: every song file, the best scores and the settings, to move the game to another computer or keep a copy. Importing one adds the songs that are not there yet, keeps the better of each score, takes over the backup's settings and restarts the game. Separated stems are left out; they are made again when a song is analyzed. The layout is described at the top of `src/storage/backup.ts`.
+**Settings › Advanced** exports the whole library as one `.soundwave-backup` file: every song file, the best scores and the settings, to move the game to another computer or keep a copy. Importing one adds the songs that are not there yet, keeps the better of each score, takes over the backup's settings and restarts the game. Separated stems are left out; they are made again when a song is analyzed. The layout is described at the top of `src/storage/backup.ts`.
 
-Song files have their own icon, a page with the note highway on it. A script draws it and writes every size into `src-tauri/icons/festival-file.ico`, which the installers set on the file type (`src-tauri/windows/`):
+Song files have their own icon, a page with the note highway on it. A script draws it and writes every size into `src-tauri/icons/soundwave-file.ico`, which the installers set on the file type (`src-tauri/windows/`):
 
 ```
 node tools/icon/build_file_icon.mjs

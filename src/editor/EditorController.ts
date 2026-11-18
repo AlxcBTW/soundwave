@@ -47,7 +47,7 @@ const PART_STEM: Record<Part, StemName> = { lead: 'other', bass: 'bass', drums: 
 
 /** Zoom steps, in px per beat at a 16px root. */
 const ZOOMS = [26, 38, 54, 76, 108, 152, 214, 300];
-const PREFS_KEY = 'festival.editor.v1';
+const PREFS_KEY = 'soundwave.editor.v1';
 
 interface Prefs {
   part: Part;

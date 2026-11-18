@@ -30,7 +30,7 @@ export const REPO_MODEL: ModelSource = {
   files: [
     {
       name: 'htdemucs-v1.onnx',
-      url: 'https://raw.githubusercontent.com/DavidNiessen/festival/main/models/htdemucs/htdemucs-v1.onnx',
+      url: 'https://raw.githubusercontent.com/DavidNiessen/soundwave/main/models/htdemucs/htdemucs-v1.onnx',
       bytes: 90415579,
       sha256: 'fee1c4f070dc290f3ce65c16cd0927279b5e23159d01bfb6c8a8a13bd734f276',
     },
@@ -49,11 +49,11 @@ export const INTEL_MODEL: ModelSource = {
 };
 
 function chosenSource(): ModelSource {
-  // Development only: `localStorage['festival.dev.stem-model'] = 'repo'` loads the repository's file
+  // Development only: `localStorage['soundwave.dev.stem-model'] = 'repo'` loads the repository's file
   // from the dev server, to check it before the download moves there.
   if (import.meta.env.DEV) {
     try {
-      if (localStorage.getItem('festival.dev.stem-model') === 'repo') {
+      if (localStorage.getItem('soundwave.dev.stem-model') === 'repo') {
         return { ...REPO_MODEL, files: REPO_MODEL.files.map((f) => ({ ...f, url: `/models/htdemucs/${f.name}` })) };
       }
     } catch {
@@ -98,7 +98,7 @@ class StemModel {
   }
 
   private db() {
-    this.dbPromise ??= openDB('festival-models', 1, { upgrade: (d) => void d.createObjectStore('files') });
+    this.dbPromise ??= openDB('soundwave-models', 1, { upgrade: (d) => void d.createObjectStore('files') });
     return this.dbPromise;
   }
   private key = (f: ModelFile) => `${this.source.id}/${f.name}`;

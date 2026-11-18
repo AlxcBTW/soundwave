@@ -17,7 +17,7 @@ from .analysis import STEM_NAMES, analyze, device, engines, stem_wavs
 
 MAX_UPLOAD = 400 * 1024 * 1024
 
-app = FastAPI(title="Festival analysis service")
+app = FastAPI(title="Soundwave analysis service")
 app.add_middleware(
     CORSMiddleware,
     # Local dev servers, the desktop app's webview origins, and local static builds.

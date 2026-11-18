@@ -1,5 +1,5 @@
 ---
-name: Festival (working title)
+name: Soundwave
 description: A rhythm game that charts your own music; its menus are the night sky over an open-air stage.
 colors:
   night: "#0e0828"
@@ -396,7 +396,7 @@ components:
     height: "1.75em"
 ---
 
-# Design System: Festival (working title)
+# Design System: Soundwave
 
 ## Overview
 
@@ -698,5 +698,5 @@ Sounds are wired in one place: a shared handler gives every button, tab and row 
 - **Don't** set sentences or song names in the stage voice, or controls in the upright reading voice.
 - **Don't** show hover effects, key hints or the focus ring to a touch player.
 - **Don't** animate anything in the HUD for decoration, or let menu motion run during play.
-- **Don't** depend on the product name; "Festival" is a working title and the wordmark is replaceable.
+- **Don't** let a layout depend on the product name: the wordmark "Soundwave" is set in type, not drawn into the design.
 - **Don't** name, imitate or recreate any existing commercial rhythm game in look, copy, assets or layout.

@@ -22,7 +22,7 @@ interface Props {
   onAnalyze(): void;
   /** Opens the song's charts in the track editor. */
   onEdit(): void;
-  /** Saves the song as a .festival file, to share it. */
+  /** Saves the song as a .soundwave file, to share it. */
   onExport(): void;
   onDelete(): void;
   onClose(): void;
@@ -142,7 +142,7 @@ export function SongSheet({ song, status, scores, slot, setFull, previewing, onT
                 <PencilRuler strokeWidth={ICON_STROKE} aria-hidden />
                 Edit charts
               </button>
-              <button type="button" className="btn quiet small" onClick={onExport} title="Save the song with its charts as one .festival file, to share it">
+              <button type="button" className="btn quiet small" onClick={onExport} title="Save the song with its charts as one .soundwave file, to share it">
                 <Share strokeWidth={ICON_STROKE} aria-hidden />
                 Export
               </button>

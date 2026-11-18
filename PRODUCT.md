@@ -42,7 +42,7 @@ The game charts the player's own music. There is no fixed setlist: every song co
 - Everything must be fully operable by keyboard alone, by controller alone and by touch alone; mouse is optional.
 - Must read from a couch at TV distance, at a desk, and on a phone.
 - Audio playback is the core of the experience; UI motion must never compete with the gameplay highway or cost frame time during play.
-- The product name is open: "Festival" is a working title and the design must not depend on it.
+- The product is called Soundwave; the design does not depend on the name.
 - The game must not name, imitate or recreate any existing commercial rhythm game, in look, copy, assets or layouts.
 - The settings layout is tabbed; the screen set is Home, Music library (with Song details), Track editor, Ready up, Play (with Pause), Results, Set summary, Settings.
 

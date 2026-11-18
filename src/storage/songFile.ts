@@ -1,12 +1,12 @@
 /**
- * Songs as .festival files: every song in the library is stored as one (src/storage/festivalFile.ts),
+ * Songs as .soundwave files: every song in the library is stored as one (src/storage/soundwaveFile.ts),
  * kept up to date as it is analyzed, and that same file is what is exported and shared. The song
  * list and the analysis cache in the database are indexes of it, for listing and playing quickly.
  */
 import { ANALYSIS_VERSION, isAnalysisResult, type AnalysisResult } from '../analysis/types';
 import { EDITS_VERSION, sanitizeEdits, type SongEdits } from '../editor/edits';
 import { analysisKey, getAnalysis, getEdits, getSong, getStoredFile, listSongs, putAnalysis, putEdits, putSong, putStoredFile, type SongMeta } from './db';
-import { isFestival, readFestival, writeFestival, type FestivalAnalysis } from './festivalFile';
+import { isSoundwave, readSoundwave, writeSoundwave, type SoundwaveAnalysis } from './soundwaveFile';
 import { hashBytes } from './hash';
 
 /** One write of a song's file at a time, so a conversion and a finished analysis cannot cross. */
@@ -30,7 +30,7 @@ async function cachedAnalysis(id: string): Promise<AnalysisResult | undefined> {
 const storedEdits = (id: string) => getEdits(id).catch(() => undefined);
 
 function build(meta: SongMeta, audio: Blob, analysis?: AnalysisResult, edits?: SongEdits) {
-  return writeFestival({
+  return writeSoundwave({
     meta: { title: meta.title, artist: meta.artist, album: meta.album, duration: meta.duration, fileName: meta.fileName, addedAt: meta.addedAt },
     cover: meta.cover,
     analysis: analysis ? { version: ANALYSIS_VERSION, data: analysis } : undefined,
@@ -41,12 +41,12 @@ function build(meta: SongMeta, audio: Blob, analysis?: AnalysisResult, edits?: S
 
 /** The bare audio of what is stored, whichever form it is in. */
 async function audioOf(stored: Blob, meta: SongMeta): Promise<Blob> {
-  if (!(await isFestival(stored))) return stored.type ? stored : new Blob([stored], { type: meta.mime });
-  return (await readFestival(stored)).audio;
+  if (!(await isSoundwave(stored))) return stored.type ? stored : new Blob([stored], { type: meta.mime });
+  return (await readSoundwave(stored)).audio;
 }
 
 /**
- * Adds a song from an audio file: it is stored as a .festival file. `edits` come with a song that is
+ * Adds a song from an audio file: it is stored as a .soundwave file. `edits` come with a song that is
  * started from scratch in the track editor (its beat grid), and are stored before the song is.
  */
 export async function storeNewSong(meta: SongMeta, audio: Blob, edits?: SongEdits) {
@@ -64,7 +64,7 @@ export function writeAnalysisToFile(id: string, analysis: AnalysisResult): Promi
 }
 
 /**
- * A song's .festival file, for exporting: with its cover, its current analysis and the charts edited
+ * A song's .soundwave file, for exporting: with its cover, its current analysis and the charts edited
  * by hand. (The editor saves those to the database as it goes; they are written into the file here.)
  */
 export function songFile(id: string): Promise<Blob> {
@@ -72,9 +72,9 @@ export function songFile(id: string): Promise<Blob> {
     const [meta, stored] = await Promise.all([getSong(id), getStoredFile(id)]);
     if (!meta || !stored) throw new Error('This song is no longer in your library.');
     const [analysis, edits] = await Promise.all([cachedAnalysis(id), storedEdits(id)]);
-    if (await isFestival(stored)) {
+    if (await isSoundwave(stored)) {
       // The stored file is current unless the analysis or the edited charts changed since it was written.
-      const has = await readFestival(stored);
+      const has = await readSoundwave(stored);
       const sameAnalysis = !analysis || (has.analysis?.version === ANALYSIS_VERSION && JSON.stringify(has.analysis.data) === JSON.stringify(analysis));
       const sameEdits = JSON.stringify(has.edits?.data ?? null) === JSON.stringify(edits ?? null);
       if (sameAnalysis && sameEdits) return stored;
@@ -86,8 +86,8 @@ export function songFile(id: string): Promise<Blob> {
 }
 
 /**
- * Converts a library from before the .festival format: each song stored as a bare audio file is
- * rewritten as a .festival file carrying its details, cover and analysis. Songs already converted
+ * Converts a library from before the .soundwave format: each song stored as a bare audio file is
+ * rewritten as a .soundwave file carrying its details, cover and analysis. Songs already converted
  * are left as they are, so this is cheap to run on every start.
  */
 export async function convertLibrary(): Promise<number> {
@@ -96,7 +96,7 @@ export async function convertLibrary(): Promise<number> {
     try {
       const done = await serial(async () => {
         const stored = await getStoredFile(meta.id);
-        if (!stored || (await isFestival(stored))) return false;
+        if (!stored || (await isSoundwave(stored))) return false;
         await putStoredFile(meta.id, await build(meta, await audioOf(stored, meta), await cachedAnalysis(meta.id), await storedEdits(meta.id)));
         return true;
       });
@@ -108,7 +108,7 @@ export async function convertLibrary(): Promise<number> {
   return converted;
 }
 
-function usableAnalysis(a: FestivalAnalysis | undefined): AnalysisResult | undefined {
+function usableAnalysis(a: SoundwaveAnalysis | undefined): AnalysisResult | undefined {
   if (!a || a.version !== ANALYSIS_VERSION || !isAnalysisResult(a.data)) return undefined;
   const r = a.data as AnalysisResult;
   return r.source === 'ml' || r.source === 'local' ? r : undefined;
@@ -122,11 +122,11 @@ export interface SongPackage {
 }
 
 /**
- * Reads a .festival file from elsewhere. The song's id is worked out from its audio again (never
+ * Reads a .soundwave file from elsewhere. The song's id is worked out from its audio again (never
  * taken from the file), and its analysis is kept only when this version of the game charts from it.
  */
 export async function readSongPackage(file: Blob, fileName: string): Promise<SongPackage> {
-  const c = await readFestival(file);
+  const c = await readSoundwave(file);
   const id = await hashBytes(await c.audio.arrayBuffer());
   const meta: SongMeta = {
     id,
@@ -145,7 +145,7 @@ export async function readSongPackage(file: Blob, fileName: string): Promise<Son
   return { meta, audio: c.audio, analysis: usableAnalysis(c.analysis), edits };
 }
 
-/** Adds a song read from a .festival file, with its analysis and edited charts when it came with usable ones. */
+/** Adds a song read from a .soundwave file, with its analysis and edited charts when it came with usable ones. */
 export async function storeSongPackage(p: SongPackage) {
   // The edits first: with them stored, a song that needs no analysis is never queued for one.
   if (p.edits) await putEdits(p.meta.id, p.edits);

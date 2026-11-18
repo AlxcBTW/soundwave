@@ -41,7 +41,7 @@ const TABS: [Tab, string, LucideIcon][] = [
   ['touch', 'Touch', Hand],
   ['advanced', 'Advanced', SlidersHorizontal],
 ];
-const TAB_KEY = 'festival.settings-tab';
+const TAB_KEY = 'soundwave.settings-tab';
 
 type KeyGroup = 'keys4' | 'keys5' | 'overdriveKey';
 type PadGroup = 'pad4' | 'pad5' | 'padOverdrive';

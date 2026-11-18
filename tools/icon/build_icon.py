@@ -361,7 +361,7 @@ for kind in ('OPTIX', 'CUDA', 'HIP', 'ONEAPI'):
 scene.render.image_settings.file_format = 'OPEN_EXR'
 scene.render.image_settings.color_mode = 'RGBA'
 scene.render.image_settings.color_depth = '32'
-raw = os.path.join(tempfile.gettempdir(), 'festival-icon.exr')
+raw = os.path.join(tempfile.gettempdir(), 'soundwave-icon.exr')
 scene.render.filepath = raw
 bpy.context.view_layer.update()
 # where the highway vanishes in the picture, for the sky that is painted round it

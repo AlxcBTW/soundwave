@@ -134,7 +134,7 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
   return s;
 }
 
-const KEY = 'festival.settings.v1';
+const KEY = 'soundwave.settings.v1';
 
 export function loadSettings(): Settings {
   try {

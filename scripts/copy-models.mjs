@@ -27,7 +27,7 @@ if (existsSync(ort)) {
   const packed = join(ortDst, `${ORT_WASM}.gz`);
   const source = join(ort, ORT_WASM);
   // Compressing takes a few seconds: only when the runtime changed.
-  const cache = join(root, 'node_modules', '.cache', 'festival');
+  const cache = join(root, 'node_modules', '.cache', 'soundwave');
   mkdirSync(cache, { recursive: true });
   const stamp = join(cache, `${ORT_WASM}.source-size`);
   const size = String(readFileSync(source).length);

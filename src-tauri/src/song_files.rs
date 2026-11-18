@@ -1,4 +1,4 @@
-//! .festival song files on disk: the ones the system opens the app with (double-clicked in
+//! .soundwave song files on disk: the ones the system opens the app with (double-clicked in
 //! Explorer, or passed on by a second launch), and saving a song's file or a library backup where
 //! the player chooses.
 //!
@@ -16,9 +16,9 @@ use tauri::ipc::{InvokeBody, Request, Response};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
-const EXT: &str = "festival";
+const EXT: &str = "soundwave";
 /// The event that tells the page there are opened files to take.
-const OPENED: &str = "festival://opened";
+const OPENED: &str = "soundwave://opened";
 
 #[derive(Default)]
 pub struct Opened {
@@ -108,8 +108,8 @@ struct SavingInner {
 /// What a saved file is, for the save dialog's file type: (description, extension).
 fn file_kind(kind: &str) -> Result<(&'static str, &'static str), String> {
   match kind {
-    "song" => Ok(("Festival song", EXT)),
-    "backup" => Ok(("Festival library backup", "festival-backup")),
+    "song" => Ok(("Soundwave song", EXT)),
+    "backup" => Ok(("Soundwave library backup", "soundwave-backup")),
     _ => Err(format!("unknown kind of file: {kind}")),
   }
 }
@@ -178,13 +178,13 @@ mod tests {
 
   #[test]
   fn finds_song_files_on_a_command_line() {
-    let dir = std::env::temp_dir().join("festival-song-files-test");
+    let dir = std::env::temp_dir().join("soundwave-song-files-test");
     std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("a.festival"), b"x").unwrap();
-    std::fs::write(dir.join("b.FESTIVAL"), b"x").unwrap();
+    std::fs::write(dir.join("a.soundwave"), b"x").unwrap();
+    std::fs::write(dir.join("b.SOUNDWAVE"), b"x").unwrap();
     std::fs::write(dir.join("c.mp3"), b"x").unwrap();
-    let args = ["festival.exe", "a.festival", "b.FESTIVAL", "c.mp3", "missing.festival", "--flag"].map(String::from);
+    let args = ["soundwave.exe", "a.soundwave", "b.SOUNDWAVE", "c.mp3", "missing.soundwave", "--flag"].map(String::from);
     let found = song_files(args, &dir);
-    assert_eq!(found, vec![dir.join("a.festival"), dir.join("b.FESTIVAL")]);
+    assert_eq!(found, vec![dir.join("a.soundwave"), dir.join("b.SOUNDWAVE")]);
   }
 }

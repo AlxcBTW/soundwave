@@ -6,13 +6,13 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { inDesktopApp } from '../game/displayMode';
 import { BACKUP_EXT, BACKUP_MIME } from './backup';
-import { FESTIVAL_EXT, FESTIVAL_MIME } from './festivalFile';
+import { SOUNDWAVE_EXT, SOUNDWAVE_MIME } from './soundwaveFile';
 
 export type SaveKind = 'song' | 'backup';
 
 const TYPES: Record<SaveKind, { description: string; mime: string; ext: string }> = {
-  song: { description: 'Festival song', mime: FESTIVAL_MIME, ext: FESTIVAL_EXT },
-  backup: { description: 'Festival library backup', mime: BACKUP_MIME, ext: BACKUP_EXT },
+  song: { description: 'Soundwave song', mime: SOUNDWAVE_MIME, ext: SOUNDWAVE_EXT },
+  backup: { description: 'Soundwave library backup', mime: BACKUP_MIME, ext: BACKUP_EXT },
 };
 
 /** How much is handed to the desktop app in one message. */
@@ -121,7 +121,7 @@ function take() {
     for (const f of opened) {
       try {
         const bytes = await invoke<ArrayBuffer>('read_opened_file', { id: f.id });
-        files.push(new File([bytes], f.name, { type: FESTIVAL_MIME }));
+        files.push(new File([bytes], f.name, { type: SOUNDWAVE_MIME }));
       } catch (e) {
         console.warn(`could not read ${f.name}`, e);
       }
@@ -146,7 +146,7 @@ export function watchOpenedFiles(onFiles: (files: File[]) => void): () => void {
   if (!listening) {
     listening = true;
     // Listen first, then take what is already waiting: a file that arrives in between is still taken.
-    void listen('festival://opened', take).then(take, take);
+    void listen('soundwave://opened', take).then(take, take);
   }
   return () => {
     if (handler === onFiles) handler = null;

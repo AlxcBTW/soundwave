@@ -209,7 +209,7 @@ export class AnalysisManager {
           /* cache is best-effort */
         }
         try {
-          // The song's .festival file carries its analysis, so an exported song brings its charts.
+          // The song's .soundwave file carries its analysis, so an exported song brings its charts.
           if (!stale()) await writeAnalysisToFile(id, result);
         } catch (e) {
           console.warn('could not write the analysis into the song file', e);

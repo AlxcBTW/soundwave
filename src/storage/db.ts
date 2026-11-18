@@ -2,7 +2,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { StemName } from '../analysis/types';
 import type { Difficulty, Part } from '../chart/types';
 import type { SongEdits } from '../editor/edits';
-import { festivalAudio, isFestival } from './festivalFile';
+import { soundwaveAudio, isSoundwave } from './soundwaveFile';
 
 export interface SongMeta {
   id: string;
@@ -29,10 +29,10 @@ export interface BestScore {
   date: number;
 }
 
-interface FestivalDB extends DBSchema {
+interface SoundwaveDB extends DBSchema {
   songs: { key: string; value: SongMeta; indexes: { addedAt: number } };
   /**
-   * Each song's .festival file (src/storage/festivalFile.ts): its details, cover, analysis and
+   * Each song's .soundwave file (src/storage/soundwaveFile.ts): its details, cover, analysis and
    * audio in one. Libraries from before the format hold the bare audio file here until they are
    * converted (src/storage/songFile.ts).
    */
@@ -53,7 +53,7 @@ export class StorageBlockedError extends Error {
   }
 }
 
-let dbPromise: Promise<IDBPDatabase<FestivalDB>> | null = null;
+let dbPromise: Promise<IDBPDatabase<SoundwaveDB>> | null = null;
 
 function db() {
   if (dbPromise) return dbPromise;
@@ -61,7 +61,7 @@ function db() {
   // without a word, storage fails with the reason until the way is clear.
   let blocked: () => void = () => {};
   const gate = new Promise<never>((_, reject) => (blocked = () => reject(new StorageBlockedError())));
-  const opening = openDB<FestivalDB>('festival', 4, {
+  const opening = openDB<SoundwaveDB>('soundwave', 4, {
     blocked,
     // A newer version of the game wants to upgrade the library: this one lets go of it.
     blocking() {
@@ -107,7 +107,7 @@ export async function deleteLibrary(): Promise<void> {
   dbPromise = null;
   if (open) (await open.catch(() => undefined))?.close();
   await new Promise<void>((resolve, reject) => {
-    const req = indexedDB.deleteDatabase('festival');
+    const req = indexedDB.deleteDatabase('soundwave');
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error ?? new Error('The library could not be deleted.'));
     req.onblocked = () => reject(new Error('The game is open in another tab or window. Close it, then try again.'));
@@ -123,14 +123,14 @@ export async function getSong(id: string) {
   return (await db()).get('songs', id);
 }
 
-/** Stores a song: its entry in the list and its .festival file. */
+/** Stores a song: its entry in the list and its .soundwave file. */
 export async function putSong(meta: SongMeta, file: Blob) {
   const d = await db();
   const tx = d.transaction(['songs', 'audio'], 'readwrite');
   await Promise.all([tx.objectStore('songs').put(meta), tx.objectStore('audio').put({ id: meta.id, blob: file }), tx.done]);
 }
 
-/** What is stored for a song: its .festival file, or the bare audio file of a library not yet converted. */
+/** What is stored for a song: its .soundwave file, or the bare audio file of a library not yet converted. */
 export async function getStoredFile(id: string): Promise<Blob | undefined> {
   return (await (await db()).get('audio', id))?.blob;
 }
@@ -139,11 +139,11 @@ export async function putStoredFile(id: string, file: Blob) {
   await (await db()).put('audio', { id, blob: file });
 }
 
-/** A song's audio file, sliced out of its .festival file. */
+/** A song's audio file, sliced out of its .soundwave file. */
 export async function getAudio(id: string): Promise<Blob | undefined> {
   const stored = await getStoredFile(id);
   if (!stored) return undefined;
-  return (await isFestival(stored)) ? festivalAudio(stored) : stored;
+  return (await isSoundwave(stored)) ? soundwaveAudio(stored) : stored;
 }
 
 export async function deleteSong(id: string) {

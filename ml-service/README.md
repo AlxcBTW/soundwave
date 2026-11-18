@@ -1,4 +1,4 @@
-# Festival analysis service (reference)
+# Soundwave analysis service (reference)
 
 The game does this work itself now (see "How analysis works" in the main README) and no longer connects to this service. It is kept as the reference the in-app stem separation is checked against, and its environment runs `tools/analysis/export_stem_model.py` and the offline tooling in `scripts/dev/`.
 
@@ -36,7 +36,7 @@ The first analysis downloads the Demucs model weights (about 80 MB) into the tor
 ## Run
 
 ```bash
-python -m festival_ml --port 8765
+python -m soundwave_ml --port 8765
 ```
 
 `http://127.0.0.1:8765/health` shows which engines were found and whether the GPU is used.

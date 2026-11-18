@@ -124,7 +124,7 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
   return (
     <div className="page home" data-nav-bar>
       <header className="page-head home-head">
-        <h1 className="wordmark">Festival</h1>
+        <h1 className="wordmark">Soundwave</h1>
         <div className="tabs home-tabs">
           <Hint kbd="KeyQ" pad="b4" mode={mode} style={style} />
           <div className="tab-row slide" role="tablist" aria-label="Main menu" ref={tabRow} data-nav-group="home-tabs">

@@ -1,5 +1,5 @@
 /**
- * The .festival song file: one file that carries a song whole, so it can be kept, moved and shared.
+ * The .soundwave song file: one file that carries a song whole, so it can be kept, moved and shared.
  *
  * It holds the song's details (title, artist, album, length), its cover, the analysis its charts are
  * built from, any charts edited by hand, and the original audio file byte for byte. A friend who opens it plays the same charts
@@ -9,7 +9,7 @@
  * Layout, every integer little-endian:
  *
  *     offset  size  field
- *     0       8     magic, the ASCII bytes "FESTIVAL"
+ *     0       8     magic, the ASCII bytes "SOUNDWAV"
  *     8       2     format version (FORMAT_VERSION)
  *     10      2     reserved, 0
  *     12      ...   chunks, one after another to the end of the file
@@ -32,11 +32,11 @@
  * last: everything before it is small, and the audio can be sliced out without reading it.
  */
 
-export const FESTIVAL_EXT = '.festival';
-export const FESTIVAL_MIME = 'application/x-festival';
+export const SOUNDWAVE_EXT = '.soundwave';
+export const SOUNDWAVE_MIME = 'application/x-soundwave';
 export const FORMAT_VERSION = 1;
 
-const MAGIC = 'FESTIVAL';
+const MAGIC = 'SOUNDWAV';
 const HEADER = 12;
 const CHUNK_HEAD = 8;
 const CRC = 4;
@@ -47,7 +47,7 @@ const MAX_TEXT = 300;
 const MAX_SMALL_CHUNK = 32 * 1024 * 1024;
 const COVER_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
-export interface FestivalMeta {
+export interface SoundwaveMeta {
   title: string;
   artist: string;
   album?: string;
@@ -56,27 +56,27 @@ export interface FestivalMeta {
   addedAt?: number;
 }
 
-export interface FestivalAnalysis {
+export interface SoundwaveAnalysis {
   version: number;
   data: unknown;
 }
 
 /** Hand-edited charts, as the editor stores them. Readers check `data` before using it. */
-export interface FestivalEdits {
+export interface SoundwaveEdits {
   version: number;
   data: unknown;
 }
 
-export interface FestivalContents {
-  meta: FestivalMeta;
+export interface SoundwaveContents {
+  meta: SoundwaveMeta;
   cover?: Blob;
-  analysis?: FestivalAnalysis;
-  edits?: FestivalEdits;
+  analysis?: SoundwaveAnalysis;
+  edits?: SoundwaveEdits;
   /** The original audio file, typed with its MIME type. */
   audio: Blob;
 }
 
-export class FestivalFileError extends Error {}
+export class SoundwaveFileError extends Error {}
 
 /* CRC-32 (IEEE) --------------------------------------------------------------------------- */
 
@@ -148,12 +148,12 @@ async function readVersioned(data: Uint8Array): Promise<{ version: number; data:
   }
 }
 
-/** Builds a .festival file. */
-export async function writeFestival(c: FestivalContents): Promise<Blob> {
+/** Builds a .soundwave file. */
+export async function writeSoundwave(c: SoundwaveContents): Promise<Blob> {
   const header = new Uint8Array(HEADER);
   header.set(ascii(MAGIC), 0);
   new DataView(header.buffer).setUint16(8, FORMAT_VERSION, true);
-  const meta: FestivalMeta = {
+  const meta: SoundwaveMeta = {
     title: c.meta.title,
     artist: c.meta.artist,
     ...(c.meta.album ? { album: c.meta.album } : {}),
@@ -166,7 +166,7 @@ export async function writeFestival(c: FestivalContents): Promise<Blob> {
   if (c.analysis) parts.push(chunk('ANLS', await versioned(c.analysis)));
   if (c.edits) parts.push(chunk('EDIT', await versioned(c.edits)));
   parts.push(chunk('AUDI', typed(c.audio.type || 'application/octet-stream', new Uint8Array(await c.audio.arrayBuffer()))));
-  return new Blob(parts as Uint8Array<ArrayBuffer>[], { type: FESTIVAL_MIME });
+  return new Blob(parts as Uint8Array<ArrayBuffer>[], { type: SOUNDWAVE_MIME });
 }
 
 /* Reading --------------------------------------------------------------------------------- */
@@ -182,8 +182,8 @@ async function read(blob: Blob, start: number, length: number): Promise<Uint8Arr
   return new Uint8Array(await blob.slice(start, start + length).arrayBuffer());
 }
 
-/** Whether a blob starts like a .festival file. */
-export async function isFestival(blob: Blob): Promise<boolean> {
+/** Whether a blob starts like a .soundwave file. */
+export async function isSoundwave(blob: Blob): Promise<boolean> {
   if (blob.size < HEADER) return false;
   const head = await read(blob, 0, MAGIC.length);
   return String.fromCharCode(...head) === MAGIC;
@@ -191,17 +191,17 @@ export async function isFestival(blob: Blob): Promise<boolean> {
 
 /** The file's chunks, found by reading only their headers. */
 async function index(blob: Blob): Promise<ChunkRef[]> {
-  if (!(await isFestival(blob))) throw new FestivalFileError('This is not a Festival song file.');
+  if (!(await isSoundwave(blob))) throw new SoundwaveFileError('This is not a Soundwave song file.');
   const version = new DataView((await read(blob, 8, 2)).buffer).getUint16(0, true);
-  if (version > FORMAT_VERSION) throw new FestivalFileError('This song file was made by a newer version of Festival. Update the game to open it.');
+  if (version > FORMAT_VERSION) throw new SoundwaveFileError('This song file was made by a newer version of Soundwave. Update the game to open it.');
   const refs: ChunkRef[] = [];
   let at = HEADER;
   while (at < blob.size) {
-    if (at + CHUNK_HEAD + CRC > blob.size) throw new FestivalFileError('This song file is cut short.');
+    if (at + CHUNK_HEAD + CRC > blob.size) throw new SoundwaveFileError('This song file is cut short.');
     const head = await read(blob, at, CHUNK_HEAD);
     const type = String.fromCharCode(...head.subarray(0, 4));
     const length = new DataView(head.buffer).getUint32(4, true);
-    if (!/^[A-Z0-9]{4}$/.test(type) || at + CHUNK_HEAD + length + CRC > blob.size) throw new FestivalFileError('This song file is damaged.');
+    if (!/^[A-Z0-9]{4}$/.test(type) || at + CHUNK_HEAD + length + CRC > blob.size) throw new SoundwaveFileError('This song file is damaged.');
     refs.push({ type, offset: at + CHUNK_HEAD, length });
     at += CHUNK_HEAD + length + CRC;
   }
@@ -212,27 +212,27 @@ async function payload(blob: Blob, ref: ChunkRef, verify: boolean): Promise<Uint
   const data = await read(blob, ref.offset, ref.length);
   if (verify) {
     const stored = new DataView((await read(blob, ref.offset + ref.length, CRC)).buffer).getUint32(0, true);
-    if (crc32([ascii(ref.type), data]) !== stored) throw new FestivalFileError('This song file is damaged.');
+    if (crc32([ascii(ref.type), data]) !== stored) throw new SoundwaveFileError('This song file is damaged.');
   }
   return data;
 }
 
 function splitTyped(data: Uint8Array): { mime: string; body: Uint8Array } {
   const m = data[0] ?? 0;
-  if (1 + m > data.length) throw new FestivalFileError('This song file is damaged.');
+  if (1 + m > data.length) throw new SoundwaveFileError('This song file is damaged.');
   return { mime: String.fromCharCode(...data.subarray(1, 1 + m)), body: data.subarray(1 + m) };
 }
 
 const text = (v: unknown, fallback: string) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, MAX_TEXT) : fallback);
 
-function parseMeta(data: Uint8Array): FestivalMeta {
+function parseMeta(data: Uint8Array): SoundwaveMeta {
   let raw: Record<string, unknown>;
   try {
     raw = JSON.parse(new TextDecoder().decode(data));
   } catch {
-    throw new FestivalFileError('This song file is damaged.');
+    throw new SoundwaveFileError('This song file is damaged.');
   }
-  if (!raw || typeof raw !== 'object') throw new FestivalFileError('This song file is damaged.');
+  if (!raw || typeof raw !== 'object') throw new SoundwaveFileError('This song file is damaged.');
   const duration = typeof raw.duration === 'number' && Number.isFinite(raw.duration) && raw.duration > 0 ? raw.duration : 0;
   const addedAt = typeof raw.addedAt === 'number' && Number.isFinite(raw.addedAt) ? raw.addedAt : undefined;
   const album = text(raw.album, '');
@@ -249,20 +249,20 @@ function parseMeta(data: Uint8Array): FestivalMeta {
 const MIME = /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i;
 
 /**
- * Reads a whole .festival file and checks every chunk. For files from elsewhere: whatever is
- * malformed throws a FestivalFileError, and a cover or analysis that cannot be used is left out.
+ * Reads a whole .soundwave file and checks every chunk. For files from elsewhere: whatever is
+ * malformed throws a SoundwaveFileError, and a cover or analysis that cannot be used is left out.
  */
-export async function readFestival(blob: Blob): Promise<FestivalContents> {
+export async function readSoundwave(blob: Blob): Promise<SoundwaveContents> {
   const refs = await index(blob);
   const find = (type: string) => refs.find((r) => r.type === type);
   const metaRef = find('META');
   const audioRef = find('AUDI');
-  if (!metaRef || !audioRef) throw new FestivalFileError('This song file has no song in it.');
-  if (metaRef.length > MAX_SMALL_CHUNK) throw new FestivalFileError('This song file is damaged.');
+  if (!metaRef || !audioRef) throw new SoundwaveFileError('This song file has no song in it.');
+  if (metaRef.length > MAX_SMALL_CHUNK) throw new SoundwaveFileError('This song file is damaged.');
   const meta = parseMeta(await payload(blob, metaRef, true));
 
   const audioData = splitTyped(await payload(blob, audioRef, true));
-  if (!audioData.body.length) throw new FestivalFileError('This song file has no song in it.');
+  if (!audioData.body.length) throw new SoundwaveFileError('This song file has no song in it.');
   const audio = new Blob([audioData.body as Uint8Array<ArrayBuffer>], { type: MIME.test(audioData.mime) ? audioData.mime : 'application/octet-stream' });
 
   let cover: Blob | undefined;
@@ -278,25 +278,25 @@ export async function readFestival(blob: Blob): Promise<FestivalContents> {
     if (!ref || ref.length <= 2 || ref.length > MAX_SMALL_CHUNK) return undefined;
     return readVersioned(await payload(blob, ref, true));
   };
-  const analysis: FestivalAnalysis | undefined = await small('ANLS');
-  const edits: FestivalEdits | undefined = await small('EDIT');
+  const analysis: SoundwaveAnalysis | undefined = await small('ANLS');
+  const edits: SoundwaveEdits | undefined = await small('EDIT');
   return { meta, cover, analysis, edits, audio };
 }
 
 /**
- * The audio inside a .festival file, sliced out without reading or checking the rest: for the
+ * The audio inside a .soundwave file, sliced out without reading or checking the rest: for the
  * game's own stored files, read every time a song plays.
  */
-export async function festivalAudio(blob: Blob): Promise<Blob> {
+export async function soundwaveAudio(blob: Blob): Promise<Blob> {
   const ref = (await index(blob)).find((r) => r.type === 'AUDI');
-  if (!ref) throw new FestivalFileError('This song file has no song in it.');
+  if (!ref) throw new SoundwaveFileError('This song file has no song in it.');
   const m = (await read(blob, ref.offset, 1))[0];
   const mime = String.fromCharCode(...(await read(blob, ref.offset + 1, m)));
   return blob.slice(ref.offset + 1 + m, ref.offset + ref.length, MIME.test(mime) ? mime : 'application/octet-stream');
 }
 
-/** A file name for a song's .festival file: "Artist - Title.festival" (or the title alone), safe on every system. */
-export function festivalFileName(meta: { title: string; artist: string }): string {
+/** A file name for a song's .soundwave file: "Artist - Title.soundwave" (or the title alone), safe on every system. */
+export function soundwaveFileName(meta: { title: string; artist: string }): string {
   const known = meta.artist.trim() && meta.artist !== 'Unknown artist';
   const name = (known ? `${meta.artist} - ${meta.title}` : meta.title)
     .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ')
@@ -304,7 +304,7 @@ export function festivalFileName(meta: { title: string; artist: string }): strin
     .trim()
     .replace(/^[.\s]+|[.\s]+$/g, '')
     .slice(0, 120);
-  return `${/[\p{L}\p{N}]/u.test(name) ? name : 'song'}${FESTIVAL_EXT}`;
+  return `${/[\p{L}\p{N}]/u.test(name) ? name : 'song'}${SOUNDWAVE_EXT}`;
 }
 
-export const isFestivalFile = (f: File) => f.name.toLowerCase().endsWith(FESTIVAL_EXT);
+export const isSoundwaveFile = (f: File) => f.name.toLowerCase().endsWith(SOUNDWAVE_EXT);

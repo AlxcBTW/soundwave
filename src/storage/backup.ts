@@ -2,12 +2,12 @@
  * The library backup: every song, best score and setting in one file, to move the game to another
  * computer or keep it safe.
  *
- * The file is laid out like a song file (src/storage/festivalFile.ts): a 12-byte header, then
+ * The file is laid out like a song file (src/storage/soundwaveFile.ts): a 12-byte header, then
  * chunks of type, length, payload and CRC-32. Only the magic differs, so the two cannot be mixed
  * up. Every integer is little-endian.
  *
  *     offset  size  field
- *     0       8     magic, the ASCII bytes "FESTBKUP"
+ *     0       8     magic, the ASCII bytes "SWBACKUP"
  *     8       2     format version (BACKUP_VERSION)
  *     10      2     reserved, 0
  *     12      ...   chunks
@@ -28,11 +28,11 @@ import { GOLD_STARS } from '../game/scoring';
 import { getSong, listAllScores, listSongs, submitScore, type BestScore } from './db';
 import { readSongPackage, songFile, storeSongPackage } from './songFile';
 
-export const BACKUP_EXT = '.festival-backup';
-export const BACKUP_MIME = 'application/x-festival-backup';
+export const BACKUP_EXT = '.soundwave-backup';
+export const BACKUP_MIME = 'application/x-soundwave-backup';
 export const BACKUP_VERSION = 1;
 
-const MAGIC = 'FESTBKUP';
+const MAGIC = 'SWBACKUP';
 const HEADER = 12;
 const CHUNK_HEAD = 8;
 const CRC = 4;
@@ -91,7 +91,7 @@ const json = (v: unknown) => new Blob([utf8.encode(JSON.stringify(v))]);
 
 /** The game's own stored preferences: settings, setlist, sort orders. Not developer overrides. */
 export function preferenceKeys(keys: Iterable<string>): string[] {
-  return [...keys].filter((k) => k.startsWith('festival.') && !k.startsWith('festival.dev.'));
+  return [...keys].filter((k) => k.startsWith('soundwave.') && !k.startsWith('soundwave.dev.'));
 }
 
 function readPreferences(): Record<string, string> {
@@ -129,7 +129,7 @@ export interface BackupInput {
   createdAt: number;
   preferences: Record<string, string>;
   scores: unknown[];
-  /** Each song's .festival file, or how to get it (fetched only when its turn comes). */
+  /** Each song's .soundwave file, or how to get it (fetched only when its turn comes). */
   songs: (Blob | (() => Promise<Blob>))[];
 }
 
@@ -164,10 +164,10 @@ export async function writeBackup(onProgress?: (p: BackupProgress) => void): Pro
   return { file, songs: total };
 }
 
-/** "Festival library 2026-11-18.festival-backup" */
+/** "Soundwave library 2026-11-18.soundwave-backup" */
 export function backupFileName(date = new Date()): string {
   const d = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  return `Festival library ${d}${BACKUP_EXT}`;
+  return `Soundwave library ${d}${BACKUP_EXT}`;
 }
 
 /* Reading --------------------------------------------------------------------------------- */
@@ -184,8 +184,8 @@ async function read(blob: Blob, start: number, length: number): Promise<Uint8Arr
 
 async function index(blob: Blob): Promise<ChunkRef[]> {
   const head = blob.size >= HEADER ? await read(blob, 0, HEADER) : new Uint8Array();
-  if (String.fromCharCode(...head.subarray(0, 8)) !== MAGIC) throw new BackupError('This is not a Festival library backup.');
-  if (new DataView(head.buffer).getUint16(8, true) > BACKUP_VERSION) throw new BackupError('This backup was made by a newer version of Festival. Update the game to import it.');
+  if (String.fromCharCode(...head.subarray(0, 8)) !== MAGIC) throw new BackupError('This is not a Soundwave library backup.');
+  if (new DataView(head.buffer).getUint16(8, true) > BACKUP_VERSION) throw new BackupError('This backup was made by a newer version of Soundwave. Update the game to import it.');
   const refs: ChunkRef[] = [];
   let at = HEADER;
   while (at < blob.size) {

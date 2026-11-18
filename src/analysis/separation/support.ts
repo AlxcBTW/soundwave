@@ -7,10 +7,10 @@ export type AnalysisDevice = 'gpu' | 'cpu' | 'none';
 let cached: Promise<AnalysisDevice> | null = null;
 
 async function detect(): Promise<AnalysisDevice> {
-  // Development only: `localStorage['festival.dev.analysis-device'] = 'cpu'` (or 'none') to try the other paths.
+  // Development only: `localStorage['soundwave.dev.analysis-device'] = 'cpu'` (or 'none') to try the other paths.
   if (import.meta.env.DEV) {
     try {
-      const forced = localStorage.getItem('festival.dev.analysis-device');
+      const forced = localStorage.getItem('soundwave.dev.analysis-device');
       if (forced === 'gpu' || forced === 'cpu' || forced === 'none') return forced;
     } catch {
       /* storage unavailable */

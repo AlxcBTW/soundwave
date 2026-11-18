@@ -8,7 +8,7 @@ import { chartKey, type SongEdits } from '../editor/edits';
 import type { Settings } from '../game/settings';
 import { formatTime } from '../game/setlist';
 import type { SongMeta } from '../storage/db';
-import { isFestivalFile } from '../storage/festivalFile';
+import { isSoundwaveFile } from '../storage/soundwaveFile';
 import { Hint, useHints } from './actions';
 import { Cover } from './Cover';
 import { Dialog } from './Dialog';
@@ -35,7 +35,7 @@ export interface TrackPickerProps {
   onCurrent(id: string | null): void;
   /** Adds a picked audio file to the library: to be analyzed, or with empty charts on its own tempo. */
   onNew(song: PickedSong, how: 'analyze' | 'scratch'): Promise<SongMeta>;
-  /** Adds a .festival song file. */
+  /** Adds a .soundwave song file. */
   onPackage(file: File): Promise<SongMeta | undefined>;
   /** Analyzes a song of the library that has no charts. */
   onAnalyze(song: SongMeta): void;
@@ -103,12 +103,12 @@ export function TrackPicker({ songs, status, settings, device, previewing, pickS
 
   const pick = async (f: File) => {
     try {
-      if (isFestivalFile(f)) {
+      if (isSoundwaveFile(f)) {
         const song = await onPackage(f);
         if (song) setSubject({ song });
         return;
       }
-      if (!isAudioFile(f)) return toast(`${f.name} is not an audio file or a Festival song file.`);
+      if (!isAudioFile(f)) return toast(`${f.name} is not an audio file or a Soundwave song file.`);
       const picked = await readSongFile(f);
       const had = songs.find((s) => s.id === picked.meta.id);
       if (had) choose(had);

@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Festival",
+  "productName": "Soundwave",
   "version": "0.1.0",
-  "identifier": "app.festival.rhythm",
+  "identifier": "io.github.davidniessen.soundwave",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Festival",
+        "title": "Soundwave",
         "width": 1280,
         "height": 800,
         "resizable": true,
@@ -43,16 +43,16 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "icons/festival-file.ico": "festival-file.ico"
+      "icons/soundwave-file.ico": "soundwave-file.ico"
     },
     "fileAssociations": [
       {
         "ext": [
-          "festival"
+          "soundwave"
         ],
-        "name": "Festival.Song",
-        "description": "Festival song",
-        "mimeType": "application/x-festival",
+        "name": "Soundwave.Song",
+        "description": "Soundwave song",
+        "mimeType": "application/x-soundwave",
         "role": "Viewer"
       }
     ],
@@ -65,7 +65,7 @@
           "windows/file-icon.wxs"
         ],
         "componentRefs": [
-          "FestivalSongFileIcon"
+          "SoundwaveSongFileIcon"
         ]
       }
     }

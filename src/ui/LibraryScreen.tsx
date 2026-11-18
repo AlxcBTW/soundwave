@@ -39,7 +39,7 @@ const SORTS: [Sort, string][] = [
   ['length', 'Length'],
   ['stars', 'Stars'],
 ];
-const SORT_KEY = 'festival.library-sort';
+const SORT_KEY = 'soundwave.library-sort';
 
 function loadSort(): Sort {
   try {

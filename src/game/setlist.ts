@@ -88,8 +88,8 @@ export function suggestSets(ready: readonly SetSong[], played: ReadonlySet<strin
   return out;
 }
 
-const SET_KEY = 'festival.setlist';
-const PICK_KEY = 'festival.lastPick';
+const SET_KEY = 'soundwave.setlist';
+const PICK_KEY = 'soundwave.lastPick';
 
 export function loadSetlist(): string[] {
   try {
