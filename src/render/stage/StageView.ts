@@ -22,7 +22,14 @@ type Target = 'worker' | 'page';
 /** undefined: not started yet; null: the worker cannot be used here. */
 let worker: Worker | null | undefined;
 /** The worker can draw with WebGL (false once it has been seen not to). */
-let workerDraws = true;
+/**
+ * The worker can draw with WebGL (false once it has been seen not to). Not in the macOS app: WebKit
+ * there, serving the game from the app's own scheme, does not get a stage built in a worker onto
+ * the screen, so the stage is drawn on the page from the start.
+ */
+let workerDraws = typeof location === 'undefined' || /^https?:$/.test(location.protocol);
+/** A stage in the worker that has not drawn by then is built on the page instead, ms. */
+const WORKER_PATIENCE = 15_000;
 let pageHost: Promise<(m: ToStage) => void> | null = null;
 let nextId = 1;
 const views = new Map<number, StageView>();
@@ -129,6 +136,7 @@ export class StageView {
   private resolve!: () => void;
   private reject!: (err: Error) => void;
   private settled = false;
+  private patience: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
   private lastInput = 0;
   private lastSize = '';
@@ -153,6 +161,16 @@ export class StageView {
   /** Puts a fresh canvas in the host and builds the stage on it, in the worker or on the page. */
   private start(target: Target) {
     this.target = target;
+    clearTimeout(this.patience);
+    // Should the worker never get the stage drawn (and never say why), the page builds it.
+    if (target === 'worker')
+      this.patience = setTimeout(() => {
+        if (this.settled || this.disposed || this.target !== 'worker') return;
+        console.warn('The stage did not draw in its worker; drawing it on the page');
+        this.send({ type: 'dispose', id: this.id });
+        workerDraws = false;
+        this.start('page');
+      }, WORKER_PATIENCE);
     this.canvas?.remove();
     const canvas = document.createElement('canvas');
     canvas.className = 'stage3d';
@@ -266,6 +284,7 @@ export class StageView {
 
   dispose() {
     if (this.disposed) return;
+    clearTimeout(this.patience);
     this.send({ type: 'dispose', id: this.id });
     this.disposed = true;
     views.delete(this.id);
