@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { startSfx } from '../audio/sfx';
 import { confirmInput, pads, type GlyphStyle } from '../input/pads';
+import { holdRumble } from '../input/rumble';
 
 /** How long the button must be held, ms. */
 const HOLD_MS = 650;
@@ -39,6 +40,12 @@ export function HoldButton({ label, hint, glyph, disabled, tone = 'primary', gly
     let reset = 0;
     /** Fades the swell out (it runs on into the launch when the hold completes). */
     let quiet = () => {};
+    /** The controller's rumble, growing with the fill while it is held. */
+    let rumble: ReturnType<typeof holdRumble> | null = null;
+    const stopRumble = () => {
+      rumble?.stop();
+      rumble = null;
+    };
     /** A press was seen, so the click that follows it is not a bare activation. */
     let pressed = 0;
 
@@ -46,9 +53,11 @@ export function HoldButton({ label, hint, glyph, disabled, tone = 'primary', gly
     const tick = (now: number) => {
       if (holding) {
         level = Math.min(1, (now - start) / HOLD_MS);
+        rumble?.set(level);
         if (level >= 1 && !fired) {
           fired = true;
           holding = false;
+          stopRumble();
           btn.classList.add('fired');
           done.current();
           // Still here a moment later means nothing started (no notes, a file that would not load):
@@ -73,6 +82,9 @@ export function HoldButton({ label, hint, glyph, disabled, tone = 'primary', gly
       // The swell picks up where the fill is, so a press that resumes does not start over.
       quiet();
       quiet = startSfx('hold', (level * HOLD_MS) / 1000);
+      stopRumble();
+      rumble = holdRumble();
+      rumble.set(level);
       start = performance.now() - level * HOLD_MS;
       btn.classList.add('holding');
       cancelAnimationFrame(raf);
@@ -81,6 +93,7 @@ export function HoldButton({ label, hint, glyph, disabled, tone = 'primary', gly
     const end = () => {
       if (!holding) return;
       quiet();
+      stopRumble();
       holding = false;
       btn.classList.remove('holding');
     };
@@ -132,6 +145,7 @@ export function HoldButton({ label, hint, glyph, disabled, tone = 'primary', gly
       cancelAnimationFrame(raf);
       clearTimeout(reset);
       quiet();
+      stopRumble();
       releasePad();
       btn.removeEventListener('pointerdown', pointerdown);
       btn.removeEventListener('pointerup', end);

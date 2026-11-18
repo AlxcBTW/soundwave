@@ -320,6 +320,60 @@ export function setMenuRumble(level: RumbleLevel, ps5Haptics = true) {
 }
 
 /**
+ * A rumble that grows with a hold (the hold-to-start button): from a faint hum to full as the hold
+ * fills, on the controller in use only (a mouse, keyboard or finger feels nothing). Call `set` with
+ * the fill (0..1) as it grows, and `stop` when it is let go or done.
+ */
+export function holdRumble(): { set(level: number): void; stop(): void } {
+  const k = RUMBLE_SCALE[menuLevel];
+  const snap = pads.snapshot();
+  const pad = snap.lastDevice === 'pad' ? snap.pads.find((p) => p.index === snap.lastPad) : undefined;
+  if (k <= 0 || !pad) return { set() {}, stop() {} };
+  const amp = (level: number) => 0.12 + 0.88 * Math.max(0, Math.min(1, level));
+  let level = 0;
+  let stopped = false;
+  let voice = 0;
+  let sentAt = 0;
+  let sent = -1;
+  let timer = 0;
+  // A PS5 controller on its own haptics: one held voice, its strength following the fill.
+  if (pad.family === 'ps5' && menuHaptics) {
+    if (!nativeChecked || performance.now() - nativeChecked.at > 5000) nativeChecked = { at: performance.now(), ok: dualSenseHaptics() };
+    void nativeChecked.ok.then((ok) => {
+      if (stopped) return;
+      if (!ok) return renew();
+      voice = holdIds++;
+      nativePlay({ pan: 0, amp: amp(level), ms: 0, kind: 'buzz' }, k, voice);
+      sent = level;
+    });
+  } else renew();
+  // Plain rumble cannot be held: a short hum, renewed while the hold lasts, as strong as the fill.
+  function renew() {
+    if (stopped) return;
+    rumblePad(pad!.index, { pan: 0, amp: amp(level), ms: 140, kind: 'buzz' }, k);
+    timer = window.setTimeout(renew, 100);
+  }
+  return {
+    set(next: number) {
+      level = next;
+      const now = performance.now();
+      if (voice && Math.abs(level - sent) > 0.03 && now - sentAt > 40) {
+        nativeUpdate(voice, Math.min(1, amp(level) * k));
+        sent = level;
+        sentAt = now;
+      }
+    },
+    stop() {
+      if (stopped) return;
+      stopped = true;
+      // The last hum runs out by itself (a reset could cut off what plays next, the launch).
+      clearTimeout(timer);
+      if (voice) nativeRelease(voice);
+    },
+  };
+}
+
+/**
  * A short pulse for a menu action, on the controller in use only (a mouse or keyboard user
  * feels nothing). DualSense haptics play it natively when available.
  */
