@@ -221,7 +221,9 @@ export function ResultsScreen({
                 <span className="song-artist">{next.artist}</span>
               </span>
               {choosing && (
-                <div className="next-part" data-nav-group="next-part">
+                // Out of controller navigation: Square (or P, or 1 to 4) changes it, so the buttons
+                // never hold the focus that confirm and the action bar need.
+                <div className="next-part" data-nav-skip>
                   <span className="label" id="next-part-label">
                     Part
                   </span>
@@ -245,6 +247,7 @@ export function ResultsScreen({
                             className={`choice part ${on ? 'on' : ''}`}
                             data-on={on}
                             data-action={`next-part-${p}`}
+                            tabIndex={-1}
                             role="radio"
                             aria-checked={on}
                             disabled={off}
