@@ -1737,12 +1737,12 @@ img.cover {
 }
 
 /* Shortcuts: a key, a controller button and a mouse button for each, in three even columns. */
-.set-list[aria-labelledby='tab-shortcuts'] .set-control.caps {
+.set-list[aria-labelledby='tab-shortcuts'] .set-row:not(.lanes) .set-control.caps {
   display: grid;
   grid-template-columns: 8.6rem 3.2rem 7.2rem;
   justify-content: end;
 }
-.set-list[aria-labelledby='tab-shortcuts'] .set-control.caps .keycap {
+.set-list[aria-labelledby='tab-shortcuts'] .set-row:not(.lanes) .set-control.caps .keycap {
   width: 100%;
   padding-inline: 0.5rem;
   white-space: nowrap;
