@@ -744,11 +744,13 @@ img.cover {
 }
 /* The first screen, out of the loading screen (see bootDone): it does not slide; the stage settles
    back from a little closer as the loader dissolves into it, the title lands in the wordmark's place
-   (which shows once it has), and the rest comes up after the loader's words have lifted away. */
+   (which shows once it has), and the rest comes up after the loader's words have lifted away.
+   The class goes once that has played: what slides is given no time rather than no animation, so
+   its slide does not start then. */
 .scene.from-boot,
 .scene.from-boot .home-body,
 .scene.from-boot .page-head {
-  animation: none;
+  animation-duration: 0s;
 }
 .scene.from-boot .page-head > :not(.wordmark) {
   animation: fade-in 0.45s var(--ease) 0.36s backwards;

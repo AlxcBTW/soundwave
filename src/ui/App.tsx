@@ -684,13 +684,23 @@ export function App() {
     prevDepth.current = DEPTH[view.name];
   }
   const sceneKey = view.name === 'results' ? `results:${view.run.index}` : view.name;
-  // The first screen after the loading screen comes in from it (see bootDone), once.
+  // The first screen after the loading screen comes in from it (see bootDone), once: until its
+  // entrance has played, or another screen is opened. (Its tabs' contents mount anew, and must not
+  // wait like that again.)
   const bootScene = useRef<{ key: string; done: boolean } | null>(null);
   if (booted) {
     if (!bootScene.current) bootScene.current = { key: sceneKey, done: false };
     else if (sceneKey !== bootScene.current.key) bootScene.current.done = true;
   }
-  const fromBoot = bootScene.current?.done === false;
+  const [bootEntrance, setBootEntrance] = useState(true);
+  useEffect(() => {
+    if (!booted) return;
+    const over = window.setTimeout(() => setBootEntrance(false), 1600);
+    return () => clearTimeout(over);
+  }, [booted]);
+  const fromBoot = bootEntrance && bootScene.current?.done === false;
+  const fromBootRef = useRef(fromBoot);
+  fromBootRef.current = fromBoot;
 
   // A new screen starts with focus on its first control for keyboard and controller players. The
   // first screen after the loading screen waits until that control has come in (see
@@ -701,7 +711,7 @@ export function App() {
     const raf = requestAnimationFrame(() => {
       if (document.querySelector('[data-modal]')) return;
       if (usesFocus(getInputMode())) {
-        if (fromBoot) cancelFocus = focusStartSettled();
+        if (fromBootRef.current) cancelFocus = focusStartSettled();
         else focusStart();
         return;
       }
@@ -716,7 +726,7 @@ export function App() {
       cancelAnimationFrame(raf);
       cancelFocus();
     };
-  }, [sceneKey, view.name, booted, fromBoot]);
+  }, [sceneKey, view.name, booted]);
 
   // The settings over a paused song take focus as they open (the pause menu takes it back, see PlayScreen).
   useEffect(() => {
