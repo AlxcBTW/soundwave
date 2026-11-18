@@ -17,6 +17,13 @@ use std::time::{Duration, Instant};
 /// The Discord application whose name and picture the status shows.
 const BUILT_CLIENT_ID: Option<&str> = option_env!("SOUNDWAVE_DISCORD_CLIENT_ID");
 /// The picture beside the status: the game's icon.
+///
+/// Later, with a backend: show the song's own cover while it plays. Discord only takes pictures by a
+/// public https address (or art uploaded to the application), and covers live on the player's
+/// computer, so a backend would have to host them for the length of the song. The cover would be the
+/// large picture and this icon the small one. Looking covers up by title and artist (the iTunes
+/// Search API, say) was left out: it sends what is played to a third party and can find the wrong
+/// release.
 const ICON_URL: &str =
     "https://raw.githubusercontent.com/DavidNiessen/soundwave/main/src-tauri/icons/128x128@2x.png";
 /// Where the button under the status leads: the game's site, to play it or download it.
