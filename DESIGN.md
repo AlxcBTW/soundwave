@@ -23,6 +23,7 @@ colors:
   lit-ink: '#1d1263'
   gold: '#ffd23d'
   danger: '#ff5a72'
+  danger-2: '#ff8597'
   ok: '#62e89a'
   lane-0: '#3ddc5a'
   lane-1: '#ff3b4e'
@@ -181,6 +182,9 @@ components:
     textColor: '{colors.pink-ink}'
   button-danger:
     backgroundColor: '{colors.danger}'
+    textColor: '#2a0410'
+  button-danger-hover:
+    backgroundColor: '{colors.danger-2}'
     textColor: '#2a0410'
   icon-button:
     backgroundColor: 'transparent'
@@ -437,6 +441,7 @@ A violet night with four lights that have fixed jobs, and five lane colours that
 - **Lavender Light** (lit) with **Lavender Ink** (lit-ink): the selection. The sheet that slides behind the chosen part, difficulty or settings tab; the chosen option in the settings detail pane; the numbered badge on a song that is in the setlist. The same pair makes the keycap hints, so a key reads as a printed cap.
 - **Encore Gold** (gold): earned results. Gold stars, the tier beyond five: a score 13% over the song's par (par is a flawless run without overdrive, so gold takes overdrive; a chart with little overdrive to give asks for less, down to par itself) turns all five stars gold, in the HUD (gold discs that glow and breathe), on results (with a "Gold stars" tag) and in every list. On the way there, after the fifth star, gold rises inside the five HUD stars. Ordinary earned stars are not gold but **Star Violet** (star, #c4a6ff). Also the "Full combo" tag, the full-combo tick and underline in best-score tables, the star total on the set summary, the final-bar break ring. On the highway it is also the full streak: once the streak holds the top multiplier the rails and the deck's front lip turn a light, glowing gold (#ffd66b lit toward white) with a gold aura beside them and sparks of gold light rising along both rails, like dust in lantern light: each one small and solid, a white-hot core in a tight amber halo (#ffb52e), some with a four-point glint, swaying a little and sparkling as it fades. They stay close to the rail and are never large or see-through.
 - **Warning Red** (danger): destructive confirmation only (the "Delete song and scores" button in the card that asks before a song is removed). Error text uses a softened pink-red (#ffa3b4) and warnings a soft amber (#ffc98a) so sentences stay readable.
+- **Warning Red Light** (danger-2): the hover state of a Warning Red button.
 - **Ready Green** (ok): the "Connected" status pill, as an 18% wash with pale green text.
 
 ### Neutral

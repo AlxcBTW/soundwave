@@ -39,6 +39,7 @@
   --lit-ink: #1d1263;
   --gold: #ffd23d;
   --danger: #ff5a72;
+  --danger-2: #ff8597;
   --ok: #62e89a;
 
   /* Lanes, left to right */
@@ -313,6 +314,10 @@ ol {
 .btn.danger {
   background: var(--danger);
   color: #2a0410;
+}
+/* Lighter under the pointer, as the pink buttons are (not the violet every other button turns). */
+:root[data-input='mouse'] .btn.danger:hover:not(:disabled) {
+  background: var(--danger-2);
 }
 .btn.small {
   min-height: 2.4rem;
