@@ -1,4 +1,4 @@
-import { Bug, ListMinus, ListPlus, Play, RotateCcw, Share, Square, Star, Trash2 } from 'lucide-react';
+import { Bug, ListMinus, ListPlus, PencilRuler, Play, RotateCcw, Share, Square, Star, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { StemName } from '../analysis/types';
 import { getEngine } from '../audio/engine';
@@ -30,6 +30,8 @@ interface Props {
   onToggle(): void;
   onAnalyze(): void;
   onDebug(): void;
+  /** Opens the song's charts in the track editor. */
+  onEdit(): void;
   /** Saves the song as a .festival file, to share it. */
   onExport(): void;
   onDelete(): void;
@@ -40,7 +42,7 @@ interface Props {
 }
 
 /** Everything about one song: listening to it and its stems, best scores, analysis, sharing and removal. */
-export function SongSheet({ song, builtin, status, scores, slot, setFull, volume, onToggle, onAnalyze, onDebug, onExport, onDelete, onClose, onPreviewing, toast }: Props) {
+export function SongSheet({ song, builtin, status, scores, slot, setFull, volume, onToggle, onAnalyze, onDebug, onEdit, onExport, onDelete, onClose, onPreviewing, toast }: Props) {
   const [previewing, setPreviewing] = useState<PreviewSource | null>(null);
   const [stems, setStems] = useState<StemName[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -116,6 +118,7 @@ export function SongSheet({ song, builtin, status, scores, slot, setFull, volume
               </p>
               <div className="sheet-status">
                 <StatusPill status={status} />
+                {!!status.edited && <span className="pill lit">{status.edited} {status.edited === 1 ? 'chart' : 'charts'} edited by hand</span>}
                 {busy && (
                   <>
                     <span className="meter" aria-hidden>
@@ -214,6 +217,10 @@ export function SongSheet({ song, builtin, status, scores, slot, setFull, volume
                   {ready ? 'Analyze again' : 'Analyze'}
                 </button>
               )}
+              <button type="button" className="btn quiet small" disabled={!ready} onClick={onEdit} title="Change the song's charts note by note in the track editor">
+                <PencilRuler strokeWidth={ICON_STROKE} aria-hidden />
+                Edit charts
+              </button>
               <button type="button" className="btn quiet small" disabled={!ready} onClick={onDebug} title="Play the song with its notes on a timeline and mark problems">
                 <Bug strokeWidth={ICON_STROKE} aria-hidden />
                 Debug chart

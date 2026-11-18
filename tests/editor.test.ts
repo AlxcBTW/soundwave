@@ -300,3 +300,36 @@ describe('edited charts in the game', () => {
     expect(m.snapshot().song?.state).toBe('idle');
   });
 });
+
+describe('finding a tempo by listening', () => {
+  it('finds the tempo and the beat of a steady song to within a few milliseconds', async () => {
+    const { hearBeats, steadyGrid } = await import('../src/editor/tempo');
+    const sr = 22050;
+    const bpm = 128;
+    const spb = 60 / bpm;
+    const first = 0.3;
+    const signal = new Float32Array(sr * 40);
+    let seed = 3;
+    const noise = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    for (let b = 0; first + b * spb < 39; b++) {
+      const at = Math.floor((first + b * spb) * sr);
+      // A kick on every beat (louder on the first of four), a snare on two and four.
+      for (let i = 0; i < 4000; i++) signal[at + i] += Math.sin(2 * Math.PI * (50 + 90 * Math.exp(-i / 700)) * (i / sr)) * Math.exp(-i / 1800) * (b % 4 === 0 ? 1 : 0.7);
+      if (b % 2 === 1) for (let i = 0; i < 3000; i++) signal[at + i] += noise() * Math.exp(-i / 900) * 0.4;
+    }
+    const heard = hearBeats(signal, sr);
+    expect(heard.beats.length).toBeGreaterThan(60);
+    const grid = steadyGrid(signal, sr, heard);
+    expect(grid.bpm).toBe(128);
+    expect(grid.beatsPerBar).toBe(4);
+    // The beat sits on the kicks, whichever of them was taken for the first of the bar.
+    const off = (((grid.offset - first) % spb) + spb) % spb;
+    expect(Math.min(off, spb - off)).toBeLessThan(0.012);
+  });
+
+  it('counts beats that went unheard when it fits a tempo', () => {
+    const spb = 60 / 100;
+    const beats = Array.from({ length: 80 }, (_, i) => 1 + i * spb).filter((_, i) => i < 20 || i > 27);
+    expect(fitFixed(beats, [0, 4, 8]).bpm).toBe(100);
+  });
+});

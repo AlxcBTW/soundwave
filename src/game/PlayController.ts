@@ -74,6 +74,8 @@ export class PlayController {
   private disposed = false;
   private lastCount = -1;
   private readonly downbeats: Set<number>;
+  /** Song time the run starts at (0 unless a chart is test-played from the middle of the song). */
+  private startAt = 0;
   /** Overdrive meter when overdrive was activated, for the progressive rumble. */
   private odMeterAtStart = 1;
 
@@ -268,9 +270,13 @@ export class PlayController {
     this.highway.speed = s.noteSpeed;
   }
 
-  async start() {
+  /** Starts the run with its countdown. `from`: song time of its first moment, for a chart tested from the middle. */
+  async start(from = 0) {
+    this.startAt = Math.max(0, from);
+    this.lastBeat = -1;
+    while (this.lastBeat + 1 < this.chart.beats.length && this.chart.beats[this.lastBeat + 1] <= this.startAt - LEAD_IN) this.lastBeat++;
     this.setPhase('countdown');
-    await this.engine.play(-LEAD_IN, 0.05);
+    await this.engine.play(this.startAt - LEAD_IN, 0.05);
     this.loop();
   }
 
@@ -285,14 +291,14 @@ export class PlayController {
   async resume() {
     if (this.phase !== 'paused') return;
     // Rewind slightly so the player can re-enter the groove.
-    const at = Math.max(-LEAD_IN, this.engine.time() - 1.5);
+    const at = Math.max(this.startAt - LEAD_IN, this.engine.time() - 1.5);
     this.session.dropHolds();
     await this.engine.play(at, 0.05);
     this.highway.reset();
     this.lastCount = -1;
     this.lastBeat = -1;
     while (this.lastBeat + 1 < this.chart.beats.length && this.chart.beats[this.lastBeat + 1] <= at) this.lastBeat++;
-    this.setPhase(at < 0 ? 'countdown' : 'playing');
+    this.setPhase(at < this.startAt ? 'countdown' : 'playing');
   }
 
   private setPhase(p: PlayPhase, countdown?: number) {
@@ -319,8 +325,8 @@ export class PlayController {
     const t = this.engine.time();
 
     if (this.phase === 'countdown') {
-      const n = Math.ceil(-t);
-      if (t >= 0) this.setPhase('playing');
+      const n = Math.ceil(this.startAt - t);
+      if (t >= this.startAt) this.setPhase('playing');
       else if (n !== this.lastCount) {
         this.lastCount = n;
         this.onPhase('countdown', n);

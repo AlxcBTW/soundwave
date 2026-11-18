@@ -23,6 +23,8 @@ interface Props {
   total: number;
   buffer: AudioBuffer;
   chart: Chart;
+  /** Song time to start at, in seconds (a chart test-played from the middle of the song). */
+  startAt?: number;
   settings: Settings;
   onFinish(r: Results): void;
   /** Leaves the song for the next one in the set (absent on the last song). */
@@ -43,7 +45,7 @@ const STAR_FACET_LO = 'M24 24.5 L29.9 26.42 L31.94 35.42 L24 30.7 Z';
 /** The overdrive meter: an arc over the top of the dial, from its lower left round to its lower right. */
 const OD_ARC = 'M7.81 69.2 A53 53 0 1 1 112.19 69.2';
 
-export function PlayScreen({ title, artist, position, total, buffer, chart, settings, onFinish, onSkip, onSettings, settingsOpen, onQuit }: Props) {
+export function PlayScreen({ title, artist, position, total, buffer, chart, startAt = 0, settings, onFinish, onSkip, onSettings, settingsOpen, onQuit }: Props) {
   // The song is set up with the settings it starts with; the ones that can change mid-song are
   // handed over as they change (see applySettings), so opening the settings never restarts it.
   const settingsRef = useRef(settings);
@@ -109,7 +111,7 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
       finishTimer = window.setTimeout(() => finishRef.current(r), FINALE_SECONDS * 1000);
     };
     ctrlRef.current = ctrl;
-    void ctrl.start();
+    void ctrl.start(startAt);
     // A song that loses the window (a call, another app) pauses instead of running on unseen.
     const hidden = () => document.hidden && ctrl.pause();
     document.addEventListener('visibilitychange', hidden);
@@ -119,7 +121,7 @@ export function PlayScreen({ title, artist, position, total, buffer, chart, sett
       ctrl.dispose();
       ctrlRef.current = null;
     };
-  }, [buffer, chart, run]);
+  }, [buffer, chart, startAt, run]);
 
   useEffect(() => ctrlRef.current?.applySettings(settings), [settings]);
   useEffect(() => {

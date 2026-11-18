@@ -49,10 +49,31 @@ interface FestivalDB extends DBSchema {
   edits: { key: string; value: { songId: string; data: SongEdits } };
 }
 
+/** The library cannot be opened because the game is also open somewhere else, on an older version of it. */
+export class StorageBlockedError extends Error {
+  constructor() {
+    super('The game is open in another tab or window that still uses an older version of your library. Close it, and your songs are back.');
+  }
+}
+
 let dbPromise: Promise<IDBPDatabase<FestivalDB>> | null = null;
 
 function db() {
-  dbPromise ??= openDB<FestivalDB>('festival', 4, {
+  if (dbPromise) return dbPromise;
+  // A database that needs upgrading waits for every older connection to close. Rather than wait
+  // without a word, storage fails with the reason until the way is clear.
+  let blocked: () => void = () => {};
+  const gate = new Promise<never>((_, reject) => (blocked = () => reject(new StorageBlockedError())));
+  const opening = openDB<FestivalDB>('festival', 4, {
+    blocked,
+    // A newer version of the game wants to upgrade the library: this one lets go of it.
+    blocking() {
+      dbPromise = null;
+      void opening.then((d) => d.close()).catch(() => {});
+    },
+    terminated() {
+      dbPromise = null;
+    },
     upgrade(d, oldVersion) {
       if (oldVersion < 1) {
         d.createObjectStore('songs', { keyPath: 'id' }).createIndex('addedAt', 'addedAt');
@@ -65,6 +86,18 @@ function db() {
       if (oldVersion < 4) d.createObjectStore('edits', { keyPath: 'songId' });
     },
   });
+  const guarded = Promise.race([opening, gate]);
+  guarded.catch(() => {});
+  dbPromise = guarded;
+  // Opened after all (the other tab was closed): from here on storage works.
+  void opening.then(
+    () => {
+      if (dbPromise === guarded) dbPromise = opening;
+    },
+    () => {
+      if (dbPromise === guarded) dbPromise = null;
+    },
+  );
   return dbPromise;
 }
 

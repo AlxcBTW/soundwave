@@ -9,6 +9,8 @@ import { loadSfx, playSfx, setSfxVolume, sfxStatus } from '../audio/sfx';
 import { DEMO_ID, forgetSongBuffer, loadSongBuffer } from '../audio/songAudio';
 import type { Chart } from '../chart/types';
 import { DebugScreen } from '../debug/DebugScreen';
+import { detectGrid } from '../editor/detect';
+import { emptyEdits } from '../editor/edits';
 import type { Results } from '../game/GameSession';
 import { demoChart } from '../game/demo';
 import { applyDisplayMode, canExit, exitApp, inDesktopApp } from '../game/displayMode';
@@ -19,12 +21,14 @@ import { EDIT_EVENT, focusStart, installMenuNav } from '../input/menuNav';
 import { followOutputDevice, muteWhileUnfocused } from '../audio/output';
 import { pads, resolveStyle } from '../input/pads';
 import { menuPulse, setMenuRumble } from '../input/rumble';
-import { deleteSong, getSong, listAllScores, listSongs, submitScore, type BestScore, type SongMeta } from '../storage/db';
+import { deleteSong, getSong, listAllScores, listSongs, StorageBlockedError, submitScore, type BestScore, type SongMeta } from '../storage/db';
 import { festivalFileName, isFestivalFile } from '../storage/festivalFile';
 import { saveSongFile, watchOpenedFiles } from '../storage/share';
 import { convertLibrary, readSongPackage, songFile, storeNewSong, storeSongPackage } from '../storage/songFile';
 import { ActionBar, useActions } from './actions';
 import { Dialog } from './Dialog';
+import { EditorHub, type PickedSong } from './EditorHub';
+import { EditorScreen } from './EditorScreen';
 import { FocusRing } from './FocusRing';
 import { HomeScreen } from './HomeScreen';
 import { DIFFICULTY_LABEL, PART_LABEL } from './icons';
@@ -51,6 +55,8 @@ const DEMO_SONG: SongMeta = {
 };
 
 type LobbyView = { name: 'lobby'; ids: string[]; from: 'home' | 'library' };
+/** A song open in the track editor; `tested` is how the last test play of its chart went. */
+type EditorView = { name: 'editor'; song: SongMeta; back: View; tested?: Results };
 
 /** A set being played: its songs with their charts, where it is, and what has been scored so far. */
 interface Run {
@@ -60,6 +66,8 @@ interface Run {
   results: SetResult[];
   pick: Pick;
   lobby: LobbyView;
+  /** A chart played from the track editor: where to go back to, and where in the song it starts. */
+  test?: { back: EditorView; startAt: number };
 }
 
 type View =
@@ -67,6 +75,8 @@ type View =
   | { name: 'library' }
   | LobbyView
   | { name: 'settings'; back: View }
+  | { name: 'editor-hub' }
+  | EditorView
   | { name: 'debug'; song: SongMeta; back: View }
   | { name: 'play'; run: Run; buffer: AudioBuffer; key: number }
   | { name: 'results'; run: Run }
@@ -78,7 +88,7 @@ function Busy() {
   return null;
 }
 
-const DEPTH: Record<View['name'], number> = { home: 0, library: 1, settings: 1, lobby: 2, debug: 2, play: 3, results: 4, summary: 5 };
+const DEPTH: Record<View['name'], number> = { home: 0, library: 1, settings: 1, 'editor-hub': 1, lobby: 2, debug: 2, editor: 2, play: 3, results: 4, summary: 5 };
 
 export function App() {
   const [view, setView] = useState<View>({ name: 'home' });
@@ -140,7 +150,7 @@ export function App() {
     const stopNav = installMenuNav(() => resolveStyle(settingsRef.current.glyphs, pads.snapshot().family));
     const stopSounds = installUiSounds();
     void loadSfx();
-    if (import.meta.env.DEV) Object.assign(window, { __audio: { sfx: sfxStatus, music: menuMusicStatus }, __input: setInputMode, __analysis: analysisManager, __stemModel: stemModel });
+    if (import.meta.env.DEV) Object.assign(window, { __audio: { sfx: sfxStatus, music: menuMusicStatus }, __input: setInputMode, __analysis: analysisManager, __stemModel: stemModel, __pads: pads });
     return () => {
       stopMode();
       stopNav();
@@ -169,9 +179,9 @@ export function App() {
   const refresh = useCallback(async () => {
     try {
       setSongs([...(await listSongs()), DEMO_SONG]);
-    } catch {
+    } catch (e) {
       setSongs([DEMO_SONG]);
-      toast('Song storage is unavailable in this browser window. Imported songs will not be saved.');
+      toast(e instanceof StorageBlockedError ? e.message : 'Song storage is unavailable in this browser window. Imported songs will not be saved.');
     }
     setLoaded((l) => (l.songs ? l : { ...l, songs: true }));
   }, [toast]);
@@ -310,11 +320,52 @@ export function App() {
   );
   const addSongs = useCallback(() => fileInput.current?.click(), []);
 
+  /* The track editor ---------------------------------------------------------------------- */
+
+  /**
+   * Adds a song picked in the track editor. Analyzed, it is added like any other and charted by the
+   * game. From scratch, the game only listens for its tempo and the song gets empty charts on that
+   * grid, stored with it before it joins the library, so it is never queued for analysis.
+   */
+  const addTrack = useCallback(
+    async ({ meta, bytes }: PickedSong, how: 'analyze' | 'scratch'): Promise<SongMeta> => {
+      forgetSongBuffer(meta.id);
+      analysisManager.forget(meta.id);
+      const audio = new Blob([bytes], { type: meta.mime });
+      let song = meta;
+      if (how === 'scratch') {
+        let buffer: AudioBuffer;
+        try {
+          buffer = await getEngine().decode(bytes);
+        } catch {
+          throw new Error('This audio format could not be decoded here. Try MP3, WAV, FLAC or OGG.');
+        }
+        const found = await detectGrid(buffer);
+        song = { ...meta, duration: meta.duration || buffer.duration };
+        await storeNewSong(song, audio, { ...emptyEdits(), grid: found.grid, ...(found.tracked ? { tracked: found.tracked } : {}), duration: buffer.duration });
+      } else await storeNewSong(song, audio);
+      playSfx('add');
+      await refresh();
+      return song;
+    },
+    [refresh],
+  );
+  /** Gives a song already in the library empty charts on its own tempo, instead of an analysis. */
+  const startFromScratch = useCallback(async (song: SongMeta) => {
+    analysisManager.cancel(song.id);
+    const buffer = await loadSongBuffer(song.id);
+    const found = await detectGrid(buffer);
+    const had = await analysisManager.editsOf(song.id);
+    await analysisManager.saveEdits(song.id, { ...(had ?? emptyEdits()), grid: found.grid, ...(found.tracked ? { tracked: found.tracked } : {}), duration: buffer.duration, updatedAt: Date.now() });
+  }, []);
+
   // Files dropped anywhere on a menu are imported.
   const [dragging, setDragging] = useState(false);
   const inMenus = view.name !== 'play' && view.name !== 'debug';
+  // The editor takes files through its own door (New track), where it asks how to chart them.
+  const takesDrops = inMenus && view.name !== 'editor' && view.name !== 'editor-hub';
   useEffect(() => {
-    if (!inMenus) return;
+    if (!takesDrops) return;
     let depth = 0;
     const enter = (e: DragEvent) => {
       if (!e.dataTransfer?.types.includes('Files')) return;
@@ -345,7 +396,7 @@ export function App() {
       window.removeEventListener('dragleave', leave);
       window.removeEventListener('drop', drop);
     };
-  }, [inMenus, importFiles]);
+  }, [takesDrops, importFiles]);
 
   const toggle = (song: SongMeta) => {
     if (!setlist.includes(song.id) && setlist.length >= SET_MAX) return toast(`The setlist holds ${SET_MAX} songs. Take one out to add another.`);
@@ -406,6 +457,12 @@ export function App() {
     }
   };
 
+  /** Plays a chart from the track editor in the game itself; the editor comes back when it ends. */
+  const testPlay = (editor: EditorView, chart: Chart, startAt: number) => {
+    menuPulse('launch');
+    void playAt({ songs: [editor.song], charts: [chart], index: 0, results: [], pick: { part: chart.part, difficulty: chart.difficulty }, lobby: { name: 'lobby', ids: [], from: 'home' }, test: { back: editor, startAt } }, 0);
+  };
+
   const withResult = (run: Run, result: SetResult): Run => {
     const results = [...run.results];
     results[run.index] = result;
@@ -445,7 +502,8 @@ export function App() {
   };
 
   // The theme plays behind the menus and makes way for a preview, the launch and the song.
-  const menuMusic = inMenus && !previewing && launch === null;
+  // The editor plays the song itself.
+  const menuMusic = inMenus && view.name !== 'editor' && !previewing && launch === null;
   useEffect(() => setMenuMusic(menuMusic, 0.45), [menuMusic]);
 
   // Going deeper enters from the right; going back, from the left.
@@ -507,20 +565,40 @@ export function App() {
         total={run.songs.length}
         buffer={view.buffer}
         chart={run.charts[run.index]}
+        startAt={run.test?.startAt}
         settings={settings}
         onSettings={() => setSongSettings(true)}
         settingsOpen={songSettings}
         onQuit={() => {
           setSongSettings(false);
-          setView(run.lobby);
+          setView(run.test ? run.test.back : run.lobby);
         }}
         onSkip={more ? () => void playAt(withResult(run, { song, results: null }), run.index + 1) : undefined}
-        onFinish={(r) => void finish(run, r)}
+        // A test play keeps no score: it goes back to the editor with how it went.
+        onFinish={(r) => (run.test ? setView({ ...run.test.back, tested: r }) : void finish(run, r))}
       />
     );
   } else {
     let screen: React.ReactNode;
-    if (view.name === 'settings') {
+    if (view.name === 'editor-hub') {
+      screen = (
+        <EditorHub
+          songs={songs}
+          status={status}
+          settings={settings}
+          device={device}
+          onNew={addTrack}
+          onPackage={async (file) => (await importFiles([file]))[0]}
+          onAnalyze={(song) => analysisManager.enqueue(song.id, true)}
+          onScratch={startFromScratch}
+          onOpen={(song) => setView({ name: 'editor', song, back: view })}
+          onBack={goHome}
+          toast={toast}
+        />
+      );
+    } else if (view.name === 'editor') {
+      screen = <EditorScreen key={view.song.id} song={view.song} settings={settings} tested={view.tested} onTest={(chart, startAt) => testPlay(view, chart, startAt)} onBack={() => setView(view.back)} />;
+    } else if (view.name === 'settings') {
       screen = <SettingsScreen settings={settings} model={model} device={device} onChange={updateSettings} onBack={() => setView(view.back)} />;
     } else if (view.name === 'library') {
       screen = (
@@ -576,6 +654,7 @@ export function App() {
           onLibrary={() => setView({ name: 'library' })}
           onSet={(ids) => setView({ name: 'lobby', ids, from: 'home' })}
           onAdd={addSongs}
+          onEditor={() => setView({ name: 'editor-hub' })}
           onSettings={() => setView({ name: 'settings', back: view })}
           onExit={canExit() ? () => setExitAsk(true) : undefined}
           settings={settings}
@@ -616,6 +695,11 @@ export function App() {
           onDebug={() => {
             setSheet(null);
             setView({ name: 'debug', song: sheet, back: view });
+          }}
+          onEdit={() => {
+            setSheet(null);
+            getEngine().stop();
+            setView({ name: 'editor', song: byId.get(sheet.id) ?? sheet, back: view });
           }}
           onDelete={async () => {
             setSheet(null);

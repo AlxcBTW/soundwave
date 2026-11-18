@@ -110,29 +110,32 @@ export function buildGrid(spec: GridSpec, duration: number): BeatGrid {
 export function fitFixed(beats: number[], downbeats: number[]): Extract<GridSpec, { kind: 'fixed' }> {
   if (beats.length < 2) return { kind: 'fixed', bpm: 120, offset: beats[0] ?? 0, beatsPerBar: 4 };
   let spb = median(beats.slice(1).map((t, i) => t - beats[i]));
-  // A line through all the beats is steadier than any one interval.
+  // Number the beats by their times, not their place in the list: a beat that went unheard (a quiet
+  // bar) leaves a gap in the list but not in the count.
+  const count = [0];
+  for (let i = 1; i < beats.length; i++) count.push(count[i - 1] + Math.max(1, Math.round((beats[i] - beats[i - 1]) / spb)));
+  // The pace over half the song at a time is far steadier than any one interval, and the middle
+  // one of those is not thrown by a stretch that was heard wrongly.
   const n = beats.length;
-  const mx = (n - 1) / 2;
-  const my = beats.reduce((s, t) => s + t, 0) / n;
-  let num = 0;
-  let den = 0;
-  beats.forEach((t, i) => {
-    num += (i - mx) * (t - my);
-    den += (i - mx) * (i - mx);
-  });
-  const slope = den ? num / den : spb;
-  if (Math.abs(slope - spb) / spb < 0.03) spb = slope;
+  const half = Math.floor(n / 2);
+  if (half >= 4) {
+    const long = [];
+    for (let i = 0; i + half < n; i++) long.push((beats[i + half] - beats[i]) / (count[i + half] - count[i]));
+    const steady = median(long);
+    if (Math.abs(steady - spb) / spb < 0.04) spb = steady;
+  }
   let bpm = 60 / spb;
   // Most recorded music sits on a whole tempo: take it when the beats are that close to one.
-  if (Math.abs(bpm - Math.round(bpm)) < 0.12) bpm = Math.round(bpm);
+  if (Math.abs(bpm - Math.round(bpm)) < 0.15) bpm = Math.round(bpm);
   else bpm = Math.round(bpm * 100) / 100;
   bpm = Math.min(MAX_BPM, Math.max(MIN_BPM, bpm));
   spb = 60 / bpm;
-  const gaps = downbeats.slice(1).map((d, i) => d - downbeats[i]);
+  // Bars are counted in the beats that were heard: an unheard beat does not make a bar longer.
+  const gaps = downbeats.slice(1).map((d, i) => d - downbeats[i]).filter((g) => g > 0);
   const beatsPerBar = Math.min(12, Math.max(1, median(gaps) || 4));
-  const phase = downbeats.length ? downbeats[0] % beatsPerBar : 0;
+  const phase = downbeats.length ? count[downbeats[0]] % beatsPerBar : 0;
   // Where beat 0 would be at this tempo, judged from every beat.
-  const zero = median(beats.map((t, i) => t - i * spb));
+  const zero = median(beats.map((t, i) => t - count[i] * spb));
   const bar = spb * beatsPerBar;
   let offset = zero + phase * spb;
   offset -= Math.floor(offset / bar) * bar;

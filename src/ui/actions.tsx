@@ -49,7 +49,13 @@ const subscribe = (fn: () => void) => {
   return () => listeners.delete(fn);
 };
 const top = (): Action[] => layers[layers.length - 1]?.actions ?? [];
-const signature = (a: Action[]) => a.map((x) => `${x.id}|${x.label}|${x.kbd}|${x.pad}|${x.primary ? 1 : 0}|${x.disabled ? 1 : 0}`).join(';');
+
+/**
+ * An action with this id is not an action: its label says what the controller's confirm button does
+ * on this screen, for the hint beside Back (which otherwise reads "Select").
+ */
+export const CONFIRM_HINT = 'confirm-hint';
+const signature = (a: Action[]) => a.map((x) => `${x.id}|${x.label}|${x.kbd}|${x.pad}|${x.primary ? 1 : 0}|${x.disabled ? 1 : 0}|${x.bar === false ? 0 : 1}`).join(';');
 
 /**
  * Declares the actions of a screen or dialog while it is mounted. The most recently mounted
@@ -104,7 +110,8 @@ export function ActionBar({ settings }: { settings: Settings }) {
   useSyncExternalStore(subscribe, () => version);
   const mode = useInputMode();
   const style = useGlyphStyle(settings.glyphs);
-  const actions = top().filter((a) => a.bar !== false);
+  const actions = top().filter((a) => a.bar !== false && a.id !== CONFIRM_HINT);
+  const confirmLabel = top().find((a) => a.id === CONFIRM_HINT)?.label ?? 'Select';
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -146,7 +153,7 @@ export function ActionBar({ settings }: { settings: Settings }) {
         {back.map(button)}
         {mode === 'pad' && !actions.some((a) => a.kbd === 'Enter') && (
           <span className="act-passive">
-            <PadGlyph input={confirmInput(style)} style={style} className="hint-glyph" /> Select
+            <PadGlyph input={confirmInput(style)} style={style} className="hint-glyph" /> {confirmLabel}
           </span>
         )}
       </div>

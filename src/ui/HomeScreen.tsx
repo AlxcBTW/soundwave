@@ -1,4 +1,4 @@
-import { ListMusic, Plus, Power, Settings as SettingsIcon, Upload } from 'lucide-react';
+import { ListMusic, PencilRuler, Plus, Power, Settings as SettingsIcon, Upload } from 'lucide-react';
 import { useMemo, useRef } from 'react';
 import type { AnalysisStatus } from '../analysis/manager';
 import { formatTime, SET_MAX, suggestSets, type SuggestedSet } from '../game/setlist';
@@ -26,6 +26,8 @@ interface Props {
   onLibrary(): void;
   onSet(ids: string[]): void;
   onAdd(): void;
+  /** Opens the track editor. */
+  onEditor(): void;
   onSettings(): void;
   /** Asks whether to close the game (absent where the game cannot close itself, as in a browser tab). */
   onExit?(): void;
@@ -37,7 +39,7 @@ const total = (songs: SongMeta[]) => formatTime(songs.reduce((t, s) => t + s.dur
 const summary = (songs: SongMeta[]) => [count(songs.length), total(songs)].filter(Boolean).join(' · ');
 const count = (n: number) => `${n} ${n === 1 ? 'song' : 'songs'}`;
 
-export function HomeScreen({ songs, status, setlist, played, seed, importing, empty, onLibrary, onSet, onAdd, onSettings, onExit, settings }: Props) {
+export function HomeScreen({ songs, status, setlist, played, seed, importing, empty, onLibrary, onSet, onAdd, onEditor, onSettings, onExit, settings }: Props) {
   const style = useGlyphStyle(settings.glyphs);
   const mode = useInputMode();
   const byId = useMemo(() => new Map(songs.map((s) => [s.id, s])), [songs]);
@@ -54,6 +56,7 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
 
   useActions([
     { id: 'add', label: importing ? `Importing ${importing}…` : 'Add songs', icon: Upload, kbd: 'KeyA', pad: 'b3', run: onAdd },
+    { id: 'editor', label: 'Track editor', icon: PencilRuler, kbd: 'KeyE', pad: 'b2', run: onEditor },
     { id: 'settings', label: 'Settings', icon: SettingsIcon, kbd: 'KeyS', pad: 'b9', run: onSettings },
     // Esc and the controller's back button: there is nowhere further back than out.
     ...(onExit ? [{ id: 'exit', label: 'Exit', icon: Power, kbd: 'Escape', bar: false, run: onExit }] : []),

@@ -203,6 +203,20 @@ export class ChartDoc {
     return out;
   }
 
+  /**
+   * Moves every note, and every state that could be gone back to, by whole beats: the grid under
+   * the chart was renumbered. Not a change to the chart, so nothing is added to the history.
+   */
+  rebase(beats: number) {
+    if (!beats) return;
+    const shift = (list: DocNote[]) => list.map((n) => ({ ...n, pos: quantize(n.pos + beats) }));
+    this.list = shift(this.list);
+    this.undoStack = this.undoStack.map(shift);
+    this.redoStack = this.redoStack.map(shift);
+    if (this.pending) this.pending = shift(this.pending);
+    this.revision++;
+  }
+
   /* Changes ------------------------------------------------------------------------------- */
 
   /** Adds a note; one already there is kept. Returns the note at that place. */
