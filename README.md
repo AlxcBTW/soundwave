@@ -4,7 +4,7 @@
 [![Latest release](https://img.shields.io/github/v/release/DavidNiessen/soundwave)](https://github.com/DavidNiessen/soundwave/releases/latest)
 [![Licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
 
-**[Play in your browser](https://davidniessen.github.io/soundwave/)** · **[Download the app](https://github.com/DavidNiessen/soundwave/releases/latest)** for Windows, macOS and Linux
+**[Play in your browser](https:/soundwave.niessen.dev)** · **[Download the app](https://github.com/DavidNiessen/soundwave/releases/latest)** for Windows, macOS and Linux
 
 ![Soundwave in play: the note highway in front of the night-time stage, with the crowd, the lights and the score](docs/screenshot.webp)
 
