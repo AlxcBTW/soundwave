@@ -16,13 +16,43 @@ export function bootStep(progress: number, label: string) {
   if (step && step.textContent !== label) step.textContent = label;
 }
 
-/** Fades the loading screen out and removes it. */
+const reducedMotion = () => {
+  const m = document.documentElement.dataset.motion;
+  return m === 'reduced' || (m !== 'full' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+};
+
+/**
+ * Takes the loading screen away into the menu (see #boot.leaving in index.html): its title flies up
+ * into the menu's own (the menu shows that once it has landed, see .scene.from-boot), while the rest
+ * lifts away and the backdrop dissolves into the stage.
+ */
 export function bootDone() {
   const el = root();
   if (!el || el.classList.contains('leaving')) return;
   el.style.setProperty('--boot-p', '1');
+  const word = el.querySelector<HTMLElement>('.boot-word');
+  const target = document.querySelector<HTMLElement>('.scene .wordmark');
+  if (word && target && !reducedMotion()) {
+    const from = word.getBoundingClientRect();
+    const to = target.getBoundingClientRect();
+    if (from.width > 0 && to.width > 0) {
+      const scale = parseFloat(getComputedStyle(target).fontSize) / parseFloat(getComputedStyle(word).fontSize);
+      const dx = to.left + to.width / 2 - (from.left + from.width / 2);
+      const dy = to.top + to.height / 2 - (from.top + from.height / 2);
+      const landed = `translate(${dx}px, ${dy}px) scale(${scale})`;
+      word.classList.add('flying');
+      // It stays where it lands until the loading screen goes, over the wordmark that has shown under it.
+      word.animate([{ transform: 'none' }, { transform: landed }], {
+        duration: 680,
+        easing: 'cubic-bezier(0.65, 0, 0.25, 1)',
+        fill: 'forwards',
+      });
+      // Once the wordmark under it is in full, it gives way, so the glow of the two is never cut off.
+      word.animate([{ opacity: 1 }, { opacity: 0 }], { delay: 720, duration: 150, fill: 'forwards' });
+    }
+  }
   el.classList.add('leaving');
-  // The fade is a transition; a window that draws no frames never ends one, so a timer backs it up.
+  // A window that draws no frames never ends an animation, so a timer takes it away.
   window.setTimeout(() => el.remove(), 900);
 }
 

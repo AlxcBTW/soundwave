@@ -31,7 +31,6 @@
         justify-content: center;
         padding: 1.5rem;
         box-sizing: border-box;
-        background: radial-gradient(130% 80% at 50% 108%, #3a1d8f 0%, #1a0f4c 34%, #0e0828 70%);
         color: #f6f3ff;
         font:
           700 16px/1.35 'Archivo Variable',
@@ -41,11 +40,42 @@
         user-select: none;
         -webkit-user-select: none;
         cursor: progress;
-        transition: opacity 0.55s ease;
       }
+      /* The backdrop is a layer of its own, so it can dissolve into the menu behind on its own time. */
+      #boot::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: radial-gradient(130% 80% at 50% 108%, #3a1d8f 0%, #1a0f4c 34%, #0e0828 70%);
+      }
+      /* Leaving (see bootDone): the highway, the line and the words lift towards the player and blur
+         away, the title flies up to become the menu's own, and the backdrop dissolves into the stage. */
       #boot.leaving {
-        opacity: 0;
         pointer-events: none;
+        cursor: auto;
+      }
+      #boot.leaving::before {
+        animation: boot-dissolve 0.62s cubic-bezier(0.4, 0, 0.2, 1) 0.14s forwards;
+      }
+      #boot.leaving > :not(.flying) {
+        animation: boot-lift 0.4s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+      }
+      #boot.leaving > .boot-line,
+      #boot.leaving > .boot-step {
+        animation-delay: 0.04s;
+      }
+      @keyframes boot-dissolve {
+        to {
+          opacity: 0;
+        }
+      }
+      @keyframes boot-lift {
+        to {
+          opacity: 0;
+          transform: translateY(-1.4rem) scale(1.07);
+          filter: blur(8px);
+        }
       }
 
       /* The game in small: a note highway seen from the player's seat. Tiles come down five lanes in
@@ -224,9 +254,12 @@
       [data-motion='reduced'] .boot-deck u {
         animation: none;
       }
-      [data-motion='reduced'] .boot-line span,
-      [data-motion='reduced'] #boot {
+      [data-motion='reduced'] .boot-line span {
         transition-duration: 0.01s;
+      }
+      [data-motion='reduced'] #boot.leaving > *,
+      [data-motion='reduced'] #boot.leaving::before {
+        animation: boot-dissolve 0.2s linear forwards;
       }
       @media (prefers-reduced-motion: reduce) {
         :root:not([data-motion='full']) .boot-deck b {
@@ -235,9 +268,12 @@
         :root:not([data-motion='full']) .boot-deck u {
           animation: none;
         }
-        :root:not([data-motion='full']) .boot-line span,
-        :root:not([data-motion='full']) #boot {
+        :root:not([data-motion='full']) .boot-line span {
           transition-duration: 0.01s;
+        }
+        :root:not([data-motion='full']) #boot.leaving > *,
+        :root:not([data-motion='full']) #boot.leaving::before {
+          animation: boot-dissolve 0.2s linear forwards;
         }
       }
     </style>

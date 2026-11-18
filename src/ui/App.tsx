@@ -684,6 +684,13 @@ export function App() {
     prevDepth.current = DEPTH[view.name];
   }
   const sceneKey = view.name === 'results' ? `results:${view.run.index}` : view.name;
+  // The first screen after the loading screen comes in from it (see bootDone), once.
+  const bootScene = useRef<{ key: string; done: boolean } | null>(null);
+  if (booted) {
+    if (!bootScene.current) bootScene.current = { key: sceneKey, done: false };
+    else if (sceneKey !== bootScene.current.key) bootScene.current.done = true;
+  }
+  const fromBoot = bootScene.current?.done === false;
 
   // A new screen starts with focus on its first control for keyboard and controller players.
   useEffect(() => {
@@ -857,7 +864,7 @@ export function App() {
         <div className="veil" aria-hidden />
         {/* One entrance per screen change; the stage behind it stays. */}
         {booted && (
-          <div className={`scene ${sceneDirRef.current}`} key={sceneKey}>
+          <div className={`scene ${sceneDirRef.current} ${fromBoot ? 'from-boot' : ''}`} key={sceneKey}>
             {screen}
           </div>
         )}

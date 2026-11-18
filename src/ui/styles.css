@@ -742,6 +742,41 @@ img.cover {
 .scene :is(.page-head, .toolbar, .now, .setlist, .ready-panel, .results-main, .results-side, .song-list) {
   animation: fade-in 0.35s var(--ease) backwards;
 }
+/* The first screen, out of the loading screen (see bootDone): it does not slide; the stage settles
+   back from a little closer as the loader dissolves into it, the title lands in the wordmark's place
+   (which shows once it has), and the rest comes up after the loader's words have lifted away. */
+.scene.from-boot,
+.scene.from-boot .home-body,
+.scene.from-boot .page-head {
+  animation: none;
+}
+.scene.from-boot .page-head > :not(.wordmark) {
+  animation: fade-in 0.45s var(--ease) 0.36s backwards;
+}
+.scene.from-boot .home-body > .page-title {
+  animation: fade-in 0.45s var(--ease) 0.36s backwards;
+}
+/* Under the landing title, which stays until the loading screen is gone: no dip between the two. */
+.scene.from-boot .wordmark {
+  animation: fade-in 0.12s linear 0.56s backwards;
+}
+.scene.from-boot :is(.toolbar, .now, .setlist, .ready-panel, .results-main, .results-side, .song-list) {
+  animation: fade-in 0.45s var(--ease) 0.36s backwards;
+}
+.scene.from-boot .tile:not(.late) {
+  animation-delay: calc(var(--i, 0) * 60ms + 380ms);
+}
+.menu:has(> .scene.from-boot) > .stage-host {
+  animation: boot-settle 1.5s var(--ease-soft) backwards;
+}
+.app:has(.scene.from-boot) .action-bar {
+  animation: fade-in 0.45s var(--ease) 0.5s backwards;
+}
+@keyframes boot-settle {
+  from {
+    transform: scale(1.08);
+  }
+}
 @keyframes scene-fwd {
   from {
     opacity: 0;
