@@ -49,7 +49,7 @@
       }
 
       /* The game in small: a note highway seen from the player's seat. Tiles come down five lanes in
-         a two-bar figure and light the strike line as they land. */
+         a two-bar figure, cross the strike line and light their lane's target as they land. */
       .boot-hw {
         position: relative;
         width: min(19rem, 78vw);
@@ -74,13 +74,13 @@
         -webkit-mask-image: linear-gradient(to bottom, transparent 4%, #000 46%);
         mask-image: linear-gradient(to bottom, transparent 4%, #000 46%);
       }
-      /* The strike line, and a ring on it for every lane. */
+      /* The strike line, just above a target for every lane (it does not cut through them). */
       .boot-deck::after {
         content: '';
         position: absolute;
         left: 0;
         right: 0;
-        top: 90%;
+        top: 85.6%;
         height: 0.32rem;
         margin-top: -0.16rem;
         border-radius: 0.16rem;
@@ -99,7 +99,7 @@
         border-radius: 0.6rem;
         opacity: 0.55;
       }
-      /* A tile, and the light it leaves on the line when it lands. */
+      /* A tile, and the light it leaves on its target when it lands. */
       .boot-deck b,
       .boot-deck u {
         position: absolute;
@@ -126,7 +126,7 @@
         opacity: 0;
         animation-name: boot-hit;
       }
-      /* The line is at 90% of the deck and a tile is 4.4% of it tall: it travels 20 of its own lengths. */
+      /* The targets are at 90% of the deck and a tile is 4.4% of it tall: it travels 20 of its own lengths. */
       @keyframes boot-fall {
         0% {
           transform: translateY(-100%);
