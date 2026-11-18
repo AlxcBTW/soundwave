@@ -143,8 +143,10 @@ jobs:
   cleanup:
     name: Take back a release whose build failed
     needs: [prepare, build]
-    # Only after the tag and draft were made, and only when a build failed or the run was stopped.
-    if: (failure() || cancelled()) && needs.prepare.result == 'success'
+    # Only after the tag and draft were made, and whenever the builds did not all pass: failed,
+    # stopped, or cancelled by GitHub (a build waiting for a macOS runner that never comes is
+    # cancelled, which neither failure() nor cancelled() notices on its own).
+    if: always() && needs.prepare.result == 'success' && needs.build.result != 'success'
     runs-on: ubuntu-latest
     steps:
       - env:
