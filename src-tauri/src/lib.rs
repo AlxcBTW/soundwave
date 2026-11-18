@@ -69,10 +69,10 @@ pub fn run() {
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 std::thread::sleep(Duration::from_secs(5));
-                if let Some(window) = handle.get_webview_window("main") {
-                    if !window.is_visible().unwrap_or(true) {
-                        let _ = window.show();
-                    }
+                if let Some(window) = handle.get_webview_window("main")
+                    && !window.is_visible().unwrap_or(true)
+                {
+                    let _ = window.show();
                 }
             });
             Ok(())

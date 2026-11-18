@@ -1,0 +1,92 @@
+# Every push to main: check it, build the desktop app for Windows, macOS and Linux, and publish the
+# builds as a GitHub pre-release (version: the next patch with the run number, e.g. 0.1.1-42).
+# Pre-releases are for trying the newest work; the installed app's updater never offers them, and
+# the website is not deployed from them. Only the newest few pre-releases are kept.
+name: Pre-release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prerelease
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  version:
+    name: Pick the version
+    needs: checks
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: v
+        run: |
+          base=$(node -p "require('./package.json').version")
+          IFS=. read -r major minor patch <<< "${base%%-*}"
+          echo "version=${major}.${minor}.$((patch + 1))-${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            args: ''
+          - name: macOS
+            os: macos-latest
+            args: --target universal-apple-darwin
+          - name: Linux
+            os: ubuntu-22.04
+            args: ''
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-build
+        with:
+          os: ${{ matrix.os }}
+      - name: Set the version
+        run: node scripts/set-version.mjs ${{ needs.version.outputs.version }}
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: pnpm tauri
+          args: ${{ matrix.args }}
+          tagName: v${{ needs.version.outputs.version }}
+          releaseName: Soundwave ${{ needs.version.outputs.version }} (pre-release)
+          releaseBody: |
+            A build of `${{ github.sha }}` on main, for trying the newest work. It may have rough edges, and installed apps do not update to it by themselves.
+          releaseCommitish: ${{ github.sha }}
+          prerelease: true
+          releaseDraft: false
+
+  tidy:
+    name: Keep the newest pre-releases
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release list --limit 100 --json tagName,isPrerelease,createdAt \
+            --jq '[.[] | select(.isPrerelease)] | sort_by(.createdAt) | reverse | .[3:] | .[].tagName' |
+          while read -r tag; do
+            gh release delete "$tag" --yes --cleanup-tag
+          done

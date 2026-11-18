@@ -1,0 +1,31 @@
+name: Set up a desktop build
+description: Node, pnpm, Rust and the system libraries the desktop app needs, with the dependencies installed.
+
+inputs:
+  os:
+    description: The runner the build runs on (windows-latest, macos-latest, ubuntu-22.04).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v6
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 24
+        cache: pnpm
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        # macOS builds one app for Apple silicon and Intel together.
+        targets: ${{ startsWith(inputs.os, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: src-tauri
+    - name: System libraries
+      if: startsWith(inputs.os, 'ubuntu')
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev libudev-dev
+    - shell: bash
+      run: pnpm install --frozen-lockfile

@@ -188,10 +188,10 @@ impl Haptics {
                 }
                 if stream.is_none() {
                     stream = open(&voices, &failed);
-                    if stream.is_none() {
-                        if let Ok(mut v) = voices.lock() {
-                            v.clear();
-                        }
+                    if stream.is_none()
+                        && let Ok(mut v) = voices.lock()
+                    {
+                        v.clear();
                     }
                 }
                 connected.store(stream.is_some(), Ordering::SeqCst);
