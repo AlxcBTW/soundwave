@@ -233,17 +233,51 @@ const roundNote = (n: PitchedNote): PitchedNote => ({
   ...(n.chord ? { chord: n.chord } : {}),
 });
 
-/** `min`: the weakest hit that counts, as a share of the strongest hits of its kind in the song. */
-const BANDS: { kind: DrumKind; lo: number; hi: number; wait: number; min: number }[] = [
-  // The low band also moves with toms, the body of the snare and what is left of the bass in the
-  // stem. Against kicks marked by hand (MDB Drums, 23 recordings, on the separated drum stem) only
-  // 55% of what it finds down to 0.15 is a kick; from 0.55 up 81% is, for 88% of the kicks
-  // instead of 94%. Snare and hi-hat are best left at 0.15 on the same recordings.
-  { kind: 'kick', lo: 30, hi: 150, wait: 0.1, min: 0.55 },
-  { kind: 'snare', lo: 180, hi: 2500, wait: 0.08, min: 0.15 },
-  { kind: 'hat', lo: 5000, hi: 10500, wait: 0.06, min: 0.15 },
+interface Band {
+  kind: DrumKind;
+  lo: number;
+  hi: number;
+  /** Seconds between two hits of this kind. */
+  wait: number;
+}
+const BANDS: Band[] = [
+  { kind: 'kick', lo: 30, hi: 150, wait: 0.1 },
+  { kind: 'snare', lo: 180, hi: 2500, wait: 0.08 },
+  { kind: 'hat', lo: 5000, hi: 10500, wait: 0.06 },
 ];
-const MIN_STRENGTH = Object.fromEntries(BANDS.map((b) => [b.kind, b.min])) as Record<DrumKind, number>;
+const BAND = Object.fromEntries(BANDS.map((b) => [b.kind, b])) as Record<DrumKind, Band>;
+/** The weakest hit that counts (see `DrumHit.strength`). */
+const MIN_STRENGTH = 0.15;
+
+/**
+ * The low band also moves with toms, the body of the snare and what is left of the bass in the
+ * stem, so a kick has to stand up to the kicks around it as well: it needs KICK_SHARE of the
+ * strongest low hit within KICK_REACH seconds before it or after it, whichever side is weaker.
+ * Measuring against the neighbours and not against the whole song keeps the kicks of a quiet intro
+ * or breakdown, and taking the weaker side keeps them right up to the loud passage next to it.
+ *
+ * Against kicks marked by hand (MDB Drums, 23 recordings, a hit counts within 50 ms), on the
+ * separated drum stem: without this 55% of the kicks found are kicks and 94% of the kicks are
+ * found; with it 83% and 88%. On the plain mix: 47% and 80% without, 64% and 75% with.
+ */
+const KICK_SHARE = 0.6;
+const KICK_REACH = 8;
+
+/** `hits` without the kicks that are weak beside their neighbours. Expects the kicks in order of time. */
+function withoutWeakKicks(hits: DrumHit[]): DrumHit[] {
+  const kicks = hits.filter((h) => h.kind === 'kick');
+  const weak = new Set<DrumHit>();
+  kicks.forEach((h, i) => {
+    // A side without another low hit says nothing: the first and the last hit of a song have only one.
+    let before = 0;
+    for (let j = i - 1; j >= 0 && h.t - kicks[j].t <= KICK_REACH; j--) before = Math.max(before, kicks[j].strength);
+    let after = 0;
+    for (let j = i + 1; j < kicks.length && kicks[j].t - h.t <= KICK_REACH; j++) after = Math.max(after, kicks[j].strength);
+    const around = before && after ? Math.min(before, after) : before || after;
+    if (h.strength < KICK_SHARE * around) weak.add(h);
+  });
+  return hits.filter((h) => !weak.has(h));
+}
 
 /** Kick / snare / hat hits from band-limited flux of the percussive component. */
 export function detectDrums(percussive: Float32Array, s: Spectrogram, fps: number, signal?: Float32Array, mag?: Float32Array): DrumHit[] {
@@ -270,7 +304,7 @@ export function detectDrums(percussive: Float32Array, s: Spectrogram, fps: numbe
     if (near(peaks[1], f) && hatC[f] < snareC[f] * 1.1) continue;
     hits.push({ t: f / fps, kind: 'hat', strength: Math.min(1, hatC[f]) });
   }
-  let kept = hits.filter((h) => h.strength >= MIN_STRENGTH[h.kind]);
+  let kept = withoutWeakKicks(hits.filter((h) => h.strength >= MIN_STRENGTH));
   if (signal) {
     // Move each hit to the attack in a band-filtered copy of the signal.
     const sr = s.sr;
@@ -287,7 +321,7 @@ export function detectDrums(percussive: Float32Array, s: Spectrogram, fps: numbe
   const last: Partial<Record<DrumKind, DrumHit>> = {};
   for (const h of kept) {
     const prev = last[h.kind];
-    if (prev && h.t - prev.t < BANDS.find((b) => b.kind === h.kind)!.wait * 0.9) {
+    if (prev && h.t - prev.t < BAND[h.kind].wait * 0.9) {
       prev.strength = Math.max(prev.strength, h.strength);
       continue;
     }

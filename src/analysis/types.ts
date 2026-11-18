@@ -1,7 +1,7 @@
 /**
  * Output of song analysis: what chart generation works from.
  */
-export const ANALYSIS_VERSION = 2;
+export const ANALYSIS_VERSION = 3;
 export const ANALYSIS_SAMPLE_RATE = 22050;
 
 export type DrumKind = 'kick' | 'snare' | 'hat';
@@ -9,7 +9,11 @@ export type DrumKind = 'kick' | 'snare' | 'hat';
 export interface DrumHit {
   t: number;
   kind: DrumKind;
-  /** 0..1, relative to the strongest hit of that kind. */
+  /**
+   * 0..1: how sharply the drum's band rises at the hit, against the 99th percentile of that rise
+   * over every frame of the song (anything above it is 1). The scale is the song's own, so it
+   * compares hits within a song, not between songs.
+   */
   strength: number;
 }
 

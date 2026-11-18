@@ -131,6 +131,29 @@ describe('drum detection', () => {
     expect(kicks.length - offBeat.length).toBeGreaterThan(20);
     expect(offBeat.length).toBeLessThanOrEqual(2);
   }, 60_000);
+
+  it('keeps the kicks of a quiet passage, and still drops the thumps in it', async () => {
+    // The same kick and floor tom, but the first half of the song at a fifth of the level (-14 dB).
+    const x = new Float32Array(32 * SR);
+    const add = (t0: number, dur: number, fn: (t: number) => number) => {
+      const a = Math.floor(t0 * SR);
+      for (let i = 0; i < dur * SR && a + i < x.length; i++) x[a + i] += fn(i / SR);
+    };
+    for (let b = 0; b < 62; b++) {
+      const t = 0.5 + b * 0.5;
+      const level = b < 31 ? 0.2 : 1;
+      add(t, 0.2, (s) => Math.sin(2 * Math.PI * (50 + 80 * Math.exp(-s * 30)) * s) * Math.exp(-s * 15) * 0.8 * level);
+      add(t + 0.25, 0.3, (s) => Math.sin(2 * Math.PI * (85 + 25 * Math.exp(-s * 20)) * s) * Math.exp(-s * 9) * 0.1 * level);
+    }
+    const kicks = (await analyzeSignal(x)).drums.filter((d) => d.kind === 'kick');
+    const onBeat = (t: number) => {
+      const o = (((t - 0.5) % 0.5) + 0.5) % 0.5;
+      return Math.min(o, 0.5 - o) <= 0.08;
+    };
+    expect(kicks.filter((k) => onBeat(k.t) && k.t < 15.9).length).toBe(31);
+    expect(kicks.filter((k) => onBeat(k.t) && k.t >= 15.9).length).toBe(31);
+    expect(kicks.filter((k) => !onBeat(k.t)).length).toBeLessThanOrEqual(2);
+  }, 60_000);
 });
 
 describe('pipeline', () => {
