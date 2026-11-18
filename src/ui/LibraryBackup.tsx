@@ -24,7 +24,6 @@ type State =
   | { kind: 'idle' }
   | { kind: 'exporting'; done: number; total: number }
   | { kind: 'saving' }
-  | { kind: 'exported'; songs: number }
   | { kind: 'reading' }
   | { kind: 'confirm'; backup: BackupContents }
   | { kind: 'importing'; done: number; total: number }
@@ -108,11 +107,12 @@ export function useLibraryBackup(settings: Settings): LibraryBackup {
     if (!target) return;
     try {
       setState({ kind: 'exporting', done: 0, total: 0 });
-      const { file, songs: n } = await writeBackup((p) => setState({ kind: 'exporting', ...p }));
+      const { file } = await writeBackup((p) => setState({ kind: 'exporting', ...p }));
       setState({ kind: 'saving' });
       await target.write(file);
       await target.close();
-      setState({ kind: 'exported', songs: n });
+      // Done: the file is where the player put it, nothing more to say.
+      setState({ kind: 'idle' });
     } catch (e) {
       await target.abort().catch(() => {});
       setState({ kind: 'error', message: `The library could not be exported: ${(e as Error).message}` });
@@ -147,11 +147,9 @@ export function useLibraryBackup(settings: Settings): LibraryBackup {
       ? pill(`Packing ${progress(state.done, state.total)}`)
       : state.kind === 'saving'
         ? pill('Saving…')
-        : state.kind === 'exported'
-          ? pill(`Saved ${songs(state.songs)}`, 'ready')
-          : state.kind === 'error' && last === 'export'
-            ? pill('Failed', 'error')
-            : undefined;
+        : state.kind === 'error' && last === 'export'
+          ? pill('Failed', 'error')
+          : undefined;
   const importNote =
     state.kind === 'reading'
       ? pill('Reading…')
