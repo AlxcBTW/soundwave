@@ -192,7 +192,7 @@ class PadHub {
       for (const c of changes) this.emit({ ...c, t, pad: gp.index });
     }
     // Disconnected controllers release whatever they were holding.
-    for (const [index, s] of [...this.states]) {
+    for (const [index, s] of Array.from(this.states)) {
       if (seen.has(index)) continue;
       this.states.delete(index);
       s.buttons.forEach((d, i) => d && this.emit({ input: `b${i}`, down: false, t: now, pad: index }));

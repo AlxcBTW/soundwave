@@ -192,7 +192,7 @@ export function separateParts(notes: PitchedNote[], duration: number): { bass: P
       const top = pitches[pitches.length - 1];
       lead.push({
         t: c[0].t,
-        dur: [...c.map((n) => n.dur)].sort((a, b) => a - b)[c.length >> 1],
+        dur: c.map((n) => n.dur).sort((a, b) => a - b)[c.length >> 1],
         midi: top,
         strength: Math.max(...c.map((n) => n.strength)),
         chord: pitches,

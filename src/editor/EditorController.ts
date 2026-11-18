@@ -1515,7 +1515,7 @@ export class EditorController {
   stopRecording() {
     if (!this.recording) return;
     const now = performance.now();
-    for (const lane of [...this.recHeld.keys()]) this.recordRelease(lane, now);
+    for (const lane of Array.from(this.recHeld.keys())) this.recordRelease(lane, now);
     this.recording = false;
     this.playing = false;
     this.engine.pause();
@@ -1800,7 +1800,10 @@ export class EditorController {
       const k = e.key.toLowerCase();
       if (e.code === 'ArrowUp') this.moveNote(1);
       else if (e.code === 'ArrowDown') this.moveNote(-1);
-      else if (k === 'z') e.shiftKey ? this.redo() : this.undo();
+      else if (k === 'z') {
+        if (e.shiftKey) this.redo();
+        else this.undo();
+      }
       else if (k === 'y') this.redo();
       else if (k === 'c') this.copy();
       else if (k === 'x') this.cut();
@@ -1843,7 +1846,7 @@ export class EditorController {
   private blur = () => {
     this.shift = false;
     this.noteUp();
-    if (this.recording) for (const lane of [...this.recHeld.keys()]) this.recordRelease(lane, performance.now());
+    if (this.recording) for (const lane of Array.from(this.recHeld.keys())) this.recordRelease(lane, performance.now());
   };
 
   /** A direction from the arrow keys or a controller, offered to the track before focus would move. */

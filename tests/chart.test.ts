@@ -159,9 +159,8 @@ describe('sung lane walk', () => {
   const notes = generateChart(a, 'vocals', 'expert', 'song').notes;
 
   it('never hammers one lane with fast notes', () => {
-    for (let i = 1; i < notes.length; i++) {
-      if (notes[i].t - notes[i - 1].t < 0.25) expect(notes[i].lane).not.toBe(notes[i - 1].lane);
-    }
+    const hammered = notes.filter((n, i) => i > 0 && n.t - notes[i - 1].t < 0.25 && n.lane === notes[i - 1].lane);
+    expect(hammered).toEqual([]);
   });
 
   it('spreads a monotone verse over the lanes', () => {

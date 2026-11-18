@@ -161,7 +161,7 @@ class StemModel {
       this.set({ state: 'ready', received: this.bytes });
     } catch (e) {
       this.set({ state: 'error', error: `The analysis model could not be downloaded: ${(e as Error).message}.` });
-      throw new Error(this.status.error);
+      throw new Error(this.status.error, { cause: e });
     }
   }
 

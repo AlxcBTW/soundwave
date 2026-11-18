@@ -299,6 +299,7 @@ export async function soundwaveAudio(blob: Blob): Promise<Blob> {
 export function soundwaveFileName(meta: { title: string; artist: string }): string {
   const known = meta.artist.trim() && meta.artist !== 'Unknown artist';
   const name = (known ? `${meta.artist} - ${meta.title}` : meta.title)
+    // oxlint-disable-next-line no-control-regex -- control characters are not allowed in file names
     .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()

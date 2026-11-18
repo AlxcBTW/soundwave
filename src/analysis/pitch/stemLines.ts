@@ -391,7 +391,7 @@ export function bassLineFromStem({ signal, sr, notes }: StemInput): PitchedNote[
  */
 export function foldOctaves(notes: PitchedNote[]): PitchedNote[] {
   const recent: number[] = [];
-  const sorted = [...notes.map((n) => n.midi)].sort((a, b) => a - b);
+  const sorted = notes.map((n) => n.midi).sort((a, b) => a - b);
   let ref = sorted[sorted.length >> 1] ?? 36;
   return notes.map((n) => {
     let midi = n.midi;

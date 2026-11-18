@@ -37,7 +37,7 @@ const PAST = 0.72;
 const MAX_GEMS = 512;
 /** The stretch at the far end of the deck over which a note grows to its full size. */
 const APPEAR = 4;
-/** How far a thing ar units in from the deck's far edge has arrived, 0..1, eased at both ends. */
+/** How far a thing far units in from the deck's far edge has arrived, 0..1, eased at both ends. */
 const arrived = (far: number) => {
   const p = Math.min(1, Math.max(0, far / APPEAR));
   return p * p * (3 - 2 * p);

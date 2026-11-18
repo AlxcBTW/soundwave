@@ -1,0 +1,13 @@
+dist/
+coverage/
+node_modules/
+pnpm-lock.yaml
+src-tauri/target/
+src-tauri/gen/
+src-tauri/Cargo.lock
+public/
+models/
+ml-service/
+local-audio/
+.impeccable/
+*.min.js

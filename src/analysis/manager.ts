@@ -154,7 +154,7 @@ export class AnalysisManager {
   enqueue(id: string, force = false) {
     if (force) {
       this.results.delete(id);
-      for (const k of [...this.charts.keys()]) if (k.startsWith(`${id}:`)) this.charts.delete(k);
+      for (const k of Array.from(this.charts.keys())) if (k.startsWith(`${id}:`)) this.charts.delete(k);
     }
     if (this.queue.includes(id) || this.status[id]?.state === 'analyzing') return;
     this.queue.push(id);
@@ -173,7 +173,7 @@ export class AnalysisManager {
     this.edits.delete(id);
     this.thin.delete(id);
     this.thinFor.delete(id);
-    for (const k of [...this.charts.keys()]) if (k.startsWith(`${id}:`)) this.charts.delete(k);
+    for (const k of Array.from(this.charts.keys())) if (k.startsWith(`${id}:`)) this.charts.delete(k);
     if (this.current?.id === id) this.current.abort.abort();
     const { [id]: _, ...rest } = this.status;
     this.status = rest;
@@ -289,7 +289,7 @@ export class AnalysisManager {
    */
   async saveEdits(id: string, edits: SongEdits | null): Promise<void> {
     this.edits.set(id, edits);
-    for (const k of [...this.charts.keys()]) if (k.startsWith(`${id}:`)) this.charts.delete(k);
+    for (const k of Array.from(this.charts.keys())) if (k.startsWith(`${id}:`)) this.charts.delete(k);
     const now = this.status[id];
     // A song that stands on its own grid is ready; otherwise the status keeps what the analysis says.
     if (standsAlone(edits ?? undefined) && (!now || now.state === 'idle' || now.state === 'error')) this.set(id, { state: 'ready' });

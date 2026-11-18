@@ -235,7 +235,7 @@ export class Rumbler {
 
   dispose() {
     this.disposed = true;
-    for (const lane of [...this.held.keys()]) this.sustainEnd(lane);
+    for (const lane of Array.from(this.held.keys())) this.sustainEnd(lane);
     this.overdriveEnd();
     clearTimeout(this.holdTimer);
     for (const p of pads.snapshot().pads) void actuator(p.index)?.reset?.().catch(() => {});
