@@ -40,7 +40,6 @@ export type ToStage =
   | { type: 'rate'; id: number; rate: StageRate }
   | { type: 'overdrive'; id: number }
   | { type: 'finale'; id: number; seconds: number }
-  | { type: 'camera'; id: number; mode: GraphicsSettings['camera'] }
   | { type: 'debug'; id: number }
   | { type: 'dispose'; id: number };
 

@@ -15,15 +15,16 @@ describe('graphics settings', () => {
     expect(tierForGpu(null)).toBe('medium');
   });
 
-  it('applies presets and keeps the camera choice', () => {
-    const g = applyPreset({ ...DEFAULT_GRAPHICS, camera: 'calm' }, 'low');
-    expect(g).toMatchObject({ ...PRESETS.low, preset: 'low', camera: 'calm' });
+  it('applies presets', () => {
+    const g = applyPreset(DEFAULT_GRAPHICS, 'low');
+    expect(g).toMatchObject({ ...PRESETS.low, preset: 'low' });
     expect(applyPreset(g, 'custom')).toMatchObject({ ...PRESETS.low, preset: 'custom' });
   });
 
-  it('drops the switch for the 2D backdrop from stored settings', () => {
-    const g = normalizeGraphics({ preset: 'custom', stage3d: false });
+  it('drops the switch for the 2D backdrop and the camera choice from stored settings', () => {
+    const g = normalizeGraphics({ preset: 'custom', stage3d: false, camera: 'fixed' });
     expect(g).not.toHaveProperty('stage3d');
+    expect(g).not.toHaveProperty('camera');
     expect(g.preset).toBe('custom');
   });
 

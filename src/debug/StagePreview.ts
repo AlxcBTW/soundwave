@@ -9,7 +9,7 @@ import { AuroraStage } from '../render/aurora/AuroraStage';
 export async function runStagePreview(root: HTMLElement) {
   const q = new URLSearchParams(location.hash.split('?')[1] ?? '');
   const preset = (q.get('preset') ?? 'high') as GraphicsPreset;
-  const g = applyPreset({ ...DEFAULT_GRAPHICS, camera: 'auto' }, preset);
+  const g = applyPreset(DEFAULT_GRAPHICS, preset);
   // Drawn on the page, not in the worker the game uses, so the console can reach into the stage.
   const canvas = document.createElement('canvas');
   // No fade-in here: a capture right after loading should show the stage, not the fade.

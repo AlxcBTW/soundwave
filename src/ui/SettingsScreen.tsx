@@ -565,8 +565,7 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
     const g = s.graphics;
     // Auto shows what it picked; touching any option turns that into a custom setup.
     const shown = resolveGraphics(g);
-    const setG = (patch: Partial<GraphicsSettings>) =>
-      set({ graphics: { ...shown, ...patch, preset: 'custom', camera: patch.camera ?? g.camera } });
+    const setG = (patch: Partial<GraphicsSettings>) => set({ graphics: { ...shown, ...patch, preset: 'custom' } });
     const level = (id: 'crowd' | 'beams' | 'lights' | 'effects', label: string, help: string): Row => ({
       kind: 'choice',
       id,
@@ -694,19 +693,6 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
           level('beams', 'Beams', 'Moving light beams in the haze.'),
           level('lights', 'Lights and bulbs', 'Washes, bulbs and glowing details.'),
           level('effects', 'Fireworks and smoke', 'Fireworks and smoke jets on big moments.'),
-          {
-            kind: 'choice',
-            id: 'camera',
-            label: 'Camera',
-            help: 'How the camera moves around the stage.',
-            value: g.camera,
-            options: [
-              { value: 'auto', label: 'Director', help: 'Cuts between shots with the music.' },
-              { value: 'calm', label: 'Calm', help: 'Slow wide shots, few cuts.' },
-              { value: 'fixed', label: 'Fixed', help: 'One view from the crowd.' },
-            ],
-            set: (v) => set({ graphics: { ...g, camera: v as GraphicsSettings['camera'] } }),
-          },
         ],
       },
     ];

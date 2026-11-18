@@ -25,12 +25,11 @@ export interface GraphicsSettings {
   /** Bloom around bright lights. */
   glow: boolean;
   antialias: boolean;
-  camera: CameraMode;
 }
 
 export type Tier = Exclude<GraphicsPreset, 'auto' | 'custom'>;
 
-export const PRESETS: Record<Tier, Omit<GraphicsSettings, 'preset' | 'camera'>> = {
+export const PRESETS: Record<Tier, Omit<GraphicsSettings, 'preset'>> = {
   low: {
     resolution: 0.6,
     dynamicResolution: true,
@@ -77,7 +76,7 @@ export const PRESETS: Record<Tier, Omit<GraphicsSettings, 'preset' | 'camera'>> 
   },
 };
 
-export const DEFAULT_GRAPHICS: GraphicsSettings = { preset: 'auto', camera: 'auto', ...PRESETS.medium };
+export const DEFAULT_GRAPHICS: GraphicsSettings = { preset: 'auto', ...PRESETS.medium };
 
 /** Share of the crowd, trees and bulbs drawn at each level. */
 export const LEVEL_SHARE: Record<Level, number> = { off: 0, low: 0.12, medium: 0.45, high: 1 };
@@ -182,10 +181,11 @@ export function normalizeGraphics(raw: unknown): GraphicsSettings {
   if (!['auto', 'low', 'medium', 'high', 'ultra', 'custom'].includes(g.preset)) g.preset = 'auto';
   for (const k of ['crowd', 'beams', 'lights', 'effects'] as const) if (!LEVELS.includes(g[k])) g[k] = DEFAULT_GRAPHICS[k];
   if (![0, 30, 60, 120].includes(g.fpsCap)) g.fpsCap = DEFAULT_GRAPHICS.fpsCap;
-  if (!['auto', 'calm', 'fixed'].includes(g.camera)) g.camera = 'auto';
   g.resolution = Math.min(1, Math.max(0.5, Number(g.resolution) || DEFAULT_GRAPHICS.resolution));
   for (const k of ['dynamicResolution', 'glow', 'antialias'] as const) g[k] = Boolean(g[k]);
-  // The switch for the 2D backdrop went with the backdrop.
+  // The switch for the 2D backdrop went with the backdrop, and the camera choice: the director
+  // always moves the camera during a song.
   delete (g as unknown as Record<string, unknown>).stage3d;
+  delete (g as unknown as Record<string, unknown>).camera;
   return g;
 }

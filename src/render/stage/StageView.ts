@@ -252,10 +252,6 @@ export class StageView {
     this.send({ type: 'finale', id: this.id, seconds });
   }
 
-  setCameraMode(mode: GraphicsSettings['camera']) {
-    this.send({ type: 'camera', id: this.id, mode });
-  }
-
   /** Dev diagnostics from the stage, wherever it runs. */
   debugInfo(): Promise<Record<string, unknown>> {
     return new Promise((resolve) => {

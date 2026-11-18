@@ -170,7 +170,7 @@ export class AuroraStage {
     canvas.addEventListener('webglcontextrestored', this.onContextRestored as EventListener);
     const menu = opts.mode === 'menu';
     this.show = new LightShow(menu);
-    this.director = new Director(buildShots(this.data.cameras, this.data.band, opts.part), menu ? 'calm' : g.camera, 7, menu);
+    this.director = new Director(buildShots(this.data.cameras, this.data.band, opts.part), menu ? 'calm' : 'auto', 7, menu);
 
     const moon = this.data.moon;
     shared.uGlowPos.value.set(...moon.center);
@@ -332,10 +332,6 @@ export class AuroraStage {
     this.bandsIn.low = b.low;
     this.bandsIn.mid = b.mid;
     this.bandsIn.high = b.high;
-  }
-
-  setCameraMode(mode: GraphicsSettings['camera']) {
-    this.director.setMode(mode);
   }
 
   overdriveStart() {

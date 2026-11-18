@@ -135,9 +135,6 @@ export function createStageHost(post: (m: FromStage) => void) {
       case 'finale':
         slot.stage?.finale(m.seconds);
         break;
-      case 'camera':
-        slot.stage?.setCameraMode(m.mode);
-        break;
       case 'debug':
         if (slot.stage) post({ type: 'debug', id: m.id, info: slot.stage.debugInfo() });
         break;
