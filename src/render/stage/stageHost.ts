@@ -31,6 +31,8 @@ export function createStageHost(post: (m: FromStage) => void) {
   const slots = new Map<number, Slot>();
   let visible = true;
   let looping = false;
+  /** Frames the loop has run, for diagnostics (how often the stage really gets to draw). */
+  let frames = 0;
 
   // One loop for every stage held (only while one changes over to another are there two).
   const loop = () => {
@@ -38,6 +40,7 @@ export function createStageHost(post: (m: FromStage) => void) {
     if (!visible || !slots.size) return;
     looping = true;
     nextFrame(loop);
+    frames++;
     const now = performance.now();
     for (const slot of slots.values()) {
       if (!slot.stage) continue;
@@ -136,7 +139,7 @@ export function createStageHost(post: (m: FromStage) => void) {
         slot.stage?.finale(m.seconds);
         break;
       case 'debug':
-        if (slot.stage) post({ type: 'debug', id: m.id, info: slot.stage.debugInfo() });
+        if (slot.stage) post({ type: 'debug', id: m.id, info: { ...slot.stage.debugInfo(), frames, at: performance.now() } });
         break;
       case 'dispose':
         slot.disposed = true;
