@@ -46,8 +46,6 @@ function updateNote(u: UpdateStatus): string {
       return 'Installing';
     case 'checking':
       return 'Checking';
-    case 'current':
-      return 'Up to date';
     case 'error':
       return 'Check failed';
     default:
@@ -173,6 +171,21 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
   const library = useLibraryBackup(settings);
   const update = useSyncExternalStore(updates.subscribe, updates.snapshot);
   const [updateOpen, setUpdateOpen] = useState(false);
+  // A check that found nothing new says so on its button for a few seconds, then the button is
+  // ready to check again.
+  const [upToDate, setUpToDate] = useState(false);
+  const updateWas = useRef(update.state);
+  useEffect(() => {
+    const was = updateWas.current;
+    updateWas.current = update.state;
+    if (was !== 'checking' || update.state !== 'current') return;
+    setUpToDate(true);
+    const done = window.setTimeout(() => setUpToDate(false), 3000);
+    return () => {
+      clearTimeout(done);
+      setUpToDate(false);
+    };
+  }, [update.state]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [turn, setTurn] = useState<'fwd' | 'back'>('fwd');
   const settingsRef = useRef(settings);
@@ -317,6 +330,7 @@ export function SettingsScreen({ settings, model, device, onChange, onBack, inSo
     device,
     library,
     update,
+    upToDate,
     showUpdate: () => setUpdateOpen(true),
     calibrate: () => setCalibrating(true),
     inSong,
@@ -444,6 +458,8 @@ interface Ctx {
   device: AnalysisDevice | null;
   library: LibraryBackup;
   update: UpdateStatus;
+  /** A check just found nothing new (for a few seconds after it). */
+  upToDate: boolean;
   /** Opens the card that offers the update found. */
   showUpdate(): void;
   calibrate(): void;
@@ -1019,13 +1035,24 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
             kind: 'action',
             id: 'checkForUpdates',
             label: 'Updates',
-            button: u.state === 'available' ? 'Install' : u.state === 'checking' ? 'Checking…' : 'Check now',
+            button:
+              u.state === 'available'
+                ? 'Install'
+                : u.state === 'checking'
+                  ? 'Checking…'
+                  : u.state === 'current' && c.upToDate
+                    ? 'Up to date'
+                    : 'Check now',
             disabled: u.state === 'checking' || u.state === 'downloading' || u.state === 'installing',
             run:
               u.state === 'available' || u.state === 'downloading' || u.state === 'installing'
                 ? c.showUpdate
                 : () => void checkForUpdates(),
-            note: <span className={`pill ${u.state === 'available' ? 'lit' : u.state === 'error' ? 'error' : ''}`}>{updateNote(u)}</span>,
+            // Being up to date is said on the button, for a moment (see upToDate), not beside it.
+            note:
+              u.state === 'current' ? undefined : (
+                <span className={`pill ${u.state === 'available' ? 'lit' : u.state === 'error' ? 'error' : ''}`}>{updateNote(u)}</span>
+              ),
             help: `You have version ${APP_VERSION}. The game looks for a newer release on GitHub and, when you say so, downloads it, checks that it is genuine, installs it and starts again. Your library, scores and settings stay.${u.state === 'error' ? ` ${u.message}` : ''}`,
           },
           toggle(
