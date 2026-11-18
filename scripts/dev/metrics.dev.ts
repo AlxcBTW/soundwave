@@ -1,7 +1,7 @@
 /**
  * Chart quality metrics for a saved analysis (default: local-audio/<SONG>.hybrid.json).
  *
- *   SONG=rivers FILE=hybrid npx vitest run --config vitest.dev.config.ts metrics
+ *   SONG=rivers FILE=hybrid pnpm vitest run --config vitest.dev.config.ts metrics
  *
  * Reports, per pitched part: onset timing against the beat grid, how many source notes survive into
  * the expert chart, whether lanes follow the pitch contour, and whether repeated bars chart the same.

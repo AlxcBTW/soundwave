@@ -2,7 +2,7 @@
  * Where notes fall within the beat around a time: reference tiles, our vocal line and the expert
  * chart, as beat positions on our grid (dev tooling for rhythm-grid questions).
  *
- *   SONG=demo2 REF=ref-demo2 FROM=64 SPAN=4 npx vitest run --config vitest.dev.config.ts beatPos
+ *   SONG=demo2 REF=ref-demo2 FROM=64 SPAN=4 pnpm vitest run --config vitest.dev.config.ts beatPos
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

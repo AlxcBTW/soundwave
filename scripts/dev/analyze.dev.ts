@@ -1,7 +1,7 @@
 /**
- * Offline analysis harness for tuning, run with `npm run dev:analyze`.
+ * Offline analysis harness for tuning, run with `pnpm dev:analyze`.
  *
- *   SONG=rivers npm run dev:analyze
+ *   SONG=rivers pnpm dev:analyze
  *
  * Expects `local-audio/<SONG>.f32`: mono float32 at 22050 Hz. One way to make it:
  *   ml-service/.venv/Scripts/python -c "import librosa,numpy as np; y,_=librosa.load('in.flac',sr=22050,mono=True); y.astype(np.float32).tofile('local-audio/x.f32')"

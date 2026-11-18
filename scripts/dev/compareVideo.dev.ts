@@ -1,7 +1,7 @@
 /**
  * Compares our vocals with tiles extracted from a gameplay recording (scripts/dev/video_notes.py).
  *
- *   SONG=demo REF=ref-demo npx vitest run --config vitest.dev.config.ts compareVideo
+ *   SONG=demo REF=ref-demo pnpm vitest run --config vitest.dev.config.ts compareVideo
  *
  * The tiles' times are offset by an unknown constant (scroll travel, capture latency); the offset
  * that best matches our vocal attacks is found first.

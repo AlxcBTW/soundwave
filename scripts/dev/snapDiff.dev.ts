@@ -2,7 +2,7 @@
  * Writes every part's expert note times for some songs, so two runs (e.g. with different rhythm
  * settings) can be diffed (dev tooling).
  *
- *   SONGS=rivers,alive OUT=a.json npx vitest run --config vitest.dev.config.ts snapDiff
+ *   SONGS=rivers,alive OUT=a.json pnpm vitest run --config vitest.dev.config.ts snapDiff
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

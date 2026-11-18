@@ -3,7 +3,7 @@
  * reference) or strays from bleed and breaths? Lists each with what the vocal stem looks like
  * around it (dev tooling).
  *
- *   SONGS=demo:ref-demo,demo2:ref-demo2,givenchy npx vitest run --config vitest.dev.config.ts isolatedVocals
+ *   SONGS=demo:ref-demo,demo2:ref-demo2,givenchy pnpm vitest run --config vitest.dev.config.ts isolatedVocals
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

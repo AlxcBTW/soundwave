@@ -1,7 +1,7 @@
 /**
  * Compares our analysis and charts with a reference chart (community notes.mid).
  *
- *   SONG=sna REF=ref-sna npx vitest run --config vitest.dev.config.ts compare
+ *   SONG=sna REF=ref-sna pnpm vitest run --config vitest.dev.config.ts compare
  *
  * Needs local-audio/<SONG>.hybrid.json (from analyze.dev.ts with ANALYSIS=hybrid) and
  * local-audio/<REF>/{notes.mid, align.json} (align.json from scripts/dev/align.py).

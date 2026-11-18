@@ -9,7 +9,7 @@ cut in facets between two lit rails, pill-shaped tiles in the lane colours, a pi
 on the strike line, a sustain as a beam of light. It is rendered with Cycles and finished here as
 well (glow, tone, the rounded tile and its rim), so the icon comes out of this one file. `--out`
 gets a 1024 px PNG with a transparent margin round the tile, the layout the platform icon tools
-expect; run `npx tauri icon src-tauri/icons/icon.png` afterwards to make every size from it.
+expect; run `pnpm tauri icon src-tauri/icons/icon.png` afterwards to make every size from it.
 
 Axes: the highway runs away along +Y from the strike line at y = 0, lanes are 1 wide, Z is up.
 """

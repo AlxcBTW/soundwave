@@ -3,7 +3,7 @@
  * often the lane repeats, steps to a neighbour or jumps, and how lane moves follow pitch moves.
  * Compares tiles from gameplay recordings with our charts (dev tooling).
  *
- *   SONGS=demo:ref-demo,demo2:ref-demo2 npx vitest run --config vitest.dev.config.ts laneStats
+ *   SONGS=demo:ref-demo,demo2:ref-demo2 pnpm vitest run --config vitest.dev.config.ts laneStats
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

@@ -22,8 +22,8 @@ It runs in the browser and as a desktop app (Tauri). Phones and tablets can play
 ## Quick start (browser)
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Open http://localhost:5173 and add your own songs.
@@ -92,15 +92,15 @@ The code is in `src/editor` (the grid, the chart being edited, the canvas, the c
 The desktop app needs the [Tauri prerequisites](https://tauri.app/start/prerequisites/): Rust (rustup), the MSVC C++ build tools and WebView2 (on Windows).
 
 ```bash
-npm run tauri dev      # run the desktop app
-npm run tauri build    # build an installer (NSIS/MSI on Windows)
+pnpm tauri dev      # run the desktop app
+pnpm tauri build    # build an installer (NSIS/MSI on Windows)
 ```
 
 ## Production web build
 
 ```bash
-npm run build          # outputs static files to dist/
-npm run preview
+pnpm build          # outputs static files to dist/
+pnpm preview
 ```
 
 ## How analysis works
@@ -115,7 +115,7 @@ A four-minute song takes about 20 seconds in all on a fast graphics card, most o
 
 The stem model is not part of the game's files. It is downloaded once (171 MB), the first time the game opens, checked against a known hash and kept in the browser's storage; Settings → Analysis shows its state. For now it comes from the copy Intel publishes for its Audacity plugins ([Intel/demucs-openvino](https://huggingface.co/Intel/demucs-openvino) on Hugging Face). This repository holds its own, smaller export of the same model (`models/htdemucs/htdemucs-v1.onnx`, 90 MB, made by `tools/analysis/export_stem_model.py`), and the download will move there once the repository can be read without signing in (`src/analysis/separation/model.ts` has both).
 
-Separating a song needs about 2.5 GB of memory, which phones and tablets do not give a web page: there the game plays songs that were analyzed elsewhere (brought in as Soundwave song files or a library backup) or charted by hand, and does not analyze new ones. The runtime's WebAssembly file (27 MiB) is shipped gzip-compressed (`public/ort/…wasm.gz`, about 7 MiB) and unpacked by the worker, so no file in the build is over the 25 MiB some hosts allow per file; `npm run build` fails if one is (`scripts/check-dist.mjs`). On the processor the model wants threads, which a browser only allows on pages served with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`; the dev and preview servers and the desktop app send both, and a host for the built game should too.
+Separating a song needs about 2.5 GB of memory, which phones and tablets do not give a web page: there the game plays songs that were analyzed elsewhere (brought in as Soundwave song files or a library backup) or charted by hand, and does not analyze new ones. The runtime's WebAssembly file (27 MiB) is shipped gzip-compressed (`public/ort/…wasm.gz`, about 7 MiB) and unpacked by the worker, so no file in the build is over the 25 MiB some hosts allow per file; `pnpm build` fails if one is (`scripts/check-dist.mjs`). On the processor the model wants threads, which a browser only allows on pages served with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`; the dev and preview servers and the desktop app send both, and a host for the built game should too.
 
 The pipeline then works on the mix and the stems:
 
@@ -144,7 +144,7 @@ Charts follow common five-lane authoring practice (`src/chart/generator.ts`, `sr
 - **Drums** use a fixed kit layout (kick left, snare middle, hi-hats right). Hi-hats thin out first on lower difficulties.
 - **Overdrive phrases** cover the same musical passages on every difficulty.
 
-To tune analysis or charts on your own files without the UI, see `scripts/dev/analyze.dev.ts` (`npm run dev:analyze`).
+To tune analysis or charts on your own files without the UI, see `scripts/dev/analyze.dev.ts` (`pnpm dev:analyze`).
 
 ### The Python reference (`ml-service/`)
 
@@ -216,7 +216,7 @@ The icon is a render of the note highway, built from the same measurements the g
 
 ```
 blender -b --factory-startup -P tools/icon/build_icon.py -- --out src-tauri/icons/icon.png
-npx tauri icon src-tauri/icons/icon.png
+pnpm tauri icon src-tauri/icons/icon.png
 ```
 
 The second command also writes `android` and `ios` folders into `src-tauri/icons`; the desktop app does not use them.
