@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HIT_FEEL, motorPulse, RUMBLE_SCALE } from '../src/input/rumble';
+import { HIT_FEEL, motorPulse, plainOnActuators, RUMBLE_SCALE } from '../src/input/rumble';
 
 describe('rumble on plain motors', () => {
   it('never asks a motor for less than it starts at, or for shorter than it takes to be felt', () => {
@@ -38,5 +38,20 @@ describe('rumble on plain motors', () => {
   it('plays nothing when rumble is off or the effect has no strength', () => {
     expect(motorPulse({ pan: 0, amp: 1, ms: 100, kind: 'click' }, RUMBLE_SCALE.off)).toBeNull();
     expect(motorPulse({ pan: 0, amp: 0, ms: 100, kind: 'click' }, 1)).toBeNull();
+  });
+
+  it('plays a DualSense with 3D haptics off as the two motors: heavy left, light right, as long', () => {
+    const e = { pan: 0, amp: 1, ms: 130, kind: 'thud' as const };
+    const m = motorPulse(e, 1)!;
+    const p = plainOnActuators(e, 1)!;
+    expect(p.kind).toBe('rumble');
+    expect(p.ms).toBe(m.ms);
+    // Constant-power pan back to the grips' strengths.
+    const a = ((p.pan + 1) * Math.PI) / 4;
+    const scale = p.amp / Math.hypot(m.strong, m.weak);
+    expect(p.amp * Math.cos(a)).toBeCloseTo(m.strong * scale, 5);
+    expect(p.amp * Math.sin(a)).toBeCloseTo(m.weak * scale, 5);
+    expect(p.pan).toBeLessThan(0);
+    expect(plainOnActuators(e, RUMBLE_SCALE.off)).toBeNull();
   });
 });

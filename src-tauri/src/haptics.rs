@@ -18,6 +18,9 @@ pub enum Kind {
     Thud,
     Buzz,
     Sweep,
+    /// Plain rumble, as a controller's motors feel (3D haptics turned off): one low, even hum
+    /// that spins up and down, the same for every kind of event.
+    Rumble,
 }
 
 #[derive(Deserialize)]
@@ -64,6 +67,8 @@ impl Voice {
     fn done(&self) -> bool {
         match self.kind {
             Kind::Buzz => self.released_at.is_some_and(|r| self.t > r + 0.05),
+            Kind::Rumble if self.hold.is_some() => self.released_at.is_some_and(|r| self.t > r + 0.05),
+            Kind::Rumble => self.t > self.dur + 0.05,
             _ => self.t > self.dur,
         }
     }
@@ -97,6 +102,13 @@ impl Voice {
                     .released_at
                     .map_or(1.0, |r| (1.0 - (t - r) / 0.05).max(0.0));
                 (150.0, 0.75 * attack * release)
+            }
+            Kind::Rumble => {
+                // A motor: up to speed in 20 ms, even while it runs, down in 50 ms.
+                let attack = (t / 0.02).min(1.0);
+                let end = self.released_at.or(self.hold.map_or(Some(self.dur), |_| None));
+                let release = end.map_or(1.0, |r| (1.0 - (t - r) / 0.05).clamp(0.0, 1.0));
+                (65.0, attack * release)
             }
         };
         self.phase = (self.phase + freq * dt) % 1.0;
@@ -310,6 +322,17 @@ mod tests {
         assert!(!v.done());
         v.released_at = Some(v.t);
         render(&mut v, 0.1);
+        assert!(v.done());
+    }
+
+    #[test]
+    fn rumble_runs_evenly_for_its_length_then_stops() {
+        let mut v = Voice::new(&effect(Kind::Rumble, 100.0, 0.0));
+        let s = render(&mut v, 0.2);
+        let peak = |a: usize, b: usize| s[a..b].iter().fold(0.0f32, |m, x| m.max(x.abs()));
+        // Still at full strength late in its length, silent once spun down.
+        assert!(peak(3600, 4800) > 0.9);
+        assert!(peak(7400, 9600) < 0.01);
         assert!(v.done());
     }
 

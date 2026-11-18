@@ -1,7 +1,8 @@
 /**
  * Controller feedback: rumble through the Gamepad API on every controller that supports it, and
  * on a PS5 DualSense connected by USB in the desktop app, its haptic actuators driven natively
- * (src-tauri/src/haptics.rs): positional, textured feedback instead of plain rumble.
+ * (src-tauri/src/haptics.rs): positional, textured feedback instead of plain rumble, or, with the
+ * player's 3D haptics turned off, plain rumble played on those actuators.
  */
 import { invoke } from '@tauri-apps/api/core';
 import type { Grade } from '../game/judge';
@@ -124,19 +125,56 @@ export async function dualSenseHaptics(): Promise<boolean> {
   }
 }
 
-const nativePlay = (e: Effect, k: number, hold?: number) =>
+type NativeEffect = Pick<Effect, 'pan' | 'amp' | 'ms'> & { kind: Kind | 'rumble' };
+
+const nativePlay = (e: NativeEffect, k: number, hold?: number) =>
   void invoke('haptics_play', { effect: { pan: e.pan, amp: Math.min(1, e.amp * k), ms: e.ms, kind: e.kind, hold: hold ?? null } }).catch(
     () => {},
   );
 const nativeRelease = (id: number) => void invoke('haptics_release', { id }).catch(() => {});
 const nativeUpdate = (id: number, amp: number) => void invoke('haptics_update', { id, amp }).catch(() => {});
 
+/**
+ * A PS5 controller with its 3D haptics turned off: plain rumble, played on its actuators as the
+ * two motors of any other controller would (see motorPulse) — the heavy one in the left grip, the
+ * light one in the right, no texture. Done natively too: the web view's own rumble does not
+ * reach a DualSense.
+ */
+export function plainOnActuators(e: Effect, k: number): NativeEffect | null {
+  const m = motorPulse(e, k);
+  if (!m) return null;
+  // The two grips' strengths as one level and a constant-power pan between them.
+  const angle = Math.atan2(m.weak, m.strong);
+  return { pan: angle / (Math.PI / 4) - 1, amp: Math.min(1, Math.hypot(m.strong, m.weak)), ms: m.ms, kind: 'rumble' };
+}
+
+function nativeRumble(e: Effect, k: number) {
+  if (e.kind === 'sweep') {
+    const step = Math.round(Math.max(e.ms, MOTOR_MIN_MS.sweep) / 3);
+    [0.45, 0.72, 1].forEach((share, i) =>
+      window.setTimeout(() => nativeRumble({ ...e, kind: 'buzz', amp: e.amp * share, ms: step + 40 }, k), i * step),
+    );
+    return;
+  }
+  const p = plainOnActuators(e, k);
+  if (p) nativePlay(p, 1);
+}
+
+/** A held plain rumble (a sustain, overdrive's bed, the hold-to-start button) at strength `amp`. */
+function nativeRumbleHold(amp: number, k: number, id: number) {
+  const p = plainOnActuators({ pan: 0, amp, ms: 0, kind: 'buzz' }, k);
+  if (p) nativePlay({ ...p, ms: 0 }, 1, id);
+}
+const plainLevel = (amp: number, k: number) => plainOnActuators({ pan: 0, amp, ms: 0, kind: 'buzz' }, k)?.amp ?? 0;
+
 let holdIds = 1;
 
 /** Game feedback for one play-through (or a settings test). */
 export class Rumbler {
-  /** Native DualSense haptics are open: PS5 controllers get those instead of rumble. */
+  /** A USB DualSense is reachable natively: PS5 controllers are played there, not through the web view. */
   private native = false;
+  /** On the DualSense, plain rumble instead of 3D haptics (the player turned those off). */
+  private readonly plain: boolean;
   private held = new Map<number, number>();
   private holdTimer = 0;
   private disposed = false;
@@ -150,10 +188,21 @@ export class Rumbler {
     private readonly bindings: PadInput[] = [],
   ) {
     const ps5 = pads.snapshot().pads.some((p) => p.family === 'ps5');
+    this.plain = !s.ps5Haptics;
     this.checked =
-      ps5 && s.rumble !== 'off' && s.ps5Haptics
-        ? dualSenseHaptics().then((ok) => (this.native = ok && !this.disposed))
-        : Promise.resolve(false);
+      ps5 && s.rumble !== 'off' ? dualSenseHaptics().then((ok) => (this.native = ok && !this.disposed)) : Promise.resolve(false);
+  }
+
+  /** One effect on the DualSense: as itself on 3D haptics, as the motors would play it otherwise. */
+  private playNative(e: Effect, k: number) {
+    if (this.plain) nativeRumble(e, k);
+    else nativePlay(e, k);
+  }
+
+  /** A held effect on the DualSense; `amp` is the 3D haptics strength, `plainAmp` the plain rumble's. */
+  private holdNative(id: number, pan: number, amp: number, plainAmp: number) {
+    if (this.plain) nativeRumbleHold(plainAmp, this.k, id);
+    else nativePlay({ pan, amp, ms: 0, kind: 'buzz' }, this.k, id);
   }
 
   private get k() {
@@ -175,7 +224,7 @@ export class Rumbler {
     const k = this.k;
     if (k <= 0) return;
     for (const i of this.targets()) rumblePad(i, e, k);
-    if (this.native) nativePlay(e, k);
+    if (this.native) this.playNative(e, k);
   }
 
   hit(lane: number, grade: Grade = 'perfect') {
@@ -184,7 +233,7 @@ export class Rumbler {
     const pan = this.panFor(lane);
     this.fire({ pan, amp, ms, kind: 'click', input: this.bindings[lane], floor });
     // The DualSense's actuators can carry a second, lower voice: the weight under a perfect hit.
-    if (body && this.native && this.k > 0) nativePlay({ pan: pan * 0.5, amp: body, ms, kind: 'thud' }, this.k);
+    if (body && this.native && !this.plain && this.k > 0) nativePlay({ pan: pan * 0.5, amp: body, ms, kind: 'thud' }, this.k);
   }
 
   miss(lane: number) {
@@ -196,7 +245,7 @@ export class Rumbler {
     this.sustainEnd(lane);
     const id = holdIds++;
     this.held.set(lane, id);
-    if (this.native) nativePlay({ pan: this.panFor(lane), amp: 0.7, ms: 0, kind: 'buzz' }, this.k, id);
+    if (this.native) this.holdNative(id, this.panFor(lane), 0.7, 0.4);
     // Gamepad rumble has no "until stopped"; renew a short buzz while anything is held.
     if (!this.holdTimer) {
       const tick = () => {
@@ -242,7 +291,7 @@ export class Rumbler {
     if (beat !== 'none') {
       const pulse = { pan: 0, amp: level * (beat === 'downbeat' ? 1 : 0.8), ms: 90, kind: 'thud' as const };
       for (const i of this.targets()) rumblePad(i, pulse, k);
-      if (this.native) nativePlay(pulse, k);
+      if (this.native) this.playNative(pulse, k);
       this.od.last = now;
     } else if (now - this.od.last > 100) {
       // Gamepad rumble can't be held, so the bed is renewed in short overlapping pieces.
@@ -253,10 +302,10 @@ export class Rumbler {
       const bed = level * 0.6;
       if (!this.od.hold) {
         this.od.hold = holdIds++;
-        nativePlay({ pan: 0, amp: bed, ms: 0, kind: 'buzz' }, k, this.od.hold);
+        this.holdNative(this.od.hold, 0, bed, level * 0.5);
         this.od.amp = bed;
       } else if (Math.abs(bed - this.od.amp) > 0.02 && now - this.od.sent > 50) {
-        nativeUpdate(this.od.hold, Math.min(1, bed * k));
+        nativeUpdate(this.od.hold, this.plain ? plainLevel(level * 0.5, k) : Math.min(1, bed * k));
         this.od.amp = bed;
         this.od.sent = now;
       }
@@ -281,7 +330,7 @@ export class Rumbler {
     for (let l = 0; l < this.lanes; l++)
       window.setTimeout(() => this.fire({ pan: this.panFor(l), amp: 1, ms: 60, kind: 'click' }), l * 160);
     window.setTimeout(() => this.fire({ pan: 0, amp: 1, ms: 160, kind: 'thud' }), this.lanes * 160 + 120);
-    return this.native;
+    return this.native && !this.plain;
   }
 
   dispose() {
@@ -310,6 +359,11 @@ const MENU_PULSES: Record<MenuPulse, Effect> = {
 };
 
 let nativeChecked: { at: number; ok: Promise<boolean> } | null = null;
+/** Whether a USB DualSense can be played natively, re-checked now and then (it may have been plugged in since). */
+function nativeReady() {
+  if (!nativeChecked || performance.now() - nativeChecked.at > 5000) nativeChecked = { at: performance.now(), ok: dualSenseHaptics() };
+  return nativeChecked.ok;
+}
 let menuLevel: RumbleLevel = 'strong';
 let menuHaptics = true;
 
@@ -336,14 +390,17 @@ export function holdRumble(): { set(level: number): void; stop(): void } {
   let sentAt = 0;
   let sent = -1;
   let timer = 0;
-  // A PS5 controller on its own haptics: one held voice, its strength following the fill.
-  if (pad.family === 'ps5' && menuHaptics) {
-    if (!nativeChecked || performance.now() - nativeChecked.at > 5000) nativeChecked = { at: performance.now(), ok: dualSenseHaptics() };
-    void nativeChecked.ok.then((ok) => {
+  // A PS5 controller reached natively: one held voice, its strength following the fill (as plain
+  // rumble when its 3D haptics are off).
+  const plain = !menuHaptics;
+  const strength = (l: number) => (plain ? plainLevel(amp(l), k) : Math.min(1, amp(l) * k));
+  if (pad.family === 'ps5') {
+    void nativeReady().then((ok) => {
       if (stopped) return;
       if (!ok) return renew();
       voice = holdIds++;
-      nativePlay({ pan: 0, amp: amp(level), ms: 0, kind: 'buzz' }, k, voice);
+      if (plain) nativeRumbleHold(amp(level), k, voice);
+      else nativePlay({ pan: 0, amp: amp(level), ms: 0, kind: 'buzz' }, k, voice);
       sent = level;
     });
   } else renew();
@@ -358,7 +415,7 @@ export function holdRumble(): { set(level: number): void; stop(): void } {
       level = next;
       const now = performance.now();
       if (voice && Math.abs(level - sent) > 0.03 && now - sentAt > 40) {
-        nativeUpdate(voice, Math.min(1, amp(level) * k));
+        nativeUpdate(voice, strength(level));
         sent = level;
         sentAt = now;
       }
@@ -384,10 +441,8 @@ export function menuPulse(kind: MenuPulse) {
   const pad = snap.pads.find((p) => p.index === snap.lastPad);
   if (!pad) return;
   const e = MENU_PULSES[kind];
-  if (pad.family === 'ps5' && menuHaptics) {
-    // Re-check now and then: the controller may have been plugged in by cable since.
-    if (!nativeChecked || performance.now() - nativeChecked.at > 5000) nativeChecked = { at: performance.now(), ok: dualSenseHaptics() };
-    void nativeChecked.ok.then((ok) => (ok ? nativePlay(e, k) : rumblePad(pad.index, e, k)));
+  if (pad.family === 'ps5') {
+    void nativeReady().then((ok) => (!ok ? rumblePad(pad.index, e, k) : menuHaptics ? nativePlay(e, k) : nativeRumble(e, k)));
     return;
   }
   rumblePad(pad.index, e, k);
