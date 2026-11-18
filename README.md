@@ -6,6 +6,8 @@
 
 **[Play in your browser](https://davidniessen.github.io/soundwave/)** · **[Download the app](https://github.com/DavidNiessen/soundwave/releases/latest)** for Windows, macOS and Linux
 
+![Soundwave in play: the note highway in front of the night-time stage, with the crowd, the lights and the score](docs/screenshot.webp)
+
 A rhythm game for your own music. Drop in a song (MP3, WAV, FLAC, OGG, M4A). The game analyzes its percussive, melodic and harmonic content and generates **Lead**, **Bass**, **Drums** and **Vocals** charts at four difficulties:
 
 | Difficulty | Lanes | Feel                                     |
