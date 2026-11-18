@@ -7,6 +7,7 @@
  * been analyzed, a guide to what the game heard in this part. Pure canvas: the controller decides
  * what is shown and handles all input.
  */
+import { PHRASE_KIND, tileColour, type TileBand } from '../render/tilePalette';
 import type { ChartDoc, DocNote } from './doc';
 import type { EditorGrid, Snap } from './grid';
 import type { Peaks } from './peaks';
@@ -97,6 +98,17 @@ const mix = (hex: string, with_: string, k: number) => {
 };
 const LANE_RIM = LANE_HEX.map((c) => mix(c, '#ffffff', 0.55));
 const LANE_DARK = LANE_HEX.map((c) => mix(c, '#0e0828', 0.45));
+
+/** A colour of the highway's tiles (see tilePalette), as red, green and blue 0..255. */
+type Rgb = [number, number, number];
+const tile = (n: DocNote, b: TileBand): Rgb => {
+  const c = tileColour(n.phrase >= 0 ? PHRASE_KIND : n.lane, b);
+  return [(c >> 16) & 255, (c >> 8) & 255, c & 255];
+};
+const blend = (a: Rgb, b: Rgb, k: number): Rgb => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+const scale = (a: Rgb, k: number): Rgb => [a[0] * k, a[1] * k, a[2] * k];
+const css = (a: Rgb, alpha = 1) => `rgb(${a.map((v) => Math.round(Math.min(255, Math.max(0, v)))).join(' ')} / ${alpha})`;
+const WHITE: Rgb = [255, 255, 255];
 
 export class EditorView {
   private readonly g: CanvasRenderingContext2D;
@@ -458,36 +470,90 @@ export class EditorView {
     g.roundRect(cx - w / 2, cy - h / 2, w, h, h / 2);
   }
 
+  /**
+   * A hold, as on the highway: a rod lit along both sides, glowing a little; or, for a hold that
+   * must be let go on time, a wide neck of crystal with pale edges, deepening toward the arrow it
+   * ends in where it is let go.
+   */
   private drawTail(n: DocNote, len: number, yHead: number, yEnd: number, selected: boolean) {
     const { g } = this;
     const L = this.lay;
     const cx = L.deckX + (n.lane + 0.5) * L.laneW;
-    const w = L.laneW * 0.26;
-    const phrase = n.phrase >= 0;
     if (len <= 0) return;
-    g.fillStyle = phrase ? 'rgb(191 230 255 / 0.9)' : LANE_HEX[n.lane];
-    g.globalAlpha = 0.86;
-    g.beginPath();
-    g.roundRect(cx - w / 2, yEnd, w, yHead - yEnd, [w / 2, w / 2, 0, 0]);
+    if (!n.release) {
+      const w = Math.max(4, L.noteW * 0.13);
+      const hi = scale(tile(n, 'rodHi'), 1.2);
+      const lo = tile(n, 'rodLo');
+      const across = g.createLinearGradient(cx - w / 2, 0, cx + w / 2, 0);
+      across.addColorStop(0, css(scale(lo, 0.8)));
+      across.addColorStop(0.25, css(hi));
+      across.addColorStop(0.5, css(scale(lo, 1.2)));
+      across.addColorStop(0.75, css(hi));
+      across.addColorStop(1, css(scale(lo, 0.8)));
+      g.shadowColor = css(tile(n, 'halo'), n.phrase >= 0 ? 0.8 : 0.6);
+      g.shadowBlur = w * 1.6;
+      g.fillStyle = across;
+      g.fillRect(cx - w / 2, yEnd, w, yHead - yEnd);
+      g.shadowBlur = 0;
+      if (selected) {
+        g.strokeStyle = LIT;
+        g.lineWidth = 2;
+        g.beginPath();
+        g.roundRect(cx - w / 2 - 3, yEnd - 3, w + 6, yHead - yEnd + 3, [3, 3, 0, 0]);
+        g.stroke();
+      }
+      return;
+    }
+    const hw = L.noteW / 3;
+    const tip = Math.min(hw * 1.2, (yHead - yEnd) * 0.6);
+    const shoulder = yEnd + tip;
+    const up = tile(n, 'up');
+    const low = tile(n, 'low');
+    const base = tile(n, 'base');
+    const neck = () => {
+      g.beginPath();
+      g.moveTo(cx - hw, yHead);
+      g.lineTo(cx - hw, shoulder);
+      g.lineTo(cx, yEnd);
+      g.lineTo(cx + hw, shoulder);
+      g.lineTo(cx + hw, yHead);
+      g.closePath();
+    };
+    const along = g.createLinearGradient(0, shoulder + hw * 4, 0, shoulder);
+    along.addColorStop(0, css(scale(blend(up, base, 0.3), 0.7)));
+    along.addColorStop(1, css(scale(blend(low, base, 0.32), 0.88)));
+    neck();
+    g.fillStyle = along;
+    g.globalAlpha = 0.95;
     g.fill();
     g.globalAlpha = 1;
-    // A bright core, like the beam of a held note.
-    g.fillStyle = 'rgb(255 255 255 / 0.82)';
-    g.fillRect(cx - 1.25, yEnd + w / 2, 2.5, Math.max(0, yHead - yEnd - w / 2));
-    if (n.release) {
-      // Let go on time: a light tile where the hold ends.
-      this.pill(cx, yEnd, L.noteW * 0.62, L.noteH * 0.62);
-      g.fillStyle = '#ffffff';
-      g.fill();
-      g.strokeStyle = LANE_HEX[n.lane];
-      g.lineWidth = 2;
-      g.stroke();
-    }
+    // A lighter strip inside its left edge.
+    g.fillStyle = css(blend(up, base, 0.5), 0.6);
+    g.fillRect(cx - hw + 3, shoulder, 1.5, Math.max(0, yHead - shoulder));
+    // The arrow: darker inside, a pale line across its foot.
+    g.beginPath();
+    g.moveTo(cx - hw, shoulder);
+    g.lineTo(cx, yEnd);
+    g.lineTo(cx + hw, shoulder);
+    g.closePath();
+    g.fillStyle = css(scale(blend(low, base, 0.35), 0.9));
+    g.fill();
+    g.fillStyle = css(base);
+    g.fillRect(cx - hw, shoulder - 1, hw * 2, 2);
+    neck();
+    g.strokeStyle = css(blend(base, WHITE, 0.35));
+    g.lineWidth = 2;
+    g.lineJoin = 'round';
+    g.stroke();
     if (selected) {
       g.strokeStyle = LIT;
       g.lineWidth = 2;
       g.beginPath();
-      g.roundRect(cx - w / 2 - 3, yEnd - 3, w + 6, yHead - yEnd + 3, [w / 2 + 3, w / 2 + 3, 0, 0]);
+      g.moveTo(cx - hw - 4, yHead);
+      g.lineTo(cx - hw - 4, shoulder);
+      g.lineTo(cx, yEnd - 5);
+      g.lineTo(cx + hw + 4, shoulder);
+      g.lineTo(cx + hw + 4, yHead);
       g.stroke();
     }
   }
@@ -502,10 +568,12 @@ export class EditorView {
     g.fillStyle = LANE_DARK[n.lane];
     g.fill();
     this.pill(cx, cy, L.noteW, L.noteH);
-    g.fillStyle = phrase ? '#eef8ff' : LANE_HEX[n.lane];
+    // The tile of a hold that must be let go on time is lighter glass with pale edges, as on the highway.
+    const glass = n.release && n.len > 0 && !phrase;
+    g.fillStyle = phrase ? '#eef8ff' : glass ? css(blend(tile(n, 'up'), scale(tile(n, 'base'), 0.72), 0.3)) : LANE_HEX[n.lane];
     g.fill();
-    g.strokeStyle = phrase ? LANE_HEX[n.lane] : LANE_RIM[n.lane];
-    g.lineWidth = phrase ? 2.5 : 1.5;
+    g.strokeStyle = phrase ? LANE_HEX[n.lane] : glass ? css(blend(tile(n, 'base'), WHITE, 0.2)) : LANE_RIM[n.lane];
+    g.lineWidth = phrase || glass ? 2.5 : 1.5;
     g.stroke();
     g.fillStyle = phrase ? 'rgb(255 255 255 / 0.9)' : 'rgb(255 255 255 / 0.55)';
     g.fillRect(cx - L.noteW * 0.26, cy - L.noteH * 0.24, L.noteW * 0.52, Math.max(1.5, L.noteH * 0.12));
