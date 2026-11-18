@@ -511,7 +511,7 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
                 kind: 'choice',
                 id: 'displayMode',
                 label: 'Window mode',
-                help: 'How the game fills the screen.',
+                help: 'How the game fills the screen. Alt+Enter or F11 switches between fullscreen and the window mode you used last.',
                 value: s.displayMode,
                 options: [
                   { value: 'fullscreen', label: 'Fullscreen', help: 'The game takes over the whole screen.' },

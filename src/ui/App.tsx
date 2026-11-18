@@ -12,7 +12,8 @@ import type { Chart } from '../chart/types';
 import { detectGrid } from '../editor/detect';
 import { emptyEdits } from '../editor/edits';
 import type { Results } from '../game/GameSession';
-import { applyDisplayMode, canExit, exitApp, inDesktopApp } from '../game/displayMode';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { applyDisplayMode, canExit, exitApp, inDesktopApp, isFullscreenToggle, toggledMode } from '../game/displayMode';
 import {
   loadPick,
   loadSetlist,
@@ -26,7 +27,7 @@ import {
   type Pick,
   type ThinParts,
 } from '../game/setlist';
-import { loadSettings, saveSettings, type Settings } from '../game/settings';
+import { loadSettings, saveSettings, type DisplayMode, type Settings } from '../game/settings';
 import { getInputMode, installInputMode, setInputMode, usesFocus } from '../input/inputMode';
 import { EDIT_EVENT, focusStart, installMenuNav } from '../input/menuNav';
 import { followOutputDevice, muteWhileUnfocused } from '../audio/output';
@@ -57,6 +58,7 @@ import { LobbyScreen } from './LobbyScreen';
 import { watchStageLoading } from '../render/stage/StageView';
 import { bootDone, bootStep } from './boot';
 import { MenuBackground } from './MenuBackground';
+import { onBackdrop } from './windowDrag';
 import { InstallAppCard, UpdateCard } from './AppUpdates';
 import { checkForUpdates, updates } from '../app/updates';
 import { PlayScreen } from './PlayScreen';
@@ -196,6 +198,47 @@ export function App() {
   useEffect(() => followOutputDevice(settings.outputDevice), [settings.outputDevice]);
   useEffect(() => setMenuRumble(settings.rumble), [settings.rumble]);
   useEffect(() => void applyDisplayMode(settings.displayMode), [settings.displayMode]);
+  // Alt+Enter, and F11 in the desktop app, switch between fullscreen and the window mode used last,
+  // as the Window mode setting (so the settings show it). In a browser tab Alt+Enter asks the browser
+  // for fullscreen instead (F11 is the browser's own). Taken before anything else hears the keys, so
+  // the Enter does not also press the focused button or play a lane.
+  const settingsNow = useRef(settings);
+  settingsNow.current = settings;
+  const lastWindowMode = useRef<Exclude<DisplayMode, 'fullscreen'> | null>(null);
+  if (settings.displayMode !== 'fullscreen') lastWindowMode.current = settings.displayMode;
+  useEffect(() => {
+    const desktop = inDesktopApp();
+    const key = (e: KeyboardEvent) => {
+      if (!isFullscreenToggle(e, desktop)) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (e.repeat) return;
+      if (desktop) {
+        const s = settingsNow.current;
+        updateSettings({ ...s, displayMode: toggledMode(s.displayMode, lastWindowMode.current) });
+      } else if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+      else void document.documentElement.requestFullscreen?.().catch(() => {});
+    };
+    window.addEventListener('keydown', key, true);
+    return () => window.removeEventListener('keydown', key, true);
+  }, [updateSettings]);
+  // In Window mode the menus' background moves the window (see windowDrag). Not in a song or the
+  // editor, where the mouse plays and edits.
+  const windowed = inDesktopApp() && settings.displayMode === 'windowed';
+  useEffect(() => {
+    if (!windowed) return;
+    const press = (e: MouseEvent) => {
+      if (e.button !== 0 || e.detail !== 1 || e.defaultPrevented || !(e.target instanceof Element)) return;
+      const menu = e.target.closest('.menu');
+      if (!menu || !onBackdrop(e.target, menu)) return;
+      e.preventDefault();
+      void getCurrentWindow()
+        .startDragging()
+        .catch(() => {});
+    };
+    window.addEventListener('mousedown', press);
+    return () => window.removeEventListener('mousedown', press);
+  }, [windowed]);
   useEffect(() => document.documentElement.style.setProperty('--ui-scale', String(settings.uiScale)), [settings.uiScale]);
   // Motion: the player's choice, or the system's when they left it alone.
   useEffect(() => {

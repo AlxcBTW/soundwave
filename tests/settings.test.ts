@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { windowedSize } from '../src/game/displayMode';
+import { isFullscreenToggle, toggledMode, windowedSize } from '../src/game/displayMode';
 import { DEFAULT_SETTINGS, normalizeSettings, type Settings } from '../src/game/settings';
 
 describe('display mode setting', () => {
@@ -64,5 +64,32 @@ describe('windowedSize', () => {
 
   it('never goes below the smallest window the app allows', () => {
     expect(windowedSize(1024, 600)).toEqual({ width: 960, height: 600 });
+  });
+});
+
+describe('the fullscreen toggle', () => {
+  const key = (code: string, mods: Partial<Record<'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey', boolean>> = {}) => ({
+    code,
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    ...mods,
+  });
+
+  it('goes to fullscreen from a window and back to the window mode used last', () => {
+    expect(toggledMode('windowed', 'windowed')).toBe('fullscreen');
+    expect(toggledMode('borderless', 'borderless')).toBe('fullscreen');
+    expect(toggledMode('fullscreen', 'borderless')).toBe('borderless');
+    expect(toggledMode('fullscreen', null)).toBe('windowed');
+  });
+
+  it('answers Alt+Enter everywhere and F11 only in the desktop app', () => {
+    expect(isFullscreenToggle(key('Enter', { altKey: true }), true)).toBe(true);
+    expect(isFullscreenToggle(key('NumpadEnter', { altKey: true }), false)).toBe(true);
+    expect(isFullscreenToggle(key('F11'), true)).toBe(true);
+    expect(isFullscreenToggle(key('F11'), false)).toBe(false);
+    expect(isFullscreenToggle(key('Enter'), true)).toBe(false);
+    expect(isFullscreenToggle(key('Enter', { altKey: true, ctrlKey: true }), true)).toBe(false);
   });
 });

@@ -48,6 +48,24 @@ export async function exitApp() {
   }
 }
 
+/**
+ * The display mode Alt+Enter and F11 switch to: fullscreen from a window, and from fullscreen back
+ * to the window mode used last (a normal window when there was none).
+ */
+export function toggledMode(current: DisplayMode, lastWindowMode: Exclude<DisplayMode, 'fullscreen'> | null): DisplayMode {
+  return current === 'fullscreen' ? (lastWindowMode ?? 'windowed') : 'fullscreen';
+}
+
+/** Whether a key press is the fullscreen toggle: Alt+Enter, and F11 in the desktop app (a browser keeps F11 for itself). */
+export function isFullscreenToggle(
+  e: Pick<KeyboardEvent, 'code' | 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>,
+  desktop: boolean,
+): boolean {
+  if (e.ctrlKey || e.metaKey || e.shiftKey) return false;
+  if (e.code === 'F11') return desktop && !e.altKey;
+  return e.altKey && (e.code === 'Enter' || e.code === 'NumpadEnter');
+}
+
 let queue: Promise<void> = Promise.resolve();
 let applied: DisplayMode | null = null;
 let shown = false;
