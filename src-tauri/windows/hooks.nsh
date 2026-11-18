@@ -5,6 +5,7 @@
 ; is the file association's "name" in tauri.conf.json.
 !macro NSIS_HOOK_POSTINSTALL
   WriteRegStr SHCTX "Software\Classes\Festival.Song\DefaultIcon" "" "$INSTDIR\festival-file.ico"
-  ; Tell Explorer the associations changed, so the new icon shows without a restart.
-  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
+  ; Tell Explorer the associations changed and wait until it has taken them in, so the type name
+  ; and icon show without signing out (UPDATEFILEASSOC is in Tauri's FileAssociation.nsh).
+  !insertmacro UPDATEFILEASSOC
 !macroend
