@@ -286,7 +286,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
     void document.fonts?.ready.then(fit);
     return () => ro.disconnect();
   }, [snap?.part, snap?.difficulty, snap?.snapMode, snap?.snap, snap?.tool, mode, style, ready]);
-  const PartIcon = PART_ICON[snap?.part ?? 'lead'];
+  const PartIcon = PART_ICON[snap?.part ?? 'vocals'];
   const legend = <Legend rows={legendFor(mode, style, snap?.lanes ?? 5, settings)} />;
   const snapIndex = snap ? SNAPS.indexOf(snap.snap) : 0;
 
@@ -309,7 +309,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
         <button type="button" className="btn editor-chart-btn" onClick={() => setOpen('menu')}>
           <PartIcon strokeWidth={ICON_STROKE} aria-hidden />
           <span className="btn-label">
-            {PART_LABEL[snap?.part ?? 'lead']} · {DIFFICULTY_LABEL[snap?.difficulty ?? 'expert']}
+            {PART_LABEL[snap?.part ?? 'vocals']} · {DIFFICULTY_LABEL[snap?.difficulty ?? 'expert']}
           </span>
         </button>
         {mode === 'pad' && (
@@ -499,7 +499,7 @@ export function EditorScreen({ song, settings, tested, onTest, onBack }: Props) 
             className="editor-track"
             tabIndex={0}
             role="application"
-            aria-label={`${PART_LABEL[snap?.part ?? 'lead']} chart, ${DIFFICULTY_LABEL[snap?.difficulty ?? 'expert']}. Arrow keys move through the song and across the lanes; Enter sets a note down or takes it away.`}
+            aria-label={`${PART_LABEL[snap?.part ?? 'vocals']} chart, ${DIFFICULTY_LABEL[snap?.difficulty ?? 'expert']}. Arrow keys move through the song and across the lanes; Enter sets a note down or takes it away.`}
             data-ring="none"
             data-autofocus
             data-sfx="none"

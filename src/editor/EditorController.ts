@@ -10,7 +10,7 @@ import { getEngine } from '../audio/engine';
 import { playSfx, type Sfx } from '../audio/sfx';
 import { loadSongBuffer } from '../audio/songAudio';
 import { PROFILES } from '../chart/profiles';
-import { DIFFICULTIES, lanesFor, type Chart, type Difficulty, type Note, type Part } from '../chart/types';
+import { DIFFICULTIES, lanesFor, PARTS, type Chart, type Difficulty, type Note, type Part } from '../chart/types';
 import type { Settings } from '../game/settings';
 import { getInputMode, isTextField, usesFocus } from '../input/inputMode';
 import { confirmInput, pads, PAUSE_INPUT, resolveStyle, type PadEvent } from '../input/pads';
@@ -67,11 +67,11 @@ interface Prefs {
 }
 
 function loadPrefs(): Prefs {
-  const base: Prefs = { part: 'lead', difficulty: 'expert', snap: 4, zoom: 4, clicks: true, metronome: false, tool: 'draw', snapMode: 'grid', advance: false, loop: false, replace: false };
+  const base: Prefs = { part: 'vocals', difficulty: 'expert', snap: 4, zoom: 4, clicks: true, metronome: false, tool: 'draw', snapMode: 'grid', advance: false, loop: false, replace: false };
   try {
     const p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') as Partial<Prefs>;
     return {
-      part: (['lead', 'bass', 'drums', 'vocals'] as Part[]).includes(p.part as Part) ? (p.part as Part) : base.part,
+      part: PARTS.includes(p.part as Part) ? (p.part as Part) : base.part,
       difficulty: (['easy', 'medium', 'hard', 'expert'] as Difficulty[]).includes(p.difficulty as Difficulty) ? (p.difficulty as Difficulty) : base.difficulty,
       snap: SNAPS.includes(p.snap as Snap) ? (p.snap as Snap) : base.snap,
       zoom: Number.isInteger(p.zoom) && p.zoom! >= 0 && p.zoom! < ZOOMS.length ? p.zoom! : base.zoom,
@@ -1584,7 +1584,7 @@ export class EditorController {
   /** How many notes each of the song's charts has, and which were edited by hand. */
   async summaries(): Promise<Record<ChartKey, { notes: number; edited: boolean }>> {
     const out = {} as Record<ChartKey, { notes: number; edited: boolean }>;
-    for (const part of ['lead', 'bass', 'drums', 'vocals'] as Part[]) {
+    for (const part of PARTS) {
       for (const d of ['easy', 'medium', 'hard', 'expert'] as Difficulty[]) {
         const key = chartKey(part, d);
         const doc = this.docs.get(key);

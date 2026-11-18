@@ -45,7 +45,7 @@ The **Edit** tab of the main menu is the list of your tracks, with the highlight
 - **Analyze** – the game charts the song as usual and you change what you like.
 - **Start from scratch** – no analysis. The game only listens for the tempo (a few seconds, on any device, phones included) and you get empty lanes with the bar lines in place.
 
-A song has sixteen charts: four parts at four difficulties. Each is edited on its own; a chart you never touch stays the one the game wrote. The game plays your chart in place of its own, charts save as you change them, and **Put back the game's chart** in the menu drops your version again.
+A song has sixteen charts: four parts (vocals, lead, bass, drums) at four difficulties. Each is edited on its own; a chart you never touch stays the one the game wrote. The game plays your chart in place of its own, charts save as you change them, and **Put back the game's chart** in the menu drops your version again.
 
 The editor shows the lanes from above, as they run in a song: later is higher, and one line across them is the edit position and the playhead. The chart moves past the line. Beside the lanes stand the song's waveform and, for an analyzed song, a guide to what the game heard in that part.
 

@@ -1,7 +1,8 @@
 export type Part = 'lead' | 'bass' | 'drums' | 'vocals';
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'expert';
 
-export const PARTS: Part[] = ['lead', 'bass', 'drums', 'vocals'];
+/** In the order they are offered everywhere: the voice first. */
+export const PARTS: Part[] = ['vocals', 'lead', 'bass', 'drums'];
 export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert'];
 
 export const lanesFor = (d: Difficulty): 4 | 5 => (d === 'expert' ? 5 : 4);

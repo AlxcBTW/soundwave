@@ -99,7 +99,7 @@ export function loadPick(): Pick {
   } catch {
     /* none saved */
   }
-  return { part: 'lead', difficulty: 'medium' };
+  return { part: 'vocals', difficulty: 'expert' };
 }
 
 export function savePick(pick: Pick) {

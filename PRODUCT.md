@@ -16,7 +16,7 @@ They play in four settings, all of which must work: at a desk with a keyboard an
 
 ## Product Purpose
 
-Players import their own songs (MP3, WAV, FLAC, OGG, M4A) and the game analyzes each one into playable charts. Each song gets four parts (Lead, Bass, Drums, Vocals) at four difficulties (Easy, Medium and Hard on four lanes, Expert on five). Players play those charts on a scrolling note highway, scoring timed hits with streaks, a multiplier and overdrive phrases.
+Players import their own songs (MP3, WAV, FLAC, OGG, M4A) and the game analyzes each one into playable charts. Each song gets four parts (Vocals, Lead, Bass, Drums) at four difficulties (Easy, Medium and Hard on four lanes, Expert on five). Players play those charts on a scrolling note highway, scoring timed hits with streaks, a multiplier and overdrive phrases.
 
 Success: any song a player owns turns into a chart that feels like playing the instrument, and the loop of picking a song, playing and improving feels quick and rewarding.
 
