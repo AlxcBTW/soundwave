@@ -1,9 +1,7 @@
 import { ArrowLeft, Gauge, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { analysisManager } from '../analysis/manager';
-import { DEMO_ID } from '../audio/songAudio';
 import { DIFFICULTIES, lanesFor, PARTS, type Difficulty, type Part } from '../chart/types';
-import { demoChart } from '../game/demo';
 import type { Settings } from '../game/settings';
 import { formatTime, partFor, setParts, type Pick, type ThinParts } from '../game/setlist';
 import { PadGlyph } from '../input/glyphs';
@@ -53,7 +51,7 @@ export function LobbyScreen({ songs, pick, thin, scores, settings, onPick, onSta
     setCounts({});
     void (async () => {
       for (const s of songs) {
-        const chart = s.id === DEMO_ID ? demoChart(pick.difficulty) : await analysisManager.chart(s.id, part, pick.difficulty).catch(() => undefined);
+        const chart = await analysisManager.chart(s.id, part, pick.difficulty).catch(() => undefined);
         if (cancelled) return;
         setCounts((c) => ({ ...c, [s.id]: chart?.notes.length ?? 0 }));
       }

@@ -7,12 +7,11 @@ import { ACCEPTED, isAudioFile, readSongFile } from '../audio/importSong';
 import { menuMusicStatus, setMenuMusic, setMusicVolume } from '../audio/menuMusic';
 import { isPreviewing, previewSong, previewStatus, setPreviewVolume, watchPreview } from '../audio/preview';
 import { loadSfx, playSfx, setSfxVolume, sfxStatus } from '../audio/sfx';
-import { DEMO_ID, forgetSongBuffer, loadSongBuffer } from '../audio/songAudio';
+import { forgetSongBuffer, loadSongBuffer } from '../audio/songAudio';
 import type { Chart } from '../chart/types';
 import { detectGrid } from '../editor/detect';
 import { emptyEdits } from '../editor/edits';
 import type { Results } from '../game/GameSession';
-import { demoChart } from '../game/demo';
 import { applyDisplayMode, canExit, exitApp, inDesktopApp } from '../game/displayMode';
 import { loadPick, loadSetlist, partFor, pruneSetlist, savePick, saveSetlist, SET_MAX, setParts, toggleSong, type Pick, type ThinParts } from '../game/setlist';
 import { loadSettings, saveSettings, type Settings } from '../game/settings';
@@ -44,17 +43,6 @@ import { SongSheet } from './SongSheet';
 import { Toasts, useToasts } from './Toasts';
 import { VirtualKeyboard } from './VirtualKeyboard';
 import { installUiSounds } from './uiSounds';
-
-const DEMO_SONG: SongMeta = {
-  id: DEMO_ID,
-  title: 'Demo Track',
-  artist: 'Festival',
-  fileName: 'demo',
-  mime: 'audio/wav',
-  size: 0,
-  duration: 42,
-  addedAt: 0,
-};
 
 type LobbyView = { name: 'lobby'; ids: string[]; from: 'home' | 'library' };
 /** A song open in the track editor; `tested` is how the last test play of its chart went. */
@@ -182,9 +170,9 @@ export function App() {
 
   const refresh = useCallback(async () => {
     try {
-      setSongs([...(await listSongs()), DEMO_SONG]);
+      setSongs(await listSongs());
     } catch (e) {
-      setSongs([DEMO_SONG]);
+      setSongs([]);
       toast(e instanceof StorageBlockedError ? e.message : 'Song storage is unavailable in this browser window. Imported songs will not be saved.');
     }
     setLoaded((l) => (l.songs ? l : { ...l, songs: true }));
@@ -229,13 +217,13 @@ export function App() {
   }, [model, toast]);
 
   const analysisStatus = useSyncExternalStore(analysisManager.subscribe, analysisManager.snapshot);
-  const status: Record<string, SongStatus> = useMemo(() => ({ ...analysisStatus, [DEMO_ID]: { state: 'ready' } }), [analysisStatus]);
+  const status: Record<string, SongStatus> = analysisStatus;
 
   // Analyze new songs automatically; previously analyzed ones load from the cache.
   useEffect(() => {
     // Not before it is known what this device can do: that decides which stored analyses count.
     if (!device) return;
-    for (const s of songs) if (s.id !== DEMO_ID && !analysisStatus[s.id]) void analysisManager.check(s.id, true);
+    for (const s of songs) if (!analysisStatus[s.id]) void analysisManager.check(s.id, true);
   }, [songs, analysisStatus, device]);
 
   // The loading screen stays until everything is there: the library, the scores, which songs have
@@ -248,7 +236,7 @@ export function App() {
     const b = window.setTimeout(() => setPatience(2), 30000);
     return () => (clearTimeout(a), clearTimeout(b));
   }, []);
-  const libraryKnown = loaded.songs && loaded.scores && !!device && songs.every((s) => s.id === DEMO_ID || analysisStatus[s.id]);
+  const libraryKnown = loaded.songs && loaded.scores && !!device && songs.every((s) => analysisStatus[s.id]);
   const libraryReady = libraryKnown || patience >= 1;
   const known = libraryReady && (stageReady || patience >= 2);
   useEffect(() => {
@@ -465,7 +453,7 @@ export function App() {
       for (const id of ids) {
         const song = byId.get(id)!;
         if (thin[id]?.includes(use.part)) continue;
-        const chart = id === DEMO_ID ? { ...demoChart(use.difficulty), part: use.part } : await analysisManager.chart(id, use.part, use.difficulty);
+        const chart = await analysisManager.chart(id, use.part, use.difficulty);
         if (chart && chart.notes.length > 0) entries.push({ song, chart });
       }
       if (!entries.length) {
@@ -667,7 +655,7 @@ export function App() {
           played={played}
           seed={seed}
           importing={importing}
-          empty={songs.length <= 1}
+          empty={songs.length === 0}
           onLibrary={() => setView({ name: 'library' })}
           onSet={(ids) => setView({ name: 'lobby', ids, from: 'home' })}
           onAdd={addSongs}
@@ -708,7 +696,6 @@ export function App() {
       {sheet && sheetOpen && (
         <SongSheet
           song={byId.get(sheet.id) ?? sheet}
-          builtin={sheet.id === DEMO_ID}
           status={status[sheet.id] ?? { state: 'idle' }}
           scores={scores}
           slot={setlist.indexOf(sheet.id)}

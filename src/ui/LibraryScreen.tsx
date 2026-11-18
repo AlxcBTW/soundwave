@@ -216,7 +216,7 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
               </li>
             );
           })}
-          {shown.length === 0 && (
+          {shown.length === 0 && query && (
             <li className="empty-note">
               <p>No song matches “{query.trim()}”.</p>
               <button type="button" className="btn" onClick={() => setQuery('')}>
@@ -226,7 +226,7 @@ export function LibraryScreen({ songs, status, setlist, scores, importing, setti
           )}
           {!query && (
             <li className="song-item add">
-              <button type="button" className="song-row" onClick={onAdd}>
+              <button type="button" className="song-row" data-autofocus={shown.length ? undefined : ''} onClick={onAdd}>
                 <span className="cover add-cover" aria-hidden>
                   <Plus strokeWidth={ICON_STROKE} />
                 </span>

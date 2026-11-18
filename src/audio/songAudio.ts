@@ -1,19 +1,8 @@
 import { getAudio } from '../storage/db';
-import { renderDemoAudio } from '../game/demo';
 import { getEngine } from './engine';
-
-export const DEMO_ID = 'builtin-demo';
 
 const cache = new Map<string, Promise<AudioBuffer>>();
 const MAX_CACHED = 2;
-
-function demoBuffer(): AudioBuffer {
-  const engine = getEngine();
-  const { channels, sampleRate } = renderDemoAudio(engine.ctx.sampleRate);
-  const buf = engine.ctx.createBuffer(2, channels[0].length, sampleRate);
-  channels.forEach((c, i) => buf.copyToChannel(c as Float32Array<ArrayBuffer>, i));
-  return buf;
-}
 
 export class DecodeError extends Error {}
 
@@ -26,7 +15,6 @@ export function loadSongBuffer(id: string): Promise<AudioBuffer> {
     return hit;
   }
   const p = (async () => {
-    if (id === DEMO_ID) return demoBuffer();
     const blob = await getAudio(id);
     if (!blob) throw new DecodeError('The audio file for this song is missing.');
     try {

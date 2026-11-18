@@ -26,7 +26,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. A built-in demo track is always available.
+Open http://localhost:5173 and add your own songs.
 
 Default keys are `D F J K` (plus `L` on Expert), `Space` for overdrive and `Esc` to pause. All of them can be changed in Settings. The pause menu also opens Settings (volume, audio offset and note speed take effect in the paused song; the rest from the next one) and asks before a song is restarted, skipped or left.
 
@@ -115,7 +115,7 @@ A four-minute song takes about 20 seconds in all on a fast graphics card, most o
 
 The stem model is not part of the game's files. It is downloaded once (171 MB), the first time the game opens, checked against a known hash and kept in the browser's storage; Settings → Analysis shows its state. For now it comes from the copy Intel publishes for its Audacity plugins ([Intel/demucs-openvino](https://huggingface.co/Intel/demucs-openvino) on Hugging Face). This repository holds its own, smaller export of the same model (`models/htdemucs/htdemucs-v1.onnx`, 90 MB, made by `tools/analysis/export_stem_model.py`), and the download will move there once the repository can be read without signing in (`src/analysis/separation/model.ts` has both).
 
-Separating a song needs about 2.5 GB of memory, which phones and tablets do not give a web page: there the game plays the demo track and songs analyzed earlier, and does not analyze new ones. The runtime's WebAssembly file (27 MiB) is shipped gzip-compressed (`public/ort/…wasm.gz`, about 7 MiB) and unpacked by the worker, so no file in the build is over the 25 MiB some hosts allow per file; `npm run build` fails if one is (`scripts/check-dist.mjs`). On the processor the model wants threads, which a browser only allows on pages served with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`; the dev and preview servers and the desktop app send both, and a host for the built game should too.
+Separating a song needs about 2.5 GB of memory, which phones and tablets do not give a web page: there the game plays songs that were analyzed elsewhere (brought in as Festival song files or a library backup) or charted by hand, and does not analyze new ones. The runtime's WebAssembly file (27 MiB) is shipped gzip-compressed (`public/ort/…wasm.gz`, about 7 MiB) and unpacked by the worker, so no file in the build is over the 25 MiB some hosts allow per file; `npm run build` fails if one is (`scripts/check-dist.mjs`). On the processor the model wants threads, which a browser only allows on pages served with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`; the dev and preview servers and the desktop app send both, and a host for the built game should too.
 
 The pipeline then works on the mix and the stems:
 

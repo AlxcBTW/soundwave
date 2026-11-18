@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AnalysisResult } from '../src/analysis/types';
 import { detectFeel, generateChart, thumbOf } from '../src/chart/generator';
-import { demoChart } from '../src/game/demo';
 import { PROFILES } from '../src/chart/profiles';
 import { DIFFICULTIES, PARTS, lanesFor } from '../src/chart/types';
 
@@ -237,9 +236,6 @@ describe('one thumb, one button', () => {
       for (const d of DIFFICULTIES) expect(conflicts(generateChart(a, part, d, 'song').notes)).toBe(0);
     });
   }
-  it('the demo track too', () => {
-    for (const d of DIFFICULTIES) expect(conflicts(demoChart(d).notes)).toBe(0);
-  });
   it('a held note never shares its thumb with another note', () => {
     for (const part of PARTS) {
       for (const d of DIFFICULTIES) {

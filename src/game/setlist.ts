@@ -81,7 +81,7 @@ export function suggestSets(ready: readonly SetSong[], played: ReadonlySet<strin
   const rand = seeded(seed);
   const shuffled = ready.map((s) => ({ id: s.id, r: rand() })).sort((a, b) => a.r - b.r);
   add({ id: 'shuffle', title: 'Shuffle', caption: 'A different mix each visit', songs: shuffled.slice(0, SET_MAX).map((s) => s.id) });
-  const newest = [...ready].filter((s) => s.addedAt > 0).sort((a, b) => b.addedAt - a.addedAt);
+  const newest = [...ready].sort((a, b) => b.addedAt - a.addedAt);
   add({ id: 'newest', title: 'Newest', caption: 'Your latest additions', songs: newest.slice(0, SET_MAX).map((s) => s.id) });
   const fresh = ready.filter((s) => !played.has(s.id));
   add({ id: 'unplayed', title: 'Unplayed', caption: 'Songs without a score yet', songs: fresh.slice(0, SET_MAX).map((s) => s.id) });

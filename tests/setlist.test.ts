@@ -53,10 +53,6 @@ describe('suggested sets', () => {
     expect(suggestSets([song('a', 1), song('b', 2)], new Set(), 1).map((s) => s.id)).toEqual(['shuffle']);
   });
 
-  it('leaves the built-in track (never added) out of the newest', () => {
-    const sets = suggestSets([song('demo', 0), song('a', 1), song('b', 2)], new Set(['demo', 'a', 'b']), 3);
-    expect(sets.find((s) => s.id === 'newest')?.songs).toEqual(['b', 'a']);
-  });
 });
 
 describe('progress toward the next star', () => {

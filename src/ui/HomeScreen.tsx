@@ -2,7 +2,6 @@ import { FilePlus2, ListMusic, PencilRuler, Play, Plus, Power, Search, Settings 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AnalysisStatus } from '../analysis/manager';
 import { playSfx } from '../audio/sfx';
-import { DEMO_ID } from '../audio/songAudio';
 import { formatTime, SET_MAX, suggestSets, type SuggestedSet } from '../game/setlist';
 import type { SongMeta } from '../storage/db';
 import { getInputMode, useInputMode, usesFocus } from '../input/inputMode';
@@ -27,7 +26,7 @@ interface Props {
   /** Changes when the shuffle should deal again. */
   seed: number;
   importing: number;
-  /** Whether the library holds only the built-in track. */
+  /** Whether the library has no songs yet. */
   empty: boolean;
   onLibrary(): void;
   onSet(ids: string[]): void;
@@ -99,7 +98,7 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
   const ready = useMemo(() => songs.filter((s) => status[s.id]?.state === 'ready'), [songs, status]);
   const sets: SuggestedSet[] = useMemo(() => suggestSets(ready, played, seed), [ready, played, seed]);
   const busy = songs.filter((s) => status[s.id]?.state === 'analyzing' || status[s.id]?.state === 'queued');
-  const own = songs.filter((s) => s.id !== DEMO_ID).length;
+  const own = songs.length;
 
   const touch = mode === 'touch';
   // Tiles that were here when the screen opened arrive together; one that turns up later (a set

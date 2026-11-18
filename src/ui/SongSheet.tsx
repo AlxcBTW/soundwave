@@ -11,7 +11,6 @@ import { analysisLabel, StatusPill, type SongStatus } from './LibraryScreen';
 
 interface Props {
   song: SongMeta;
-  builtin: boolean;
   status: SongStatus;
   scores: BestScore[];
   /** Position in the setlist, or -1. */
@@ -30,7 +29,7 @@ interface Props {
 }
 
 /** Everything about one song: its best scores, its place in the setlist, analysis, editing, sharing and removal. */
-export function SongSheet({ song, builtin, status, scores, slot, setFull, previewing, onToggle, onAnalyze, onEdit, onExport, onDelete, onClose }: Props) {
+export function SongSheet({ song, status, scores, slot, setFull, previewing, onToggle, onAnalyze, onEdit, onExport, onDelete, onClose }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const ready = status.state === 'ready';
   const busy = status.state === 'analyzing' || status.state === 'queued';
@@ -131,40 +130,38 @@ export function SongSheet({ song, builtin, status, scores, slot, setFull, previe
             </table>
           </section>
 
-          {!builtin && (
-            <section className="sheet-section quiet-actions" aria-label="Manage">
-              {!busy && (
-                <button type="button" className="btn quiet small" onClick={onAnalyze}>
-                  <RotateCcw strokeWidth={ICON_STROKE} aria-hidden />
-                  {ready && !status.manual ? 'Analyze again' : 'Analyze'}
-                </button>
-              )}
-              <button type="button" className="btn quiet small" disabled={!ready} onClick={onEdit} title="Change the song's charts note by note in the track editor">
-                <PencilRuler strokeWidth={ICON_STROKE} aria-hidden />
-                Edit charts
+          <section className="sheet-section quiet-actions" aria-label="Manage">
+            {!busy && (
+              <button type="button" className="btn quiet small" onClick={onAnalyze}>
+                <RotateCcw strokeWidth={ICON_STROKE} aria-hidden />
+                {ready && !status.manual ? 'Analyze again' : 'Analyze'}
               </button>
-              <button type="button" className="btn quiet small" onClick={onExport} title="Save the song with its charts as one .festival file, to share it">
-                <Share strokeWidth={ICON_STROKE} aria-hidden />
-                Export
-              </button>
-              {confirmDelete ? (
-                <>
-                  <button type="button" className="btn danger small" onClick={onDelete}>
-                    <Trash2 strokeWidth={ICON_STROKE} aria-hidden />
-                    Delete song and scores
-                  </button>
-                  <button type="button" className="btn quiet small" data-sfx="back" onClick={() => setConfirmDelete(false)}>
-                    Keep
-                  </button>
-                </>
-              ) : (
-                <button type="button" className="btn quiet small" onClick={() => setConfirmDelete(true)}>
+            )}
+            <button type="button" className="btn quiet small" disabled={!ready} onClick={onEdit} title="Change the song's charts note by note in the track editor">
+              <PencilRuler strokeWidth={ICON_STROKE} aria-hidden />
+              Edit charts
+            </button>
+            <button type="button" className="btn quiet small" onClick={onExport} title="Save the song with its charts as one .festival file, to share it">
+              <Share strokeWidth={ICON_STROKE} aria-hidden />
+              Export
+            </button>
+            {confirmDelete ? (
+              <>
+                <button type="button" className="btn danger small" onClick={onDelete}>
                   <Trash2 strokeWidth={ICON_STROKE} aria-hidden />
-                  Remove
+                  Delete song and scores
                 </button>
-              )}
-            </section>
-          )}
+                <button type="button" className="btn quiet small" data-sfx="back" onClick={() => setConfirmDelete(false)}>
+                  Keep
+                </button>
+              </>
+            ) : (
+              <button type="button" className="btn quiet small" onClick={() => setConfirmDelete(true)}>
+                <Trash2 strokeWidth={ICON_STROKE} aria-hidden />
+                Remove
+              </button>
+            )}
+          </section>
         </div>
       )}
     </Dialog>

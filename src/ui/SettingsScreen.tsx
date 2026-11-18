@@ -661,7 +661,7 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
           : { kind: 'info', id: 'stemModel', label: 'Analysis model', help: modelHelp, body: modelNote },
         {
           kind: 'info', id: 'analysisDevice', label: 'Runs on',
-          help: 'On a graphics card a song takes about a minute. Without one the processor does the work, which takes several minutes per song. Phones and tablets do not have the memory for it: they can play the demo track, but not analyze songs.',
+          help: 'On a graphics card a song takes about a minute. Without one the processor does the work, which takes several minutes per song. Phones and tablets do not have the memory for it: they can play songs that were analyzed elsewhere or charted by hand, but not analyze songs.',
           body: c.device === 'gpu' ? 'Graphics card' : c.device === 'cpu' ? 'Processor (slower)' : c.device === 'none' ? 'Not available on this device' : 'Checking…',
         },
       ],

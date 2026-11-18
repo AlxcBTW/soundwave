@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { analysisManager } from '../analysis/manager';
 import type { AnalysisDevice } from '../analysis/separation/support';
 import { ACCEPTED, isAudioFile, readSongFile } from '../audio/importSong';
-import { DEMO_ID } from '../audio/songAudio';
 import { DIFFICULTIES, PARTS } from '../chart/types';
 import { chartKey, type SongEdits } from '../editor/edits';
 import type { Settings } from '../game/settings';
@@ -73,8 +72,7 @@ export function TrackPicker({ songs, status, settings, device, previewing, pickS
   const search = useRef<HTMLInputElement>(null);
   const file = useRef<HTMLInputElement>(null);
 
-  // The built-in track is made by the game as it plays: there is no file of it to edit.
-  const own = useMemo(() => songs.filter((s) => s.id !== DEMO_ID), [songs]);
+  const own = songs;
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = q ? own.filter((s) => `${s.title} ${s.artist} ${s.album ?? ''}`.toLowerCase().includes(q)) : [...own];

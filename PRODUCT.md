@@ -48,7 +48,7 @@ The game charts the player's own music. There is no fixed setlist: every song co
 
 ## Evidence on Hand
 
-- A generated demo track ships in the app; all other content is the player's own music with embedded cover art when available (generated letter covers otherwise).
+- The app ships without songs: all content is the player's own music, with embedded cover art when available (generated letter covers otherwise).
 - No testimonials, press, customers or download numbers exist; none may be invented.
 
 ## Product Principles
