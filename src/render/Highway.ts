@@ -63,19 +63,6 @@ function roundedRect(w: number, h: number, r: number) {
   return s;
 }
 
-/** The release marker's pointer: an upright five-sided plate, square below and pointed on top. */
-function pointer(w: number, h: number, peak: number, inset = 0) {
-  const s = new THREE.Shape();
-  const x = w / 2 - inset;
-  s.moveTo(-x, inset);
-  s.lineTo(x, inset);
-  s.lineTo(x, h - peak);
-  s.lineTo(0, h - inset * 1.4);
-  s.lineTo(-x, h - peak);
-  s.closePath();
-  return s;
-}
-
 function radialTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
@@ -272,6 +259,163 @@ const glowFragment = /* glsl */ `
   }
 `;
 
+/**
+ * Neon pills: tiles and strike targets drawn from each point's distance to the pill's edge, so the
+ * rim, the light inside it and the glow around it are all smooth at any size. The plane is larger
+ * than the pill by the glow's reach; `uExtent` is its size, `uHalf` the pill's half size, `uRad` the
+ * radius of its ends.
+ */
+const neonVertex = /* glsl */ `
+uniform vec2 uExtent;
+varying vec2 vP;
+varying vec3 vCol;
+void main() {
+  vP = (uv - 0.5) * uExtent;
+#ifdef USE_INSTANCING_COLOR
+  vCol = instanceColor;
+#else
+  vCol = vec3(1.0);
+#endif
+  vec4 p = vec4(position, 1.0);
+#ifdef USE_INSTANCING
+  p = instanceMatrix * p;
+#endif
+  gl_Position = projectionMatrix * modelViewMatrix * p;
+}
+`;
+const neonPill = /* glsl */ `
+uniform vec2 uHalf;
+uniform float uRad;
+float pill(vec2 p) {
+  vec2 q = abs(p) - uHalf + uRad;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - uRad;
+}
+`;
+/**
+ * A tile: a bar of coloured glass lit from within, seen from above and in front. Its top face has
+ * a bright rim in its colour with a white-hot line just inside it, a body deepening toward its
+ * middle and a reflection running along its far side; below it, the bar's front face, darker; and
+ * its light spills out around both. Premultiplied: the glow adds light, the bar covers.
+ */
+const tileFragment = /* glsl */ `
+${neonPill}
+uniform float uSide;
+varying vec2 vP;
+varying vec3 vCol;
+void main() {
+  vec3 c = vCol;
+  float d = pill(vP);
+  float ds = pill(vP + vec2(0.0, uSide));
+  float du = min(d, ds);
+  float aa = fwidth(d);
+  float top = 1.0 - smoothstep(-aa, aa, d);
+  float bar = 1.0 - smoothstep(-aa, aa, du);
+  float side = bar * (1.0 - top);
+  float depth = clamp(-d / uHalf.y, 0.0, 1.0);
+  vec3 face = c * mix(1.05, 0.62, sqrt(depth));
+  // The front face: lit along its top where the light comes over the edge, darker below.
+  float down = clamp((-vP.y - uHalf.y + uSide) / uSide, 0.0, 1.0);
+  vec3 front = c * mix(0.55, 0.28, down);
+  float rimTop = exp(-pow(d / 0.02, 2.0));
+  float rimOut = exp(-pow(du / 0.022, 2.0));
+  float hot = exp(-pow((d + 0.032) / 0.015, 2.0)) * top;
+  float along = 1.0 - smoothstep(uHalf.x - uRad * 1.2, uHalf.x - uRad * 0.55, abs(vP.x));
+  float streak = exp(-pow((vP.y - uHalf.y * 0.4) / 0.016, 2.0)) * along * top;
+  float halo = du > 0.0 ? exp(-du / 0.075) * (1.0 - smoothstep(0.1, 0.2, du)) : 0.0;
+  vec3 white = mix(c, vec3(1.0), 0.8);
+  vec3 col = face * top + front * side + c * (rimOut * 1.3 + rimTop * 0.9) + white * (hot * 0.9 + streak * 0.55) + c * halo * 0.85;
+  float a = clamp(max(bar * 0.97, rimOut * 0.6 + halo * 0.22), 0.0, 1.0);
+  gl_FragColor = vec4(col, a);
+  #include <colorspace_fragment>
+}
+`;
+/**
+ * A release marker's pointer: an upright crystal in its lane's colour, see-through, lighter toward
+ * its tip, with bright edges and a faint inner facet line, glowing a little around it.
+ */
+const pointerFragment = /* glsl */ `
+uniform vec2 uSize;
+uniform float uPeak;
+varying vec2 vP;
+varying vec3 vCol;
+float shape(vec2 p) {
+  vec2 v[5];
+  float hw = uSize.x * 0.5;
+  float hh = uSize.y * 0.5;
+  v[0] = vec2(-hw, -hh);
+  v[1] = vec2(hw, -hh);
+  v[2] = vec2(hw, hh - uPeak);
+  v[3] = vec2(0.0, hh);
+  v[4] = vec2(-hw, hh - uPeak);
+  float d = dot(p - v[0], p - v[0]);
+  float s = 1.0;
+  for (int i = 0; i < 5; i++) {
+    int j = i == 0 ? 4 : i - 1;
+    vec2 e = v[j] - v[i];
+    vec2 w = p - v[i];
+    vec2 b = w - e * clamp(dot(w, e) / dot(e, e), 0.0, 1.0);
+    d = min(d, dot(b, b));
+    bvec3 k = bvec3(p.y >= v[i].y, p.y < v[j].y, e.x * w.y > e.y * w.x);
+    if (all(k) || all(not(k))) s *= -1.0;
+  }
+  return s * sqrt(d);
+}
+void main() {
+  vec3 c = vCol;
+  float d = shape(vP);
+  float aa = fwidth(d);
+  float inside = 1.0 - smoothstep(-aa, aa, d);
+  float up = clamp(vP.y / uSize.y + 0.5, 0.0, 1.0);
+  vec3 fill = c * mix(0.35, 0.75, up);
+  float rim = exp(-pow(d / 0.016, 2.0));
+  float facet = exp(-pow((d + 0.055) / 0.01, 2.0)) * inside;
+  float halo = d > 0.0 ? exp(-d / 0.06) * (1.0 - smoothstep(0.06, 0.11, d)) : 0.0;
+  vec3 white = mix(c, vec3(1.0), 0.75);
+  vec3 col = fill * inside * 0.75 + white * (rim * 1.1 + facet * 0.35) + c * halo * 0.5;
+  float a = clamp(inside * 0.5 + rim * 0.7 + halo * 0.12, 0.0, 1.0);
+  gl_FragColor = vec4(col, a);
+  #include <colorspace_fragment>
+}
+`;
+/**
+ * A strike target: a neon outline in its lane's colour, glowing inside and out, its inside dark.
+ * Struck (`uLight`, 0..1), it floods white-hot.
+ */
+const targetFragment = /* glsl */ `
+${neonPill}
+uniform vec3 uBase;
+uniform vec3 uLane;
+uniform float uLight;
+varying vec2 vP;
+void main() {
+  float d = pill(vP);
+  float aa = fwidth(d);
+  float inside = 1.0 - smoothstep(-aa, aa, d);
+  float rim = exp(-pow(d / 0.02, 2.0));
+  float glowIn = inside * exp(d / 0.07);
+  float halo = d > 0.0 ? exp(-d / 0.06) * (1.0 - smoothstep(0.08, 0.16, d)) : 0.0;
+  vec3 lit = mix(uLane, vec3(1.0), 0.6);
+  vec3 rimCol = mix(uBase * 1.3, vec3(1.0), uLight * 0.8);
+  vec3 col = rimCol * rim * 1.25 + uBase * (glowIn * 0.5 + halo * 0.6 + inside * 0.05);
+  col += lit * uLight * (inside * 0.85 + halo * 1.1);
+  float a = clamp(inside * (0.6 + 0.35 * uLight) + rim * 0.65 + halo * 0.18, 0.0, 1.0);
+  gl_FragColor = vec4(col, a);
+  #include <colorspace_fragment>
+}
+`;
+/** How far beyond a pill its plane reaches: room for its glow, which fades out before the plane's edge. */
+const GLOW_REACH = 0.24;
+/** How far a tile leans back from lying flat, radians. */
+const TILE_LEAN = 0.7;
+/** Tile and target sizes (half width, half depth, end radius); a tile's front face shows this deep. */
+const TILE = { half: [0.43, 0.14], rad: 0.14, side: 0.075 } as const;
+/** A release marker's pointer: width, height and the height of its tip. */
+const POINTER = { w: 0.5, h: 0.78, peak: 0.22 } as const;
+const TARGETS = {
+  pill: { half: [0.43, 0.14], rad: 0.14 },
+  square: { half: [0.45, 0.42], rad: 0.16 },
+} as const;
+
 const moteVertex = /* glsl */ `
   attribute float aSize;
   attribute float aAlpha;
@@ -336,23 +480,18 @@ export class Highway {
   /** Motes owed since the last frame (a fraction carries over). */
   private moteDebt = 0;
   private flare = 0;
+  /** The tiles: neon glass capsules (see tileFragment). */
   private readonly gems: THREE.InstancedMesh;
-  /** The darker top face of each tile, inside its bright rim. */
-  private readonly cores: THREE.InstancedMesh;
-  private readonly shines: THREE.InstancedMesh;
   /** Sustain trails: the beam's glow, and the white-hot line down its middle. */
   private readonly tails: THREE.InstancedMesh;
   private readonly tailCores: THREE.InstancedMesh;
   /** Release markers: a light tile at the end of the hold with an upright pointer standing on it. */
   private readonly capTiles: THREE.InstancedMesh;
   private readonly capPointers: THREE.InstancedMesh;
-  private readonly capCores: THREE.InstancedMesh;
   private readonly lines: THREE.InstancedMesh;
-  private readonly pads: THREE.Mesh[] = [];
-  private readonly padRings: THREE.Mesh[] = [];
-  private padShapes!: Record<'pill' | 'square', [THREE.ShapeGeometry, THREE.ShapeGeometry]>;
+  /** The strike targets: neon outlines in their lanes' colours (see targetFragment). */
+  private readonly pads: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>[] = [];
   private padStyle: 'pill' | 'square' = 'pill';
-  private readonly padGlows: THREE.Mesh[] = [];
   private readonly flashes: THREE.Mesh[] = [];
   private readonly flashLife: Float32Array;
   private readonly padLight: Float32Array;
@@ -480,42 +619,36 @@ export class Highway {
     this.lines.frustumCulled = false;
     this.root.add(this.lines);
 
-    // Strike pads
-    // Strike targets: a thin pill outline per lane in its colour, dark inside until the lane is played.
-    // On a touchscreen the targets are the buttons, so there they are squares a finger fits on.
-    const padGeo = new THREE.ShapeGeometry(roundedRect(0.8, 0.26, 0.13), 10);
-    const padRing = new THREE.ShapeGeometry(roundedRect(0.88, 0.34, 0.17), 10);
-    this.padShapes = {
-      pill: [padRing, padGeo],
-      square: [new THREE.ShapeGeometry(roundedRect(0.9, 0.84, 0.16), 10), new THREE.ShapeGeometry(roundedRect(0.8, 0.74, 0.12), 10)],
-    };
+    // Strike targets: a neon outline per lane in its colour, dark inside until the lane is played. On a
+    // touchscreen the targets are the buttons, so there they are squares a finger fits on.
     for (let i = 0; i < this.lanes; i++) {
-      const x = this.laneX(i);
-      const ring = new THREE.Mesh(padRing, new THREE.MeshBasicMaterial({ color: this.laneColors[i], transparent: true, opacity: 0.9 }));
-      ring.quaternion.copy(this.flat);
-      ring.position.set(x, 0.0, 0);
-      const fill = new THREE.Mesh(padGeo, new THREE.MeshBasicMaterial({ color: 0x100828 }));
-      fill.quaternion.copy(this.flat);
-      fill.position.set(x, 0.005, 0);
-      const glow = new THREE.Mesh(
-        padGeo,
-        new THREE.MeshBasicMaterial({
-          color: this.laneColors[i],
+      const pad = new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 1),
+        new THREE.ShaderMaterial({
+          vertexShader: neonVertex,
+          fragmentShader: targetFragment,
           transparent: true,
-          opacity: 0,
-          blending: THREE.AdditiveBlending,
+          premultipliedAlpha: true,
           depthWrite: false,
+          uniforms: {
+            uExtent: { value: new THREE.Vector2() },
+            uHalf: { value: new THREE.Vector2() },
+            uRad: { value: 0 },
+            uBase: { value: this.laneColors[i] },
+            uLane: { value: this.laneColors[i] },
+            uLight: { value: 0 },
+          },
         }),
       );
-      glow.quaternion.copy(this.flat);
-      glow.position.set(x, 0.01, 0);
-      this.root.add(ring, fill, glow);
-      this.padRings.push(ring);
-      this.pads.push(fill);
-      this.padGlows.push(glow);
+      pad.quaternion.copy(this.flat);
+      pad.position.set(this.laneX(i), 0.004, 0);
+      pad.renderOrder = -0.5;
+      this.root.add(pad);
+      this.pads.push(pad);
     }
+    this.shapePads('pill');
 
-    // Tiles: a pill with a bright rim, its top a deeper shade of the lane's colour under a gloss.
+    // Release markers keep a solid tile under their pointer.
     const gemGeo = new THREE.ExtrudeGeometry(roundedRect(0.84, 0.34, 0.12), {
       depth: 0.09,
       bevelEnabled: true,
@@ -526,38 +659,33 @@ export class Highway {
     });
     gemGeo.rotateX(-Math.PI / 2);
     gemGeo.translate(0, 0.02, 0);
+    // Tiles: neon glass capsules lying just above the deck, over the start of their tails.
+    const tileExtent = new THREE.Vector2(TILE.half[0] * 2 + GLOW_REACH * 2, TILE.half[1] * 2 + TILE.side * 2 + GLOW_REACH * 2);
+    const tileGeo = new THREE.PlaneGeometry(tileExtent.x, tileExtent.y);
+    // Leaning back toward the player, so a tile reads as a bar of light rather than a line on the deck.
+    tileGeo.rotateX(-Math.PI / 2 + TILE_LEAN);
+    tileGeo.translate(0, TILE.half[1] * Math.cos(-Math.PI / 2 + TILE_LEAN) + 0.02, 0);
     this.gems = new THREE.InstancedMesh(
-      gemGeo,
-      new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.1, emissive: 0x141414 }),
+      tileGeo,
+      new THREE.ShaderMaterial({
+        vertexShader: neonVertex,
+        fragmentShader: tileFragment,
+        transparent: true,
+        premultipliedAlpha: true,
+        depthWrite: false,
+        uniforms: {
+          uExtent: { value: tileExtent },
+          uHalf: { value: new THREE.Vector2(TILE.half[0], TILE.half[1]) },
+          uRad: { value: TILE.rad },
+          uSide: { value: TILE.side },
+        },
+      }),
       MAX_GEMS,
     );
     this.gems.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_GEMS * 3), 3);
     this.gems.frustumCulled = false;
+    this.gems.renderOrder = 1;
     this.root.add(this.gems);
-
-    const coreGeo2 = new THREE.ShapeGeometry(roundedRect(0.73, 0.23, 0.075), 10);
-    coreGeo2.rotateX(-Math.PI / 2);
-    coreGeo2.translate(0, 0.148, 0);
-    this.cores = new THREE.InstancedMesh(
-      coreGeo2,
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.92, depthWrite: false }),
-      MAX_GEMS,
-    );
-    this.cores.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_GEMS * 3), 3);
-    this.cores.frustumCulled = false;
-    this.root.add(this.cores);
-
-    const shineGeo = new THREE.ShapeGeometry(roundedRect(0.5, 0.05, 0.025), 6);
-    shineGeo.rotateX(-Math.PI / 2);
-    shineGeo.translate(0, 0.15, -0.055);
-    this.shines = new THREE.InstancedMesh(
-      shineGeo,
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, depthWrite: false }),
-      MAX_GEMS,
-    );
-    this.shines.frustumCulled = false;
-    this.shines.renderOrder = 1;
-    this.root.add(this.shines);
     // Sustain tails
     const tailGeo = new THREE.PlaneGeometry(1, 1);
     tailGeo.rotateX(-Math.PI / 2);
@@ -571,28 +699,28 @@ export class Highway {
       this.root.add(mesh);
     }
 
-    // Release markers at the end of hold-and-release tails: a light tile (the gem shape) with an
-    // upright translucent pointer standing on it, a brighter rim around a softer core.
-    this.capTiles = new THREE.InstancedMesh(
-      gemGeo,
-      new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.1, emissive: 0x3a3a3a, transparent: true, opacity: 0.92 }),
-      MAX_TAILS,
-    );
-    const rimGeo = new THREE.ExtrudeGeometry(pointer(0.5, 0.78, 0.22), { depth: 0.04, bevelEnabled: false });
-    rimGeo.translate(0, 0.12, -0.02);
+    // Release markers at the end of hold-and-release tails: a tile of light glass (the tiles' own
+    // shader) with an upright crystal pointer standing on it.
+    this.capTiles = new THREE.InstancedMesh(tileGeo, this.gems.material, MAX_TAILS);
+    const pointerGeo = new THREE.PlaneGeometry(POINTER.w + GLOW_REACH, POINTER.h + GLOW_REACH);
+    pointerGeo.translate(0, 0.1 + POINTER.h / 2, -0.02);
     this.capPointers = new THREE.InstancedMesh(
-      rimGeo,
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.85, depthWrite: false }),
+      pointerGeo,
+      new THREE.ShaderMaterial({
+        vertexShader: neonVertex,
+        fragmentShader: pointerFragment,
+        transparent: true,
+        premultipliedAlpha: true,
+        depthWrite: false,
+        uniforms: {
+          uExtent: { value: new THREE.Vector2(POINTER.w + GLOW_REACH, POINTER.h + GLOW_REACH) },
+          uSize: { value: new THREE.Vector2(POINTER.w, POINTER.h) },
+          uPeak: { value: POINTER.peak },
+        },
+      }),
       MAX_TAILS,
     );
-    const coreGeo = new THREE.ShapeGeometry(pointer(0.5, 0.78, 0.22, 0.06));
-    coreGeo.translate(0, 0.12, 0.03);
-    this.capCores = new THREE.InstancedMesh(
-      coreGeo,
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.55, depthWrite: false }),
-      MAX_TAILS,
-    );
-    for (const mesh of [this.capTiles, this.capPointers, this.capCores]) {
+    for (const mesh of [this.capTiles, this.capPointers]) {
       mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TAILS * 3), 3);
       mesh.frustumCulled = false;
       mesh.renderOrder = 1;
@@ -736,13 +864,20 @@ export class Highway {
   private setPadStyle(style: 'pill' | 'square') {
     if (style === this.padStyle) return;
     this.padStyle = style;
-    const [ring, fill] = this.padShapes[style];
-    const z = style === 'square' ? 0.2 : 0;
-    for (let i = 0; i < this.lanes; i++) {
-      this.padRings[i].geometry = ring;
-      this.pads[i].geometry = fill;
-      this.padGlows[i].geometry = fill;
-      for (const m of [this.padRings[i], this.pads[i], this.padGlows[i]]) m.position.z = z;
+    this.shapePads(style);
+  }
+
+  private shapePads(style: 'pill' | 'square') {
+    const { half, rad } = TARGETS[style];
+    const w = half[0] * 2 + GLOW_REACH * 2;
+    const h = half[1] * 2 + GLOW_REACH * 2;
+    for (const pad of this.pads) {
+      pad.scale.set(w, h, 1);
+      pad.position.z = style === 'square' ? 0.2 : 0;
+      const u = pad.material.uniforms;
+      (u.uExtent.value as THREE.Vector2).set(w, h);
+      (u.uHalf.value as THREE.Vector2).set(half[0], half[1]);
+      u.uRad.value = rad;
     }
   }
 
@@ -1015,13 +1150,13 @@ export class Highway {
           // The glow in the lane's colour, then the core, near white. A held beam burns brighter
           // and a touch wider, and breathes; a missed one is all but out.
           const burn = missed ? MISSED_TINT * 0.6 : held ? 1.15 + 0.15 * Math.sin(now / 90) : 0.8;
-          this.s.set(held ? 0.5 : 0.4, 1, len);
+          this.s.set(held ? 0.24 : 0.18, 1, len);
           this.m.compose(this.v, this.q, this.s);
           this.tails.setMatrixAt(ti, this.m);
           this.c.copy(color).multiplyScalar(burn);
           this.tails.setColorAt(ti, this.c);
           this.v.y = 0.012;
-          this.s.set(held ? 0.2 : 0.15, 1, len);
+          this.s.set(held ? 0.075 : 0.055, 1, len);
           this.m.compose(this.v, this.q, this.s);
           this.tailCores.setMatrixAt(ti, this.m);
           this.c
@@ -1045,16 +1180,13 @@ export class Highway {
           this.capTiles.setMatrixAt(ci, this.m);
           this.c.copy(color).lerp(WHITE, 0.35).multiplyScalar(dim);
           this.capTiles.setColorAt(ci, this.c);
-          // The pointer stands on the tile and breathes; its rim is brighter than its core.
+          // The pointer stands on the tile and breathes.
           const k = (dim < 1 ? 1 : breathe) * grown;
           this.s.set(k, k, grown);
           this.m.compose(this.v, this.q, this.s);
           this.capPointers.setMatrixAt(ci, this.m);
-          this.capCores.setMatrixAt(ci, this.m);
-          this.c.copy(color).lerp(WHITE, 0.7).multiplyScalar(dim);
+          this.c.copy(color).lerp(WHITE, 0.15).multiplyScalar(dim);
           this.capPointers.setColorAt(ci, this.c);
-          this.c.copy(color).lerp(WHITE, 0.25).multiplyScalar(dim);
-          this.capCores.setColorAt(ci, this.c);
           ci++;
         }
       }
@@ -1072,33 +1204,23 @@ export class Highway {
       this.s.set(k, k, k);
       this.m.compose(this.v, this.q, this.s);
       this.gems.setMatrixAt(gi, this.m);
-      this.cores.setMatrixAt(gi, this.m);
-      this.shines.setMatrixAt(gi, this.m);
       // Their light swells and ebbs, a wave running down the lane toward the player.
       const swell = 0.5 + 0.5 * Math.sin(now / 150 + z * 0.8);
       this.c.copy(color);
       if (missed) this.c.multiplyScalar(MISSED_TINT);
       else if (drive > 0.01) this.c.multiplyScalar(1 + drive * (0.08 + 0.2 * swell));
-      // The top face keeps the lane's colour; the rim around it is the same colour lit up.
-      this.cores.setColorAt(gi, this.c);
-      this.c.lerp(WHITE, missed ? 0.1 : 0.42);
       this.gems.setColorAt(gi, this.c);
       gi++;
     }
     this.gems.count = gi;
-    this.cores.count = gi;
-    this.shines.count = gi;
     this.tails.count = ti;
     this.tailCores.count = ti;
-    for (const mesh of [this.capTiles, this.capPointers, this.capCores]) {
+    for (const mesh of [this.capTiles, this.capPointers]) {
       mesh.count = ci;
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
     this.gems.instanceMatrix.needsUpdate = true;
-    this.cores.instanceMatrix.needsUpdate = true;
-    if (this.cores.instanceColor) this.cores.instanceColor.needsUpdate = true;
-    this.shines.instanceMatrix.needsUpdate = true;
     if (this.gems.instanceColor) this.gems.instanceColor.needsUpdate = true;
     for (const mesh of [this.tails, this.tailCores]) {
       mesh.instanceMatrix.needsUpdate = true;
@@ -1109,7 +1231,7 @@ export class Highway {
     for (let i = 0; i < this.lanes; i++) {
       if (session.laneDown[i]) this.padLight[i] = Math.max(this.padLight[i], 0.55);
       this.padLight[i] = Math.max(0, this.padLight[i] - dt * 5);
-      (this.padGlows[i].material as THREE.MeshBasicMaterial).opacity = this.padLight[i];
+      this.pads[i].material.uniforms.uLight.value = this.padLight[i];
       (u.uLight.value as number[])[i] = this.padLight[i];
       this.flashLife[i] = Math.max(0, this.flashLife[i] - dt * 4.5);
       const f = this.flashes[i];
@@ -1155,7 +1277,6 @@ export class Highway {
       if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
       else mat?.dispose();
     });
-    for (const g of Object.values(this.padShapes).flat()) g.dispose();
     this.renderer.dispose();
   }
 }
