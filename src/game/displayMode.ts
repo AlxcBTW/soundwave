@@ -49,11 +49,11 @@ export async function exitApp() {
 }
 
 /**
- * The display mode Alt+Enter and F11 switch to: fullscreen from a window, and from fullscreen back
- * to the window mode used last (a normal window when there was none).
+ * The display mode Alt+Enter and F11 switch to: a window from either way of filling the screen, and
+ * from a window back to the one used last (windowed fullscreen when there was none).
  */
-export function toggledMode(current: DisplayMode, lastWindowMode: Exclude<DisplayMode, 'fullscreen'> | null): DisplayMode {
-  return current === 'fullscreen' ? (lastWindowMode ?? 'windowed') : 'fullscreen';
+export function toggledMode(current: DisplayMode, lastFullMode: Exclude<DisplayMode, 'windowed'> | null): DisplayMode {
+  return current === 'windowed' ? (lastFullMode ?? 'borderless') : 'windowed';
 }
 
 /** Whether a key press is the fullscreen toggle: Alt+Enter, and F11 in the desktop app (a browser keeps F11 for itself). */

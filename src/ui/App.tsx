@@ -198,14 +198,14 @@ export function App() {
   useEffect(() => followOutputDevice(settings.outputDevice), [settings.outputDevice]);
   useEffect(() => setMenuRumble(settings.rumble), [settings.rumble]);
   useEffect(() => void applyDisplayMode(settings.displayMode), [settings.displayMode]);
-  // Alt+Enter, and F11 in the desktop app, switch between fullscreen and the window mode used last,
-  // as the Window mode setting (so the settings show it). In a browser tab Alt+Enter asks the browser
+  // Alt+Enter, and F11 in the desktop app, switch between a window and the way of filling the screen
+  // used last (fullscreen or windowed fullscreen), as the Window mode setting (so the settings show it). In a browser tab Alt+Enter asks the browser
   // for fullscreen instead (F11 is the browser's own). Taken before anything else hears the keys, so
   // the Enter does not also press the focused button or play a lane.
   const settingsNow = useRef(settings);
   settingsNow.current = settings;
-  const lastWindowMode = useRef<Exclude<DisplayMode, 'fullscreen'> | null>(null);
-  if (settings.displayMode !== 'fullscreen') lastWindowMode.current = settings.displayMode;
+  const lastFullMode = useRef<Exclude<DisplayMode, 'windowed'> | null>(null);
+  if (settings.displayMode !== 'windowed') lastFullMode.current = settings.displayMode;
   useEffect(() => {
     const desktop = inDesktopApp();
     const key = (e: KeyboardEvent) => {
@@ -215,7 +215,7 @@ export function App() {
       if (e.repeat) return;
       if (desktop) {
         const s = settingsNow.current;
-        updateSettings({ ...s, displayMode: toggledMode(s.displayMode, lastWindowMode.current) });
+        updateSettings({ ...s, displayMode: toggledMode(s.displayMode, lastFullMode.current) });
       } else if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
       else void document.documentElement.requestFullscreen?.().catch(() => {});
     };

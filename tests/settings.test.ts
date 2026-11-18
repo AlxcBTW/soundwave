@@ -77,11 +77,12 @@ describe('the fullscreen toggle', () => {
     ...mods,
   });
 
-  it('goes to fullscreen from a window and back to the window mode used last', () => {
-    expect(toggledMode('windowed', 'windowed')).toBe('fullscreen');
-    expect(toggledMode('borderless', 'borderless')).toBe('fullscreen');
-    expect(toggledMode('fullscreen', 'borderless')).toBe('borderless');
-    expect(toggledMode('fullscreen', null)).toBe('windowed');
+  it('goes to a window from either fullscreen mode and back to the one used last', () => {
+    expect(toggledMode('borderless', 'borderless')).toBe('windowed');
+    expect(toggledMode('fullscreen', 'fullscreen')).toBe('windowed');
+    expect(toggledMode('windowed', 'fullscreen')).toBe('fullscreen');
+    expect(toggledMode('windowed', 'borderless')).toBe('borderless');
+    expect(toggledMode('windowed', null)).toBe('borderless');
   });
 
   it('answers Alt+Enter everywhere and F11 only in the desktop app', () => {
