@@ -5618,10 +5618,15 @@ kbd.mark {
 /* ------------------------------------------------------------------------------------------- */
 /* Getting the app, and updating it                                                             */
 
-/* Beside Exit in the main menu's head: Update (desktop app, when one is out) and Get the app (website). */
+/* Beside Exit in the main menu's head: Update (desktop app, when one is out) and Get the app (website).
+   As tall and as round as the Play and Edit switcher beside them (a tab in its 0.3rem trough). */
 .head-btn {
   align-self: center;
   white-space: nowrap;
+}
+.home-head :is(.head-btn, .exit-btn) {
+  min-height: calc(var(--target) + 0.6rem);
+  border-radius: calc(var(--r-m) + 0.3rem);
 }
 .head-status + .head-btn,
 .home-head > .head-btn:first-of-type {
@@ -5638,8 +5643,12 @@ kbd.mark {
     inset 0 0 0 2px var(--pink),
     0 0 1.4rem -0.3rem rgb(255 77 157 / 0.6);
 }
-:root[data-input='mouse'] .install-btn:hover {
-  background: rgb(255 77 157 / 0.24);
+:root[data-input='mouse'] .btn.install-btn:hover:not(:disabled) {
+  background: rgb(255 77 157 / 0.26);
+  color: var(--ink);
+}
+:root[data-input='mouse'] .btn.update-btn:hover:not(:disabled) {
+  background: rgb(255 210 61 / 0.26);
   color: var(--ink);
 }
 /* An update that is ready: gold, the colour of something earned. */

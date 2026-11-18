@@ -133,7 +133,6 @@ export function HomeScreen({
   const byId = useMemo(() => new Map(songs.map((s) => [s.id, s])), [songs]);
   const ready = useMemo(() => songs.filter((s) => status[s.id]?.state === 'ready'), [songs, status]);
   const sets: SuggestedSet[] = useMemo(() => suggestSets(ready, played, seed), [ready, played, seed]);
-  const busy = songs.filter((s) => status[s.id]?.state === 'analyzing' || status[s.id]?.state === 'queued');
   const own = songs.length;
 
   const touch = mode === 'touch';
@@ -193,12 +192,6 @@ export function HomeScreen({
           </div>
           <Hint kbd="KeyE" pad="b5" mode={mode} style={style} />
         </div>
-        {busy.length > 0 && (
-          // Just the count: each song's progress is shown with the song itself.
-          <p className="head-status" role="status">
-            Analyzing {count(busy.length)}
-          </p>
-        )}
         {update && (
           <button type="button" className="btn head-btn update-btn" data-action="update" onClick={onUpdate}>
             <Hint kbd="KeyU" mode={mode} style={style} />
