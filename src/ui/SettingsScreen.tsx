@@ -1109,13 +1109,6 @@ function buildSections(tab: Tab, c: Ctx): Section[] {
       {
         title: 'Touch play',
         rows: [
-          {
-            kind: 'info',
-            id: 'touchHow',
-            label: 'How it works',
-            help: 'On a touchscreen the lanes are the controls. A tap anywhere along a lane plays it, several fingers at once play chords, and a finger that stays down holds a long note. The squares at the foot of the lanes show where the notes are due.',
-            body: 'Tap a lane to play it. Hold for long notes.',
-          },
           toggle(
             'touchHaptics',
             'Tap vibration',
