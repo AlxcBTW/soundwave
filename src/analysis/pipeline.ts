@@ -6,7 +6,7 @@ import { highpass, lowpass, refineOnset } from './dsp/refine';
 import { bandFlux, normalize, onsetEnvelope, pickPeaks } from './dsp/onsets';
 import { hzToBin, stft, type Spectrogram } from './dsp/stft';
 import { BASS_SPLIT, separateParts } from './pitch/lines';
-import { bassLineFromStem, leadLineFromStem, vocalLineFromStem } from './pitch/stemLines';
+import { bassLineFromStem, leadLineFromStem, loudness, vocalLineFromStem } from './pitch/stemLines';
 import { salienceLine } from './pitch/salience';
 import {
   ANALYSIS_SAMPLE_RATE,
@@ -40,6 +40,12 @@ export interface PipelineOptions {
 
 const NFFT = 2048;
 const HOP = 512;
+/**
+ * A stem quieter than this share of the song's loudness (about -34 dB) is silent: a part the song
+ * does not have. Real parts measure from about a tenth of the song up; the residue the separation
+ * leaves in an absent part, a thousandth or so.
+ */
+const SILENT_STEM = 0.02;
 
 const STEPS: Record<AnalysisStep, [number, number]> = {
   decoding: [0, 0.03],
@@ -129,12 +135,24 @@ export async function analyzeSignal(signal: Float32Array, opts: PipelineOptions 
     const st = opts.stems;
     const sn = opts.stemNotes;
     if (st && sn) {
-      if (st.vocals && sn.vocals.length) vocals = vocalLineFromStem({ signal: st.vocals, sr, notes: sn.vocals });
+      // A stem all but silent next to the song (an instrumental's vocals) is a part the song does
+      // not have: no notes, whatever the transcriber made of its faint residue.
+      const mixLoudness = loudness(signal);
+      const silent = (stem: Float32Array) => loudness(stem) < mixLoudness * SILENT_STEM;
+      opts.onLog?.(
+        `stem levels (of the song's): ${(['vocals', 'other', 'bass'] as const)
+          .map((k) => `${k} ${st[k] ? (loudness(st[k]) / (mixLoudness || 1)).toFixed(3) : '-'}`)
+          .join(', ')}`,
+      );
+      if (st.vocals && silent(st.vocals)) vocals = [];
+      else if (st.vocals && sn.vocals.length) vocals = vocalLineFromStem({ signal: st.vocals, sr, notes: sn.vocals, mixLoudness });
       report('melody', 0.4);
       // Lead follows the instrument only: where no instrument plays, the part rests (like a real chart).
-      if (st.other && sn.other.length) lead = leadLineFromStem({ signal: st.other, sr, notes: sn.other, beats });
+      if (st.other && silent(st.other)) lead = [];
+      else if (st.other && sn.other.length) lead = leadLineFromStem({ signal: st.other, sr, notes: sn.other, beats, mixLoudness });
       report('melody', 0.8);
-      if (st.bass && sn.bass.length) bass = bassLineFromStem({ signal: st.bass, sr, notes: sn.bass });
+      if (st.bass && silent(st.bass)) bass = [];
+      else if (st.bass && sn.bass.length) bass = bassLineFromStem({ signal: st.bass, sr, notes: sn.bass, mixLoudness });
       opts.onLog?.(`stem lines: ${bass.length} bass, ${lead.length} lead, ${vocals.length} vocals`);
     }
   } else if (opts.transcriber) {

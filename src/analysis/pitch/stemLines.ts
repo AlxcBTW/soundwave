@@ -24,7 +24,16 @@ export interface StemInput {
   notes: PitchedNote[];
   /** Beat times, when known: steady strumming is looked for on the eighth-note grid. */
   beats?: number[];
+  /**
+   * How loud the whole song is (see loudness). A stem's level is judged against its own loud
+   * parts, and against this too: nothing far quieter than the song counts as loud, so the faint
+   * residue left in a stem the song hardly has never reads as playing.
+   */
+  mixLoudness?: number;
 }
+
+/** A stem's level is never judged against less than this share of the song's loudness. */
+const MIX_FLOOR = 0.05;
 
 interface Attack {
   t: number;
@@ -38,7 +47,20 @@ interface Envelope {
   ref: number;
 }
 
-function envelope(signal: Float32Array, sr: number): Envelope {
+/** How loud a signal is: the 95th percentile of its short-term level, its "loud" parts. */
+export function loudness(signal: Float32Array): number {
+  const n = Math.floor(signal.length / HOP);
+  if (n < 1) return 0;
+  const rms = new Float32Array(n);
+  for (let f = 0; f < n; f++) {
+    let s = 0;
+    for (let i = f * HOP; i < (f + 1) * HOP; i++) s += signal[i] * signal[i];
+    rms[f] = Math.sqrt(s / HOP);
+  }
+  return percentile(rms, 0.95);
+}
+
+function envelope(signal: Float32Array, sr: number, mixLoudness = 0): Envelope {
   const n = Math.ceil(signal.length / HOP);
   const rms = new Float32Array(n);
   for (let f = 0; f < n; f++) {
@@ -48,7 +70,7 @@ function envelope(signal: Float32Array, sr: number): Envelope {
     for (let i = a; i < b; i++) s += signal[i] * signal[i];
     rms[f] = Math.sqrt(s / Math.max(1, b - a));
   }
-  return { fps: sr / HOP, rms, ref: percentile(rms, 0.95) || 1 };
+  return { fps: sr / HOP, rms, ref: Math.max(percentile(rms, 0.95), mixLoudness * MIX_FLOOR) || 1 };
 }
 
 const level = (env: Envelope, from: number, to: number) => {
@@ -148,8 +170,8 @@ const MIN_SYLLABLE = 0.04;
  * Quiet breaths produce nothing; spoken or rapped syllables without a stable pitch take the
  * nearest sung pitch.
  */
-export function vocalLineFromStem({ signal, sr, notes }: StemInput): PitchedNote[] {
-  const env = envelope(signal, sr);
+export function vocalLineFromStem({ signal, sr, notes, mixLoudness }: StemInput): PitchedNote[] {
+  const env = envelope(signal, sr, mixLoudness);
   const voiced = notes.filter((n) => n.strength >= 0.15 && n.midi >= 40 && n.midi <= 88);
   // Syllables follow each other closely and often start softer than the previous one ended, so
   // the onset test only rejects attacks clearly quieter than what came before (note endings).
@@ -327,8 +349,8 @@ function instrumentAttacks(signal: Float32Array, sr: number, env: Envelope, beat
  * top, overtones removed); a lone note keeps its pitch. Attacks without a newly struck pitch (pad
  * swells, noise) produce nothing.
  */
-export function leadLineFromStem({ signal, sr, notes, beats }: StemInput): PitchedNote[] {
-  const env = envelope(signal, sr);
+export function leadLineFromStem({ signal, sr, notes, beats, mixLoudness }: StemInput): PitchedNote[] {
+  const env = envelope(signal, sr, mixLoudness);
   const pitched = notes.filter((n) => n.strength >= 0.2 && n.midi >= 45);
   const out: PitchedNote[] = [];
   const hits = instrumentAttacks(signal, sr, env, beats);
@@ -377,8 +399,8 @@ export function leadLineFromStem({ signal, sr, notes, beats }: StemInput): Pitch
 }
 
 /** Bass line: one note per audible attack in the bass stem, lowest struck pitch, octave-folded. */
-export function bassLineFromStem({ signal, sr, notes }: StemInput): PitchedNote[] {
-  const env = envelope(signal, sr);
+export function bassLineFromStem({ signal, sr, notes, mixLoudness }: StemInput): PitchedNote[] {
+  const env = envelope(signal, sr, mixLoudness);
   const low = notes.filter((n) => n.strength >= 0.12);
   const hits = attacks(signal, sr, 30, 400, 0.1).filter((a) => isOnset(env, a.t, 0.12));
   const raw: PitchedNote[] = [];

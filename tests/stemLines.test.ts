@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pruneOvertones, vocalLineFromStem } from '../src/analysis/pitch/stemLines';
+import { loudness, pruneOvertones, vocalLineFromStem } from '../src/analysis/pitch/stemLines';
 
 describe('pruneOvertones', () => {
   it('reduces a distorted power chord to root and fifth', () => {
@@ -53,5 +53,15 @@ describe('vocalLineFromStem', () => {
     line.forEach((n, i) => expect(Math.abs(n.t - syllables[i].t)).toBeLessThan(0.03));
     // The held syllable stays one note even though the transcriber split it.
     expect(line[2].dur).toBeGreaterThan(0.6);
+  });
+
+  it('finds nothing in a stem all but silent next to the song (an instrumental)', () => {
+    // The separation leaves a thousandth of the song's level in the vocal stem of a song without a
+    // singer. Judged by its own loud parts, that residue looks like singing; next to the song, not.
+    const residue = signal.map((x) => x * 0.001);
+    expect(vocalLineFromStem({ signal: residue, sr: SR, notes }).length).toBeGreaterThan(0);
+    expect(vocalLineFromStem({ signal: residue, sr: SR, notes, mixLoudness: loudness(signal) })).toEqual([]);
+    // A real vocal at the song's level is unaffected.
+    expect(vocalLineFromStem({ signal, sr: SR, notes, mixLoudness: loudness(signal) }).length).toBe(4);
   });
 });
