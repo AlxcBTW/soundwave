@@ -153,7 +153,7 @@ export function HomeScreen({ songs, status, setlist, played, seed, importing, em
           </button>
         )}
       </header>
-      <main className={`page-body home-body ${tab} ${turn}`} key={tab} id="home-panel" role="tabpanel" aria-labelledby={`home-tab-${tab}`}>
+      <main className={`page-body home-body ${turn}`} data-tab={tab} key={tab} id="home-panel" role="tabpanel" aria-labelledby={`home-tab-${tab}`}>
         {tab === 'play' ? (
           <>
             <h2 className="page-title">Pick a set</h2>
