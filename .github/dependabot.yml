@@ -8,6 +8,11 @@ updates:
     groups:
       npm:
         patterns: ['*']
+    ignore:
+      # @spotify/basic-pitch is built on TensorFlow.js 3: a newer major beside it installs a second
+      # TensorFlow, and the model it is handed no longer fits it (two backends, two tensor types).
+      - dependency-name: '@tensorflow/tfjs'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: cargo
     directory: /src-tauri
     schedule:
