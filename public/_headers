@@ -1,0 +1,6 @@
+# Cloudflare (Workers static assets and Pages) reads this file from the build output.
+# These two headers let the page use threads, which the song analysis needs to run at a bearable
+# speed on computers without WebGPU (see "How analysis works" in the README).
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
