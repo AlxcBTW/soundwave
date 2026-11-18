@@ -22,8 +22,6 @@ export type Sfx =
   | 'error'
   | 'add'
   | 'hold'
-  | 'cheer'
-  | 'applause'
   | 'finale';
 
 /**
@@ -46,8 +44,6 @@ const TAKES: Record<Sfx, number> = {
   error: 1,
   add: 1,
   hold: 1,
-  cheer: 1,
-  applause: 1,
   finale: 1,
 };
 

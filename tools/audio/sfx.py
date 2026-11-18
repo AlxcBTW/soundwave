@@ -37,8 +37,6 @@ LEVELS = {
     "hold": -15.0,
     "star": -15.5,
     "best": -11.0,
-    "applause": -15.5,
-    "cheer": -12.5,
     "finale": -13.5,
 }
 
@@ -363,15 +361,6 @@ def launch() -> np.ndarray:
     return limit(x, ceiling_db=-1.0, lookahead=0.003, release=0.09)
 
 
-def results_crowd(big: bool) -> np.ndarray:
-    """The end of a song: a proper cheer for a good run, warm applause otherwise."""
-    if big:
-        x = crowd.cheer(6.6, peak_at=0.55, hold=1.7, decay=4.2, seed=12, people=240, whistles=8, clapping=0.9)
-    else:
-        x = crowd.cheer(5.0, peak_at=0.5, hold=1.1, decay=3.2, seed=14, people=45, whistles=1, clapping=1.4, excitement=0.45)
-    return highpass(crowd.arena(x), 120)
-
-
 def finale_crowd() -> np.ndarray:
     """
     The end of a song, while the stage fires off its finale: the whole crowd clapping and cheering
@@ -409,8 +398,6 @@ SOUNDS = {
     "count": count,
     "best": best,
     "launch": launch,
-    "cheer": lambda: results_crowd(True),
-    "applause": lambda: results_crowd(False),
     "finale": finale_crowd,
 }
 
@@ -422,7 +409,7 @@ def main():
             continue
         x = make()
         family = name.rsplit("-", 1)[0] if name[-1].isdigit() else name
-        finish(name, x, LEVELS.get(family), fade_out=0.6 if family in ("launch", "cheer", "applause", "finale") else 0.04)
+        finish(name, x, LEVELS.get(family), fade_out=0.6 if family in ("launch", "finale") else 0.04)
         if "--wav" in sys.argv:
             import soundfile as sf
 

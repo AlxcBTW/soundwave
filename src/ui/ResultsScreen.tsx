@@ -286,11 +286,8 @@ export function SummaryScreen({ set, subtitle, onAgain, onDone }: SummaryProps) 
   const played = set.filter((s) => s.results);
   const totalScore = played.reduce((t, s) => t + s.results!.score, 0);
   const stars = played.reduce((t, s) => t + shownStars(s.results!.stars), 0);
+  // (No crowd here: it had its say at the end of each song.)
   const score = useCountUp(totalScore, 1400, 300);
-  useEffect(() => {
-    const timer = window.setTimeout(() => playSfx(stars >= played.length * 3 ? 'cheer' : 'applause'), 60);
-    return () => clearTimeout(timer);
-  }, [stars, played.length]);
 
   useActions([
     { id: 'again', label: 'Play the set again', icon: Repeat, ...keysOf('results.retry'), sfx: 'launch', run: onAgain },
