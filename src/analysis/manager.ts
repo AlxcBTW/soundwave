@@ -6,6 +6,7 @@ import { chartFromNotes, chartKey, editedCount, resolveGrid, songDuration, stand
 import { analysisKey, deleteAnalyses, deleteEdits, getAnalysis, getEdits, putAnalysis, putEdits, putStems } from '../storage/db';
 import { writeAnalysisToFile } from '../storage/songFile';
 import { serveWorkerFetch } from '../app/workerFetch';
+import { beatModelUrl } from './beat/listen';
 import { stemAnalyzer, type StemAnalyzer } from './separation/analyzer';
 import { analysisDevice } from './separation/support';
 import {
@@ -412,7 +413,7 @@ const localAnalyzer: LocalAnalyzer = async (id, onProgress, signal, assist) => {
   }
   // The beat model is small enough for any device: without a graphics card it runs on the processor.
   const beatModel = {
-    url: new URL(`${import.meta.env.BASE_URL}models/beat-this/small0.onnx`, location.href).href,
+    url: beatModelUrl(),
     device: (await analysisDevice()) === 'gpu' ? ('gpu' as const) : ('cpu' as const),
   };
   return runWorker(audio, onProgress, signal, assist?.lines, drumSignal, stems, assist?.stemNotes, beatModel);

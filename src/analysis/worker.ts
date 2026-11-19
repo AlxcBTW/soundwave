@@ -1,10 +1,8 @@
 /// <reference lib="webworker" />
 import * as ort from 'onnxruntime-web/webgpu';
 import { proxyWorkerFetch } from '../app/workerFetch';
-import { openBeatModel } from './beat/model';
-import { beatsAndBars } from './beat/track';
+import { listenForBeats, type BeatModelAt } from './beat/listen';
 import { analyzeSignal, type BeatTracker } from './pipeline';
-import { loadRuntime } from './runtime';
 import type { AnalysisProgress, AnalysisResult, PartLines, StemName, StemNotes } from './types';
 
 export type WorkerRequest = {
@@ -15,7 +13,7 @@ export type WorkerRequest = {
   stems?: Partial<Record<StemName, Float32Array>>;
   stemNotes?: StemNotes;
   /** Where the beat model is and what to run it on; without it the beat tracker finds the grid. */
-  beatModel?: { url: string; device: 'gpu' | 'cpu' };
+  beatModel?: BeatModelAt;
 };
 
 export type WorkerResponse =
@@ -26,24 +24,11 @@ export type WorkerResponse =
 
 const post = (m: WorkerResponse) => (self as DedicatedWorkerGlobalScope).postMessage(m);
 
-/** The song's beats and bar starts from the beat model, which is opened for this one song. */
+/** The song's beats and bar starts from the beat model. */
 const beatTracker =
-  (at: NonNullable<WorkerRequest['beatModel']>): BeatTracker =>
-  async (audio, onProgress) => {
-    const started = performance.now();
-    await loadRuntime(ort, at.device);
-    const model = await openBeatModel(ort, at.url, at.device, (message) => post({ type: 'log', message }));
-    try {
-      const found = await beatsAndBars(audio, model, onProgress);
-      post({
-        type: 'log',
-        message: `beat model on ${model.device}: ${found.beats.length} beats, ${found.downbeats.length} bars in ${Math.round(performance.now() - started)} ms`,
-      });
-      return found;
-    } finally {
-      await model.release();
-    }
-  };
+  (at: BeatModelAt): BeatTracker =>
+  (audio, onProgress) =>
+    listenForBeats(ort, at, audio, onProgress, (message) => post({ type: 'log', message }));
 
 // Where a worker cannot fetch the game's files itself (the macOS app), the page fetches them.
 const fetched = proxyWorkerFetch((m) => (self as unknown as DedicatedWorkerGlobalScope).postMessage(m));

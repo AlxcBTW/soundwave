@@ -388,6 +388,18 @@ describe('finding a tempo by listening', () => {
     expect(Math.min(off, spb - off)).toBeLessThan(0.012);
   });
 
+  it("takes the beat model's beats and bars, and asks the tracker when the model heard too little", async () => {
+    const { heardByModel } = await import('../src/editor/tempo');
+    // Beats every half second as the model gives them, in steps of 20 ms; three beats to a bar from the second beat.
+    const beats = Array.from({ length: 24 }, (_, i) => Math.round((1 + i * 0.5 + (i % 2 ? 0.01 : -0.01)) * 50) / 50);
+    const heard = heardByModel({ beats, downbeats: [beats[1], beats[4], beats[7]] })!;
+    expect(heard.beats.length).toBe(24);
+    for (let i = 1; i < heard.beats.length; i++) expect(heard.beats[i] - heard.beats[i - 1]).toBeCloseTo(0.5, 2);
+    expect(heard.downbeats).toEqual([1, 4, 7, 10, 13, 16, 19, 22]);
+    expect(heardByModel({ beats: beats.slice(0, 5), downbeats: [beats[0]] })).toBeUndefined();
+    expect(heardByModel({ beats, downbeats: [] })).toBeUndefined();
+  });
+
   it('counts beats that went unheard when it fits a tempo', () => {
     const spb = 60 / 100;
     const beats = Array.from({ length: 80 }, (_, i) => 1 + i * spb).filter((_, i) => i < 20 || i > 27);

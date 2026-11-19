@@ -1,8 +1,10 @@
 /**
- * Finds a song's beats by listening, for a song that is charted by hand: the same beat tracking the
- * full analysis starts with, without the minutes of stem separation and transcription around it.
+ * Finds a song's beats by listening, for a song that is charted by hand: the same beats the full
+ * analysis starts with (the beat model's, or the beat tracker's where the model does not run),
+ * without the minutes of stem separation and transcription around it.
  */
-import { estimateTempo, findDownbeats, refineBeats, trackBeats } from '../analysis/dsp/beats';
+import type { Beats } from '../analysis/beat/track';
+import { barsOnGrid, estimateTempo, findDownbeats, refineBeats, smoothBeats, trackBeats } from '../analysis/dsp/beats';
 import { rmsCurve } from '../analysis/dsp/energy';
 import { bandFlux, normalize, onsetEnvelope } from '../analysis/dsp/onsets';
 import { stft } from '../analysis/dsp/stft';
@@ -16,6 +18,17 @@ export interface HeardBeats {
 
 const NFFT = 2048;
 const HOP = 512;
+
+/**
+ * What the beat model found, as the editor takes it: the beats with the model's 20 ms steps
+ * smoothed out, and the bars as indices into them. Nothing when it found too few beats or no bar,
+ * so the beat tracker is asked.
+ */
+export function heardByModel(found: Beats): HeardBeats | undefined {
+  if (found.beats.length < 8 || !found.downbeats.length) return undefined;
+  const beats = smoothBeats(found.beats);
+  return { beats, downbeats: barsOnGrid(beats, found.downbeats) };
+}
 
 /** Beat times and bar starts of a mono signal. Empty when no beat can be made out. */
 export function hearBeats(signal: Float32Array, sampleRate: number): HeardBeats {
