@@ -236,7 +236,7 @@ describe('pipeline', () => {
     // The song is in four; the model is made to hear three beats to a bar, at 20 ms steps a little off.
     const x = song(120, 24, { bass: [40, 40, 43, 45] });
     const heard = Array.from({ length: 44 }, (_, i) => Math.round((0.5 + i * 0.5 + (i % 2 ? 0.01 : -0.01)) * 50) / 50);
-    const a = await analyzeSignal(x, { beats: { beats: heard, downbeats: heard.filter((_, i) => i % 3 === 1) } });
+    const a = await analyzeSignal(x, { beatTracker: async () => ({ beats: heard, downbeats: heard.filter((_, i) => i % 3 === 1) }) });
     expect(Math.abs(a.tempo - 120)).toBeLessThan(1);
     // The grid is the model's, smoothed, moved onto the kicks and carried to both ends of the song.
     expect(a.beats.length).toBeGreaterThanOrEqual(46);
@@ -247,5 +247,23 @@ describe('pipeline', () => {
     const bars = a.downbeats.map((i) => a.beats[i]);
     expect(bars.length).toBeGreaterThan(12);
     for (let i = 1; i < bars.length; i++) expect(bars[i] - bars[i - 1]).toBeCloseTo(1.5, 1);
+  }, 60_000);
+
+  it('finds the grid by itself when the beat model fails or hears too little', async () => {
+    const x = song(120, 24, { bass: [40, 40, 43, 45] });
+    const alone = await analyzeSignal(x);
+    const logs: string[] = [];
+    const failing = await analyzeSignal(x, {
+      onLog: (m) => logs.push(m),
+      beatTracker: async () => {
+        throw new Error('no model');
+      },
+    });
+    const sparse = await analyzeSignal(x, { onLog: (m) => logs.push(m), beatTracker: async () => ({ beats: [1, 2, 3], downbeats: [1] }) });
+    expect(failing.beats).toEqual(alone.beats);
+    expect(failing.downbeats).toEqual(alone.downbeats);
+    expect(sparse.beats).toEqual(alone.beats);
+    expect(logs.some((m) => m.includes('no model'))).toBe(true);
+    expect(logs.some((m) => m.includes('too few beats'))).toBe(true);
   }, 60_000);
 });

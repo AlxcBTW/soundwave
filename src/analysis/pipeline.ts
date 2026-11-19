@@ -24,6 +24,7 @@ import {
 } from './types';
 
 export type Transcriber = (audio: Float32Array, onProgress: (p: number) => void) => Promise<PitchedNote[]>;
+export type BeatTracker = (audio: Float32Array, onProgress: (p: number) => void) => Promise<Beats>;
 
 export interface PipelineOptions {
   /** Optional neural transcriber; falls back to harmonic-salience tracking when missing or failing. */
@@ -37,8 +38,11 @@ export interface PipelineOptions {
   /** Separated stems at the analysis rate; with `stemNotes`, lines are timed by their attacks. */
   stems?: Partial<Record<StemName, Float32Array>>;
   stemNotes?: StemNotes;
-  /** Beats and bar starts from the beat model (see beat/track.ts); when given, they are the grid's source. */
-  beats?: Beats;
+  /**
+   * Optional beat model (see beat/track.ts): its beats and bar starts are the grid's source. The
+   * tracker here decides when it is missing, fails or finds too few beats.
+   */
+  beatTracker?: BeatTracker;
 }
 
 const NFFT = 2048;
@@ -89,7 +93,16 @@ export async function analyzeSignal(signal: Float32Array, opts: PipelineOptions 
   // Band-balanced onset envelope so kicks count as much as broadband noise.
   const env = onsetEnvelope(spec);
   // The beat model's beats when there are enough of them to be a grid; else the tracker here.
-  const modelled = opts.beats && opts.beats.beats.length >= 8 ? opts.beats : undefined;
+  let modelled: Beats | undefined;
+  if (opts.beatTracker) {
+    try {
+      const found = await opts.beatTracker(signal, (p) => report('rhythm', p * 0.3));
+      if (found.beats.length >= 8) modelled = found;
+      else opts.onLog?.('the beat model found too few beats; using the beat tracker');
+    } catch (err) {
+      opts.onLog?.(`the beat model failed (${(err as Error).message || String(err)}); using the beat tracker`);
+    }
+  }
   let tempo: number;
   let beats: number[];
   if (modelled) {
