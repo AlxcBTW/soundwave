@@ -175,7 +175,7 @@ Charts follow common five-lane authoring practice (`src/chart/generator.ts`, `sr
 - **Drums** use a fixed kit layout (kick left, snare middle, hi-hats right). Hi-hats thin out first on lower difficulties.
 - **Overdrive phrases** cover the same musical passages on every difficulty.
 
-To tune analysis or charts on your own files without the UI, see `scripts/dev/analyze.dev.ts` (`pnpm dev:analyze`).
+To tune analysis or charts on your own files without the UI, see `scripts/dev/analyze.dev.ts` (`pnpm dev:analyze`). `scripts/dev/beats.dev.ts` scores the beat grid against beats marked by hand, with and without the beat model.
 
 ### The Python reference (`ml-service/`)
 
