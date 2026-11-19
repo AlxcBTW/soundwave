@@ -191,7 +191,7 @@ export class PlayController {
         this.session.release(lane, this.engine.time(ts));
       },
       overdrive: () => {
-        if (this.phase === 'playing') this.session.activateOverdrive();
+        if (this.phase === 'playing') this.session.activateOverdrive(this.engine.time());
       },
       pause: () => {
         // With the settings open over the pause menu, Esc and the pause button belong to them.
@@ -235,7 +235,7 @@ export class PlayController {
 
   private readonly overdrivePress = (e: Event) => {
     e.preventDefault();
-    if (this.phase === 'playing') this.session.activateOverdrive();
+    if (this.phase === 'playing') this.session.activateOverdrive(this.engine.time());
   };
 
   /** Lays the highway out again after the layout changed without the canvas changing size (another input in use). */
